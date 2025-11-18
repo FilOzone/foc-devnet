@@ -2,8 +2,11 @@
 //!
 //! This module contains functions for installing Docker on various platforms.
 
-use std::process::Command;
 use crossterm::style::Stylize;
+use std::process::Command;
+
+pub mod linux;
+pub mod macos;
 
 /// Attempt to install Docker
 pub fn install_docker() -> Result<(), Box<dyn std::error::Error>> {
@@ -11,36 +14,44 @@ pub fn install_docker() -> Result<(), Box<dyn std::error::Error>> {
     if cfg!(target_os = "macos") {
         println!("{}", "📦 Installing Docker Desktop via Homebrew...".blue());
         let status = Command::new("brew")
-            .args(&["install", "--cask", "docker"])
+            .args(["install", "--cask", "docker"])
             .status()?;
         if status.success() {
             println!("{}", "✅ Docker Desktop installed successfully.".green());
-            println!("{}", "🚀 Please start Docker Desktop manually if it's not already running.".yellow());
+            println!(
+                "{}",
+                "🚀 Please start Docker Desktop manually if it's not already running.".yellow()
+            );
             return Ok(());
         } else {
             eprintln!("{}", "❌ Failed to install Docker via Homebrew.".red());
         }
+    } else if cfg!(target_os = "linux") {
+        // Try to detect the Linux distribution
+        if linux::is_ubuntu_or_debian()? {
+            println!("{}", "📦 Installing Docker CE on Ubuntu/Debian...".blue());
+            linux::install_docker_ubuntu()?;
+            return Ok(());
+        } else {
+            eprintln!(
+                "{}",
+                "❌ Automatic Docker installation is not supported on this Linux distribution."
+                    .red()
+            );
+            eprintln!(
+                "{}",
+                "Please install Docker manually for your platform.".cyan()
+            );
+        }
     } else {
-        eprintln!("{}", "❌ Automatic Docker installation is only supported on macOS via Homebrew.".red());
-        eprintln!("{}", "Please install Docker manually for your platform.".cyan());
+        eprintln!(
+            "{}",
+            "❌ Automatic Docker installation is only supported on macOS and Ubuntu/Debian.".red()
+        );
+        eprintln!(
+            "{}",
+            "Please install Docker manually for your platform.".cyan()
+        );
     }
     Err("Failed to install Docker".into())
-}
-
-/// Attempt to install Homebrew
-pub fn install_homebrew() -> Result<(), Box<dyn std::error::Error>> {
-    println!("{}", "🍺 Installing Homebrew...".blue());
-    let status = Command::new("/bin/bash")
-        .arg("-c")
-        .arg("curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | bash")
-        .status()?;
-    if status.success() {
-        println!("{}", "✅ Homebrew installed successfully.".green());
-        println!("{}", "🔄 You may need to restart your terminal for Homebrew to be available in PATH.".yellow());
-        Ok(())
-    } else {
-        eprintln!("{}", "❌ Failed to install Homebrew.".red());
-        eprintln!("{}", "Please install Homebrew manually from https://brew.sh/".cyan());
-        Err("Failed to install Homebrew".into())
-    }
 }
