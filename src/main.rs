@@ -1,6 +1,6 @@
 use clap::Parser;
 use foc_localnet::app;
-use foc_localnet::cli::{Cli, Commands};
+use foc_localnet::cli::{Cli, Commands, BuildCommands};
 use foc_localnet::commands;
 use foc_localnet::poison;
 
@@ -31,6 +31,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             poison::create_poison("RequirementsChecker")?;
             commands::check_requirements(setup)
         }
+        Commands::Build { build_command } => match build_command {
+            BuildCommands::Lotus { path, output_dir } => {
+                commands::build_project("lotus", path, output_dir)
+            }
+            BuildCommands::Curio { path, output_dir } => {
+                commands::build_project("curio", path, output_dir)
+            }
+        },
     };
 
     // Handle the result

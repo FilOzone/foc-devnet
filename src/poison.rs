@@ -65,6 +65,7 @@ pub fn create_poison(command: &str) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Remove the poison file after successful completion
+/// Does not do anything if the poison file does not exist.
 pub fn remove_poison() -> Result<(), Box<dyn std::error::Error>> {
     let poison_path = poison_file_path()?;
 

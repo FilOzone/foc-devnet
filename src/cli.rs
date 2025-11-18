@@ -29,4 +29,30 @@ pub enum Commands {
         #[arg(long)]
         setup: bool,
     },
+    /// Build Filecoin projects in a container
+    Build {
+        #[command(subcommand)]
+        build_command: BuildCommands,
+    },
+}
+
+/// Build subcommands
+#[derive(Subcommand)]
+pub enum BuildCommands {
+    /// Build Lotus (lotus and lotus-miner)
+    Lotus {
+        /// Path to the Lotus source directory (optional, will clone if not provided)
+        path: Option<String>,
+        /// Output directory for built binaries
+        #[arg(long)]
+        output_dir: Option<String>,
+    },
+    /// Build Curio
+    Curio {
+        /// Path to the Curio source directory (optional, will clone if not provided)
+        path: Option<String>,
+        /// Output directory for built binaries
+        #[arg(long)]
+        output_dir: Option<String>,
+    },
 }
