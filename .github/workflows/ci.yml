@@ -80,21 +80,8 @@ jobs:
           exit 1
         fi
 
-    - name: Test Lotus build command (with timeout to avoid long builds)
-      run: |
-        # Test the build command with a timeout to avoid excessive CI time
-        # This will test the cloning and Docker setup without full build
-        timeout 600 ./target/debug/foc-localnet build lotus || echo "Build timed out or failed as expected"
+    - name: Run Lotus build integration test
+      run: cargo test --test build_lotus_test -- --nocapture
 
-    - name: Test Curio build command (with timeout to avoid long builds)
-      run: |
-        # Test the build command with a timeout to avoid excessive CI time
-        # This will test the cloning and Docker setup without full build
-        timeout 600 ./target/debug/foc-localnet build curio || echo "Build timed out or failed as expected"
-
-    - name: Check if any output was generated
-      run: |
-        echo "Contents of test-output directory:"
-        ls -la test-output/ || echo "No output directory found"
-        echo "Contents of ~/.foc-localnet/bin/ if it exists:"
-        ls -la ~/.foc-localnet/bin/ 2>/dev/null || echo "Default output directory not found"
+    - name: Run Curio build integration test
+      run: cargo test --test build_curio_test -- --nocapture
