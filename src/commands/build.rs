@@ -139,12 +139,12 @@ fn build_in_container(
 
     let build_script = match project {
         "lotus" => format!(
-            "cd {} && make clean all && cp lotus lotus-miner lotus-worker {}",
-            container_source_dir, container_output_dir
+            "git config --global --add safe.directory {} && cd {} && make clean all && cp lotus lotus-miner lotus-worker {}",
+            container_source_dir, container_source_dir, container_output_dir
         ),
         "curio" => format!(
-            "cd {} && make clean all && cp curio {}",
-            container_source_dir, container_output_dir
+            "git config --global --add safe.directory {} && cd {} && git checkout pdpv0 && make clean all && cp curio {}",
+            container_source_dir, container_source_dir, container_output_dir
         ),
         _ => return Err(format!("Unknown project: {}", project).into()),
     };
