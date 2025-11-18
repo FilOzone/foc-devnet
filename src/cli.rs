@@ -13,7 +13,14 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Start the local cluster
-    Start,
+    Start {
+        /// Directory where docker volumes to be loaded will be stored
+        #[arg(long)]
+        volumes_dir: Option<String>,
+        /// Directory where logs of running docker instances will be stored
+        #[arg(long)]
+        logs_dir: Option<String>,
+    },
     /// Stop the local cluster
     Stop,
     /// Check system requirements
