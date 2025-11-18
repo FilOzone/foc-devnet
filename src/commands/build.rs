@@ -34,7 +34,10 @@ pub fn build_project(
         build_from_clone(project, &output_dir)?;
     }
 
-    println!("{} built successfully. Binaries available in {}", project, output_dir);
+    println!(
+        "{} built successfully. Binaries available in {}",
+        project, output_dir
+    );
 
     Ok(())
 }
@@ -55,7 +58,7 @@ fn build_from_clone(project: &str, output_dir: &str) -> Result<(), Box<dyn std::
 
     // Clone the repository
     let status = Command::new("git")
-        .args(&["clone", repo_url, repo_dir.to_str().unwrap()])
+        .args(["clone", repo_url, repo_dir.to_str().unwrap()])
         .status()?;
 
     if !status.success() {
@@ -64,7 +67,7 @@ fn build_from_clone(project: &str, output_dir: &str) -> Result<(), Box<dyn std::
 
     // Get latest release tag
     let output = Command::new("git")
-        .args(&["tag", "--sort=-version:refname"])
+        .args(["tag", "--sort=-version:refname"])
         .current_dir(&repo_dir)
         .output()?;
 
@@ -79,7 +82,7 @@ fn build_from_clone(project: &str, output_dir: &str) -> Result<(), Box<dyn std::
 
     // Checkout the latest tag
     let status = Command::new("git")
-        .args(&["checkout", latest_tag])
+        .args(["checkout", latest_tag])
         .current_dir(&repo_dir)
         .status()?;
 
@@ -108,7 +111,7 @@ fn build_in_container(
     let image_tag = "foc-localnet-builder:latest";
 
     let status = Command::new("docker")
-        .args(&["build", "-t", image_tag, dockerfile_dir])
+        .args(["build", "-t", image_tag, dockerfile_dir])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .status()?;
 
@@ -148,9 +151,7 @@ fn build_in_container(
 
     docker_run_args.push(build_script);
 
-    let status = Command::new("docker")
-        .args(&docker_run_args)
-        .status()?;
+    let status = Command::new("docker").args(&docker_run_args).status()?;
 
     if !status.success() {
         return Err(format!("Failed to build {} in container", project).into());

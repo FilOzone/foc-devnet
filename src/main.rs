@@ -1,6 +1,6 @@
 use clap::Parser;
 use foc_localnet::app;
-use foc_localnet::cli::{Cli, Commands, BuildCommands};
+use foc_localnet::cli::{BuildCommands, Cli, Commands};
 use foc_localnet::commands;
 use foc_localnet::poison;
 
