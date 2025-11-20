@@ -31,11 +31,11 @@ pub enum Location {
     /// tag (e.g., "v1.2.3") to check out. This is useful for stable releases.
     GitTag { url: String, tag: String },
 
-    /// Use a pre-built executable located at a local file path.
+    /// Fetch source code from a Git repository at a specific branch.
     ///
-    /// The `path` field should be the absolute path to the executable binary.
-    /// This is the simplest option when you already have the binaries installed.
-    LocalExec { path: String },
+    /// The `url` field is the Git repository URL, and `branch` is the specific
+    /// branch (e.g., "main", "develop") to check out.
+    GitBranch { url: String, branch: String },
 }
 
 /// Main configuration structure for the foc-localnet application.
@@ -118,14 +118,17 @@ impl Default for Config {
             lotus_miner_ports: 1,
             lotus_ports: 1,
             curio_miner_ports: 1,
-            lotus_location: Location::LocalExec {
-                path: "/usr/local/bin/lotus".to_string(),
+            lotus_location: Location::GitTag {
+                url: "https://github.com/filecoin-project/lotus.git".to_string(),
+                tag: "v1.12.0".to_string(),
             },
-            lotus_miner_location: Location::LocalExec {
-                path: "/usr/local/bin/lotus-miner".to_string(),
+            lotus_miner_location: Location::GitTag {
+                url: "https://github.com/filecoin-project/lotus.git".to_string(),
+                tag: "v1.12.0".to_string(),
             },
-            curio_location: Location::LocalExec {
-                path: "/usr/local/bin/curio".to_string(),
+            curio_location: Location::GitTag {
+                url: "https://github.com/filecoin-project/curio.git".to_string(),
+                tag: "v1.12.0".to_string(),
             },
         }
     }

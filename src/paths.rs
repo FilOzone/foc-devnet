@@ -26,8 +26,18 @@ pub fn poison_file() -> PathBuf {
 }
 
 /// Returns the path to the foc-localnet remote pulls directory, e.g., ~/.foc-localnet/remote-pulls
-pub fn foc_localnet_remote_pulls() -> PathBuf {
-    foc_localnet_home().join("remote-pulls")
+pub fn foc_localnet_code() -> PathBuf {
+    foc_localnet_home().join("code")
+}
+
+/// Returns the path to the "lotus" repository
+pub fn foc_localnet_lotus_repo() -> PathBuf {
+    foc_localnet_code().join("lotus")
+}
+
+/// Returns the path to the "curio" repository
+pub fn foc_localnet_curio_repo() -> PathBuf {
+    foc_localnet_code().join("curio")
 }
 
 /// Returns the path to the foc-localnet temporary directory, e.g., ~/.foc-localnet/tmp
@@ -43,4 +53,9 @@ pub fn foc_localnet_artifacts() -> PathBuf {
 /// Returns the path where docker images are stored, e.g., ~/.foc-localnet/artifacts/docker-images
 pub fn foc_localnet_docker_images() -> PathBuf {
     foc_localnet_artifacts().join("docker").join("images")
+}
+
+/// Returns the path to the foc-localnet configuration, e.g., ~/.foc-localnet/config.toml
+pub fn foc_localnet_config() -> PathBuf {
+    foc_localnet_home().join("config.toml")
 }

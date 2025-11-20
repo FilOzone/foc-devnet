@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 
 /// CLI structure for foc-localnet
 #[derive(Parser)]
@@ -24,7 +25,7 @@ pub enum Commands {
     /// Stop the local cluster
     Stop,
     /// Check system requirements
-    RequirementsChecker {
+    Requirements {
         /// Automatically install and configure missing dependencies
         #[arg(long)]
         setup: bool,
@@ -34,6 +35,24 @@ pub enum Commands {
         #[command(subcommand)]
         build_command: BuildCommands,
     },
+    /// Clean various parts of the foc-localnet environment
+    Clean {
+        /// Clean downloaded artifacts only
+        #[arg(long)]
+        artifacts: bool,
+        /// Clean Docker images only
+        #[arg(long)]
+        dockerimages: bool,
+        /// Clean built binaries only
+        #[arg(long)]
+        binaries: bool,
+        /// Run 'make clean' in Lotus repository only
+        #[arg(long)]
+        lotus: bool,
+        /// Run 'make clean' in Curio repository only
+        #[arg(long)]
+        curio: bool,
+    },
 }
 
 /// Build subcommands
@@ -42,17 +61,17 @@ pub enum BuildCommands {
     /// Build Lotus (lotus and lotus-miner)
     Lotus {
         /// Path to the Lotus source directory (optional, will clone if not provided)
-        path: Option<String>,
+        path: Option<PathBuf>,
         /// Output directory for built binaries
         #[arg(long)]
-        output_dir: Option<String>,
+        output_dir: Option<PathBuf>,
     },
     /// Build Curio
     Curio {
         /// Path to the Curio source directory (optional, will clone if not provided)
-        path: Option<String>,
+        path: Option<PathBuf>,
         /// Output directory for built binaries
         #[arg(long)]
-        output_dir: Option<String>,
+        output_dir: Option<PathBuf>,
     },
 }

@@ -47,9 +47,9 @@ jobs:
     - name: Build
       run: cargo build
 
-    - name: Test requirements-checker with --setup
+    - name: Test requirements with --setup
       run: |
-        cargo run -- requirements-checker --setup
+        cargo run -- requirements --setup
       continue-on-error: false
 
   build-commands-test:

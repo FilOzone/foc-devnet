@@ -4,13 +4,15 @@ A command-line tool for managing local Filecoin-onchain-cloud clusters.
 
 ## Overview
 
-`foc-localnet` provides an easy way to start, stop, and manage local Filecoin network clusters for development and testing purposes. It handles system requirements automatically and provides a streamlined experience for developers working with Filecoin-onchain-cloud.
+`foc-localnet` provides an easy way to start, stop, and manage local Filecoin network clusters for development and testing purposes. It checks system requirements and can install some dependencies automatically.
 
 ## Features
 
 - 🚀 **Start/Stop Clusters**: Easily manage local Filecoin clusters
 - 🔍 **Requirements Checking**: Automatically verify system prerequisites
-- 📦 **Auto-Installation**: Install missing dependencies (Docker, Homebrew) with `--setup`
+- 📦 **Auto-Installation**: Install missing dependencies (Homebrew) with `--setup`
+- 🏗️ **Build Projects**: Build Lotus and Curio from source in Docker containers
+- 🧹 **Clean Environment**: Clean artifacts, binaries, and Docker images
 - 🖥️ **Cross-Platform**: Supports macOS and Ubuntu/Debian Linux
 - 🎨 **Beautiful Output**: Colorized terminal output with emojis
 
@@ -18,8 +20,8 @@ A command-line tool for managing local Filecoin-onchain-cloud clusters.
 
 ### Prerequisites
 
-- Rust 1.70+ (with rustup)
-- Docker (will be installed automatically with `--setup`)
+- Rust 1.70+ (install via rustup: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)
+- Docker
 - Homebrew (macOS only, will be installed automatically with `--setup`)
 
 ### Build from Source
@@ -38,10 +40,34 @@ The binary will be available at `target/release/foc-localnet`.
 
 ```bash
 # Check if all requirements are met
-foc-localnet requirements-checker
+foc-localnet requirements
 
 # Check and automatically install missing dependencies
-foc-localnet requirements-checker --setup
+foc-localnet requirements --setup
+```
+
+### Build Projects
+
+```bash
+# Build Lotus (lotus and lotus-miner binaries)
+foc-localnet build lotus
+
+# Build Curio
+foc-localnet build curio
+```
+
+### Clean Environment
+
+```bash
+# Clean everything (artifacts, binaries, Docker images, run make clean)
+foc-localnet clean
+
+# Clean specific parts
+foc-localnet clean --artifacts     # Only downloaded artifacts
+foc-localnet clean --dockerimages  # Only Docker images
+foc-localnet clean --binaries      # Only built binaries
+foc-localnet clean --lotus         # Run 'make clean' in Lotus repo
+foc-localnet clean --curio         # Run 'make clean' in Curio repo
 ```
 
 ### Manage Clusters
@@ -58,17 +84,19 @@ foc-localnet stop
 
 ```bash
 foc-localnet --help
-foc-localnet requirements-checker --help
+foc-localnet requirements --help
+foc-localnet build --help
+foc-localnet clean --help
 ```
 
 ## System Requirements
 
 ### macOS
 - Homebrew (auto-installed with `--setup`)
-- Docker Desktop (auto-installed with `--setup`)
+- Docker Desktop
 
 ### Ubuntu/Debian Linux
-- Docker CE (auto-installed with `--setup`)
+- Docker CE
 - sudo access for package installation
 
 ## Development
@@ -112,13 +140,17 @@ src/
 └── commands/
     ├── mod.rs              # Command exports
     ├── start.rs            # Cluster start logic
-    ├── stop.rs             # Cluster stop logic
-    └── requirements_checker/
-        ├── mod.rs          # Requirements checking logic
+    ├── stop.rs            # Cluster stop logic
+    ├── clean.rs           # Environment cleaning logic
+    ├── build/
+    │   ├── mod.rs         # Build command logic
+    │   └── repository.rs  # Repository preparation logic
+    └── requirements/
+        ├── mod.rs         # Requirements checking logic
         └── setup_docker/
-            ├── mod.rs      # Docker setup dispatcher
-            ├── macos.rs    # macOS-specific setup
-            └── linux.rs    # Linux-specific setup
+            ├── mod.rs     # Docker setup dispatcher
+            ├── macos.rs   # macOS-specific setup
+            └── linux.rs   # Linux-specific setup
 ```
 
 ## Contributing
