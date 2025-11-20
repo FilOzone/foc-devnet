@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 /// Get the path to the poison file
 fn poison_file_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -60,7 +60,7 @@ pub fn create_poison(command: &str) -> Result<(), Box<dyn std::error::Error>> {
     let log_entry = format!("{} invoked at {}\n", command, timestamp);
 
     fs::write(&poison_path, log_entry)?;
-    info!("Poison file created at: {}", poison_path.display());
+    debug!("Poison file created at: {}", poison_path.display());
     Ok(())
 }
 
@@ -71,7 +71,7 @@ pub fn remove_poison() -> Result<(), Box<dyn std::error::Error>> {
 
     if poison_path.exists() {
         fs::remove_file(&poison_path)?;
-        info!("Poison file removed - operation completed successfully");
+        debug!("Poison file removed - operation completed successfully");
     }
 
     Ok(())

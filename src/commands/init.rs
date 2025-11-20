@@ -4,14 +4,17 @@
 //! - Creating all necessary directories
 //! - Generating default configuration
 //! - Setting up PATH variables in shell configs
+//! - Downloading required artifacts
 //! - Building and caching Docker images
 
 use dirs;
+use downloader::Downloader;
+use indicatif::{ProgressBar, ProgressStyle};
+use tracing::debug;
 use std::env;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use tracing::info;
 
 use crate::config::Config;
 use crate::paths::{
@@ -26,7 +29,8 @@ use crate::paths::{
 /// 1. Creates all necessary directories
 /// 2. Generates default config.toml
 /// 3. Sets up PATH variables in shell configs
-/// 4. Builds and caches Docker images
+/// 4. Downloads required artifacts
+/// 5. Builds and caches Docker images
 pub fn init_environment() -> Result<(), Box<dyn std::error::Error>> {
     println!("Initializing foc-localnet environment...");
 
@@ -38,6 +42,9 @@ pub fn init_environment() -> Result<(), Box<dyn std::error::Error>> {
 
     // Set up PATH variables
     setup_path_variables()?;
+
+    // Download required artifacts
+    download_artifacts()?;
 
     // Build and cache Docker images
     build_and_cache_docker_images()?;
@@ -66,7 +73,7 @@ fn create_directories() -> Result<(), Box<dyn std::error::Error>> {
 
     for dir in directories {
         if !dir.exists() {
-            info!("Creating directory: {:?}", dir);
+            debug!("Creating directory: {:?}", dir);
             fs::create_dir_all(&dir)?;
             println!("  ✓ Created: {}", dir.display());
         } else {
@@ -86,7 +93,7 @@ fn generate_default_config() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    info!("Generating default config: {:?}", config_path);
+    debug!("Generating default config: {:?}", config_path);
     let default_config = toml::to_string(&Config::default())
         .map_err(|e| format!("Failed to serialize default config: {}", e))?;
 
@@ -183,7 +190,6 @@ fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>> {
 
     for dockerfile in dockerfiles {
         let name = extract_name(&dockerfile)?;
-        println!("  Building image for: {}", name);
 
         // Build the Docker image
         build_docker_image(&dockerfile, &name)?;
@@ -247,6 +253,14 @@ fn build_docker_image(
         dockerfile_path.display()
     );
 
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap(),
+    );
+    pb.set_message(format!("Building Docker image: {}", image_tag));
+
     let status = Command::new("docker")
         .args([
             "build",
@@ -259,10 +273,11 @@ fn build_docker_image(
         .status()?;
 
     if !status.success() {
+        pb.finish_with_message(format!("❌ Failed to build Docker image: {}", image_tag));
         return Err(format!("Failed to build Docker image: {}", image_tag).into());
     }
 
-    println!("    ✓ Built image: {}", image_tag);
+    pb.finish_with_message(format!("✓ Built image: {}", image_tag));
     Ok(())
 }
 
@@ -273,14 +288,131 @@ fn save_docker_image(name: &str, images_dir: &Path) -> Result<(), Box<dyn std::e
 
     println!("    Saving image to: {}", tar_path.display());
 
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap(),
+    );
+    pb.set_message(format!("Saving Docker image: {}", name));
+
     let status = Command::new("docker")
         .args(["save", "-o", &tar_path.to_string_lossy(), &image_tag])
         .status()?;
 
     if !status.success() {
+        pb.finish_with_message(format!("❌ Failed to save Docker image: {}", image_tag));
         return Err(format!("Failed to save Docker image: {}", image_tag).into());
     }
 
-    println!("    ✓ Saved image: {}", tar_path.display());
+    pb.finish_with_message(format!("✓ Saved image: {}", tar_path.display()));
+    Ok(())
+}
+
+/// Download required artifacts for foc-localnet.
+///
+/// This function downloads Yugabyte database and extracts it to the
+/// artifacts directory. It reads the download URL from the configuration.
+fn download_artifacts() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Downloading artifacts...");
+
+    // Load configuration
+    let config_path = foc_localnet_config();
+    let config_content = fs::read_to_string(&config_path)
+        .map_err(|e| format!("Failed to read config file at {:?}: {}", config_path, e))?;
+    let config: Config = toml::from_str(&config_content)
+        .map_err(|e| format!("Failed to parse config file: {}", e))?;
+
+    // Ensure artifacts directory exists
+    let artifacts_dir = foc_localnet_artifacts();
+    fs::create_dir_all(&artifacts_dir)?;
+
+    // Download Yugabyte
+    download_yugabyte(&config.yugabyte_download_url, &artifacts_dir)?;
+
+    println!("  ✓ Artifacts downloaded successfully.");
+    Ok(())
+}
+
+/// Downloads and extracts Yugabyte database.
+///
+/// Downloads the Yugabyte tarball from the given URL and extracts it
+/// to the specified directory.
+fn download_yugabyte(url: &str, artifacts_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    // Extract filename from URL
+    let filename = url
+        .split('/')
+        .last()
+        .ok_or("Invalid URL: no filename")?;
+    let tarball_path = artifacts_dir.join(filename);
+
+    // Create progress bar
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap(),
+    );
+    pb.set_message(format!("Downloading Yugabyte from {}...", url));
+
+    // Download the tarball using downloader
+    let mut downloader = Downloader::builder()
+        .download_folder(artifacts_dir)
+        .build()?;
+    
+    let dl = downloader::Download::new(url).file_name(Path::new(&filename));
+    downloader.download(&[dl])?;
+
+    pb.finish_with_message("✓ Downloaded Yugabyte");
+
+    // Clean the yugabyte directory if it exists
+    let yugabyte_dir = artifacts_dir.join("yugabyte");
+    if yugabyte_dir.exists() {
+        fs::remove_dir_all(&yugabyte_dir)?;
+    }
+
+    // Extract the tarball
+    let pb_extract = ProgressBar::new_spinner();
+    pb_extract.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap(),
+    );
+    pb_extract.set_message("Extracting Yugabyte...");
+
+    let status = Command::new("tar")
+        .args(&["xfz", &tarball_path.to_string_lossy()])
+        .current_dir(artifacts_dir)
+        .status()?;
+
+    if !status.success() {
+        pb_extract.finish_with_message("❌ Failed to extract Yugabyte");
+        return Err(format!("Failed to extract Yugabyte tarball").into());
+    }
+
+    // Find the extracted directory and rename it to "yugabyte"
+    let mut extracted_dir = None;
+    for entry in fs::read_dir(artifacts_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if name.starts_with("yugabyte-") {
+                    extracted_dir = Some(path);
+                    break;
+                }
+            }
+        }
+    }
+
+    if let Some(extracted) = extracted_dir {
+        fs::rename(&extracted, &yugabyte_dir)?;
+    } else {
+        return Err("Could not find extracted yugabyte directory".into());
+    }
+
+    pb_extract.finish_with_message("✓ Extracted Yugabyte");
+
+    println!("  ✓ Yugabyte downloaded and installed successfully.");
     Ok(())
 }

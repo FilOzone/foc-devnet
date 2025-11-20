@@ -102,6 +102,12 @@ pub struct Config {
     /// Defines how to obtain and run the curio executable.
     /// See [`Location`] for available options.
     pub curio_location: Location,
+
+    /// URL to download Yugabyte database tarball.
+    ///
+    /// This is the direct link to the Yugabyte tarball required for running curio.
+    /// Default: https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz
+    pub yugabyte_download_url: String,
 }
 
 impl Default for Config {
@@ -130,6 +136,7 @@ impl Default for Config {
                 url: "https://github.com/filecoin-project/curio.git".to_string(),
                 tag: "v1.12.0".to_string(),
             },
+            yugabyte_download_url: "https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz".to_string(),
         }
     }
 }
