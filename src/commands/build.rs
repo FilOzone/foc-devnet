@@ -5,6 +5,7 @@
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use crate::paths::foc_localnet_bin;
 
 /// Build a project in a Docker container
 pub fn build_project(
@@ -16,8 +17,7 @@ pub fn build_project(
 
     // Determine output directory
     let output_dir = output_dir.unwrap_or_else(|| {
-        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        format!("{}/.foc-localnet/bin", home)
+        foc_localnet_bin().to_string_lossy().to_string()
     });
 
     // Ensure output directory exists

@@ -82,8 +82,8 @@ jobs:
 
     - name: Run Lotus build integration tests
       run: |
-        cargo test --test build_lotus_test -- --nocapture
+        RUST_BACKTRACE=full cargo test --test build_lotus_test -- --nocapture
 
     - name: Run Curio build integration tests
       run: |
-        cargo test --test build_curio_test -- --nocapture
+        RUST_BACKTRACE=full cargo test --test build_curio_test -- --nocapture

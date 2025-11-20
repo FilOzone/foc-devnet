@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use tracing::info;
+use crate::paths::foc_localnet_logs;
 
 /// Execute the start command.
 ///
@@ -21,11 +22,7 @@ pub fn start_cluster(
     let logs_dir = if let Some(dir) = logs_dir {
         PathBuf::from(dir)
     } else {
-        // Default to ~/.foc-localnet/logs/
-        dirs::home_dir()
-            .ok_or("Could not determine home directory")?
-            .join(".foc-localnet")
-            .join("logs")
+        foc_localnet_logs()
     };
 
     // Create directories if they don't exist

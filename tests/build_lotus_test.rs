@@ -1,3 +1,4 @@
+use std::fs;
 use std::process::Command;
 use tempfile;
 
@@ -135,6 +136,18 @@ fn test_lotus_build_valid_path() {
     // Check that the expected binaries were created
     let lotus_binary = output_dir.join("lotus");
     let lotus_miner_binary = output_dir.join("lotus-miner");
+
+    // List contents of output directory for debugging
+    println!("Contents of output directory:");
+    if let Ok(entries) = fs::read_dir(&output_dir) {
+        for entry in entries {
+            if let Ok(entry) = entry {
+                println!("  {}", entry.path().display());
+            }
+        }
+    } else {
+        println!("  Could not read output directory");
+    }
 
     // The build should create the expected binaries
     assert!(
