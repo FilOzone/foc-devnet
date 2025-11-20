@@ -162,7 +162,7 @@ fn update_existing_repo(repo_path: &PathBuf) -> Result<(), Box<dyn std::error::E
 }
 
 /// Clone a fresh Git repository from the given URL.
-fn clone_fresh_repo(repo_path: &PathBuf, url: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn clone_fresh_repo(repo_path: &Path, url: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Create parent directory
     if let Some(parent) = repo_path.parent() {
         fs::create_dir_all(parent)?;

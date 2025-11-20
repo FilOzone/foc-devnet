@@ -50,6 +50,11 @@ pub enum Commands {
         #[command(subcommand)]
         build_command: BuildCommands,
     },
+    /// Configure foc-localnet settings
+    Config {
+        #[command(subcommand)]
+        config_command: ConfigCommands,
+    },
     /// Clean various parts of the foc-localnet environment
     Clean {
         /// Clean downloaded artifacts only
@@ -90,5 +95,20 @@ pub enum BuildCommands {
         /// Output directory for built binaries
         #[arg(long)]
         output_dir: Option<PathBuf>,
+    },
+}
+
+/// Config subcommands
+#[derive(Subcommand)]
+pub enum ConfigCommands {
+    /// Configure Lotus source location
+    Lotus {
+        /// Lotus source location (e.g., 'gittag:v1.0.0', 'gitcommit:abc123', 'local:/path/to/lotus')
+        source: String,
+    },
+    /// Configure Curio source location
+    Curio {
+        /// Curio source location (e.g., 'gittag:v1.0.0', 'gitcommit:abc123', 'local:/path/to/curio')
+        source: String,
     },
 }

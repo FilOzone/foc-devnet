@@ -49,6 +49,7 @@ impl Location {
     /// - "gittag:url:tag"
     /// - "gitcommit:url:commit"
     /// - "gitbranch:url:branch"
+    ///
     /// Where url can contain colons (e.g., https://github.com/repo.git)
     pub fn parse_with_default(s: &str, default_url: &str) -> Result<Self, String> {
         let parts: Vec<&str> = s.split(':').collect();

@@ -1,7 +1,7 @@
 use clap::Parser;
 use crossterm::style::Stylize;
 use foc_localnet::app;
-use foc_localnet::cli::{BuildCommands, Cli, Commands};
+use foc_localnet::cli::{BuildCommands, Cli, Commands, ConfigCommands};
 use foc_localnet::commands;
 use foc_localnet::commands::build::Project;
 use foc_localnet::config::Config;
@@ -77,6 +77,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Status => {
             // Status is read-only, no poison protection needed
             commands::status()
+        }
+        Commands::Config { config_command } => {
+            poison::create_poison("Config")?;
+            match config_command {
+                ConfigCommands::Lotus { source } => commands::config_lotus(source),
+                ConfigCommands::Curio { source } => commands::config_curio(source),
+            }
         }
     };
 
