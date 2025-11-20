@@ -70,6 +70,16 @@ fn build_in_container(
     let dockerfile_dir = "docker"; // Assuming docker/Dockerfile exists
 
     // Build the Docker image
+    let image_tag = build_builder_image(dockerfile_dir)?;
+
+    // Run the build in container
+    run_build_in_container(source_dir, output_dir, project, &image_tag)?;
+
+    Ok(())
+}
+
+/// Build the builder Docker image.
+fn build_builder_image(dockerfile_dir: &str) -> Result<String, Box<dyn std::error::Error>> {
     println!("Building Docker image for builder...");
     let image_tag = "foc-localnet-builder:latest";
 
@@ -82,7 +92,16 @@ fn build_in_container(
         return Err("Failed to build Docker image".into());
     }
 
-    // Run the build in container
+    Ok(image_tag.to_string())
+}
+
+/// Run the build process inside the Docker container.
+fn run_build_in_container(
+    source_dir: &str,
+    output_dir: &str,
+    project: &Project,
+    image_tag: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Building {} in container...", project);
 
     let container_source_dir = "/workspace/source";

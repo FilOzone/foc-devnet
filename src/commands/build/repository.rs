@@ -99,51 +99,74 @@ fn prepare_git_repo(repo_path: &PathBuf, url: &str) -> Result<(), Box<dyn std::e
     let git_dir = repo_path.join(".git");
 
     if repo_path.exists() {
-        // Check if it's a symlink - if so, remove it
-        if repo_path.is_symlink() {
-            println!(
-                "Removing symlink at {} to replace with Git repository",
-                repo_path.display()
-            );
-            fs::remove_file(repo_path)?;
-        } else if git_dir.exists() {
-            // It's already a Git repository, update it
-            println!(
-                "Updating existing Git repository at {}",
-                repo_path.display()
-            );
-
-            let status = Command::new("git")
-                .args(["fetch", "--all", "--tags", "--prune"])
-                .current_dir(repo_path)
-                .status()?;
-
-            if !status.success() {
-                return Err(format!(
-                    "Failed to fetch updates for repository at {}",
-                    repo_path.display()
-                )
-                .into());
-            }
-
-            return Ok(());
-        } else {
-            // Path exists but is not a Git repo or symlink, remove it
-            println!(
-                "Removing existing non-Git directory at {}",
-                repo_path.display()
-            );
-            fs::remove_dir_all(repo_path)?;
-        }
+        handle_existing_repo_path(repo_path, &git_dir, url)?;
+    } else {
+        clone_fresh_repo(repo_path, url)?;
     }
 
-    // Clone fresh repository
-    println!("Cloning repository from {} to {}", url, repo_path.display());
+    Ok(())
+}
 
+/// Handle the case where the repository path already exists.
+fn handle_existing_repo_path(
+    repo_path: &PathBuf,
+    git_dir: &Path,
+    url: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Check if it's a symlink - if so, remove it
+    if repo_path.is_symlink() {
+        println!(
+            "Removing symlink at {} to replace with Git repository",
+            repo_path.display()
+        );
+        fs::remove_file(repo_path)?;
+        clone_fresh_repo(repo_path, url)?;
+    } else if git_dir.exists() {
+        // It's already a Git repository, update it
+        update_existing_repo(repo_path)?;
+    } else {
+        // Path exists but is not a Git repo or symlink, remove it
+        println!(
+            "Removing existing non-Git directory at {}",
+            repo_path.display()
+        );
+        fs::remove_dir_all(repo_path)?;
+        clone_fresh_repo(repo_path, url)?;
+    }
+    Ok(())
+}
+
+/// Update an existing Git repository by fetching latest changes.
+fn update_existing_repo(repo_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    println!(
+        "Updating existing Git repository at {}",
+        repo_path.display()
+    );
+
+    let status = Command::new("git")
+        .args(["fetch", "--all", "--tags", "--prune"])
+        .current_dir(repo_path)
+        .status()?;
+
+    if !status.success() {
+        return Err(format!(
+            "Failed to fetch updates for repository at {}",
+            repo_path.display()
+        )
+        .into());
+    }
+
+    Ok(())
+}
+
+/// Clone a fresh Git repository from the given URL.
+fn clone_fresh_repo(repo_path: &PathBuf, url: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Create parent directory
     if let Some(parent) = repo_path.parent() {
         fs::create_dir_all(parent)?;
     }
+
+    println!("Cloning repository from {} to {}", url, repo_path.display());
 
     let status = Command::new("git")
         .args(["clone", url, repo_path.to_str().unwrap()])

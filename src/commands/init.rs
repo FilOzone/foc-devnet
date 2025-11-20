@@ -12,7 +12,7 @@ use downloader::Downloader;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::env;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use tracing::debug;
 
@@ -122,33 +122,17 @@ fn generate_default_config(
     // Start with default config
     let mut config = Config::default();
 
-    // Override lotus location if provided
-    if let Some(loc_str) = lotus_location {
-        let default_url = match config.lotus {
-            Location::GitTag { ref url, .. } => url.clone(),
-            Location::GitCommit { ref url, .. } => url.clone(),
-            Location::GitBranch { ref url, .. } => url.clone(),
-            Location::LocalSource { .. } => {
-                "https://github.com/filecoin-project/lotus.git".to_string()
-            }
-        };
-        config.lotus = Location::parse_with_default(&loc_str, &default_url)
-            .map_err(|e| format!("Invalid lotus location: {}", e))?;
-    }
-
-    // Override curio location if provided
-    if let Some(loc_str) = curio_location {
-        let default_url = match config.curio {
-            Location::GitTag { ref url, .. } => url.clone(),
-            Location::GitCommit { ref url, .. } => url.clone(),
-            Location::GitBranch { ref url, .. } => url.clone(),
-            Location::LocalSource { .. } => {
-                "https://github.com/filecoin-project/curio.git".to_string()
-            }
-        };
-        config.curio = Location::parse_with_default(&loc_str, &default_url)
-            .map_err(|e| format!("Invalid curio location: {}", e))?;
-    }
+    // Apply location overrides
+    apply_location_override(
+        &mut config.lotus,
+        lotus_location,
+        "https://github.com/filecoin-project/lotus.git",
+    )?;
+    apply_location_override(
+        &mut config.curio,
+        curio_location,
+        "https://github.com/filecoin-project/curio.git",
+    )?;
 
     // Override yugabyte URL if provided
     if let Some(url) = yugabyte_url {
@@ -161,6 +145,25 @@ fn generate_default_config(
     fs::write(&config_path, default_config)?;
     println!("  ✓ Created default config: {}", config_path.display());
 
+    Ok(())
+}
+
+/// Apply a location override to a Location field if the override string is provided.
+fn apply_location_override(
+    location: &mut Location,
+    override_str: Option<String>,
+    default_url: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(loc_str) = override_str {
+        let url = match *location {
+            Location::GitTag { ref url, .. } => url.clone(),
+            Location::GitCommit { ref url, .. } => url.clone(),
+            Location::GitBranch { ref url, .. } => url.clone(),
+            Location::LocalSource { .. } => default_url.to_string(),
+        };
+        *location = Location::parse_with_default(&loc_str, &url)
+            .map_err(|e| format!("Invalid location: {}", e))?;
+    }
     Ok(())
 }
 
@@ -455,6 +458,17 @@ fn clone_and_checkout(
         return Ok(());
     }
 
+    clone_repo(name, url, &repo_dir)?;
+    let checkout_ref = determine_checkout_ref(commit, tag, branch);
+    checkout_to_ref(name, &repo_dir, &checkout_ref)?;
+    update_submodules(name, &repo_dir)?;
+
+    println!("✓ Cloned and checked out {} to {}", name, checkout_ref);
+    Ok(())
+}
+
+/// Clone the repository from the given URL to the specified directory.
+fn clone_repo(name: &str, url: &str, repo_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     println!("  Cloning {} from {}...", name, url);
 
     let pb = ProgressBar::new_spinner();
@@ -467,7 +481,7 @@ fn clone_and_checkout(
 
     // Clone the repository
     let status = Command::new("git")
-        .args(&["clone", url, &repo_dir.to_string_lossy()])
+        .args(["clone", url, &repo_dir.to_string_lossy()])
         .status()?;
 
     if !status.success() {
@@ -475,22 +489,40 @@ fn clone_and_checkout(
         return Err(format!("Failed to clone {} repository", name).into());
     }
 
+    pb.finish();
+    Ok(())
+}
+
+/// Determine the reference to checkout based on the provided options.
+fn determine_checkout_ref(commit: Option<&str>, tag: Option<&str>, branch: Option<&str>) -> String {
+    if let Some(commit) = commit {
+        commit.to_string()
+    } else if let Some(tag) = tag {
+        tag.to_string()
+    } else if let Some(branch) = branch {
+        branch.to_string()
+    } else {
+        "main".to_string()
+    }
+}
+
+/// Checkout to the specified reference in the repository.
+fn checkout_to_ref(
+    name: &str,
+    repo_dir: &Path,
+    checkout_ref: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap(),
+    );
     pb.set_message(format!("Checking out {}...", name));
 
-    // Change to the repository directory and checkout the ref
-    let checkout_ref = if let Some(commit) = commit {
-        commit
-    } else if let Some(tag) = tag {
-        tag
-    } else if let Some(branch) = branch {
-        branch
-    } else {
-        "main"
-    };
-
     let status = Command::new("git")
-        .args(&["checkout", checkout_ref])
-        .current_dir(&repo_dir)
+        .args(["checkout", checkout_ref])
+        .current_dir(repo_dir)
         .status()?;
 
     if !status.success() {
@@ -501,12 +533,24 @@ fn clone_and_checkout(
         return Err(format!("Failed to checkout {} to {}", name, checkout_ref).into());
     }
 
+    pb.finish();
+    Ok(())
+}
+
+/// Update submodules in the repository.
+fn update_submodules(name: &str, repo_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap(),
+    );
     pb.set_message(format!("Updating submodules for {}...", name));
 
     // Update submodules recursively
     let status = Command::new("git")
-        .args(&["submodule", "update", "--init", "--recursive"])
-        .current_dir(&repo_dir)
+        .args(["submodule", "update", "--init", "--recursive"])
+        .current_dir(repo_dir)
         .status()?;
 
     if !status.success() {
@@ -514,10 +558,7 @@ fn clone_and_checkout(
         return Err(format!("Failed to update submodules for {}", name).into());
     }
 
-    pb.finish_with_message(format!(
-        "✓ Cloned and checked out {} to {}",
-        name, checkout_ref
-    ));
+    pb.finish();
     Ok(())
 }
 
@@ -526,8 +567,18 @@ fn clone_and_checkout(
 /// Downloads the Yugabyte tarball from the given URL and extracts it
 /// to the specified directory.
 fn download_yugabyte(url: &str, artifacts_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let tarball_path = download_yugabyte_tarball(url, artifacts_dir)?;
+    extract_yugabyte_tarball(&tarball_path, artifacts_dir)?;
+    Ok(())
+}
+
+/// Download the Yugabyte tarball from the given URL.
+fn download_yugabyte_tarball(
+    url: &str,
+    artifacts_dir: &Path,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
     // Extract filename from URL
-    let filename = url.split('/').last().ok_or("Invalid URL: no filename")?;
+    let filename = url.split('/').next_back().ok_or("Invalid URL: no filename")?;
     let tarball_path = artifacts_dir.join(filename);
 
     // Create progress bar
@@ -549,6 +600,14 @@ fn download_yugabyte(url: &str, artifacts_dir: &Path) -> Result<(), Box<dyn std:
 
     pb.finish_with_message("✓ Downloaded Yugabyte");
 
+    Ok(tarball_path)
+}
+
+/// Extract the Yugabyte tarball to the artifacts directory.
+fn extract_yugabyte_tarball(
+    tarball_path: &Path,
+    artifacts_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Clean the yugabyte directory if it exists
     let yugabyte_dir = artifacts_dir.join("yugabyte");
     if yugabyte_dir.exists() {
@@ -565,13 +624,13 @@ fn download_yugabyte(url: &str, artifacts_dir: &Path) -> Result<(), Box<dyn std:
     pb_extract.set_message("Extracting Yugabyte...");
 
     let status = Command::new("tar")
-        .args(&["xfz", &tarball_path.to_string_lossy()])
+        .args(["xfz", &tarball_path.to_string_lossy()])
         .current_dir(artifacts_dir)
         .status()?;
 
     if !status.success() {
         pb_extract.finish_with_message("❌ Failed to extract Yugabyte");
-        return Err(format!("Failed to extract Yugabyte tarball").into());
+        return Err("Failed to extract Yugabyte tarball".to_string().into());
     }
 
     // Find the extracted directory and rename it to "yugabyte"

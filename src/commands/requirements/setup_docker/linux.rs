@@ -24,6 +24,23 @@ pub fn is_ubuntu_or_debian() -> Result<bool, Box<dyn std::error::Error>> {
 
 /// Install Docker on Ubuntu/Debian
 pub fn install_docker_ubuntu() -> Result<(), Box<dyn std::error::Error>> {
+    update_package_index()?;
+    install_prerequisites()?;
+    add_docker_gpg_key()?;
+    add_docker_repository()?;
+    update_package_index_after_repo()?;
+    install_docker_ce()?;
+
+    println!("{}", "✅ Docker CE installed successfully.".green());
+    println!(
+        "{}",
+        "🚀 Docker service should start automatically.".yellow()
+    );
+    Ok(())
+}
+
+/// Update the package index.
+fn update_package_index() -> Result<(), Box<dyn std::error::Error>> {
     // Step 1: Update package index
     println!("{}", "🔄 Updating package index...".yellow());
     let status = Command::new("sudo").args(["apt-get", "update"]).status()?;
@@ -31,7 +48,11 @@ pub fn install_docker_ubuntu() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("{}", "❌ Failed to update package index.".red());
         return Err("Failed to update package index".into());
     }
+    Ok(())
+}
 
+/// Install required prerequisites.
+fn install_prerequisites() -> Result<(), Box<dyn std::error::Error>> {
     // Step 2: Install prerequisites
     println!("{}", "📦 Installing prerequisites...".yellow());
     let status = Command::new("sudo")
@@ -49,7 +70,11 @@ pub fn install_docker_ubuntu() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("{}", "❌ Failed to install prerequisites.".red());
         return Err("Failed to install prerequisites".into());
     }
+    Ok(())
+}
 
+/// Add Docker's GPG key.
+fn add_docker_gpg_key() -> Result<(), Box<dyn std::error::Error>> {
     // Step 3: Add Docker's GPG key
     println!("{}", "🔐 Adding Docker GPG key...".yellow());
     let status = Command::new("sudo")
@@ -59,7 +84,11 @@ pub fn install_docker_ubuntu() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("{}", "❌ Failed to add Docker GPG key.".red());
         return Err("Failed to add Docker GPG key".into());
     }
+    Ok(())
+}
 
+/// Add Docker repository.
+fn add_docker_repository() -> Result<(), Box<dyn std::error::Error>> {
     // Step 4: Add Docker repository
     println!("{}", "📚 Adding Docker repository...".yellow());
     let status = Command::new("sudo")
@@ -69,7 +98,11 @@ pub fn install_docker_ubuntu() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("{}", "❌ Failed to add Docker repository.".red());
         return Err("Failed to add Docker repository".into());
     }
+    Ok(())
+}
 
+/// Update package index after adding repository.
+fn update_package_index_after_repo() -> Result<(), Box<dyn std::error::Error>> {
     // Step 5: Update package index again
     println!(
         "{}",
@@ -83,7 +116,11 @@ pub fn install_docker_ubuntu() -> Result<(), Box<dyn std::error::Error>> {
         );
         return Err("Failed to update package index".into());
     }
+    Ok(())
+}
 
+/// Install Docker CE.
+fn install_docker_ce() -> Result<(), Box<dyn std::error::Error>> {
     // Step 6: Install Docker
     println!("{}", "🐳 Installing Docker CE...".yellow());
     let status = Command::new("sudo")
@@ -100,11 +137,5 @@ pub fn install_docker_ubuntu() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("{}", "❌ Failed to install Docker CE.".red());
         return Err("Failed to install Docker CE".into());
     }
-
-    println!("{}", "✅ Docker CE installed successfully.".green());
-    println!(
-        "{}",
-        "🚀 Docker service should start automatically.".yellow()
-    );
     Ok(())
 }

@@ -22,33 +22,45 @@ pub fn check_and_recover_poison() -> Result<(), Box<dyn std::error::Error>> {
     if poison_path.exists() {
         warn!("Poison file detected at: {}", poison_path.display());
 
-        // Read and display the poison file contents
-        match fs::read_to_string(&poison_path) {
-            Ok(contents) => {
-                warn!("Poison file contents:");
-                for line in contents.lines() {
-                    if !line.trim().is_empty() {
-                        warn!("  {}", line);
-                    }
-                }
-            }
-            Err(e) => {
-                warn!("Could not read poison file contents: {}", e);
-            }
-        }
+        display_poison_contents(&poison_path)?;
 
         warn!("This indicates a previous command may have failed. Attempting recovery...");
 
-        // For now, just warn about the poison file
-        // TODO: Implement actual recovery logic when more details are available
-        warn!("Recovery logic not yet implemented. Please check system state manually.");
-        warn!("You may need to manually clean up any running containers or inconsistent state.");
+        perform_recovery()?;
 
         // Remove the poison file after warning
         fs::remove_file(&poison_path)?;
         info!("Poison file removed. Proceeding with caution.");
     }
 
+    Ok(())
+}
+
+/// Display the contents of the poison file for debugging.
+fn display_poison_contents(poison_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    match fs::read_to_string(poison_path) {
+        Ok(contents) => {
+            warn!("Poison file contents:");
+            for line in contents.lines() {
+                if !line.trim().is_empty() {
+                    warn!("  {}", line);
+                }
+            }
+        }
+        Err(e) => {
+            warn!("Could not read poison file contents: {}", e);
+        }
+    }
+    Ok(())
+}
+
+/// Perform recovery actions when a poison file is detected.
+///
+/// Currently a placeholder for future recovery logic.
+fn perform_recovery() -> Result<(), Box<dyn std::error::Error>> {
+    // TODO: Implement actual recovery logic when more details are available
+    warn!("Recovery logic not yet implemented. Please check system state manually.");
+    warn!("You may need to manually clean up any running containers or inconsistent state.");
     Ok(())
 }
 
