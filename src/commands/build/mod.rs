@@ -127,7 +127,7 @@ fn run_build_in_container(
             container_source_dir, container_source_dir, container_output_dir
         ),
         Project::Curio => format!(
-            "git config --global --add safe.directory {} && cd {} && git checkout pdpv0 && make clean all && cp curio {}",
+            "git config --global --add safe.directory {} && cd {} && make clean all && cp curio {}",
             container_source_dir, container_source_dir, container_output_dir
         ),
     };

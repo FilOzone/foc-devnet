@@ -104,12 +104,13 @@ fn print_build_status() -> Result<(), Box<dyn std::error::Error>> {
     let expected_binaries = vec!["lotus", "lotus-miner", "curio"];
 
     // Create tabular output
-    let mut table = Table::new("{:<}  {:<}  {:<}");
+    let mut table = Table::new("{:<}  {:<}  {:<}  {:<}");
     table.add_row(
         Row::new()
             .with_ansi_cell("Binary".bold().dark_grey())
             .with_ansi_cell("Status".bold().dark_grey())
-            .with_ansi_cell("Path".bold().dark_grey()),
+            .with_ansi_cell("Path".bold().dark_grey())
+            .with_ansi_cell("Time of Build".bold().dark_grey()),
     );
 
     for binary in expected_binaries {
@@ -125,11 +126,44 @@ fn print_build_status() -> Result<(), Box<dyn std::error::Error>> {
             format!("{}/{}", bin_dir.display(), binary)
         };
 
+        let build_time = if binary_path.exists() {
+            match std::fs::metadata(&binary_path) {
+                Ok(metadata) => match metadata.modified() {
+                    Ok(modified) => {
+                        let datetime: DateTime<Utc> = modified.into();
+                        let now = Utc::now();
+                        let duration = now.signed_duration_since(datetime);
+
+                        let days = duration.num_days();
+                        let hours = duration.num_hours() % 24;
+                        let minutes = duration.num_minutes() % 60;
+
+                        let ago_str = if days > 0 {
+                            format!("{}d {}h ago", days, hours)
+                        } else if hours > 0 {
+                            format!("{}h {}m ago", hours, minutes)
+                        } else if minutes > 0 {
+                            format!("{}m ago", minutes)
+                        } else {
+                            "just now".to_string()
+                        };
+
+                        format!("{} ({})", datetime.format("%Y-%m-%d %H:%M"), ago_str)
+                    }
+                    Err(_) => "Unknown".to_string(),
+                },
+                Err(_) => "Unknown".to_string(),
+            }
+        } else {
+            "N/A".to_string()
+        };
+
         table.add_row(
             Row::new()
                 .with_cell(binary)
                 .with_ansi_cell(&status)
-                .with_ansi_cell(location.dim()),
+                .with_ansi_cell(location.dim())
+                .with_ansi_cell(build_time.dim()),
         );
     }
 
