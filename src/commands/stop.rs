@@ -1,3 +1,4 @@
+use crossterm::style::Stylize;
 use tracing::info;
 
 /// Execute the stop command.
@@ -7,6 +8,6 @@ use tracing::info;
 pub fn stop_cluster() -> Result<(), Box<dyn std::error::Error>> {
     info!("Stopping local cluster...");
     // TODO: Implement stop logic
-    println!("Local cluster stopped.");
+    println!("{}", "Local cluster stopped.".green());
     Ok(())
 }

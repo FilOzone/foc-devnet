@@ -6,6 +6,7 @@ use crate::paths::{
     foc_localnet_artifacts, foc_localnet_bin, foc_localnet_curio_repo, foc_localnet_docker_images,
     foc_localnet_lotus_repo,
 };
+use crossterm::style::Stylize;
 use std::fs;
 use std::process::Command;
 
@@ -44,7 +45,7 @@ pub fn clean_environment(
         make_clean_curio()?;
     }
 
-    println!("✓ Cleanup completed successfully");
+    println!("{}", "✓ Cleanup completed successfully".green());
     Ok(())
 }
 
@@ -53,11 +54,15 @@ fn clean_artifacts() -> Result<(), Box<dyn std::error::Error>> {
     let artifacts_dir = foc_localnet_artifacts();
 
     if artifacts_dir.exists() {
-        println!("Cleaning artifacts directory: {}", artifacts_dir.display());
+        println!(
+            "{} Cleaning artifacts directory: {}",
+            "🧹".bold(),
+            artifacts_dir.display()
+        );
         fs::remove_dir_all(&artifacts_dir)?;
-        println!("✓ Artifacts cleaned");
+        println!("{}", "✓ Artifacts cleaned".green());
     } else {
-        println!("Artifacts directory does not exist, skipping");
+        println!("{}", "Artifacts directory does not exist, skipping".dim());
     }
 
     Ok(())
@@ -65,7 +70,7 @@ fn clean_artifacts() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Clean all Docker images created by foc-localnet.
 fn clean_docker_images() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Cleaning foc-localnet Docker images...");
+    println!("{}", "Cleaning foc-localnet Docker images...".bold());
 
     // Remove the builder image
     let image_name = "foc-localnet-builder:latest";
@@ -75,29 +80,38 @@ fn clean_docker_images() -> Result<(), Box<dyn std::error::Error>> {
         .output()?;
 
     if !output.stdout.is_empty() {
-        println!("Removing Docker image: {}", image_name);
+        println!("{} Removing Docker image: {}", "🗑️".bold(), image_name);
         let status = Command::new("docker")
             .args(["rmi", "-f", image_name])
             .status()?;
 
         if status.success() {
-            println!("✓ Docker image removed: {}", image_name);
+            println!("{} Docker image removed: {}", "✓".green(), image_name);
         } else {
-            println!("⚠ Failed to remove Docker image: {}", image_name);
+            println!(
+                "{} Failed to remove Docker image: {}",
+                "⚠".yellow(),
+                image_name
+            );
         }
     } else {
-        println!("Docker image {} not found, skipping", image_name);
+        println!(
+            "{} Docker image {} not found, skipping",
+            "ℹ️".dim(),
+            image_name
+        );
     }
 
     // Clean the docker images directory
     let docker_images_dir = foc_localnet_docker_images();
     if docker_images_dir.exists() {
         println!(
-            "Cleaning docker images directory: {}",
+            "{} Cleaning docker images directory: {}",
+            "🧹".bold(),
             docker_images_dir.display()
         );
         fs::remove_dir_all(&docker_images_dir)?;
-        println!("✓ Docker images directory cleaned");
+        println!("{}", "✓ Docker images directory cleaned".green());
     }
 
     Ok(())
@@ -108,7 +122,11 @@ fn clean_binaries() -> Result<(), Box<dyn std::error::Error>> {
     let bin_dir = foc_localnet_bin();
 
     if bin_dir.exists() {
-        println!("Cleaning binaries directory: {}", bin_dir.display());
+        println!(
+            "{} Cleaning binaries directory: {}",
+            "🧹".bold(),
+            bin_dir.display()
+        );
 
         // List binaries to be removed
         if let Ok(entries) = fs::read_dir(&bin_dir) {
@@ -116,7 +134,8 @@ fn clean_binaries() -> Result<(), Box<dyn std::error::Error>> {
                 let path = entry.path();
                 if path.is_file() {
                     println!(
-                        "  Removing: {}",
+                        "  {} Removing: {}",
+                        "🗑️".red(),
                         path.file_name().unwrap().to_string_lossy()
                     );
                     fs::remove_file(path)?;
@@ -124,9 +143,9 @@ fn clean_binaries() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        println!("✓ Binaries cleaned");
+        println!("{}", "✓ Binaries cleaned".green());
     } else {
-        println!("Binaries directory does not exist, skipping");
+        println!("{}", "Binaries directory does not exist, skipping".dim());
     }
 
     Ok(())
@@ -137,27 +156,34 @@ fn make_clean_lotus() -> Result<(), Box<dyn std::error::Error>> {
     let lotus_repo = foc_localnet_lotus_repo();
 
     if !lotus_repo.exists() {
-        println!("Lotus repository does not exist, skipping make clean");
+        println!(
+            "{}",
+            "Lotus repository does not exist, skipping make clean".dim()
+        );
         return Ok(());
     }
 
     if lotus_repo.is_symlink() {
         println!(
-            "⚠ Lotus repository is a symlink, skipping make clean (run it manually in the source directory)"
+            "{} Lotus repository is a symlink, skipping make clean (run it manually in the source directory)",
+            "⚠".yellow()
         );
         return Ok(());
     }
 
-    println!("Running 'make clean' in Lotus repository...");
+    println!("{}", "Running 'make clean' in Lotus repository...".bold());
     let status = Command::new("make")
         .arg("clean")
         .current_dir(&lotus_repo)
         .status()?;
 
     if status.success() {
-        println!("✓ Lotus repository cleaned");
+        println!("{}", "✓ Lotus repository cleaned".green());
     } else {
-        println!("⚠ Failed to run 'make clean' in Lotus repository");
+        println!(
+            "{}",
+            "⚠ Failed to run 'make clean' in Lotus repository".yellow()
+        );
     }
 
     Ok(())
@@ -168,27 +194,34 @@ fn make_clean_curio() -> Result<(), Box<dyn std::error::Error>> {
     let curio_repo = foc_localnet_curio_repo();
 
     if !curio_repo.exists() {
-        println!("Curio repository does not exist, skipping make clean");
+        println!(
+            "{}",
+            "Curio repository does not exist, skipping make clean".dim()
+        );
         return Ok(());
     }
 
     if curio_repo.is_symlink() {
         println!(
-            "⚠ Curio repository is a symlink, skipping make clean (run it manually in the source directory)"
+            "{} Curio repository is a symlink, skipping make clean (run it manually in the source directory)",
+            "⚠".yellow()
         );
         return Ok(());
     }
 
-    println!("Running 'make clean' in Curio repository...");
+    println!("{}", "Running 'make clean' in Curio repository...".bold());
     let status = Command::new("make")
         .arg("clean")
         .current_dir(&curio_repo)
         .status()?;
 
     if status.success() {
-        println!("✓ Curio repository cleaned");
+        println!("{}", "✓ Curio repository cleaned".green());
     } else {
-        println!("⚠ Failed to run 'make clean' in Curio repository");
+        println!(
+            "{}",
+            "⚠ Failed to run 'make clean' in Curio repository".yellow()
+        );
     }
 
     Ok(())

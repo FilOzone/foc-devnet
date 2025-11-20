@@ -6,6 +6,7 @@
 use crate::commands::build::Project;
 use crate::config::Location;
 use crate::paths::{foc_localnet_curio_repo, foc_localnet_lotus_repo};
+use crossterm::style::Stylize;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -28,7 +29,8 @@ pub fn prepare_repository(
     };
 
     println!(
-        "Preparing {} repository at {}...",
+        "{} Preparing {} repository at {}...",
+        "📦".bold(),
         project,
         repo_path.display()
     );
@@ -51,7 +53,7 @@ pub fn prepare_repository(
         }
     }
 
-    println!("Repository prepared successfully");
+    println!("{}", "Repository prepared successfully".green());
     Ok(repo_path)
 }
 

@@ -1,4 +1,5 @@
 use crate::paths::foc_localnet_logs;
+use crossterm::style::Stylize;
 use std::path::PathBuf;
 use tracing::info;
 
@@ -33,6 +34,6 @@ pub fn start_cluster(
     info!("Volumes directory: {}", volumes_dir.display());
     info!("Logs directory: {}", logs_dir.display());
     // TODO: Implement start logic
-    println!("Local cluster started.");
+    println!("{}", "Local cluster started.".green());
     Ok(())
 }

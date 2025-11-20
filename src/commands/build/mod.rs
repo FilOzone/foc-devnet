@@ -6,6 +6,7 @@ pub mod repository;
 
 use crate::config::Config;
 use crate::paths::foc_localnet_bin;
+use crossterm::style::Stylize;
 use repository::prepare_repository;
 use std::fs;
 use std::process::Command;
@@ -16,7 +17,7 @@ use std::process::Command;
 /// 1. Prepares the repository (clone/checkout or symlink) based on config
 /// 2. Builds the project in a Docker container
 pub fn build_project(project: &Project, config: &Config) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Building {}...", project);
+    println!("{} Building {}...", "🔨".bold(), project);
 
     // Get the location configuration for this project
     let location = match project {
@@ -38,7 +39,8 @@ pub fn build_project(project: &Project, config: &Config) -> Result<(), Box<dyn s
     )?;
 
     println!(
-        "{} built successfully. Binaries available in {}",
+        "{} {} built successfully. Binaries available in {}",
+        "✓".green(),
         project,
         output_dir.display()
     );
@@ -80,7 +82,7 @@ fn build_in_container(
 
 /// Build the builder Docker image.
 fn build_builder_image(dockerfile_dir: &str) -> Result<String, Box<dyn std::error::Error>> {
-    println!("Building Docker image for builder...");
+    println!("{}", "Building Docker image for builder...".bold());
     let image_tag = "foc-localnet-builder:latest";
 
     let status = Command::new("docker")
@@ -102,7 +104,7 @@ fn run_build_in_container(
     project: &Project,
     image_tag: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Building {} in container...", project);
+    println!("{} Building {} in container...", "🚀".bold(), project);
 
     let container_source_dir = "/workspace/source";
     let container_output_dir = "/workspace/output";

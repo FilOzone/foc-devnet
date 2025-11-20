@@ -7,6 +7,7 @@
 //! - Downloading required artifacts
 //! - Building and caching Docker images
 
+use crossterm::style::Stylize;
 use dirs;
 use downloader::Downloader;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -38,7 +39,7 @@ pub fn init_environment(
     yugabyte_url: Option<String>,
     force: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Initializing foc-localnet environment...");
+    println!("{}", "Initializing foc-localnet environment...".bold());
 
     // Create all necessary directories
     create_directories()?;
@@ -63,16 +64,17 @@ pub fn init_environment(
     // Build and cache Docker images
     build_and_cache_docker_images()?;
 
-    println!("✓ Initialization completed successfully");
+    println!("{}", "✓ Initialization completed successfully".green());
     println!(
-        "You may need to restart your shell or run 'source ~/.bashrc' (or ~/.zshrc) to use the updated PATH"
+        "{}",
+        "You may need to restart your shell or run 'source ~/.bashrc' (or ~/.zshrc) to use the updated PATH".cyan()
     );
     Ok(())
 }
 
 /// Create all necessary directories for foc-localnet.
 fn create_directories() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Creating necessary directories...");
+    println!("{}", "Creating necessary directories...".bold());
 
     let directories = vec![
         foc_localnet_home(),
@@ -89,9 +91,9 @@ fn create_directories() -> Result<(), Box<dyn std::error::Error>> {
         if !dir.exists() {
             debug!("Creating directory: {:?}", dir);
             fs::create_dir_all(&dir)?;
-            println!("  ✓ Created: {}", dir.display());
+            println!("  {} Created: {}", "✓".green(), dir.display());
         } else {
-            println!("  ✓ Exists: {}", dir.display());
+            println!("  {} Exists: {}", "✓".green(), dir.display());
         }
     }
 
@@ -108,12 +110,19 @@ fn generate_default_config(
     let config_path = foc_localnet_config();
 
     if config_path.exists() && !force {
-        println!("  ✓ Config file already exists: {}", config_path.display());
+        println!(
+            "  {} Config file already exists: {}",
+            "✓".green(),
+            config_path.display()
+        );
         return Ok(());
     }
 
     if config_path.exists() && force {
-        println!("  ⚠ Removing existing config file due to --force");
+        println!(
+            "  {} Removing existing config file due to --force",
+            "⚠".yellow()
+        );
         std::fs::remove_file(&config_path)?;
     }
 
@@ -143,7 +152,11 @@ fn generate_default_config(
         .map_err(|e| format!("Failed to serialize default config: {}", e))?;
 
     fs::write(&config_path, default_config)?;
-    println!("  ✓ Created default config: {}", config_path.display());
+    println!(
+        "  {} Created default config: {}",
+        "✓".green(),
+        config_path.display()
+    );
 
     Ok(())
 }
@@ -173,25 +186,25 @@ fn setup_path_variables() -> Result<(), Box<dyn std::error::Error>> {
     let bin_path_str = bin_path.to_string_lossy().to_string();
 
     if is_path_in_env(&bin_path_str) {
-        println!("  ✓ PATH already includes: {}", bin_path_str);
+        println!("  {} PATH already includes: {}", "✓".green(), bin_path_str);
         return Ok(());
     }
 
-    println!("Setting up PATH variables...");
+    println!("{}", "Setting up PATH variables...".bold());
 
     if let Some(home) = dirs::home_dir() {
         let bashrc = home.join(".bashrc");
         if let Err(e) = add_path_to_shell_config(&bashrc, &bin_path_str) {
-            println!("  ⚠ Failed to update .bashrc: {}", e);
+            println!("  {} Failed to update .bashrc: {}", "⚠".yellow(), e);
         } else {
-            println!("  ✓ Updated .bashrc");
+            println!("  {} Updated .bashrc", "✓".green());
         }
 
         let zshrc = home.join(".zshrc");
         if let Err(e) = add_path_to_shell_config(&zshrc, &bin_path_str) {
-            println!("  ⚠ Failed to update .zshrc: {}", e);
+            println!("  {} Failed to update .zshrc: {}", "⚠".yellow(), e);
         } else {
-            println!("  ✓ Updated .zshrc");
+            println!("  {} Updated .zshrc", "✓".green());
         }
     }
 
@@ -230,7 +243,7 @@ fn add_path_to_shell_config(
 
 /// Build and cache Docker images.
 fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Building and caching Docker images...");
+    println!("{}", "Building and caching Docker images...".bold());
 
     // Ensure the docker images directory exists
     let images_dir = foc_localnet_docker_images();
@@ -239,18 +252,28 @@ fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>> {
     // Find all Dockerfile files in the docker directory
     let docker_dir = Path::new("docker");
     if !docker_dir.exists() {
-        println!("  ⚠ docker/ directory not found, skipping Docker image building");
+        println!(
+            "  {} docker/ directory not found, skipping Docker image building",
+            "⚠".yellow()
+        );
         return Ok(());
     }
 
     let dockerfiles = find_dockerfiles(docker_dir)?;
 
     if dockerfiles.is_empty() {
-        println!("  No Dockerfile files found in docker/ directory");
+        println!(
+            "{}",
+            "  No Dockerfile files found in docker/ directory".yellow()
+        );
         return Ok(());
     }
 
-    println!("  Found {} Dockerfile(s) to build:", dockerfiles.len());
+    println!(
+        "  {} Found {} Dockerfile(s) to build:",
+        "✓".green(),
+        dockerfiles.len()
+    );
 
     for dockerfile in dockerfiles {
         let name = extract_name(&dockerfile)?;
@@ -262,7 +285,7 @@ fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>> {
         save_docker_image(&name, &images_dir)?;
     }
 
-    println!("  ✓ Docker images built and cached");
+    println!("  {} Docker images built and cached", "✓".green());
     Ok(())
 }
 
@@ -312,7 +335,8 @@ fn build_docker_image(
     let dockerfile_dir = dockerfile_path.parent().unwrap_or(Path::new("."));
 
     println!(
-        "    Building Docker image: {} from {}",
+        "    {} Building Docker image: {} from {}",
+        "🔨".bold(),
         image_tag,
         dockerfile_path.display()
     );
@@ -350,7 +374,11 @@ fn save_docker_image(name: &str, images_dir: &Path) -> Result<(), Box<dyn std::e
     let image_tag = format!("foc-localnet-{}", name);
     let tar_path = images_dir.join(format!("{}.tar", name));
 
-    println!("    Saving image to: {}", tar_path.display());
+    println!(
+        "    {} Saving image to: {}",
+        "💾".bold(),
+        tar_path.display()
+    );
 
     let pb = ProgressBar::new_spinner();
     pb.set_style(
@@ -378,7 +406,7 @@ fn save_docker_image(name: &str, images_dir: &Path) -> Result<(), Box<dyn std::e
 /// This function downloads Yugabyte database and extracts it to the
 /// artifacts directory. It reads the download URL from the configuration.
 fn download_artifacts() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Downloading artifacts...");
+    println!("{}", "Downloading artifacts...".bold());
 
     // Load configuration
     let config_path = foc_localnet_config();
@@ -394,7 +422,7 @@ fn download_artifacts() -> Result<(), Box<dyn std::error::Error>> {
     // Download Yugabyte
     download_yugabyte(&config.yugabyte_download_url, &artifacts_dir)?;
 
-    println!("  ✓ Artifacts downloaded successfully.");
+    println!("  {} Artifacts downloaded successfully.", "✓".green());
     Ok(())
 }
 
@@ -403,7 +431,7 @@ fn download_artifacts() -> Result<(), Box<dyn std::error::Error>> {
 /// This function clones Git repositories for lotus and curio if their
 /// locations are Git-based.
 fn download_code_repositories() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Downloading code repositories...");
+    println!("{}", "Downloading code repositories...".bold());
 
     // Load configuration
     let config_path = foc_localnet_config();
@@ -418,7 +446,10 @@ fn download_code_repositories() -> Result<(), Box<dyn std::error::Error>> {
     // Download curio repository if Git-based
     download_repository("curio", &config.curio)?;
 
-    println!("  ✓ Code repositories downloaded successfully.");
+    println!(
+        "  {} Code repositories downloaded successfully.",
+        "✓".green()
+    );
     Ok(())
 }
 
@@ -426,7 +457,11 @@ fn download_code_repositories() -> Result<(), Box<dyn std::error::Error>> {
 fn download_repository(name: &str, location: &Location) -> Result<(), Box<dyn std::error::Error>> {
     match location {
         Location::LocalSource { .. } => {
-            println!("  ✓ {} using local source, skipping download", name);
+            println!(
+                "  {} {} using local source, skipping download",
+                "✓".green(),
+                name
+            );
             Ok(())
         }
         Location::GitCommit { url, commit } => {
@@ -451,7 +486,8 @@ fn clone_and_checkout(
 
     if repo_dir.exists() {
         println!(
-            "  ✓ {} repository already exists at {}",
+            "  {} {} repository already exists at {}",
+            "✓".green(),
             name,
             repo_dir.display()
         );
@@ -463,13 +499,18 @@ fn clone_and_checkout(
     checkout_to_ref(name, &repo_dir, &checkout_ref)?;
     update_submodules(name, &repo_dir)?;
 
-    println!("✓ Cloned and checked out {} to {}", name, checkout_ref);
+    println!(
+        "{} Cloned and checked out {} to {}",
+        "✓".green(),
+        name,
+        checkout_ref
+    );
     Ok(())
 }
 
 /// Clone the repository from the given URL to the specified directory.
 fn clone_repo(name: &str, url: &str, repo_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    println!("  Cloning {} from {}...", name, url);
+    println!("  {} Cloning {} from {}...", "📥".bold(), name, url);
 
     let pb = ProgressBar::new_spinner();
     pb.set_style(
@@ -578,7 +619,10 @@ fn download_yugabyte_tarball(
     artifacts_dir: &Path,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
     // Extract filename from URL
-    let filename = url.split('/').next_back().ok_or("Invalid URL: no filename")?;
+    let filename = url
+        .split('/')
+        .next_back()
+        .ok_or("Invalid URL: no filename")?;
     let tarball_path = artifacts_dir.join(filename);
 
     // Create progress bar
@@ -656,6 +700,9 @@ fn extract_yugabyte_tarball(
 
     pb_extract.finish_with_message("✓ Extracted Yugabyte");
 
-    println!("  ✓ Yugabyte downloaded and installed successfully.");
+    println!(
+        "  {} Yugabyte downloaded and installed successfully.",
+        "✓".green()
+    );
     Ok(())
 }

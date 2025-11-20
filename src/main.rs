@@ -1,4 +1,5 @@
 use clap::Parser;
+use crossterm::style::Stylize;
 use foc_localnet::app;
 use foc_localnet::cli::{BuildCommands, Cli, Commands};
 use foc_localnet::commands;
@@ -84,7 +85,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             // Leave poison file in place on error
-            eprintln!("Command failed, poison file left in place for safety");
+            eprintln!(
+                "{}",
+                "Command failed, poison file left in place for safety".red()
+            );
             Err(e)
         }
     }
