@@ -68,6 +68,8 @@ pub enum Commands {
         #[arg(long)]
         curio: bool,
     },
+    /// Show status of the foc-localnet system
+    Status,
 }
 
 /// Build subcommands

@@ -74,6 +74,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             poison::create_poison("Clean")?;
             commands::clean_environment(artifacts, dockerimages, binaries, lotus, curio, false)
         }
+        Commands::Status => {
+            // Status is read-only, no poison protection needed
+            commands::status()
+        }
     };
 
     // Handle the result
