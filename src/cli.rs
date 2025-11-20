@@ -31,7 +31,20 @@ pub enum Commands {
         setup: bool,
     },
     /// Initialize foc-localnet by building and caching Docker images
-    Init,
+    Init {
+        /// Curio source location (e.g., 'gittag:tag', 'gittag:url:tag', 'gitcommit:commit', 'gitcommit:url:commit', 'gitbranch:branch', 'gitbranch:url:branch', 'local:/path/to/curio')
+        #[arg(long)]
+        curio: Option<String>,
+        /// Lotus source location (e.g., 'gittag:v1.0.0', 'gittag:url:tag', 'gitcommit:abc123', 'gitcommit:url:commit', 'gitbranch:main', 'gitbranch:url:main', 'local:/path/to/lotus')
+        #[arg(long)]
+        lotus: Option<String>,
+        /// Yugabyte download URL
+        #[arg(long)]
+        yugabyte_url: Option<String>,
+        /// Force regeneration of config file even if it exists
+        #[arg(long)]
+        force: bool,
+    },
     /// Build Filecoin projects in a container
     Build {
         #[command(subcommand)]

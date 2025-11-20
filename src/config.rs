@@ -38,6 +38,81 @@ pub enum Location {
     GitBranch { url: String, branch: String },
 }
 
+impl Location {
+    /// Parse a location string in the format "type:value" or "type:url:value"
+    ///
+    /// Supported formats:
+    /// - "gittag:tag" (uses default URL)
+    /// - "gitcommit:commit" (uses default URL)
+    /// - "gitbranch:branch" (uses default URL)
+    /// - "local:dir"
+    /// - "gittag:url:tag"
+    /// - "gitcommit:url:commit"
+    /// - "gitbranch:url:branch"
+    /// Where url can contain colons (e.g., https://github.com/repo.git)
+    pub fn parse_with_default(s: &str, default_url: &str) -> Result<Self, String> {
+        let parts: Vec<&str> = s.split(':').collect();
+        if parts.len() < 2 {
+            return Err(format!(
+                "Invalid location format: {}. Expected 'type:value' or 'type:url:value'",
+                s
+            ));
+        }
+
+        let location_type = parts[0];
+        let remaining = &parts[1..].join(":");
+
+        match location_type {
+            "local" => Ok(Location::LocalSource {
+                dir: remaining.to_string(),
+            }),
+            "gittag" | "gitcommit" | "gitbranch" => {
+                // Check if remaining contains ':' (indicating url:value format)
+                if let Some(colon_pos) = remaining.rfind(':') {
+                    let url = &remaining[..colon_pos];
+                    let value = &remaining[colon_pos + 1..];
+                    match location_type {
+                        "gittag" => Ok(Location::GitTag {
+                            url: url.to_string(),
+                            tag: value.to_string(),
+                        }),
+                        "gitcommit" => Ok(Location::GitCommit {
+                            url: url.to_string(),
+                            commit: value.to_string(),
+                        }),
+                        "gitbranch" => Ok(Location::GitBranch {
+                            url: url.to_string(),
+                            branch: value.to_string(),
+                        }),
+                        _ => unreachable!(),
+                    }
+                } else {
+                    // No colon, so remaining is just the value, use default URL
+                    match location_type {
+                        "gittag" => Ok(Location::GitTag {
+                            url: default_url.to_string(),
+                            tag: remaining.to_string(),
+                        }),
+                        "gitcommit" => Ok(Location::GitCommit {
+                            url: default_url.to_string(),
+                            commit: remaining.to_string(),
+                        }),
+                        "gitbranch" => Ok(Location::GitBranch {
+                            url: default_url.to_string(),
+                            branch: remaining.to_string(),
+                        }),
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            _ => Err(format!(
+                "Unknown location type: {}. Supported types: local, gittag, gitcommit, gitbranch",
+                location_type
+            )),
+        }
+    }
+}
+
 /// Main configuration structure for the foc-localnet application.
 ///
 /// This struct contains all the settings needed to configure and run a local
@@ -89,19 +164,13 @@ pub struct Config {
     ///
     /// Defines how to obtain and run the lotus daemon executable.
     /// See [`Location`] for available options.
-    pub lotus_location: Location,
-
-    /// Location specification for the lotus-miner executable.
-    ///
-    /// Defines how to obtain and run the lotus-miner executable.
-    /// See [`Location`] for available options.
-    pub lotus_miner_location: Location,
+    pub lotus: Location,
 
     /// Location specification for the curio executable.
     ///
     /// Defines how to obtain and run the curio executable.
     /// See [`Location`] for available options.
-    pub curio_location: Location,
+    pub curio: Location,
 
     /// URL to download Yugabyte database tarball.
     ///
@@ -124,17 +193,13 @@ impl Default for Config {
             lotus_miner_ports: 1,
             lotus_ports: 1,
             curio_miner_ports: 1,
-            lotus_location: Location::GitTag {
+            lotus: Location::GitTag {
                 url: "https://github.com/filecoin-project/lotus.git".to_string(),
-                tag: "v1.12.0".to_string(),
+                tag: "v1.34.0".to_string(),
             },
-            lotus_miner_location: Location::GitTag {
-                url: "https://github.com/filecoin-project/lotus.git".to_string(),
-                tag: "v1.12.0".to_string(),
-            },
-            curio_location: Location::GitTag {
+            curio: Location::GitBranch {
                 url: "https://github.com/filecoin-project/curio.git".to_string(),
-                tag: "v1.12.0".to_string(),
+                branch: "pdpv0".to_string(),
             },
             yugabyte_download_url: "https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz".to_string(),
         }

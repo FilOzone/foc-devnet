@@ -20,8 +20,8 @@ pub fn build_project(project: &Project, config: &Config) -> Result<(), Box<dyn s
 
     // Get the location configuration for this project
     let location = match project {
-        Project::Lotus => &config.lotus_location,
-        Project::Curio => &config.curio_location,
+        Project::Lotus => &config.lotus,
+        Project::Curio => &config.curio,
     };
 
     // Prepare the repository (clone/checkout or symlink)

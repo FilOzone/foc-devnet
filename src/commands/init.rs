@@ -10,13 +10,13 @@
 use dirs;
 use downloader::Downloader;
 use indicatif::{ProgressBar, ProgressStyle};
-use tracing::debug;
 use std::env;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use tracing::debug;
 
-use crate::config::Config;
+use crate::config::{Config, Location};
 use crate::paths::{
     foc_localnet_artifacts, foc_localnet_bin, foc_localnet_code, foc_localnet_config,
     foc_localnet_docker_images, foc_localnet_home, foc_localnet_logs, foc_localnet_state,
@@ -30,18 +30,32 @@ use crate::paths::{
 /// 2. Generates default config.toml
 /// 3. Sets up PATH variables in shell configs
 /// 4. Downloads required artifacts
-/// 5. Builds and caches Docker images
-pub fn init_environment() -> Result<(), Box<dyn std::error::Error>> {
+/// 5. Downloads code repositories
+/// 6. Builds and caches Docker images
+pub fn init_environment(
+    curio_location: Option<String>,
+    lotus_location: Option<String>,
+    yugabyte_url: Option<String>,
+    force: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Initializing foc-localnet environment...");
 
     // Create all necessary directories
     create_directories()?;
 
     // Generate default configuration
-    generate_default_config()?;
+    generate_default_config(
+        curio_location.clone(),
+        lotus_location.clone(),
+        yugabyte_url.clone(),
+        force,
+    )?;
 
     // Set up PATH variables
     setup_path_variables()?;
+
+    // Download code repositories
+    download_code_repositories()?;
 
     // Download required artifacts
     download_artifacts()?;
@@ -85,16 +99,63 @@ fn create_directories() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Generate default configuration file if it doesn't exist.
-fn generate_default_config() -> Result<(), Box<dyn std::error::Error>> {
+fn generate_default_config(
+    curio_location: Option<String>,
+    lotus_location: Option<String>,
+    yugabyte_url: Option<String>,
+    force: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let config_path = foc_localnet_config();
 
-    if config_path.exists() {
+    if config_path.exists() && !force {
         println!("  ✓ Config file already exists: {}", config_path.display());
         return Ok(());
     }
 
+    if config_path.exists() && force {
+        println!("  ⚠ Removing existing config file due to --force");
+        std::fs::remove_file(&config_path)?;
+    }
+
     debug!("Generating default config: {:?}", config_path);
-    let default_config = toml::to_string(&Config::default())
+
+    // Start with default config
+    let mut config = Config::default();
+
+    // Override lotus location if provided
+    if let Some(loc_str) = lotus_location {
+        let default_url = match config.lotus {
+            Location::GitTag { ref url, .. } => url.clone(),
+            Location::GitCommit { ref url, .. } => url.clone(),
+            Location::GitBranch { ref url, .. } => url.clone(),
+            Location::LocalSource { .. } => {
+                "https://github.com/filecoin-project/lotus.git".to_string()
+            }
+        };
+        config.lotus = Location::parse_with_default(&loc_str, &default_url)
+            .map_err(|e| format!("Invalid lotus location: {}", e))?;
+    }
+
+    // Override curio location if provided
+    if let Some(loc_str) = curio_location {
+        let default_url = match config.curio {
+            Location::GitTag { ref url, .. } => url.clone(),
+            Location::GitCommit { ref url, .. } => url.clone(),
+            Location::GitBranch { ref url, .. } => url.clone(),
+            Location::LocalSource { .. } => {
+                "https://github.com/filecoin-project/curio.git".to_string()
+            }
+        };
+        config.curio = Location::parse_with_default(&loc_str, &default_url)
+            .map_err(|e| format!("Invalid curio location: {}", e))?;
+    }
+
+    // Override yugabyte URL if provided
+    if let Some(url) = yugabyte_url {
+        config.yugabyte_download_url = url;
+    }
+
+    let default_config = toml::to_string(&config)
         .map_err(|e| format!("Failed to serialize default config: {}", e))?;
 
     fs::write(&config_path, default_config)?;
@@ -334,16 +395,139 @@ fn download_artifacts() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Download code repositories for foc-localnet.
+///
+/// This function clones Git repositories for lotus and curio if their
+/// locations are Git-based.
+fn download_code_repositories() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Downloading code repositories...");
+
+    // Load configuration
+    let config_path = foc_localnet_config();
+    let config_content = fs::read_to_string(&config_path)
+        .map_err(|e| format!("Failed to read config file at {:?}: {}", config_path, e))?;
+    let config: Config = toml::from_str(&config_content)
+        .map_err(|e| format!("Failed to parse config file: {}", e))?;
+
+    // Download lotus repository if Git-based
+    download_repository("lotus", &config.lotus)?;
+
+    // Download curio repository if Git-based
+    download_repository("curio", &config.curio)?;
+
+    println!("  ✓ Code repositories downloaded successfully.");
+    Ok(())
+}
+
+/// Download a repository based on its location specification.
+fn download_repository(name: &str, location: &Location) -> Result<(), Box<dyn std::error::Error>> {
+    match location {
+        Location::LocalSource { .. } => {
+            println!("  ✓ {} using local source, skipping download", name);
+            Ok(())
+        }
+        Location::GitCommit { url, commit } => {
+            clone_and_checkout(name, url, Some(commit), None, None)
+        }
+        Location::GitTag { url, tag } => clone_and_checkout(name, url, None, Some(tag), None),
+        Location::GitBranch { url, branch } => {
+            clone_and_checkout(name, url, None, None, Some(branch))
+        }
+    }
+}
+
+/// Clone a Git repository and checkout to the specified ref.
+fn clone_and_checkout(
+    name: &str,
+    url: &str,
+    commit: Option<&str>,
+    tag: Option<&str>,
+    branch: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let repo_dir = foc_localnet_code().join(name);
+
+    if repo_dir.exists() {
+        println!(
+            "  ✓ {} repository already exists at {}",
+            name,
+            repo_dir.display()
+        );
+        return Ok(());
+    }
+
+    println!("  Cloning {} from {}...", name, url);
+
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap(),
+    );
+    pb.set_message(format!("Cloning {} repository...", name));
+
+    // Clone the repository
+    let status = Command::new("git")
+        .args(&["clone", url, &repo_dir.to_string_lossy()])
+        .status()?;
+
+    if !status.success() {
+        pb.finish_with_message(format!("❌ Failed to clone {} repository", name));
+        return Err(format!("Failed to clone {} repository", name).into());
+    }
+
+    pb.set_message(format!("Checking out {}...", name));
+
+    // Change to the repository directory and checkout the ref
+    let checkout_ref = if let Some(commit) = commit {
+        commit
+    } else if let Some(tag) = tag {
+        tag
+    } else if let Some(branch) = branch {
+        branch
+    } else {
+        "main"
+    };
+
+    let status = Command::new("git")
+        .args(&["checkout", checkout_ref])
+        .current_dir(&repo_dir)
+        .status()?;
+
+    if !status.success() {
+        pb.finish_with_message(format!(
+            "❌ Failed to checkout {} to {}",
+            name, checkout_ref
+        ));
+        return Err(format!("Failed to checkout {} to {}", name, checkout_ref).into());
+    }
+
+    pb.set_message(format!("Updating submodules for {}...", name));
+
+    // Update submodules recursively
+    let status = Command::new("git")
+        .args(&["submodule", "update", "--init", "--recursive"])
+        .current_dir(&repo_dir)
+        .status()?;
+
+    if !status.success() {
+        pb.finish_with_message(format!("❌ Failed to update submodules for {}", name));
+        return Err(format!("Failed to update submodules for {}", name).into());
+    }
+
+    pb.finish_with_message(format!(
+        "✓ Cloned and checked out {} to {}",
+        name, checkout_ref
+    ));
+    Ok(())
+}
+
 /// Downloads and extracts Yugabyte database.
 ///
 /// Downloads the Yugabyte tarball from the given URL and extracts it
 /// to the specified directory.
 fn download_yugabyte(url: &str, artifacts_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     // Extract filename from URL
-    let filename = url
-        .split('/')
-        .last()
-        .ok_or("Invalid URL: no filename")?;
+    let filename = url.split('/').last().ok_or("Invalid URL: no filename")?;
     let tarball_path = artifacts_dir.join(filename);
 
     // Create progress bar
@@ -359,7 +543,7 @@ fn download_yugabyte(url: &str, artifacts_dir: &Path) -> Result<(), Box<dyn std:
     let mut downloader = Downloader::builder()
         .download_folder(artifacts_dir)
         .build()?;
-    
+
     let dl = downloader::Download::new(url).file_name(Path::new(&filename));
     downloader.download(&[dl])?;
 

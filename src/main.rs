@@ -33,9 +33,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             poison::create_poison("Requirements")?;
             commands::check_requirements(setup)
         }
-        Commands::Init => {
+        Commands::Init {
+            curio,
+            lotus,
+            yugabyte_url,
+            force,
+        } => {
             poison::create_poison("Init")?;
-            commands::init_environment()
+            commands::init_environment(curio, lotus, yugabyte_url, force)
         }
         Commands::Build { build_command } => {
             poison::create_poison("Build")?;
