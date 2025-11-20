@@ -1,6 +1,6 @@
+use crate::paths::foc_localnet_logs;
 use std::path::PathBuf;
 use tracing::info;
-use crate::paths::foc_localnet_logs;
 
 /// Execute the start command.
 ///

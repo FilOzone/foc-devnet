@@ -3,12 +3,12 @@
 //! This module handles preparing source code repositories before building.
 //! It supports cloning from Git (with commit/tag/branch checkout) and symlinking local directories.
 
+use crate::commands::build::Project;
+use crate::config::Location;
+use crate::paths::{foc_localnet_curio_repo, foc_localnet_lotus_repo};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use crate::config::Location;
-use crate::commands::build::Project;
-use crate::paths::{foc_localnet_curio_repo, foc_localnet_lotus_repo};
 
 /// Prepare a repository for building based on the Location configuration.
 ///
@@ -27,7 +27,11 @@ pub fn prepare_repository(
         Project::Curio => foc_localnet_curio_repo(),
     };
 
-    println!("Preparing {} repository at {}...", project, repo_path.display());
+    println!(
+        "Preparing {} repository at {}...",
+        project,
+        repo_path.display()
+    );
 
     match location {
         Location::LocalSource { dir } => {
@@ -54,9 +58,12 @@ pub fn prepare_repository(
 /// Prepare a local source directory by creating a symlink.
 ///
 /// If the target path already exists, it will be removed first.
-fn prepare_local_source(repo_path: &PathBuf, source_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn prepare_local_source(
+    repo_path: &PathBuf,
+    source_dir: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let source_path = Path::new(source_dir);
-    
+
     if !source_path.exists() {
         return Err(format!("Local source directory does not exist: {}", source_dir).into());
     }
@@ -70,10 +77,14 @@ fn prepare_local_source(repo_path: &PathBuf, source_dir: &str) -> Result<(), Box
     }
 
     // Create symlink
-    println!("Creating symlink from {} to {}", repo_path.display(), source_dir);
+    println!(
+        "Creating symlink from {} to {}",
+        repo_path.display(),
+        source_dir
+    );
     #[cfg(unix)]
     std::os::unix::fs::symlink(source_path, repo_path)?;
-    
+
     #[cfg(windows)]
     std::os::windows::fs::symlink_dir(source_path, repo_path)?;
 
@@ -90,32 +101,45 @@ fn prepare_git_repo(repo_path: &PathBuf, url: &str) -> Result<(), Box<dyn std::e
     if repo_path.exists() {
         // Check if it's a symlink - if so, remove it
         if repo_path.is_symlink() {
-            println!("Removing symlink at {} to replace with Git repository", repo_path.display());
+            println!(
+                "Removing symlink at {} to replace with Git repository",
+                repo_path.display()
+            );
             fs::remove_file(repo_path)?;
         } else if git_dir.exists() {
             // It's already a Git repository, update it
-            println!("Updating existing Git repository at {}", repo_path.display());
-            
+            println!(
+                "Updating existing Git repository at {}",
+                repo_path.display()
+            );
+
             let status = Command::new("git")
                 .args(["fetch", "--all", "--tags", "--prune"])
                 .current_dir(repo_path)
                 .status()?;
 
             if !status.success() {
-                return Err(format!("Failed to fetch updates for repository at {}", repo_path.display()).into());
+                return Err(format!(
+                    "Failed to fetch updates for repository at {}",
+                    repo_path.display()
+                )
+                .into());
             }
-            
+
             return Ok(());
         } else {
             // Path exists but is not a Git repo or symlink, remove it
-            println!("Removing existing non-Git directory at {}", repo_path.display());
+            println!(
+                "Removing existing non-Git directory at {}",
+                repo_path.display()
+            );
             fs::remove_dir_all(repo_path)?;
         }
     }
 
     // Clone fresh repository
     println!("Cloning repository from {} to {}", url, repo_path.display());
-    
+
     // Create parent directory
     if let Some(parent) = repo_path.parent() {
         fs::create_dir_all(parent)?;

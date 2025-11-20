@@ -23,36 +23,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             logs_dir,
         } => {
             poison::create_poison("Start")?;
-            app::initialize_app()?;
             commands::start_cluster(volumes_dir, logs_dir)
         }
         Commands::Stop => {
             poison::create_poison("Stop")?;
-            app::initialize_app()?;
             commands::stop_cluster()
         }
         Commands::Requirements { setup } => {
             poison::create_poison("Requirements")?;
             commands::check_requirements(setup)
         }
+        Commands::Init => {
+            poison::create_poison("Init")?;
+            commands::init_environment()
+        }
         Commands::Build { build_command } => {
             poison::create_poison("Build")?;
-            app::initialize_app()?;
-            
+
             // Load configuration
             let config_path = foc_localnet_config();
             let config_content = fs::read_to_string(&config_path)
                 .map_err(|e| format!("Failed to read config file at {:?}: {}", config_path, e))?;
             let config: Config = toml::from_str(&config_content)
                 .map_err(|e| format!("Failed to parse config file: {}", e))?;
-            
+
             match build_command {
-                BuildCommands::Lotus { path: _, output_dir: _ } => {
-                    commands::build_project(&Project::Lotus, &config)
-                }
-                BuildCommands::Curio { path: _, output_dir: _ } => {
-                    commands::build_project(&Project::Curio, &config)
-                }
+                BuildCommands::Lotus {
+                    path: _,
+                    output_dir: _,
+                } => commands::build_project(&Project::Lotus, &config),
+                BuildCommands::Curio {
+                    path: _,
+                    output_dir: _,
+                } => commands::build_project(&Project::Curio, &config),
             }
         }
         Commands::Clean {

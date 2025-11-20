@@ -30,6 +30,8 @@ pub enum Commands {
         #[arg(long)]
         setup: bool,
     },
+    /// Initialize foc-localnet by building and caching Docker images
+    Init,
     /// Build Filecoin projects in a container
     Build {
         #[command(subcommand)]

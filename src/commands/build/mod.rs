@@ -4,21 +4,18 @@
 
 pub mod repository;
 
-use std::fs;
-use std::process::Command;
 use crate::config::Config;
 use crate::paths::foc_localnet_bin;
 use repository::prepare_repository;
+use std::fs;
+use std::process::Command;
 
 /// Build a project in a Docker container.
 ///
 /// This function orchestrates the complete build process:
 /// 1. Prepares the repository (clone/checkout or symlink) based on config
 /// 2. Builds the project in a Docker container
-pub fn build_project(
-    project: &Project,
-    config: &Config,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn build_project(project: &Project, config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     println!("Building {}...", project);
 
     // Get the location configuration for this project
@@ -37,12 +34,13 @@ pub fn build_project(
     build_in_container(
         repo_path.to_str().ok_or("Invalid repository path")?,
         output_dir.to_str().ok_or("Invalid output directory path")?,
-        project
+        project,
     )?;
 
     println!(
         "{} built successfully. Binaries available in {}",
-        project, output_dir.display()
+        project,
+        output_dir.display()
     );
 
     Ok(())

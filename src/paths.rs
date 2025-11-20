@@ -1,8 +1,10 @@
-use std::path::{PathBuf};
+use std::path::PathBuf;
 
 /// Returns the path to the foc-localnet home directory, e.g., ~/.foc-localnet
 pub fn foc_localnet_home() -> PathBuf {
-    dirs::home_dir().unwrap_or_else(|| PathBuf::from("/tmp")).join(".foc-localnet")
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("/tmp"))
+        .join(".foc-localnet")
 }
 
 /// Returns the path to the foc-localnet logs directory, e.g., ~/.foc-localnet/logs
