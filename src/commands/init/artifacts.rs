@@ -102,22 +102,27 @@ fn download_yugabyte_tarball(
 /// Extract the Yugabyte tarball to the artifacts directory.
 ///
 /// This function extracts the tarball and renames the extracted directory
-/// to "yugabyte" for consistency.
+/// to "yugabyte" for consistency. If the yugabyte directory already exists,
+/// extraction is skipped.
 ///
 /// # Arguments
 /// * `tarball_path` - Path to the downloaded tarball
 /// * `artifacts_dir` - Directory containing the tarball and extraction target
 ///
 /// # Returns
-/// Returns `Ok(())` if extraction succeeds, or an error if extraction fails.
+/// Returns `Ok(())` if extraction succeeds or is skipped, or an error if extraction fails.
 fn extract_yugabyte_tarball(
     tarball_path: &Path,
     artifacts_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Clean the yugabyte directory if it exists
+    // Check if yugabyte directory already exists
     let yugabyte_dir = artifacts_dir.join("yugabyte");
     if yugabyte_dir.exists() {
-        fs::remove_dir_all(&yugabyte_dir)?;
+        println!(
+            "  {} Yugabyte directory already exists, skipping extraction",
+            "✓".green()
+        );
+        return Ok(());
     }
 
     // Extract the tarball

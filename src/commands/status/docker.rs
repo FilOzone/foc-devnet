@@ -14,6 +14,29 @@ use crossterm::style::Stylize;
 use std::collections::HashMap;
 use std::process::Command;
 
+use crate::paths::foc_localnet_docker_images;
+
+/// Check if a Docker image exists locally as a cached tar file.
+///
+/// This function checks if the Docker image tar file exists in the local cache
+/// at ~/.foc-localnet/artifacts/docker/images/.
+///
+/// # Arguments
+/// * `image_tag` - The tag of the Docker image to check (e.g., "foc-builder")
+///
+/// # Returns
+/// Returns `true` if the image tar file exists in the local cache, `false` otherwise.
+pub fn image_exists(image_tag: &str) -> bool {
+    // Extract name from image tag (e.g., "foc-builder" -> "builder")
+    let name = image_tag.strip_prefix("foc-").unwrap_or(image_tag);
+
+    // Check if the corresponding tar file exists in the images directory
+    let images_dir = foc_localnet_docker_images();
+    let tar_path = images_dir.join(format!("{}.tar", name));
+
+    tar_path.exists()
+}
+
 /// Get list of running Docker containers with foc- prefix.
 ///
 /// This function queries Docker for all running containers whose names start with "foc-".

@@ -11,7 +11,7 @@
 use crossterm::style::Stylize;
 use tabular::{Row, Table};
 
-use super::docker::{get_container_uptime, get_port_status, get_running_containers};
+use super::docker::{get_container_uptime, get_port_status, get_running_containers, image_exists};
 use super::utils;
 
 /// Print running status of the system in tabular format.
@@ -66,9 +66,12 @@ pub fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
     let mut all_running = true;
     for (service_name, container_name) in &expected_containers {
         let is_running = containers.contains(&container_name.to_string());
+        let image_available = image_exists(container_name);
 
-        // Special handling for builder - show as "Compiling" if running
-        let status = if is_running {
+        // Determine status based on image availability and running state
+        let status = if !image_available {
+            "Unavailable".yellow().to_string()
+        } else if is_running {
             "Running".green().to_string()
         } else {
             // Don't count builder as "not running" for all_running check

@@ -229,7 +229,7 @@ fn build_yugabyte_docker_image(
         println!(
             "    {} Docker image {} already exists, skipping build",
             "✓".green(),
-            image_tag
+            image_tag.blue()
         );
         return Ok(());
     }
@@ -280,6 +280,7 @@ fn build_yugabyte_docker_image(
             &format!("type=tar,dest={}", tar_path.display()),
             &artifacts_dir.to_string_lossy(),
         ])
+        .current_dir(&artifacts_dir)
         .status()?;
 
     if !status.success() {
