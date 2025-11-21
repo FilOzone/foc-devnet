@@ -291,17 +291,116 @@ fn create_volumes_for_image(
     let volume_config: VolumesMap = toml::from_str(&content)
         .map_err(|e| format!("Failed to parse {}: {}", volumes_map_path.display(), e))?;
 
-    for host_subdir in volume_config.volumes.keys() {
+    let docker_image_tag = format!("foc-{}", image_name);
+
+    for (host_subdir, container_path) in volume_config.volumes.iter() {
         let volume_dir = volumes_base_dir.join(image_name).join(host_subdir);
+
+        // Check if the directory is empty (new initialization)
+        let is_new_volume = !volume_dir.exists()
+            || volume_dir
+                .read_dir()
+                .map(|mut entries| entries.next().is_none())
+                .unwrap_or(true);
+
         fs::create_dir_all(&volume_dir)?;
         println!(
             "  {} Created volume directory: {}",
             "✓".green(),
             volume_dir.display()
         );
+
+        // If the volume is new/empty, copy initial contents from the Docker image
+        if is_new_volume {
+            copy_initial_volume_contents(&docker_image_tag, container_path, &volume_dir)?;
+        }
     }
 
     Ok(())
+}
+
+/// Copy initial contents from a Docker image path to the host volume directory.
+fn copy_initial_volume_contents(
+    image_tag: &str,
+    container_path: &str,
+    host_volume_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Create a temporary container to copy files from
+    let container_name = format!("temp-volume-init-{}", std::process::id());
+
+    // Check if the image exists
+    let image_exists = Command::new("docker")
+        .args(["image", "inspect", image_tag])
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false);
+
+    if !image_exists {
+        println!(
+            "    {} Image {} not yet built, skipping volume initialization",
+            "ℹ".cyan(),
+            image_tag
+        );
+        return Ok(());
+    }
+
+    println!(
+        "    {} Copying initial contents from {}:{} to {}",
+        "📋".bold(),
+        image_tag,
+        container_path,
+        host_volume_dir.display()
+    );
+
+    // Create a container without starting it
+    let create_output = Command::new("docker")
+        .args(["create", "--name", &container_name, image_tag, "/bin/true"])
+        .output()?;
+
+    if !create_output.status.success() {
+        return Err(
+            format!("Failed to create temporary container for volume initialization").into(),
+        );
+    }
+
+    // Copy files from container to host - need to copy contents, not the directory itself
+    // Use format: container:path/. to copy contents of path into destination
+    let copy_status = Command::new("docker")
+        .args([
+            "cp",
+            &format!("{}:{}/.", &container_name, container_path),
+            &host_volume_dir.to_string_lossy(),
+        ])
+        .output();
+
+    // Clean up the temporary container
+    let _ = Command::new("docker")
+        .args(["rm", &container_name])
+        .status();
+
+    match copy_status {
+        Ok(output) if output.status.success() => {
+            println!(
+                "    {} Initialized volume with contents from image",
+                "✓".green()
+            );
+            Ok(())
+        }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.contains("Could not find") || stderr.contains("No such") {
+                println!(
+                    "    {} No contents found at {} in image, volume remains empty",
+                    "ℹ".cyan(),
+                    container_path
+                );
+                Ok(())
+            } else {
+                Err(format!("Failed to copy volume contents: {}", stderr).into())
+            }
+        }
+        Err(e) => Err(format!("Failed to copy volume contents: {}", e).into()),
+    }
 }
 
 /// Build and cache Docker images.
@@ -311,9 +410,6 @@ fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>> {
     // Ensure the docker images directory exists
     let images_dir = foc_localnet_docker_images();
     fs::create_dir_all(&images_dir)?;
-
-    // Create volume directories for all images based on their volume maps
-    create_volume_directories_for_images()?;
 
     // Find all Dockerfile files in the docker directory
     let docker_dir = Path::new("docker");
@@ -356,6 +452,9 @@ fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("  {} Docker images built and cached", "✓".green());
+
+    // Create and initialize volume directories AFTER images are built
+    create_volume_directories_for_images()?;
     Ok(())
 }
 
