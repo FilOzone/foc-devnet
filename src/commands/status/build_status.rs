@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use crossterm::style::Stylize;
 use tabular::{Row, Table};
 
-use super::utils::format_time_ago;
+use super::utils::{format_time_ago, get_terminal_width};
 
 /// Print build status of artifacts in tabular format.
 ///
@@ -31,8 +31,15 @@ use super::utils::format_time_ago;
 ///
 /// Returns an error if file system operations fail.
 pub fn print_build_status() -> Result<(), Box<dyn std::error::Error>> {
-    println!("\n{} {}", "🔨".yellow(), "Build Status".bold().yellow());
-    println!("{}", "─".repeat(120).yellow());
+    let width = get_terminal_width().min(120);
+    let header_text = format!("{} {}", "🔨".yellow(), "Build Status");
+    // Display width: 🔨 (2) + space (1) + "Build Status" (12) + space (1) = 16
+    let header_display_width = 2 + 1 + 12 + 1;
+    let padding_len = width.saturating_sub(header_display_width);
+    let padding = "░".repeat(padding_len).dark_grey();
+    println!("\n{}{}{}", header_text.bold().yellow(), " ", padding);
+    let width = get_terminal_width().min(120);
+    println!("{}", "─".repeat(width).yellow());
 
     let bin_dir = foc_localnet_bin();
 

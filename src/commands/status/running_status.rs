@@ -12,6 +12,7 @@ use crossterm::style::Stylize;
 use tabular::{Row, Table};
 
 use super::docker::{get_container_uptime, get_port_status, get_running_containers};
+use super::utils;
 
 /// Print running status of the system in tabular format.
 ///
@@ -30,8 +31,15 @@ use super::docker::{get_container_uptime, get_port_status, get_running_container
 ///
 /// Returns an error if Docker commands fail.
 pub fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
-    println!("\n{} {}", "⚙️".green(), "System Status".bold().green());
-    println!("{}", "─".repeat(120).green());
+    let width = utils::get_terminal_width().min(120);
+    let header_text = format!("{} {}", "⚙️".green(), "System Status");
+    // Display width: ⚙️ (2) + space (1) + "System Status" (13) + space (1) = 17
+    let header_display_width = 2 + 1 + 13 + 1;
+    let padding_len = width.saturating_sub(header_display_width);
+    let padding = "░".repeat(padding_len).dark_grey();
+    println!("\n{}{}{}", header_text.bold().green(), " ", padding);
+    let width = utils::get_terminal_width().min(120);
+    println!("{}", "─".repeat(width).green());
 
     // Check for running Docker containers
     let containers = get_running_containers()?;
@@ -95,7 +103,8 @@ pub fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     print!("{}", table);
-    println!("{}", "─".repeat(120).green());
+    let width = utils::get_terminal_width().min(120);
+    println!("{}", "─".repeat(width).green());
 
     if all_running {
         println!("{}", "All services are running!".green().bold());

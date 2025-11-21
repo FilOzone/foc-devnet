@@ -15,7 +15,7 @@ use crate::paths::{
 use crossterm::style::Stylize;
 use tabular::{Row, Table};
 
-use super::utils::{format_size, get_directory_size};
+use super::utils::{format_size, get_directory_size, get_terminal_width};
 
 /// Print disk usage information for foc-localnet directories.
 ///
@@ -34,8 +34,15 @@ use super::utils::{format_size, get_directory_size};
 ///
 /// Returns an error if directory size calculations fail.
 pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
-    println!("\n{} {}", "💾".blue(), "Disk Usage".bold().blue());
-    println!("{}", "─".repeat(120).blue());
+    let width = get_terminal_width().min(120);
+    let header_text = format!("{} {}", "💾".blue(), "Disk Usage");
+    // Display width: 💾 (2) + space (1) + "Disk Usage" (10) + space (1) = 14
+    let header_display_width = 2 + 1 + 10 + 1;
+    let padding_len = width.saturating_sub(header_display_width);
+    let padding = "░".repeat(padding_len).dark_grey();
+    println!("\n{}{}{}", header_text.bold().blue(), " ", padding);
+    let width = get_terminal_width().min(120);
+    println!("{}", "─".repeat(width).blue());
 
     let home_dir = foc_localnet_home();
 
@@ -113,7 +120,8 @@ pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
 
     // Total size
     let total_size = get_directory_size(&home_dir)?;
-    println!("{}", "─".repeat(120).blue());
+    let width = get_terminal_width().min(120);
+    println!("{}", "─".repeat(width).blue());
     println!(
         "{} {}",
         "Total foc-localnet size:".blue().bold(),

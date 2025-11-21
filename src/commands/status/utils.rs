@@ -7,6 +7,24 @@
 //! - Time duration formatting
 //! - Common data structures
 
+use crossterm::terminal;
+
+/// Get the terminal width, defaulting to 120 if it cannot be determined.
+///
+/// # Examples
+///
+/// ```rust
+/// use foc_localnet::commands::status::utils::get_terminal_width;
+///
+/// let width = get_terminal_width();
+/// println!("Terminal width: {}", width);
+/// ```
+pub fn get_terminal_width() -> usize {
+    terminal::size()
+        .map(|(width, _)| width as usize)
+        .unwrap_or(120)
+}
+
 /// Format a size in bytes to human readable format.
 ///
 /// # Examples

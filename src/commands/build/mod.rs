@@ -5,13 +5,16 @@
 pub mod repository;
 
 use crate::config::Config;
-use crate::paths::{foc_localnet_bin, foc_localnet_docker_images, foc_localnet_docker_volumes};
+use crate::paths::{
+    foc_localnet_bin, foc_localnet_docker_images, foc_localnet_docker_volumes, foc_localnet_logs,
+};
 use crossterm::style::Stylize;
 use repository::prepare_repository;
 use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
-use std::process::Command;
+use std::fs::{self, OpenOptions};
+use std::io::{BufRead, BufReader, Write};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 
 /// Build a project in a Docker container.
 ///
@@ -139,6 +142,17 @@ fn build_image_from_dockerfile(
     Ok(())
 }
 
+/// Create a timestamped log file path for build logs.
+fn create_build_log_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let logs_dir = foc_localnet_logs().join("build");
+    fs::create_dir_all(&logs_dir)?;
+
+    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+    let log_path = logs_dir.join(format!("{}.log", timestamp));
+
+    Ok(log_path)
+}
+
 /// Load volume mappings from a .volumes_map.toml file for a specific image.
 fn load_volume_map(
     image_name: &str,
@@ -171,6 +185,20 @@ fn run_build_in_container(
     image_tag: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("{} Building {} in container...", "🚀".bold(), project);
+
+    // Create log file for this build
+    let log_path = create_build_log_path()?;
+    println!(
+        "{} Logs will be saved to: {}",
+        "📝".bold(),
+        log_path.display()
+    );
+
+    let log_file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&log_path)?;
 
     let container_source_dir = "/workspace/source";
     let container_output_dir = "/workspace/output";
@@ -218,11 +246,69 @@ fn run_build_in_container(
 
     docker_run_args.push(build_script);
 
-    let status = Command::new("docker").args(&docker_run_args).status()?;
+    // Spawn the process with piped stdout/stderr
+    let mut child = Command::new("docker")
+        .args(&docker_run_args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    // Get handles to stdout and stderr
+    let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
+    let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
+
+    // Create clones of the log file for writing
+    let log_file_clone = log_file.try_clone()?;
+
+    // Stream stdout to both console and log file
+    let stdout_handle = std::thread::spawn({
+        let mut log_file = log_file;
+        move || {
+            let reader = BufReader::new(stdout);
+            for line in reader.lines() {
+                if let Ok(line) = line {
+                    println!("{}", line);
+                    writeln!(log_file, "{}", line).ok();
+                }
+            }
+        }
+    });
+
+    // Stream stderr to both console and log file
+    let stderr_handle = std::thread::spawn({
+        let mut log_file = log_file_clone;
+        move || {
+            let reader = BufReader::new(stderr);
+            for line in reader.lines() {
+                if let Ok(line) = line {
+                    eprintln!("{}", line);
+                    writeln!(log_file, "{}", line).ok();
+                }
+            }
+        }
+    });
+
+    // Wait for both threads to finish
+    stdout_handle.join().ok();
+    stderr_handle.join().ok();
+
+    // Wait for the child process to finish
+    let status = child.wait()?;
 
     if !status.success() {
-        return Err(format!("Failed to build {} in container", project).into());
+        return Err(format!(
+            "Failed to build {} in container. Check logs at: {}",
+            project,
+            log_path.display()
+        )
+        .into());
     }
+
+    println!(
+        "{} Build logs saved to: {}",
+        "✓".green(),
+        log_path.display()
+    );
 
     Ok(())
 }

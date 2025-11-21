@@ -14,6 +14,7 @@ use std::fs;
 use tabular::{Row, Table};
 
 use super::git::{format_location_info, get_git_info, get_repo_path_from_config};
+use super::utils;
 
 /// Print code version information in tabular format.
 ///
@@ -34,8 +35,15 @@ use super::git::{format_location_info, get_git_info, get_repo_path_from_config};
 /// - The configuration file cannot be read or parsed
 /// - Git repository information cannot be retrieved
 pub fn print_code_version() -> Result<(), Box<dyn std::error::Error>> {
-    println!("\n{} {}", "📋".cyan(), "Code Versions".bold().cyan());
-    println!("{}", "─".repeat(120).cyan());
+    let width = utils::get_terminal_width().min(120);
+    let header_text = format!("{} {}", "📋".cyan(), "Code Versions");
+    // Display width: 📋 (2) + space (1) + "Code Versions" (13) + space (1) = 17
+    let header_display_width = 2 + 1 + 13 + 1;
+    let padding_len = width.saturating_sub(header_display_width);
+    let padding = "░".repeat(padding_len).dark_grey();
+    println!("\n{}{}{}", header_text.bold().cyan(), " ", padding);
+    let width = utils::get_terminal_width().min(120);
+    println!("{}", "─".repeat(width).cyan());
 
     // Load configuration
     let config_path = foc_localnet_config();

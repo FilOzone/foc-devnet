@@ -11,7 +11,7 @@ use chrono::Utc;
 use crossterm::style::Stylize;
 
 use super::docker::{get_running_containers, get_system_start_time};
-use super::utils::format_duration;
+use super::utils::{format_duration, get_terminal_width};
 
 /// Print uptime information if system is running.
 ///
@@ -30,8 +30,15 @@ use super::utils::format_duration;
 ///
 /// Returns an error if Docker commands fail.
 pub fn print_uptime() -> Result<(), Box<dyn std::error::Error>> {
-    println!("\n{} {}", "⏱️".magenta(), "System Uptime".bold().magenta());
-    println!("{}", "─".repeat(120).magenta());
+    let width = get_terminal_width().min(120);
+    let header_text = format!("{} {}", "⏱️".magenta(), "System Uptime");
+    // Display width: ⏱️ (2) + space (1) + "System Uptime" (13) + space (1) = 17
+    let header_display_width = 2 + 1 + 13 + 1;
+    let padding_len = width.saturating_sub(header_display_width);
+    let padding = "░".repeat(padding_len).dark_grey();
+    println!("\n{}{}{}", header_text.bold().magenta(), " ", padding);
+    let width = get_terminal_width().min(120);
+    println!("{}", "─".repeat(width).magenta());
 
     let containers = get_running_containers()?;
 
