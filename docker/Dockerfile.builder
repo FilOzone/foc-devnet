@@ -30,7 +30,7 @@ ENV PATH=$PATH:/root/.cargo/bin
 WORKDIR /workspace
 
 # Define volumes for external access
-VOLUME ["/root/.cargo", "/root/go"]
+VOLUME ["/root/.cargo", "/root/.rustup" "/root/go"]
 
 # Default command
 CMD ["/bin/bash"]

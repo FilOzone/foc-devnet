@@ -126,6 +126,8 @@ fn build_image_from_dockerfile(
     let status = Command::new("docker")
         .args([
             "build",
+            "--progress",
+            "tty",
             "-f",
             "docker/Dockerfile.builder",
             "-t",

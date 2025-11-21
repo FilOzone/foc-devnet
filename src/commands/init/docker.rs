@@ -189,6 +189,8 @@ fn build_docker_image(
     let status = Command::new("docker")
         .args([
             "build",
+            "--progress",
+            "tty",
             "--file",
             &dockerfile_path.to_string_lossy(),
             "--tag",
@@ -272,6 +274,8 @@ fn build_yugabyte_docker_image(
     let status = Command::new("docker")
         .args([
             "build",
+            "--progress",
+            "tty",
             "--file",
             &dockerfile_path.to_string_lossy(),
             "--tag",
