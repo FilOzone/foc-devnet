@@ -44,7 +44,7 @@ pub fn print_build_status() -> Result<(), Box<dyn std::error::Error>> {
     let bin_dir = foc_localnet_bin();
 
     // Check for expected binaries
-    let expected_binaries = vec!["lotus", "lotus-miner", "curio"];
+    let expected_binaries = vec!["lotus", "lotus-miner", "lotus-shed", "lotus-seed", "curio"];
 
     // Create tabular output
     let mut table = Table::new("{:<}  {:<}  {:<}  {:<}");

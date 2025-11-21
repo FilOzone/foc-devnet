@@ -1,0 +1,38 @@
+# Dockerfile for Lotus execution node (Alpine-based)
+#
+# This container runs the lotus daemon, which is the execution node for
+# the Filecoin network, handling FEVM and FVM.
+
+FROM alpine:latest
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    bash \
+    jq \
+    curl \
+    hwloc \
+    mesa-gl
+
+# Create necessary directories
+RUN mkdir -p /var/tmp/filecoin-proof-parameters \
+    && mkdir -p /root/.lotus-local-net \
+    && mkdir -p /root/.genesis
+
+# Copy the lotus binary from the host (will be mounted)
+# Binary will be mounted from ~/.foc-localnet/bin
+
+# Expose lotus daemon ports
+# 1234 - Lotus API
+# 1235 - Lotus P2P
+EXPOSE 1234 1235
+
+# Set environment variables for local devnet
+ENV LOTUS_PATH=/root/.lotus-local-net
+ENV LOTUS_SKIP_GENESIS_CHECK=_yes_
+ENV FIL_PROOFS_PARAMETER_CACHE=/var/tmp/filecoin-proof-parameters
+ENV CGO_CFLAGS_ALLOW="-D__BLST_PORTABLE__"
+ENV CGO_CFLAGS="-D__BLST_PORTABLE__"
+
+# Default command will be overridden when container starts
+CMD ["/bin/bash"]

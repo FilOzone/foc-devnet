@@ -14,6 +14,24 @@ use crate::paths::{
     foc_localnet_artifacts, foc_localnet_docker_images, foc_localnet_docker_volumes,
 };
 
+/// Check if a Docker image exists locally as a cached tar file.
+///
+/// # Arguments
+/// * `image_tag` - The tag of the Docker image to check (e.g., "foc-builder")
+///
+/// # Returns
+/// Returns `true` if the image tar file exists in the local cache, `false` otherwise.
+fn image_exists(image_tag: &str) -> bool {
+    // Extract name from image tag (e.g., "foc-builder" -> "builder")
+    let name = image_tag.strip_prefix("foc-").unwrap_or(image_tag);
+
+    // Check if the corresponding tar file exists in the images directory
+    let images_dir = foc_localnet_docker_images();
+    let tar_path = images_dir.join(format!("{}.tar", name));
+
+    tar_path.exists()
+}
+
 /// Build and cache Docker images.
 ///
 /// This function builds Docker images from Dockerfiles in the docker/ directory,
@@ -58,14 +76,15 @@ pub fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>>
         let name = extract_name(&dockerfile)?;
 
         // Build the Docker image with special handling for yugabyte
-        if name == "foc-yugabyte" {
-            build_yugabyte_docker_image(&dockerfile, &name)?;
-        } else {
-            build_docker_image(&dockerfile, &name)?;
-        }
 
-        // Save the image as a tar file
-        save_docker_image(&name, &images_dir)?;
+        match name.as_str() {
+            "foc-yugabyte" => {
+                build_yugabyte_docker_image(&dockerfile, &name)?;
+            }
+            _ => {
+                build_docker_image(&dockerfile, &name)?;
+            }
+        }
     }
 
     println!("  {} Docker images built and cached", "✓".green());
@@ -137,7 +156,20 @@ fn build_docker_image(
     name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let image_tag = format!("foc-{}", name);
+
+    // Check if image already exists
+    if image_exists(&image_tag) {
+        println!(
+            "    {} Docker image {} already exists, skipping build",
+            "✓".green(),
+            image_tag
+        );
+        return Ok(());
+    }
+
     let dockerfile_dir = dockerfile_path.parent().unwrap_or(Path::new("."));
+    let images_dir = foc_localnet_docker_images();
+    let tar_path = images_dir.join(format!("{}.tar", name));
 
     println!(
         "    {} Building Docker image: {} from {}",
@@ -157,10 +189,12 @@ fn build_docker_image(
     let status = Command::new("docker")
         .args([
             "build",
-            "-f",
+            "--file",
             &dockerfile_path.to_string_lossy(),
-            "-t",
+            "--tag",
             &image_tag,
+            "--output",
+            &format!("type=tar,dest={}", tar_path.display()),
             &dockerfile_dir.to_string_lossy(),
         ])
         .status()?;
@@ -170,7 +204,7 @@ fn build_docker_image(
         return Err(format!("Failed to build Docker image: {}", image_tag).into());
     }
 
-    pb.finish_with_message(format!("✓ Built image: {}", image_tag));
+    pb.finish_with_message(format!("✓ Built and saved image: {}", image_tag));
     Ok(())
 }
 
@@ -189,7 +223,20 @@ fn build_yugabyte_docker_image(
     name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let image_tag = format!("foc-{}", name);
+
+    // Check if image already exists
+    if image_exists(&image_tag) {
+        println!(
+            "    {} Docker image {} already exists, skipping build",
+            "✓".green(),
+            image_tag
+        );
+        return Ok(());
+    }
+
     let artifacts_dir = foc_localnet_artifacts();
+    let images_dir = foc_localnet_docker_images();
+    let tar_path = images_dir.join(format!("{}.tar", name));
 
     // Check if yugabyte directory exists in artifacts
     let yugabyte_dir = artifacts_dir.join("yugabyte");
@@ -225,10 +272,12 @@ fn build_yugabyte_docker_image(
     let status = Command::new("docker")
         .args([
             "build",
-            "-f",
+            "--file",
             &dockerfile_path.to_string_lossy(),
-            "-t",
+            "--tag",
             &image_tag,
+            "--output",
+            &format!("type=tar,dest={}", tar_path.display()),
             &artifacts_dir.to_string_lossy(),
         ])
         .status()?;
@@ -238,46 +287,7 @@ fn build_yugabyte_docker_image(
         return Err(format!("Failed to build Docker image: {}", image_tag).into());
     }
 
-    pb.finish_with_message(format!("✓ Built image: {}", image_tag));
-    Ok(())
-}
-
-/// Save a Docker image as a tar file.
-///
-/// # Arguments
-/// * `name` - Name of the image (without foc- prefix)
-/// * `images_dir` - Directory to save the tar file in
-///
-/// # Returns
-/// Returns `Ok(())` if save succeeds, or an error if save fails.
-fn save_docker_image(name: &str, images_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let image_tag = format!("foc-{}", name);
-    let tar_path = images_dir.join(format!("{}.tar", name));
-
-    println!(
-        "    {} Saving image to: {}",
-        "💾".bold(),
-        tar_path.display()
-    );
-
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg}")
-            .unwrap(),
-    );
-    pb.set_message(format!("Saving Docker image: {}", name));
-
-    let status = Command::new("docker")
-        .args(["save", "-o", &tar_path.to_string_lossy(), &image_tag])
-        .status()?;
-
-    if !status.success() {
-        pb.finish_with_message(format!("❌ Failed to save Docker image: {}", image_tag));
-        return Err(format!("Failed to save Docker image: {}", image_tag).into());
-    }
-
-    pb.finish_with_message(format!("✓ Saved image: {}", tar_path.display()));
+    pb.finish_with_message(format!("✓ Built and saved image: {}", image_tag));
     Ok(())
 }
 
@@ -301,7 +311,7 @@ fn create_volume_directories_for_images() -> Result<(), Box<dyn std::error::Erro
         if path.is_file() {
             if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
                 if filename.ends_with(".volumes_map.toml") {
-                    // Extract image name from filename (e.g., "builder.volumes_map.toml" -> "builder")
+                    // Extract image name from filename (e.g., "foc-builder.volumes_map.toml" -> "foc-builder")
                     if let Some(image_name) = filename.strip_suffix(".volumes_map.toml") {
                         create_volumes_for_image(image_name, &path, &volumes_base_dir)?;
                     }
@@ -380,19 +390,42 @@ fn copy_initial_volume_contents(
     let container_name = format!("temp-volume-init-{}", std::process::id());
 
     // Check if the image exists
-    let image_exists = Command::new("docker")
+    let image_exists_in_docker = Command::new("docker")
         .args(["image", "inspect", image_tag])
         .output()
         .map(|output| output.status.success())
         .unwrap_or(false);
 
-    if !image_exists {
-        println!(
-            "    {} Image {} not yet built, skipping volume initialization",
-            "ℹ".cyan(),
-            image_tag
-        );
-        return Ok(());
+    if !image_exists_in_docker {
+        // Check if we have a cached tar file
+        let name = image_tag.strip_prefix("foc-").unwrap_or(image_tag);
+        let images_dir = foc_localnet_docker_images();
+        let tar_path = images_dir.join(format!("{}.tar", name));
+
+        if tar_path.exists() {
+            println!("    {} Loading image {} from cache", "📦".bold(), image_tag);
+
+            // Load the image from tar
+            let load_status = Command::new("docker")
+                .args(["load", "-i", &tar_path.to_string_lossy()])
+                .status()?;
+
+            if !load_status.success() {
+                println!(
+                    "    {} Failed to load image {} from cache, skipping volume initialization",
+                    "⚠".yellow(),
+                    image_tag
+                );
+                return Ok(());
+            }
+        } else {
+            println!(
+                "    {} Image {} not yet built, skipping volume initialization",
+                "ℹ".cyan(),
+                image_tag
+            );
+            return Ok(());
+        }
     }
 
     println!(

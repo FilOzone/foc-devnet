@@ -1,0 +1,40 @@
+# Dockerfile for Lotus Miner (Alpine-based)
+#
+# This container runs the lotus-miner, the first generation miner node
+# that builds tipsets and performs PoRep (original Filecoin).
+
+FROM alpine:latest
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    bash \
+    jq \
+    curl \
+    hwloc \
+    mesa-gl
+
+# Create necessary directories
+RUN mkdir -p /var/tmp/filecoin-proof-parameters \
+    && mkdir -p /root/.lotus-miner-local-net \
+    && mkdir -p /root/.lotus-local-net \
+    && mkdir -p /root/.genesis-sectors
+
+# Copy binaries will be mounted from host
+# Binary will be mounted from ~/.foc-localnet/bin
+
+# Expose lotus-miner ports
+# 2345 - Lotus Miner API
+# 2346 - Lotus Miner P2P
+EXPOSE 2345 2346
+
+# Set environment variables for local devnet
+ENV LOTUS_MINER_PATH=/root/.lotus-miner-local-net
+ENV LOTUS_PATH=/root/.lotus-local-net
+ENV LOTUS_SKIP_GENESIS_CHECK=_yes_
+ENV FIL_PROOFS_PARAMETER_CACHE=/var/tmp/filecoin-proof-parameters
+ENV CGO_CFLAGS_ALLOW="-D__BLST_PORTABLE__"
+ENV CGO_CFLAGS="-D__BLST_PORTABLE__"
+
+# Default command will be overridden when container starts
+CMD ["/bin/bash"]

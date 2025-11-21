@@ -66,3 +66,31 @@ pub fn foc_localnet_docker_volumes() -> PathBuf {
 pub fn foc_localnet_config() -> PathBuf {
     foc_localnet_home().join("config.toml")
 }
+
+/// Returns the path to the Filecoin proof parameters directory
+/// e.g., ~/.foc-localnet/artifacts/filecoin-proof-parameters
+pub fn foc_localnet_proof_parameters() -> PathBuf {
+    foc_localnet_artifacts().join("filecoin-proof-parameters")
+}
+
+/// Returns the path to store BLS keys for lotus
+/// e.g., ~/.foc-localnet/artifacts/lotus-keys
+pub fn foc_localnet_lotus_keys() -> PathBuf {
+    foc_localnet_artifacts().join("lotus-keys")
+}
+
+/// Returns the path to the pre-sealed sectors for genesis
+/// e.g., ~/.foc-localnet/artifacts/genesis-sectors
+pub fn foc_localnet_genesis_sectors() -> PathBuf {
+    foc_localnet_artifacts().join("genesis-sectors")
+}
+
+/// Returns the path to the genesis template
+/// e.g., ~/.foc-localnet/artifacts/genesis
+pub fn foc_localnet_genesis() -> PathBuf {
+    foc_localnet_artifacts().join("genesis")
+}
+
+// Constants for container paths
+/// Container path where Filecoin proof parameters are mounted
+pub const CONTAINER_PROOF_PARAMS_PATH: &str = "/var/tmp/filecoin-proof-parameters";

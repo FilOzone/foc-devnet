@@ -1,0 +1,37 @@
+# Dockerfile for Curio (Alpine-based)
+#
+# This container runs curio, the second generation miner node
+# that performs PDP but does not build tipsets.
+
+FROM alpine:latest
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    bash \
+    jq \
+    curl \
+    postgresql-client \
+    hwloc \
+    mesa-gl
+
+# Create necessary directories
+RUN mkdir -p /var/tmp/filecoin-proof-parameters \
+    && mkdir -p /root/.curio
+
+# Copy binaries will be mounted from host
+# Binary will be mounted from ~/.foc-localnet/bin
+
+# Expose curio ports
+# 12300 - Curio API
+# 12301 - Curio RPC
+EXPOSE 12300 12301
+
+# Set environment variables
+ENV CURIO_REPO_PATH=/root/.curio
+ENV FIL_PROOFS_PARAMETER_CACHE=/var/tmp/filecoin-proof-parameters
+ENV CGO_CFLAGS_ALLOW="-D__BLST_PORTABLE__"
+ENV CGO_CFLAGS="-D__BLST_PORTABLE__"
+
+# Default command will be overridden when container starts
+CMD ["/bin/bash"]

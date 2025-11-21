@@ -9,7 +9,15 @@ cargo run -- build curio
 
 ---------------
 
-Now that we have `start` command and `stop` command, let's start implementing the crux of localnet setup
+Now that we have `start` command and `stop` command, let's start implementing the crux of localnet setup.
+
+You might need to create a whole lot of things, so break this into small parts. Also, ask clarifying questions where you need.
+Wherever required, attempt to create modules which are folder like with mod.rs, file.rs etc.
+Split functionality across files in module.
+Provide ample documentation.
+
+`foc-builder` is a multi-use container used for building, running ad-hoc code, for smart contract deployment etc.
+`foc-curio`, `for-lotus` etc are lean... long running containers hosting miners and exection nodes. Try alpine for them.
 
 The following needs to be started in order:
 - `lotus`, execution node, running FEVM and FVM
@@ -51,3 +59,12 @@ Create two keys with `lotus-shed` binary inside the `foc-builder` container. The
 ```
 ./lotus-shed keyinfo new bls
 ```
+We should have yet another two docker volumes called `lotus-keys-1` and `lotus-keys-2` where these keys will be stored.
+
+## Pre-sealing
+Before we start a new network, we need to "pre-seal" two sectors for genesis block:
+Use in `foc-builder`:
+```
+./lotus-seed pre-seal --sector-size 2KiB --num-sectors 2
+```
+Obviously, their output needs to be put in yet another docker volume. Let's call that `genesis-presealed-sectors`.

@@ -1,6 +1,8 @@
+mod genesis;
 mod step;
 mod yugabyte;
 
+pub use genesis::ensure_genesis_prerequisites;
 pub use step::{Step, StepContext, execute_steps};
 use yugabyte::YugabyteStep;
 
@@ -43,6 +45,10 @@ pub fn start_cluster(
         "{}",
         format!("Logs directory: {}", logs_dir.display()).cyan()
     );
+    println!();
+
+    // Ensure genesis prerequisites are ready (one-time setup)
+    ensure_genesis_prerequisites()?;
     println!();
 
     // Create steps

@@ -1,0 +1,11 @@
+# Volume mappings for lotus-miner Docker image
+# Format: host_subdirectory = "container_path"
+# Host paths will be relative to ~/.foc-localnet/artifacts/docker/volumes/lotus-miner/
+
+[volumes]
+# Lotus miner repository data
+miner-data = "/root/.lotus-miner-local-net"
+# Lotus daemon access (for API calls)
+lotus-data = "/root/.lotus-local-net"
+# Pre-sealed sectors
+genesis-sectors = "/root/.genesis-sectors"
