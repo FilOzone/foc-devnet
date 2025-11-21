@@ -9,7 +9,7 @@
 //! outputs are cached for reuse across localnet restarts.
 
 use crate::paths::{
-    CONTAINER_PROOF_PARAMS_PATH, foc_localnet_bin, foc_localnet_docker_volumes,
+    CONTAINER_FILECOIN_PROOF_PARAMS_PATH, foc_localnet_bin, foc_localnet_docker_volumes,
     foc_localnet_genesis, foc_localnet_genesis_sectors, foc_localnet_lotus_keys,
     foc_localnet_proof_parameters,
 };
@@ -89,7 +89,11 @@ fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
                 builder_volumes_dir.join("cargo").display()
             ),
             "-v",
-            &format!("{}:{}", params_dir.display(), CONTAINER_PROOF_PARAMS_PATH),
+            &format!(
+                "{}:{}",
+                params_dir.display(),
+                CONTAINER_FILECOIN_PROOF_PARAMS_PATH
+            ),
             BUILDER_IMAGE,
             "/bin/bash",
             "-c",

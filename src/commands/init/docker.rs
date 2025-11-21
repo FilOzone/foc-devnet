@@ -73,16 +73,16 @@ pub fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>>
     );
 
     for dockerfile in dockerfiles {
-        let name = extract_name(&dockerfile)?;
+        let dockerfile_suffix = extract_name(&dockerfile)?;
 
         // Build the Docker image with special handling for yugabyte
 
-        match name.as_str() {
-            "foc-yugabyte" => {
-                build_yugabyte_docker_image(&dockerfile, &name)?;
+        match dockerfile_suffix.as_str() {
+            "yugabyte" => {
+                build_yugabyte_docker_image(&dockerfile, &dockerfile_suffix)?;
             }
             _ => {
-                build_docker_image(&dockerfile, &name)?;
+                build_docker_image(&dockerfile, &dockerfile_suffix)?;
             }
         }
     }
@@ -280,7 +280,6 @@ fn build_yugabyte_docker_image(
             &format!("type=tar,dest={}", tar_path.display()),
             &artifacts_dir.to_string_lossy(),
         ])
-        .current_dir(&artifacts_dir)
         .status()?;
 
     if !status.success() {
