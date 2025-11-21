@@ -14,14 +14,29 @@ use crate::paths::{
     foc_localnet_artifacts, foc_localnet_docker_images, foc_localnet_docker_volumes,
 };
 
-/// Check if a Docker image exists locally as a cached tar file.
+/// Check if a Docker image exists locally in the Docker daemon.
+///
+/// # Arguments
+/// * `image_tag` - The tag of the Docker image to check (e.g., "foc-builder")
+///
+/// # Returns
+/// Returns `true` if the image exists in the local Docker daemon, `false` otherwise.
+fn image_exists(image_tag: &str) -> bool {
+    Command::new("docker")
+        .args(["image", "inspect", image_tag])
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+/// Check if a Docker image tarball exists locally.
 ///
 /// # Arguments
 /// * `image_tag` - The tag of the Docker image to check (e.g., "foc-builder")
 ///
 /// # Returns
 /// Returns `true` if the image tar file exists in the local cache, `false` otherwise.
-fn image_exists(image_tag: &str) -> bool {
+fn tarball_exists(image_tag: &str) -> bool {
     // Extract name from image tag (e.g., "foc-builder" -> "builder")
     let name = image_tag.strip_prefix("foc-").unwrap_or(image_tag);
 
@@ -157,56 +172,94 @@ fn build_docker_image(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let image_tag = format!("foc-{}", name);
 
-    // Check if image already exists
+    // Check if image already exists in Docker
     if image_exists(&image_tag) {
         println!(
             "    {} Docker image {} already exists, skipping build",
             "✓".green(),
             image_tag
         );
-        return Ok(());
+    } else {
+        let dockerfile_dir = dockerfile_path.parent().unwrap_or(Path::new("."));
+
+        println!(
+            "    {} Building Docker image: {} from {}",
+            "🔨".bold(),
+            image_tag,
+            dockerfile_path.display()
+        );
+
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.green} {msg}")
+                .unwrap(),
+        );
+        pb.set_message(format!("Building Docker image: {}", image_tag));
+
+        let status = Command::new("docker")
+            .args([
+                "build",
+                "--progress",
+                "tty",
+                "--file",
+                &dockerfile_path.to_string_lossy(),
+                "--tag",
+                &image_tag,
+                &dockerfile_dir.to_string_lossy(),
+            ])
+            .status()?;
+
+        if !status.success() {
+            pb.finish_with_message(format!("❌ Failed to build Docker image: {}", image_tag));
+            return Err(format!("Failed to build Docker image: {}", image_tag).into());
+        }
+
+        pb.finish_with_message(format!("✓ Built image: {}", image_tag));
     }
 
-    let dockerfile_dir = dockerfile_path.parent().unwrap_or(Path::new("."));
-    let images_dir = foc_localnet_docker_images();
-    let tar_path = images_dir.join(format!("{}.tar", name));
+    // Check if tarball already exists
+    if tarball_exists(&image_tag) {
+        println!(
+            "    {} Tarball for {} already exists, skipping save",
+            "✓".green(),
+            image_tag
+        );
+    } else {
+        let images_dir = foc_localnet_docker_images();
+        let tar_path = images_dir.join(format!("{}.tar", name));
 
-    println!(
-        "    {} Building Docker image: {} from {}",
-        "🔨".bold(),
-        image_tag,
-        dockerfile_path.display()
-    );
+        println!(
+            "    {} Saving Docker image {} to tarball",
+            "💾".bold(),
+            image_tag
+        );
 
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg}")
-            .unwrap(),
-    );
-    pb.set_message(format!("Building Docker image: {}", image_tag));
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.green} {msg}")
+                .unwrap(),
+        );
+        pb.set_message(format!("Saving image {} to tarball", image_tag));
 
-    let status = Command::new("docker")
-        .args([
-            "build",
-            "--progress",
-            "tty",
-            "--file",
-            &dockerfile_path.to_string_lossy(),
-            "--tag",
-            &image_tag,
-            "--output",
-            &format!("type=tar,dest={}", tar_path.display()),
-            &dockerfile_dir.to_string_lossy(),
-        ])
-        .status()?;
+        let status = Command::new("docker")
+            .args([
+                "save",
+                &image_tag,
+                "-o",
+                &tar_path.to_string_lossy(),
+            ])
+            .status()?;
 
-    if !status.success() {
-        pb.finish_with_message(format!("❌ Failed to build Docker image: {}", image_tag));
-        return Err(format!("Failed to build Docker image: {}", image_tag).into());
+        if !status.success() {
+            pb.finish_with_message(format!("❌ Failed to save Docker image: {}", image_tag));
+            return Err(format!("Failed to save Docker image: {}", image_tag).into());
+        }
+
+        pb.finish_with_message(format!("✓ Saved image to tarball: {}", tar_path.display()));
     }
 
-    pb.finish_with_message(format!("✓ Built and saved image: {}", image_tag));
     Ok(())
 }
 
@@ -226,72 +279,110 @@ fn build_yugabyte_docker_image(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let image_tag = format!("foc-{}", name);
 
-    // Check if image already exists
+    // Check if image already exists in Docker
     if image_exists(&image_tag) {
         println!(
             "    {} Docker image {} already exists, skipping build",
             "✓".green(),
-            image_tag.blue()
+            image_tag.clone().blue()
         );
-        return Ok(());
+    } else {
+        let artifacts_dir = foc_localnet_artifacts();
+
+        // Check if yugabyte directory exists in artifacts
+        let yugabyte_dir = artifacts_dir.join("yugabyte");
+        if !yugabyte_dir.exists() {
+            return Err(format!(
+                "Yugabyte directory not found at {}. Please ensure artifacts are downloaded first.",
+                yugabyte_dir.display()
+            )
+            .into());
+        }
+
+        println!(
+            "    {} Building Docker image: {} from {}",
+            "🔨".bold(),
+            image_tag,
+            dockerfile_path.display()
+        );
+        println!(
+            "    {} Using build context: {}",
+            "📁".bold(),
+            artifacts_dir.display()
+        );
+
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.green} {msg}")
+                .unwrap(),
+        );
+        pb.set_message(format!("Building Docker image: {}", image_tag));
+
+        // Build from artifacts directory as context to include yugabyte folder
+        let status = Command::new("docker")
+            .args([
+                "build",
+                "--progress",
+                "tty",
+                "--file",
+                &dockerfile_path.to_string_lossy(),
+                "--tag",
+                &image_tag,
+                &artifacts_dir.to_string_lossy(),
+            ])
+            .status()?;
+
+        if !status.success() {
+            pb.finish_with_message(format!("❌ Failed to build Docker image: {}", image_tag));
+            return Err(format!("Failed to build Docker image: {}", image_tag).into());
+        }
+
+        pb.finish_with_message(format!("✓ Built image: {}", image_tag));
     }
 
-    let artifacts_dir = foc_localnet_artifacts();
-    let images_dir = foc_localnet_docker_images();
-    let tar_path = images_dir.join(format!("{}.tar", name));
+    // Check if tarball already exists
+    if tarball_exists(&image_tag) {
+        println!(
+            "    {} Tarball for {} already exists, skipping save",
+            "✓".green(),
+            image_tag
+        );
+    } else {
+        let images_dir = foc_localnet_docker_images();
+        let tar_path = images_dir.join(format!("{}.tar", name));
 
-    // Check if yugabyte directory exists in artifacts
-    let yugabyte_dir = artifacts_dir.join("yugabyte");
-    if !yugabyte_dir.exists() {
-        return Err(format!(
-            "Yugabyte directory not found at {}. Please ensure artifacts are downloaded first.",
-            yugabyte_dir.display()
-        )
-        .into());
+        println!(
+            "    {} Saving Docker image {} to tarball",
+            "💾".bold(),
+            image_tag
+        );
+
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.green} {msg}")
+                .unwrap(),
+        );
+        pb.set_message(format!("Saving image {} to tarball", image_tag));
+
+        let status = Command::new("docker")
+            .args([
+                "save",
+                &image_tag,
+                "-o",
+                &tar_path.to_string_lossy(),
+            ])
+            .status()?;
+
+        if !status.success() {
+            pb.finish_with_message(format!("❌ Failed to save Docker image: {}", image_tag));
+            return Err(format!("Failed to save Docker image: {}", image_tag).into());
+        }
+
+        pb.finish_with_message(format!("✓ Saved image to tarball: {}", tar_path.display()));
     }
 
-    println!(
-        "    {} Building Docker image: {} from {}",
-        "🔨".bold(),
-        image_tag,
-        dockerfile_path.display()
-    );
-    println!(
-        "    {} Using build context: {}",
-        "📁".bold(),
-        artifacts_dir.display()
-    );
-
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg}")
-            .unwrap(),
-    );
-    pb.set_message(format!("Building Docker image: {}", image_tag));
-
-    // Build from artifacts directory as context to include yugabyte folder
-    let status = Command::new("docker")
-        .args([
-            "build",
-            "--progress",
-            "tty",
-            "--file",
-            &dockerfile_path.to_string_lossy(),
-            "--tag",
-            &image_tag,
-            "--output",
-            &format!("type=tar,dest={}", tar_path.display()),
-            &artifacts_dir.to_string_lossy(),
-        ])
-        .status()?;
-
-    if !status.success() {
-        pb.finish_with_message(format!("❌ Failed to build Docker image: {}", image_tag));
-        return Err(format!("Failed to build Docker image: {}", image_tag).into());
-    }
-
-    pb.finish_with_message(format!("✓ Built and saved image: {}", image_tag));
     Ok(())
 }
 

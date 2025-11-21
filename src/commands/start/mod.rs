@@ -13,7 +13,7 @@ use lotus_miner::LotusMinerStep;
 pub use step::{Step, StepContext, execute_steps};
 use yugabyte::YugabyteStep;
 
-use crate::paths::foc_localnet_logs;
+use crate::paths::{foc_localnet_docker_volumes, foc_localnet_logs};
 use crossterm::style::Stylize;
 use std::path::PathBuf;
 
@@ -29,7 +29,7 @@ pub fn start_cluster(
         PathBuf::from(dir)
     } else {
         // Create a temporary directory for volumes
-        std::env::temp_dir().join("foc-localnet-volumes")
+        foc_localnet_docker_volumes()
     };
 
     // Determine logs directory

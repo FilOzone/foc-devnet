@@ -30,7 +30,7 @@ ENV PATH=$PATH:/root/.cargo/bin
 WORKDIR /workspace
 
 # Define volumes for external access
-VOLUME ["/root/.cargo", "/root/.rustup" "/root/go"]
+VOLUME ["/root/.cargo", "/root/.rustup" "/root/go", "/var/tmp/filecoin-proof-parameters"]
 
 # Default command
 CMD ["/bin/bash"]

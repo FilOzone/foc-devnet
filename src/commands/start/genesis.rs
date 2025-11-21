@@ -8,7 +8,6 @@
 //! These operations are performed using the foc-builder container and their
 //! outputs are cached for reuse across localnet restarts.
 
-use super::docker_utils::load_image_from_tar;
 use crate::paths::{
     CONTAINER_FILECOIN_PROOF_PARAMS_PATH, foc_localnet_bin, foc_localnet_docker_volumes,
     foc_localnet_genesis, foc_localnet_genesis_sectors, foc_localnet_lotus_keys,
@@ -19,7 +18,6 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-const BUILDER_IMAGE: &str = "foc-builder";
 const SECTOR_SIZE: &str = "2KiB";
 const NUM_SECTORS: u32 = 2;
 const PROOF_PARAMS_SECTOR_SIZE: &str = "2048";
@@ -35,10 +33,6 @@ const PROOF_PARAMS_SECTOR_SIZE: &str = "2048";
 /// Returns `Ok(())` if all prerequisites are ready, or an error if preparation fails.
 pub fn ensure_genesis_prerequisites() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "Checking genesis prerequisites...".blue().bold());
-
-    // Load the builder image from tar file (needed for all genesis operations)
-    load_image_from_tar(BUILDER_IMAGE, "Builder")?;
-    println!();
 
     // Ensure proof parameters are downloaded
     ensure_proof_parameters()?;
@@ -86,20 +80,15 @@ fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
         .args([
             "run",
             "--rm",
+            "-e",
+            &format!("FIL_PROOFS_PARAMETER_CACHE={}", CONTAINER_FILECOIN_PROOF_PARAMS_PATH),
             "-v",
             &format!("{}:/output", bin_dir.display()),
             "-v",
-            &format!(
-                "{}:/root/.cargo",
-                builder_volumes_dir.join("cargo").display()
-            ),
+            &format!("{}:/root/.cargo", builder_volumes_dir.join("cargo").display()),
             "-v",
-            &format!(
-                "{}:{}",
-                params_dir.display(),
-                CONTAINER_FILECOIN_PROOF_PARAMS_PATH
-            ),
-            BUILDER_IMAGE,
+            &format!("{}:{}", params_dir.display(), CONTAINER_FILECOIN_PROOF_PARAMS_PATH),
+            "foc-builder",
             "/bin/bash",
             "-c",
             &format!("/output/lotus fetch-params {}", PROOF_PARAMS_SECTOR_SIZE),
@@ -161,13 +150,10 @@ fn ensure_bls_key(key_dir: &Path, key_num: u32) -> Result<(), Box<dyn std::error
             "-v",
             &format!("{}:/output", bin_dir.display()),
             "-v",
-            &format!(
-                "{}:/root/.cargo",
-                builder_volumes_dir.join("cargo").display()
-            ),
+            &format!("{}:/root/.cargo", builder_volumes_dir.join("cargo").display()),
             "-v",
             &format!("{}:/keys", key_dir.display()),
-            BUILDER_IMAGE,
+            "foc-builder",
             "/bin/bash",
             "-c",
             "cd /keys && /output/lotus-shed keyinfo new bls",
@@ -228,21 +214,16 @@ fn ensure_presealed_sectors() -> Result<(), Box<dyn std::error::Error>> {
             "run",
             "--rm",
             "-v",
-            &format!("{}:/output", bin_dir.display()),
+            &format!("{}:/opt/bin", bin_dir.display()),
             "-v",
-            &format!(
-                "{}:/root/.cargo",
-                builder_volumes_dir.join("cargo").display()
-            ),
+            &format!("{}:/root/.cargo", builder_volumes_dir.join("cargo").display()),
             "-v",
-            &format!("{}:/sectors", sectors_dir.display()),
-            "-v",
-            &format!("{}:/genesis", genesis_dir.display()),
-            BUILDER_IMAGE,
+            &format!("{}:/root/.genesis-sectors", sectors_dir.display()),
+            "foc-builder",
             "/bin/bash",
             "-c",
             &format!(
-                "cd /sectors && /output/lotus-seed pre-seal --sector-size {} --num-sectors {}",
+                "/opt/bin/lotus-seed pre-seal --sector-size {} --num-sectors {}",
                 SECTOR_SIZE, NUM_SECTORS
             ),
         ])
