@@ -11,6 +11,7 @@ use crossterm::style::Stylize;
 use dirs;
 use downloader::Downloader;
 use indicatif::{ProgressBar, ProgressStyle};
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -19,7 +20,7 @@ use std::process::Command;
 use crate::config::{Config, Location};
 use crate::paths::{
     foc_localnet_artifacts, foc_localnet_bin, foc_localnet_code, foc_localnet_config,
-    foc_localnet_docker_images, foc_localnet_home, foc_localnet_logs, foc_localnet_state,
+    foc_localnet_docker_images, foc_localnet_docker_volumes, foc_localnet_home, foc_localnet_logs, foc_localnet_state,
     foc_localnet_tmp,
 };
 
@@ -84,13 +85,14 @@ fn create_directories() -> Result<(), Box<dyn std::error::Error>> {
         foc_localnet_tmp(),
         foc_localnet_artifacts(),
         foc_localnet_docker_images(),
+        foc_localnet_docker_volumes(),
     ];
 
     for dir in directories {
         if !dir.exists() {
             println!("  {} Creating directory: {:?}", "ℹ".cyan(), dir);
             fs::create_dir_all(&dir)?;
-            println!("  {} Created: {}", "✓".green(), dir.display());
+            println!("\r  {} Created: {}", "✓".green(), dir.display());
         } else {
             println!("  {} Exists: {}", "✓".green(), dir.display());
         }
@@ -240,6 +242,64 @@ fn add_path_to_shell_config(
     Ok(())
 }
 
+/// Create volume directories for all Docker images based on their volume map files.
+fn create_volume_directories_for_images() -> Result<(), Box<dyn std::error::Error>> {
+    let docker_dir = Path::new("docker");
+    if !docker_dir.exists() {
+        return Ok(());
+    }
+
+    let volumes_base_dir = foc_localnet_docker_volumes();
+
+    // Find all .volumes_map files in the docker directory
+    for entry in fs::read_dir(docker_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_file() {
+            if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
+                if filename.ends_with(".volumes_map.toml") {
+                    // Extract image name from filename (e.g., "foc-builder.volumes_map.toml" -> "foc-builder")
+                    if let Some(image_name) = filename.strip_suffix(".volumes_map.toml") {
+                        create_volumes_for_image(image_name, &path, &volumes_base_dir)?;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Create volume directories for a specific image based on its volume map file.
+fn create_volumes_for_image(
+    image_name: &str,
+    volumes_map_path: &Path,
+    volumes_base_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let content = fs::read_to_string(volumes_map_path)?;
+    
+    #[derive(serde::Deserialize)]
+    struct VolumesMap {
+        volumes: HashMap<String, String>,
+    }
+    
+    let volume_config: VolumesMap = toml::from_str(&content)
+        .map_err(|e| format!("Failed to parse {}: {}", volumes_map_path.display(), e))?;
+
+    for host_subdir in volume_config.volumes.keys() {
+        let volume_dir = volumes_base_dir.join(image_name).join(host_subdir);
+        fs::create_dir_all(&volume_dir)?;
+        println!(
+            "  {} Created volume directory: {}",
+            "✓".green(),
+            volume_dir.display()
+        );
+    }
+
+    Ok(())
+}
+
 /// Build and cache Docker images.
 fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "Building and caching Docker images...".bold());
@@ -247,6 +307,9 @@ fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>> {
     // Ensure the docker images directory exists
     let images_dir = foc_localnet_docker_images();
     fs::create_dir_all(&images_dir)?;
+
+    // Create volume directories for all images based on their volume maps
+    create_volume_directories_for_images()?;
 
     // Find all Dockerfile files in the docker directory
     let docker_dir = Path::new("docker");
@@ -277,8 +340,12 @@ fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>> {
     for dockerfile in dockerfiles {
         let name = extract_name(&dockerfile)?;
 
-        // Build the Docker image
-        build_docker_image(&dockerfile, &name)?;
+        // Build the Docker image with special handling for yugabyte
+        if name == "foc-yugabyte" {
+            build_yugabyte_docker_image(&dockerfile, &name)?;
+        } else {
+            build_docker_image(&dockerfile, &name)?;
+        }
 
         // Save the image as a tar file
         save_docker_image(&name, &images_dir)?;
@@ -330,7 +397,7 @@ fn build_docker_image(
     dockerfile_path: &Path,
     name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let image_tag = format!("foc-localnet-{}", name);
+    let image_tag = format!("foc-{}", name);
     let dockerfile_dir = dockerfile_path.parent().unwrap_or(Path::new("."));
 
     println!(
@@ -368,9 +435,69 @@ fn build_docker_image(
     Ok(())
 }
 
+/// Build the YugabyteDB Docker image with special context handling.
+/// This function builds from the artifacts directory to include the yugabyte folder.
+fn build_yugabyte_docker_image(
+    dockerfile_path: &Path,
+    name: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let image_tag = format!("foc-{}", name);
+    let artifacts_dir = foc_localnet_artifacts();
+    
+    // Check if yugabyte directory exists in artifacts
+    let yugabyte_dir = artifacts_dir.join("yugabyte");
+    if !yugabyte_dir.exists() {
+        return Err(format!(
+            "Yugabyte directory not found at {}. Please ensure artifacts are downloaded first.",
+            yugabyte_dir.display()
+        )
+        .into());
+    }
+
+    println!(
+        "    {} Building Docker image: {} from {}",
+        "🔨".bold(),
+        image_tag,
+        dockerfile_path.display()
+    );
+    println!(
+        "    {} Using build context: {}",
+        "📁".bold(),
+        artifacts_dir.display()
+    );
+
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap(),
+    );
+    pb.set_message(format!("Building Docker image: {}", image_tag));
+
+    // Build from artifacts directory as context to include yugabyte folder
+    let status = Command::new("docker")
+        .args([
+            "build",
+            "-f",
+            &dockerfile_path.to_string_lossy(),
+            "-t",
+            &image_tag,
+            &artifacts_dir.to_string_lossy(),
+        ])
+        .status()?;
+
+    if !status.success() {
+        pb.finish_with_message(format!("❌ Failed to build Docker image: {}", image_tag));
+        return Err(format!("Failed to build Docker image: {}", image_tag).into());
+    }
+
+    pb.finish_with_message(format!("✓ Built image: {}", image_tag));
+    Ok(())
+}
+
 /// Save a Docker image as a tar file.
 fn save_docker_image(name: &str, images_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let image_tag = format!("foc-localnet-{}", name);
+    let image_tag = format!("foc-{}", name);
     let tar_path = images_dir.join(format!("{}.tar", name));
 
     println!(
@@ -446,7 +573,7 @@ fn download_code_repositories() -> Result<(), Box<dyn std::error::Error>> {
     download_repository("curio", &config.curio)?;
 
     println!(
-        "  {} Code repositories downloaded successfully.",
+        "  {} Code repositories are now available.",
         "✓".green()
     );
     Ok(())

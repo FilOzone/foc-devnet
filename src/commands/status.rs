@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::paths::{foc_localnet_bin, foc_localnet_code, foc_localnet_config};
+use crate::paths::{foc_localnet_artifacts, foc_localnet_bin, foc_localnet_code, foc_localnet_config, foc_localnet_docker_images, foc_localnet_docker_volumes, foc_localnet_home, foc_localnet_logs, foc_localnet_state, foc_localnet_tmp};
 use chrono::{DateTime, Utc};
 use crossterm::style::Stylize;
 use std::fs;
@@ -25,6 +25,9 @@ pub fn status() -> Result<(), Box<dyn std::error::Error>> {
 
     // Uptime information (if running)
     print_uptime()?;
+
+    // Disk usage information
+    print_disk_usage()?;
 
     Ok(())
 }
@@ -185,34 +188,56 @@ fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
         ("Lotus Miner", "foc-lotus-miner"),
         ("Curio", "foc-curio"),
         ("YugabyteDB", "foc-yugabyte"),
+        ("Builder", "foc-builder"),
     ];
 
     // Create tabular output
-    let mut table = Table::new("{:<}  {:<}  {:<}");
+    let mut table = Table::new("{:<}  {:<}  {:<}  {:<}  {:<}");
     table.add_row(
         Row::new()
             .with_ansi_cell("Service".bold().dark_grey())
             .with_ansi_cell("Status".bold().dark_grey())
-            .with_ansi_cell("Container".bold().dark_grey()),
+            .with_ansi_cell("Container".bold().dark_grey())
+            .with_ansi_cell("Uptime".bold().dark_grey())
+            .with_ansi_cell("Ports".bold().dark_grey()),
     );
 
     let mut all_running = true;
     for (service_name, container_name) in &expected_containers {
-        let status = if containers.contains(&container_name.to_string()) {
+        let is_running = containers.contains(&container_name.to_string());
+        
+        // Special handling for builder - show as "Compiling" if running
+        let status = if is_running {
             "Running".green().to_string()
         } else {
+            // Don't count builder as "not running" for all_running check
+            if *container_name != "foc-builder" {
+                all_running = false;
+            }
             "Stopped".red().to_string()
         };
 
-        if !containers.contains(&container_name.to_string()) {
-            all_running = false;
-        }
+        // Get uptime if container is running
+        let uptime = if is_running {
+            get_container_uptime(container_name)?
+        } else {
+            "N/A".dark_grey().to_string()
+        };
+
+        // Get port status if container is running
+        let port_status = if is_running {
+            get_port_status(container_name)?
+        } else {
+            "N/A".dark_grey().to_string()
+        };
 
         table.add_row(
             Row::new()
                 .with_cell(*service_name)
                 .with_ansi_cell(&status)
-                .with_cell(*container_name),
+                .with_cell(*container_name)
+                .with_ansi_cell(&uptime)
+                .with_ansi_cell(&port_status),
         );
     }
 
@@ -266,6 +291,136 @@ fn print_uptime() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+/// Print disk usage information for foc-localnet directories
+fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
+    println!("\n{} {}", "💾".blue(), "Disk Usage".bold().blue());
+    println!("{}", "─".repeat(120).blue());
+
+    let home_dir = foc_localnet_home();
+
+    // Get disk usage for main directories
+    let mut table = Table::new("{:<}  {:<}  {:<}");
+    table.add_row(
+        Row::new()
+            .with_ansi_cell("Directory".bold().dark_grey())
+            .with_ansi_cell("Size".bold().dark_grey())
+            .with_ansi_cell("Path".bold().dark_grey()),
+    );
+
+    // Main directories
+    let directories = vec![
+        ("Code", foc_localnet_code()),
+        ("Binaries", foc_localnet_bin()),
+        ("Logs", foc_localnet_logs()),
+        ("State", foc_localnet_state()),
+        ("Temp", foc_localnet_tmp()),
+    ];
+
+    for (name, path) in directories {
+        let size = get_directory_size(&path)?;
+        table.add_row(
+            Row::new()
+                .with_cell(name)
+                .with_ansi_cell(format_size(size))
+                .with_ansi_cell(path.display().to_string().dim()),
+        );
+    }
+
+    // Artifacts breakdown
+    let artifacts_dir = foc_localnet_artifacts();
+    let artifacts_size = get_directory_size(&artifacts_dir)?;
+
+    table.add_row(
+        Row::new()
+            .with_ansi_cell("Artifacts (Overall)".bold())
+            .with_ansi_cell(format_size(artifacts_size).bold())
+            .with_ansi_cell(artifacts_dir.display().to_string().dim()),
+    );
+
+    // Docker images
+    let docker_images_dir = foc_localnet_docker_images();
+    let docker_images_size = get_directory_size(&docker_images_dir)?;
+    table.add_row(
+        Row::new()
+            .with_cell("  └─ Docker Images")
+            .with_ansi_cell(format_size(docker_images_size))
+            .with_ansi_cell(docker_images_dir.display().to_string().dim()),
+    );
+
+    // Docker volumes
+    let docker_volumes_dir = foc_localnet_docker_volumes();
+    let docker_volumes_size = get_directory_size(&docker_volumes_dir)?;
+    table.add_row(
+        Row::new()
+            .with_cell("  └─ Docker Volumes")
+            .with_ansi_cell(format_size(docker_volumes_size))
+            .with_ansi_cell(docker_volumes_dir.display().to_string().dim()),
+    );
+
+    // Other artifacts (total - docker images - docker volumes)
+    let other_artifacts_size = artifacts_size.saturating_sub(docker_images_size + docker_volumes_size);
+    let other_artifacts_path = artifacts_dir.display().to_string();
+    table.add_row(
+        Row::new()
+            .with_cell("  └─ Other Artifacts")
+            .with_ansi_cell(format_size(other_artifacts_size))
+            .with_ansi_cell(format!("{}/(other files)", other_artifacts_path).dim()),
+    );
+
+    print!("{}", table);
+
+    // Total size
+    let total_size = get_directory_size(&home_dir)?;
+    println!("{}", "─".repeat(120).blue());
+    println!("{} {}", "Total foc-localnet size:".blue().bold(), format_size(total_size).blue().bold());
+
+    Ok(())
+}
+
+/// Get the size of a directory in bytes using `du` command
+fn get_directory_size(path: &std::path::Path) -> Result<u64, Box<dyn std::error::Error>> {
+    if !path.exists() {
+        return Ok(0);
+    }
+
+    let output = Command::new("du")
+        .args(["-sb", path.to_str().unwrap_or(".")])
+        .output()?;
+
+    if !output.status.success() {
+        return Ok(0);
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if let Some(line) = stdout.lines().next() {
+        if let Some(size_str) = line.split_whitespace().next() {
+            if let Ok(size) = size_str.parse::<u64>() {
+                return Ok(size);
+            }
+        }
+    }
+
+    Ok(0)
+}
+
+/// Format a size in bytes to human readable format
+fn format_size(bytes: u64) -> String {
+    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
+    let mut size = bytes as f64;
+    let mut unit_index = 0;
+
+    while size >= 1024.0 && unit_index < UNITS.len() - 1 {
+        size /= 1024.0;
+        unit_index += 1;
+    }
+
+    if unit_index == 0 {
+        format!("{} {}", bytes, UNITS[unit_index])
+    } else {
+        format!("{:.1} {}", size, UNITS[unit_index])
+    }
 }
 
 /// Get git version information for a specific repository
@@ -353,6 +508,151 @@ fn get_running_containers() -> Result<Vec<String>, Box<dyn std::error::Error>> {
         .collect();
 
     Ok(containers)
+}
+
+/// Get uptime for a running container
+fn get_container_uptime(container_name: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let output = Command::new("docker")
+        .args(["inspect", container_name, "--format", "{{.State.StartedAt}}"])
+        .output()?;
+
+    if !output.status.success() {
+        return Ok("Unknown".dark_grey().to_string());
+    }
+
+    let started_at_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    
+    // Parse the datetime string from Docker
+    if let Ok(started_at) = DateTime::parse_from_rfc3339(&started_at_str) {
+        let started_at_utc: DateTime<Utc> = started_at.with_timezone(&Utc);
+        let now = Utc::now();
+        let duration = now.signed_duration_since(started_at_utc);
+
+        let days = duration.num_days();
+        let hours = duration.num_hours() % 24;
+        let minutes = duration.num_minutes() % 60;
+        let seconds = duration.num_seconds() % 60;
+
+        let uptime_str = if days > 0 {
+            format!("{}d {}h", days, hours)
+        } else if hours > 0 {
+            format!("{}h {}m", hours, minutes)
+        } else if minutes > 0 {
+            format!("{}m {}s", minutes, seconds)
+        } else {
+            format!("{}s", seconds)
+        };
+
+        Ok(uptime_str.green().to_string())
+    } else {
+        Ok("Unknown".dark_grey().to_string())
+    }
+}
+
+/// Get port status for a container, showing which ports are exposed and accessible
+fn get_port_status(container_name: &str) -> Result<String, Box<dyn std::error::Error>> {
+    // Define expected ports for each container
+    let expected_ports = get_expected_ports(container_name);
+    
+    if expected_ports.is_empty() {
+        return Ok("-".dark_grey().to_string());
+    }
+
+    // Get actual port mappings from Docker
+    let port_mappings = get_container_port_mappings(container_name)?;
+    
+    // Build port status string
+    let mut port_status_parts = Vec::new();
+    
+    for (port, description) in expected_ports {
+        let status = if let Some(host_port) = port_mappings.get(&port) {
+            // Check if port is accessible on host
+            if is_port_accessible("127.0.0.1", *host_port) {
+                format!("{}({})", port, description).green().to_string()
+            } else {
+                format!("{}({})", port, description).red().to_string()
+            }
+        } else {
+            format!("{}({})", port, description).red().to_string()
+        };
+        port_status_parts.push(status);
+    }
+    
+    Ok(port_status_parts.join(" "))
+}
+
+/// Get expected ports and descriptions for a container
+fn get_expected_ports(container_name: &str) -> Vec<(u16, &'static str)> {
+    match container_name {
+        "foc-yugabyte" => vec![
+            (5433, "YSQL"),
+            (9042, "YCQL"),
+            (7000, "M-RPC"),
+            (9000, "M-UI"),
+            (7100, "T-RPC"),
+            (9100, "T-UI"),
+            (15433, "Web"),
+        ],
+        "foc-lotus" => vec![
+            (1234, "API"),
+            (5678, "P2P"),
+        ],
+        "foc-lotus-miner" => vec![
+            (2345, "API"),
+        ],
+        "foc-curio" => vec![
+            (12300, "API"),
+        ],
+        _ => vec![],
+    }
+}
+
+/// Get port mappings for a container (container_port -> host_port)
+fn get_container_port_mappings(
+    container_name: &str,
+) -> Result<std::collections::HashMap<u16, u16>, Box<dyn std::error::Error>> {
+    let output = Command::new("docker")
+        .args(["port", container_name])
+        .output()?;
+
+    let mut mappings = std::collections::HashMap::new();
+
+    if output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        // Format: "5433/tcp -> 0.0.0.0:5433" or "5433/tcp -> [::]:5433"
+        for line in stdout.lines() {
+            if let Some((container_port_str, host_part)) = line.split_once(" -> ") {
+                // Extract container port
+                if let Some(port_str) = container_port_str.split('/').next() {
+                    if let Ok(container_port) = port_str.parse::<u16>() {
+                        // Extract host port
+                        if let Some(host_port_str) = host_part.split(':').last() {
+                            if let Ok(host_port) = host_port_str.trim().parse::<u16>() {
+                                mappings.insert(container_port, host_port);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(mappings)
+}
+
+/// Check if a port is accessible on the host
+fn is_port_accessible(host: &str, port: u16) -> bool {
+    use std::net::TcpStream;
+    use std::time::Duration;
+
+    // Try to connect to the port with a short timeout
+    match TcpStream::connect_timeout(
+        &format!("{}:{}", host, port).parse().unwrap(),
+        Duration::from_millis(100),
+    ) {
+        Ok(_) => true,
+        Err(_) => false,
+    }
 }
 
 /// Get the system start time (oldest container start time)

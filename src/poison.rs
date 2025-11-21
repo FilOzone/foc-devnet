@@ -2,12 +2,11 @@ use crossterm::style::Stylize;
 use std::fs;
 use std::path::PathBuf;
 
+use crate::paths::foc_localnet_state;
+
 /// Get the path to the poison file
 fn poison_file_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let state_dir = dirs::home_dir()
-        .ok_or("Could not determine home directory")?
-        .join(".foc-localnet")
-        .join("state");
+    let state_dir = foc_localnet_state();
 
     // Ensure state directory exists
     fs::create_dir_all(&state_dir)?;
@@ -83,7 +82,6 @@ pub fn remove_poison() -> Result<(), Box<dyn std::error::Error>> {
 
     if poison_path.exists() {
         fs::remove_file(&poison_path)?;
-        println!("{}", "Poison file removed - operation completed successfully".cyan());
     }
 
     Ok(())

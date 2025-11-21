@@ -5,10 +5,12 @@
 pub mod repository;
 
 use crate::config::Config;
-use crate::paths::{foc_localnet_bin, foc_localnet_docker_images};
+use crate::paths::{foc_localnet_bin, foc_localnet_docker_images, foc_localnet_docker_volumes};
 use crossterm::style::Stylize;
 use repository::prepare_repository;
+use std::collections::HashMap;
 use std::fs;
+use std::path::Path;
 use std::process::Command;
 
 /// Build a project in a Docker container.
@@ -83,7 +85,7 @@ fn build_in_container(
 /// Build the builder Docker image.
 fn build_builder_image(dockerfile_dir: &str) -> Result<String, Box<dyn std::error::Error>> {
     let image_tag = "foc-localnet-builder:latest";
-    let cached_image_path = foc_localnet_docker_images().join("builder.tar");
+    let cached_image_path = foc_localnet_docker_images().join("foc-builder.tar");
 
     // Check if cached image exists
     if cached_image_path.exists() {
@@ -110,7 +112,7 @@ fn build_builder_image(dockerfile_dir: &str) -> Result<String, Box<dyn std::erro
 /// Build Docker image from Dockerfile.
 fn build_image_from_dockerfile(dockerfile_dir: &str, image_tag: &str) -> Result<(), Box<dyn std::error::Error>> {
     let status = Command::new("docker")
-        .args(["build", "-t", image_tag, dockerfile_dir])
+        .args(["build", "-f", "docker/Dockerfile.foc-builder", "-t", image_tag, dockerfile_dir])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .status()?;
 
@@ -119,6 +121,28 @@ fn build_image_from_dockerfile(dockerfile_dir: &str, image_tag: &str) -> Result<
     }
 
     Ok(())
+}
+
+/// Load volume mappings from a .volumes_map.toml file for a specific image.
+fn load_volume_map(image_name: &str) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
+    let volumes_map_path = Path::new("docker").join(format!("{}.volumes_map.toml", image_name));
+    
+    if !volumes_map_path.exists() {
+        // Return empty map if no volumes_map file exists
+        return Ok(HashMap::new());
+    }
+
+    let content = fs::read_to_string(&volumes_map_path)?;
+    
+    #[derive(serde::Deserialize)]
+    struct VolumesMap {
+        volumes: HashMap<String, String>,
+    }
+    
+    let volume_config: VolumesMap = toml::from_str(&content)
+        .map_err(|e| format!("Failed to parse {}: {}", volumes_map_path.display(), e))?;
+
+    Ok(volume_config.volumes)
 }
 
 /// Run the build process inside the Docker container.
@@ -136,14 +160,32 @@ fn run_build_in_container(
     let mut docker_run_args = vec![
         "run".to_string(),
         "--rm".to_string(),
+        "--name".to_string(),
+        "foc-builder".to_string(),
         "-v".to_string(),
         format!("{}:{}", source_dir, container_source_dir),
         "-v".to_string(),
         format!("{}:{}", output_dir, container_output_dir),
-        image_tag.to_string(),
-        "/bin/bash".to_string(),
-        "-c".to_string(),
     ];
+
+    // Load and apply volume mappings for this image
+    let volume_map = load_volume_map("foc-builder")?;
+    if !volume_map.is_empty() {
+        let volumes_dir = foc_localnet_docker_volumes();
+        let image_volumes_dir = volumes_dir.join("foc-builder");
+        
+        for (host_subdir, container_path) in volume_map {
+            let host_path = image_volumes_dir.join(&host_subdir);
+            // Ensure the directory exists
+            fs::create_dir_all(&host_path)?;
+            docker_run_args.push("-v".to_string());
+            docker_run_args.push(format!("{}:{}", host_path.display(), container_path));
+        }
+    }
+
+    docker_run_args.push(image_tag.to_string());
+    docker_run_args.push("/bin/bash".to_string());
+    docker_run_args.push("-c".to_string());
 
     let build_script = match project {
         Project::Lotus => format!(

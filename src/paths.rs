@@ -57,6 +57,11 @@ pub fn foc_localnet_docker_images() -> PathBuf {
     foc_localnet_artifacts().join("docker").join("images")
 }
 
+/// Returns the path where docker volumes are stored, e.g., ~/.foc-localnet/artifacts/docker/volumes
+pub fn foc_localnet_docker_volumes() -> PathBuf {
+    foc_localnet_artifacts().join("docker").join("volumes")
+}
+
 /// Returns the path to the foc-localnet configuration, e.g., ~/.foc-localnet/config.toml
 pub fn foc_localnet_config() -> PathBuf {
     foc_localnet_home().join("config.toml")
