@@ -301,7 +301,7 @@ fn create_volume_directories_for_images() -> Result<(), Box<dyn std::error::Erro
         if path.is_file() {
             if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
                 if filename.ends_with(".volumes_map.toml") {
-                    // Extract image name from filename (e.g., "foc-builder.volumes_map.toml" -> "foc-builder")
+                    // Extract image name from filename (e.g., "builder.volumes_map.toml" -> "builder")
                     if let Some(image_name) = filename.strip_suffix(".volumes_map.toml") {
                         create_volumes_for_image(image_name, &path, &volumes_base_dir)?;
                     }

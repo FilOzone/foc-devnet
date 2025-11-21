@@ -26,7 +26,7 @@ docker run -d \
   -p 7100:7100 \
   -p 9100:9100 \
   -p 15433:15433 \
-  foc-foc-yugabyte
+  foc-yugabyte
 ```
 
 ## Access Points

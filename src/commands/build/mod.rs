@@ -127,7 +127,7 @@ fn build_image_from_dockerfile(
         .args([
             "build",
             "-f",
-            "docker/Dockerfile.foc-builder",
+            "docker/Dockerfile.builder",
             "-t",
             image_tag,
             dockerfile_dir,
