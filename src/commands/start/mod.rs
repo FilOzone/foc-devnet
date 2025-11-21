@@ -1,8 +1,15 @@
+mod curio;
+mod docker_utils;
 mod genesis;
+mod lotus;
+mod lotus_miner;
 mod step;
 mod yugabyte;
 
+use curio::CurioStep;
 pub use genesis::ensure_genesis_prerequisites;
+use lotus::LotusStep;
+use lotus_miner::LotusMinerStep;
 pub use step::{Step, StepContext, execute_steps};
 use yugabyte::YugabyteStep;
 
@@ -51,11 +58,18 @@ pub fn start_cluster(
     ensure_genesis_prerequisites()?;
     println!();
 
-    // Create steps
+    // Create steps in the order they need to be started:
+    // 1. Lotus (execution node) - needed by others
+    // 2. Lotus-Miner (first gen miner) - builds tipsets
+    // 3. YugabyteDB - database for Curio
+    // 4. Curio (second gen miner) - needs both Lotus and YugabyteDB
+    let lotus_step = LotusStep::new(volumes_dir.clone(), logs_dir.clone());
+    let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), logs_dir.clone());
     let yugabyte_step = YugabyteStep::new(volumes_dir.clone(), logs_dir.clone());
+    let curio_step = CurioStep::new(volumes_dir.clone(), logs_dir.clone());
 
     // Execute all steps
-    let steps: Vec<&dyn Step> = vec![&yugabyte_step];
+    let steps: Vec<&dyn Step> = vec![&lotus_step, &lotus_miner_step, &yugabyte_step, &curio_step];
     execute_steps(steps)?;
 
     println!("\n{}", "Local cluster started successfully!".green().bold());

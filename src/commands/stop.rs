@@ -1,54 +1,66 @@
 use crossterm::style::Stylize;
 use std::process::Command;
 
-const CONTAINER_NAME: &str = "foc-yugabyte";
+// Container names for all services
+const CONTAINERS: &[(&str, &str)] = &[
+    ("foc-curio", "Curio"),
+    ("foc-yugabyte", "YugabyteDB"),
+    ("foc-lotus-miner", "Lotus-Miner"),
+    ("foc-lotus", "Lotus"),
+];
 
 /// Execute the stop command.
 ///
 /// This function handles stopping the local Filecoin cluster.
 /// It performs the reverse operations of the start command:
-/// - Stops running containers
+/// - Stops running containers in reverse order
 /// - Verifies containers are stopped
 /// - Removes containers to ensure clean state
 pub fn stop_cluster() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "Stopping local cluster...".green().bold());
     println!();
 
-    // Stop YugabyteDB
-    stop_yugabyte()?;
+    // Stop all containers in reverse order (opposite of start order)
+    // This ensures dependencies are stopped first
+    for (container_name, service_name) in CONTAINERS {
+        stop_container(container_name, service_name)?;
+    }
 
     println!("\n{}", "Local cluster stopped successfully!".green().bold());
     Ok(())
 }
 
-/// Stop and remove the YugabyteDB container
-fn stop_yugabyte() -> Result<(), Box<dyn std::error::Error>> {
-    println!("{}", "Stopping YugabyteDB...".blue().bold());
+/// Stop and remove a single container
+fn stop_container(
+    container_name: &str,
+    service_name: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("{}", format!("Stopping {}...", service_name).blue().bold());
 
     // Check if container exists
-    let exists = container_exists(CONTAINER_NAME)?;
+    let exists = container_exists(container_name)?;
     if !exists {
         println!(
             "  {} Container '{}' does not exist",
             "ℹ".cyan(),
-            CONTAINER_NAME
+            container_name
         );
         return Ok(());
     }
 
     // Check if container is running
-    let is_running = container_is_running(CONTAINER_NAME)?;
+    let is_running = container_is_running(container_name)?;
 
     if is_running {
-        println!("  Stopping container '{}'...", CONTAINER_NAME);
+        println!("  Stopping container '{}'...", container_name);
         let output = Command::new("docker")
-            .args(["stop", CONTAINER_NAME])
+            .args(["stop", container_name])
             .output()?;
 
         if !output.status.success() {
             return Err(format!(
                 "Failed to stop container '{}': {}",
-                CONTAINER_NAME,
+                container_name,
                 String::from_utf8_lossy(&output.stderr)
             )
             .into());
@@ -56,10 +68,10 @@ fn stop_yugabyte() -> Result<(), Box<dyn std::error::Error>> {
         println!("  {} Container stopped", "✓".green());
 
         // Verify container is stopped
-        if container_is_running(CONTAINER_NAME)? {
+        if container_is_running(container_name)? {
             return Err(format!(
                 "Container '{}' is still running after stop command",
-                CONTAINER_NAME
+                container_name
             )
             .into());
         }
@@ -67,20 +79,20 @@ fn stop_yugabyte() -> Result<(), Box<dyn std::error::Error>> {
         println!(
             "  {} Container '{}' is not running",
             "ℹ".cyan(),
-            CONTAINER_NAME
+            container_name
         );
     }
 
     // Remove the container
-    println!("  Removing container '{}'...", CONTAINER_NAME);
+    println!("  Removing container '{}'...", container_name);
     let output = Command::new("docker")
-        .args(["rm", CONTAINER_NAME])
+        .args(["rm", container_name])
         .output()?;
 
     if !output.status.success() {
         return Err(format!(
             "Failed to remove container '{}': {}",
-            CONTAINER_NAME,
+            container_name,
             String::from_utf8_lossy(&output.stderr)
         )
         .into());
@@ -88,11 +100,14 @@ fn stop_yugabyte() -> Result<(), Box<dyn std::error::Error>> {
     println!("  {} Container removed", "✓".green());
 
     // Verify container is removed
-    if container_exists(CONTAINER_NAME)? {
-        return Err(format!("Container '{}' still exists after removal", CONTAINER_NAME).into());
+    if container_exists(container_name)? {
+        return Err(format!("Container '{}' still exists after removal", container_name).into());
     }
 
-    println!("{}", "YugabyteDB stopped successfully".green());
+    println!(
+        "{}",
+        format!("{} stopped successfully", service_name).green()
+    );
     Ok(())
 }
 

@@ -11,7 +11,10 @@ cargo run -- build curio
 
 Now that we have `start` command and `stop` command, let's start implementing the crux of localnet setup.
 
-You might need to create a whole lot of things, so break this into small parts. Also, ask clarifying questions where you need.
+You might need to create a whole lot of things, so break this into small parts. Some of the following may already be implemented, so detect them.
+
+Also, ask clarifying questions where you need.
+
 Wherever required, attempt to create modules which are folder like with mod.rs, file.rs etc.
 Split functionality across files in module.
 Provide ample documentation.
@@ -19,7 +22,7 @@ Provide ample documentation.
 `foc-builder` is a multi-use container used for building, running ad-hoc code, for smart contract deployment etc.
 `foc-curio`, `for-lotus` etc are lean... long running containers hosting miners and exection nodes. Try alpine for them.
 
-The following needs to be started in order:
+The following needs to be started in order, which maybe different from `init`:
 - `lotus`, execution node, running FEVM and FVM
 - `lotus-miner`, first generation miner node building tipsets and doing PoRep (original filecoin)
 - `yugabyte`, a postgres like database needed by curio
@@ -68,3 +71,18 @@ Use in `foc-builder`:
 ./lotus-seed pre-seal --sector-size 2KiB --num-sectors 2
 ```
 Obviously, their output needs to be put in yet another docker volume. Let's call that `genesis-presealed-sectors`.
+
+## Genesis construction
+Finally, a genesis is constructed via:
+```
+lotus-seed genesis set-signers --threshold=2 \
+    --signers <root-key-1> \
+    --signers <root-key-2> \
+    localnet.json
+```
+This command doesn’t output anything on success.
+
+The two signer keys are from volumes `lotus-keys-1` and `lotus-keys-2` respectively.
+
+This again, needs to be done under `foc-builder` and output of this needs to be in its own volume.
+

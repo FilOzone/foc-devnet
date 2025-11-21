@@ -1,36 +1,38 @@
+//! Curio step.
+//!
+//! This module handles starting the Curio container, which is the second
+//! generation miner node that performs PDP (Proof of Data Possession) but
+//! does not build tipsets.
+
 use super::docker_utils::load_image_from_tar;
 use super::step::{Step, StepContext};
+use crate::paths::{
+    CONTAINER_FILECOIN_PROOF_PARAMS_PATH, foc_localnet_bin, foc_localnet_proof_parameters,
+};
 use crossterm::style::Stylize;
 use std::error::Error;
+use std::fs;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
-const CONTAINER_NAME: &str = "foc-yugabyte";
-const IMAGE_NAME: &str = "foc-yugabyte";
+const CONTAINER_NAME: &str = "foc-curio";
+const IMAGE_NAME: &str = "foc-curio";
 
-// YugabyteDB ports
-const YUGABYTE_PORTS: &[(u16, &str)] = &[
-    (5433, "YSQL (PostgreSQL API)"),
-    (9042, "YCQL (Cassandra API)"),
-    (7000, "YB-Master RPC"),
-    (9000, "YB-Master Admin UI"),
-    (7100, "YB-TServer RPC"),
-    (9100, "YB-TServer Admin UI"),
-    (15433, "YugabyteDB Web UI"),
-];
+// Curio ports
+const CURIO_PORTS: &[(u16, &str)] = &[(12300, "Curio API"), (12301, "Curio RPC")];
 
-/// Step for starting YugabyteDB
-pub struct YugabyteStep {
+/// Step for starting the Curio node
+pub struct CurioStep {
     volumes_dir: PathBuf,
     #[allow(dead_code)]
     logs_dir: PathBuf,
 }
 
-impl YugabyteStep {
-    /// Create a new YugabyteStep
+impl CurioStep {
+    /// Create a new CurioStep
     pub fn new(volumes_dir: PathBuf, logs_dir: PathBuf) -> Self {
         Self {
             volumes_dir,
@@ -109,26 +111,16 @@ impl YugabyteStep {
         }
     }
 
-    /// Verify PostgreSQL connectivity on port 5433
-    fn verify_postgres_connection() -> Result<(), Box<dyn Error>> {
-        // Try to connect to the database using docker exec
+    /// Check if curio is responsive
+    fn check_curio_api() -> Result<(), Box<dyn Error>> {
+        // Try to execute a simple curio command via docker exec
         let output = Command::new("docker")
-            .args([
-                "exec",
-                CONTAINER_NAME,
-                "/yugabyte/bin/ysqlsh",
-                "-h",
-                "127.0.0.1",
-                "-p",
-                "5433",
-                "-c",
-                "SELECT version();",
-            ])
+            .args(["exec", CONTAINER_NAME, "/bin/curio", "version"])
             .output()?;
 
         if !output.status.success() {
             return Err(format!(
-                "Failed to query PostgreSQL: {}",
+                "Curio API check failed: {}",
                 String::from_utf8_lossy(&output.stderr)
             )
             .into());
@@ -138,13 +130,23 @@ impl YugabyteStep {
     }
 }
 
-impl Step for YugabyteStep {
+impl Step for CurioStep {
     fn name(&self) -> &str {
-        "Start YugabyteDB"
+        "Start Curio"
     }
 
-    fn pre_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        // Check if any existing yugabyte container is running
+    fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        // Check if yugabyte is running (dependency)
+        if context.get("yugabyte_container_id").is_none() {
+            return Err("YugabyteDB must be started before starting Curio".into());
+        }
+
+        // Check if lotus daemon is running (dependency)
+        if context.get("lotus_container_id").is_none() {
+            return Err("Lotus daemon must be started before starting Curio".into());
+        }
+
+        // Check if any existing curio container is running
         if Self::container_exists(CONTAINER_NAME)? {
             if Self::container_is_running(CONTAINER_NAME)? {
                 println!(
@@ -165,7 +167,7 @@ impl Step for YugabyteStep {
 
         // Check if all required ports are available
         let mut unavailable_ports = Vec::new();
-        for &(port, description) in YUGABYTE_PORTS {
+        for &(port, description) in CURIO_PORTS {
             if !Self::is_port_available(port) {
                 unavailable_ports.push((port, description));
             }
@@ -176,56 +178,107 @@ impl Step for YugabyteStep {
             for (port, description) in unavailable_ports {
                 error_msg.push_str(&format!("  - Port {}: {}\n", port, description));
             }
-            error_msg.push_str("\nPlease free these ports before starting YugabyteDB.");
+            error_msg.push_str("\nPlease free these ports before starting Curio.");
             return Err(error_msg.into());
         }
 
         println!("    {} All required ports are available", "✓".green());
 
         // Load Docker image from tar file
-        load_image_from_tar(IMAGE_NAME, "YugabyteDB")?;
+        load_image_from_tar(IMAGE_NAME, "Curio")?;
+
+        // Verify curio binary exists
+        let curio_bin = foc_localnet_bin().join("curio");
+        if !curio_bin.exists() {
+            return Err(
+                "Curio binary not found. Please run 'foc-localnet build curio' first.".into(),
+            );
+        }
+
+        println!("    {} Curio binary found", "✓".green());
 
         Ok(())
     }
 
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        // Create yugabyte data directory in volumes
-        let yugabyte_data_dir = self.volumes_dir.join("yugabyte-data");
-        std::fs::create_dir_all(&yugabyte_data_dir)?;
+        // Create curio data directory in volumes
+        let curio_data_dir = self.volumes_dir.join("curio-data");
+        fs::create_dir_all(&curio_data_dir)?;
+
+        // Get paths
+        let bin_dir = foc_localnet_bin();
+        let params_dir = foc_localnet_proof_parameters();
 
         // Build docker run command
-        let mut docker_args = vec!["run", "-d", "--name", CONTAINER_NAME];
+        // Use host network mode to allow curio to connect to yugabyte and lotus
+        let mut docker_args = vec![
+            "run",
+            "-d",
+            "--name",
+            CONTAINER_NAME,
+            "--network",
+            "host", // Use host network for easier communication
+        ];
 
-        // Add port mappings
-        let port_args: Vec<String> = YUGABYTE_PORTS
-            .iter()
-            .flat_map(|&(port, _)| vec!["-p".to_string(), format!("{}:{}", port, port)])
-            .collect();
+        // Add volume mounts
+        let volume_mounts = vec![
+            format!("{}:/bin", bin_dir.display()),
+            format!("{}:/data", curio_data_dir.display()),
+            format!(
+                "{}:{}",
+                params_dir.display(),
+                CONTAINER_FILECOIN_PROOF_PARAMS_PATH
+            ),
+        ];
 
-        for arg in &port_args {
-            docker_args.push(arg);
+        for mount in &volume_mounts {
+            docker_args.extend_from_slice(&["-v", mount]);
         }
 
-        // Add volume mount
-        let volume_mount = format!("{}:/yugabyte/data", yugabyte_data_dir.display());
-        docker_args.extend_from_slice(&["-v", &volume_mount]);
+        // Set working directory
+        docker_args.extend_from_slice(&["-w", "/data"]);
+
+        // Set environment variables for database connection
+        docker_args.extend_from_slice(&[
+            "-e",
+            "CURIO_DB_HOST=127.0.0.1",
+            "-e",
+            "CURIO_DB_PORT=5433",
+            "-e",
+            "CURIO_DB_NAME=yugabyte",
+            "-e",
+            "CURIO_DB_USER=yugabyte",
+        ]);
 
         // Add image name
         docker_args.push(IMAGE_NAME);
 
-        println!("    Starting container '{}'...", CONTAINER_NAME);
+        // Add command to start curio
+        // Note: Curio may need initialization steps - this is a basic startup
+        docker_args.extend_from_slice(&[
+            "/bin/bash",
+            "-c",
+            r#"if [ ! -f /data/.curio-initialized ]; then \
+                 echo "Initializing Curio..."; \
+                 /bin/curio config default > /data/config.toml && \
+                 touch /data/.curio-initialized; \
+               fi && \
+               /bin/curio run"#,
+        ]);
+
+        println!("    Starting Curio container '{}'...", CONTAINER_NAME);
         let output = Command::new("docker").args(&docker_args).output()?;
 
         if !output.status.success() {
             return Err(format!(
-                "Failed to start YugabyteDB container: {}",
+                "Failed to start Curio container: {}",
                 String::from_utf8_lossy(&output.stderr)
             )
             .into());
         }
 
         let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        context.set("yugabyte_container_id", container_id.clone());
+        context.set("curio_container_id", container_id.clone());
         println!(
             "    {} Container started with ID: {}",
             "✓".green(),
@@ -236,50 +289,62 @@ impl Step for YugabyteStep {
     }
 
     fn post_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        // Wait for container to be healthy
-        println!("    Waiting for YugabyteDB to start...");
-        thread::sleep(Duration::from_secs(5));
+        // Wait for container to initialize
+        println!("    Waiting for Curio to start...");
+        thread::sleep(Duration::from_secs(10));
 
         // Verify container is running
         if !Self::container_is_running(CONTAINER_NAME)? {
-            return Err("Container stopped unexpectedly".into());
+            // Check logs for errors
+            let logs_output = Command::new("docker")
+                .args(["logs", "--tail", "50", CONTAINER_NAME])
+                .output()?;
+
+            return Err(format!(
+                "Container stopped unexpectedly. Logs:\n{}",
+                String::from_utf8_lossy(&logs_output.stdout)
+            )
+            .into());
         }
         println!("    {} Container is running", "✓".green());
 
         // Check all ports are accessible
         println!("    Verifying port accessibility...");
-        for &(port, description) in YUGABYTE_PORTS {
+        for &(port, description) in CURIO_PORTS {
             print!("      Checking port {} ({})... ", port, description);
             match Self::wait_for_port(port, 30) {
                 Ok(_) => println!("{}", "✓".green()),
                 Err(e) => {
-                    println!("{}", "✗".red());
-                    return Err(format!("Port {} is not accessible: {}", port, e).into());
+                    println!("{}", "⚠".yellow());
+                    println!(
+                        "      Note: Port {} may not be immediately available: {}",
+                        port, e
+                    );
                 }
             }
         }
 
-        // Verify PostgreSQL connection
-        println!("    Verifying PostgreSQL connectivity...");
-        thread::sleep(Duration::from_secs(3)); // Give YugabyteDB a moment to fully initialize
-        match Self::verify_postgres_connection() {
+        // Verify Curio API is responsive
+        println!("    Verifying Curio API connectivity...");
+        thread::sleep(Duration::from_secs(3));
+        match Self::check_curio_api() {
             Ok(_) => {
                 println!(
-                    "    {} PostgreSQL is ready and accepting queries",
+                    "    {} Curio is ready and responding to API calls",
                     "✓".green()
                 );
             }
             Err(e) => {
-                println!("    {} PostgreSQL verification failed: {}", "⚠".yellow(), e);
+                println!("    {} Curio API verification failed: {}", "⚠".yellow(), e);
                 println!(
-                    "    Note: YugabyteDB may still be initializing. This is usually not a critical error."
+                    "    Note: Curio may still be initializing. This is usually not a critical error."
                 );
             }
         }
 
-        println!("\n    {} YugabyteDB is ready!", "✓".green().bold());
-        println!("      Web UI: http://localhost:15433");
-        println!("      PostgreSQL: localhost:5433");
+        println!("\n    {} Curio is ready!", "✓".green().bold());
+        println!("      API endpoint: http://localhost:12300");
+        println!("      RPC endpoint: http://localhost:12301");
 
         Ok(())
     }

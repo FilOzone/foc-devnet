@@ -8,6 +8,7 @@
 //! These operations are performed using the foc-builder container and their
 //! outputs are cached for reuse across localnet restarts.
 
+use super::docker_utils::load_image_from_tar;
 use crate::paths::{
     CONTAINER_FILECOIN_PROOF_PARAMS_PATH, foc_localnet_bin, foc_localnet_docker_volumes,
     foc_localnet_genesis, foc_localnet_genesis_sectors, foc_localnet_lotus_keys,
@@ -34,6 +35,10 @@ const PROOF_PARAMS_SECTOR_SIZE: &str = "2048";
 /// Returns `Ok(())` if all prerequisites are ready, or an error if preparation fails.
 pub fn ensure_genesis_prerequisites() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "Checking genesis prerequisites...".blue().bold());
+
+    // Load the builder image from tar file (needed for all genesis operations)
+    load_image_from_tar(BUILDER_IMAGE, "Builder")?;
+    println!();
 
     // Ensure proof parameters are downloaded
     ensure_proof_parameters()?;
