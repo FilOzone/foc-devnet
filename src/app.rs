@@ -8,8 +8,3 @@ pub fn initialize_app() -> Result<(), Box<dyn std::error::Error>> {
     // Other commands assume init has been run
     Ok(())
 }
-
-/// Initialize tracing/logging for the application.
-pub fn init_tracing() {
-    tracing_subscriber::fmt().with_ansi(true).init();
-}

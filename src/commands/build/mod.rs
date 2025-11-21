@@ -5,7 +5,7 @@
 pub mod repository;
 
 use crate::config::Config;
-use crate::paths::foc_localnet_bin;
+use crate::paths::{foc_localnet_bin, foc_localnet_docker_images};
 use crossterm::style::Stylize;
 use repository::prepare_repository;
 use std::fs;
@@ -82,9 +82,33 @@ fn build_in_container(
 
 /// Build the builder Docker image.
 fn build_builder_image(dockerfile_dir: &str) -> Result<String, Box<dyn std::error::Error>> {
-    println!("{}", "Building Docker image for builder...".bold());
     let image_tag = "foc-localnet-builder:latest";
+    let cached_image_path = foc_localnet_docker_images().join("builder.tar");
 
+    // Check if cached image exists
+    if cached_image_path.exists() {
+        println!("{}", "Loading cached Docker image for builder...".bold());
+
+        let status = Command::new("docker")
+            .args(["load", "-i", &cached_image_path.to_string_lossy()])
+            .status()?;
+
+        if !status.success() {
+            println!("{}", "Failed to load cached image, building from Dockerfile...".yellow());
+            build_image_from_dockerfile(dockerfile_dir, image_tag)?;
+        } else {
+            println!("{} Loaded cached Docker image: {}", "✓".green(), image_tag);
+        }
+    } else {
+        println!("{}", "No cached image found, building Docker image for builder...".bold());
+        build_image_from_dockerfile(dockerfile_dir, image_tag)?;
+    }
+
+    Ok(image_tag.to_string())
+}
+
+/// Build Docker image from Dockerfile.
+fn build_image_from_dockerfile(dockerfile_dir: &str, image_tag: &str) -> Result<(), Box<dyn std::error::Error>> {
     let status = Command::new("docker")
         .args(["build", "-t", image_tag, dockerfile_dir])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
@@ -94,7 +118,7 @@ fn build_builder_image(dockerfile_dir: &str) -> Result<String, Box<dyn std::erro
         return Err("Failed to build Docker image".into());
     }
 
-    Ok(image_tag.to_string())
+    Ok(())
 }
 
 /// Run the build process inside the Docker container.

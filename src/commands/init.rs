@@ -15,7 +15,6 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use tracing::debug;
 
 use crate::config::{Config, Location};
 use crate::paths::{
@@ -89,7 +88,7 @@ fn create_directories() -> Result<(), Box<dyn std::error::Error>> {
 
     for dir in directories {
         if !dir.exists() {
-            debug!("Creating directory: {:?}", dir);
+            println!("  {} Creating directory: {:?}", "ℹ".cyan(), dir);
             fs::create_dir_all(&dir)?;
             println!("  {} Created: {}", "✓".green(), dir.display());
         } else {
@@ -126,7 +125,7 @@ fn generate_default_config(
         std::fs::remove_file(&config_path)?;
     }
 
-    debug!("Generating default config: {:?}", config_path);
+    println!("  {} Generating default config: {:?}", "ℹ".cyan(), config_path);
 
     // Start with default config
     let mut config = Config::default();

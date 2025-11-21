@@ -12,7 +12,7 @@ use tabular::{Row, Table};
 /// including code version, build status, running status, and uptime information.
 pub fn status() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n{}", "🚀 FOC LocalNet Status".bold().cyan().underlined());
-    println!("{}", "═".repeat(80).cyan());
+    println!("{}", "═".repeat(120).cyan());
 
     // Code version information
     print_code_version()?;
@@ -32,7 +32,7 @@ pub fn status() -> Result<(), Box<dyn std::error::Error>> {
 /// Print code version information in tabular format
 fn print_code_version() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n{} {}", "📋".cyan(), "Code Versions".bold().cyan());
-    println!("{}", "─".repeat(80).cyan());
+    println!("{}", "─".repeat(120).cyan());
 
     // Load configuration
     let config_path = foc_localnet_config();
@@ -59,12 +59,12 @@ fn print_code_version() -> Result<(), Box<dyn std::error::Error>> {
     let mut table = Table::new("{:<}  {:<}  {:<}  {:<}  {:<}  {:<}");
     table.add_row(
         Row::new()
-            .with_ansi_cell("Component".bold().dark_grey())
+            .with_ansi_cell("Repository".bold().dark_grey())
             .with_ansi_cell("Source Type".bold().dark_grey())
             .with_ansi_cell("Branch/Tag".bold().dark_grey())
             .with_ansi_cell("Commit".bold().dark_grey())
             .with_ansi_cell("Status".bold().dark_grey())
-            .with_ansi_cell("Code Path".bold().dark_grey()),
+            .with_ansi_cell("Path".bold().dark_grey()),
     );
 
     // Use with_ansi_cell for colored output
@@ -96,7 +96,7 @@ fn print_code_version() -> Result<(), Box<dyn std::error::Error>> {
 /// Print build status of artifacts in tabular format
 fn print_build_status() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n{} {}", "🔨".yellow(), "Build Status".bold().yellow());
-    println!("{}", "─".repeat(80).yellow());
+    println!("{}", "─".repeat(120).yellow());
 
     let bin_dir = foc_localnet_bin();
 
@@ -175,7 +175,7 @@ fn print_build_status() -> Result<(), Box<dyn std::error::Error>> {
 /// Print running status of the system in tabular format
 fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n{} {}", "⚙️".green(), "System Status".bold().green());
-    println!("{}", "─".repeat(80).green());
+    println!("{}", "─".repeat(120).green());
 
     // Check for running Docker containers
     let containers = get_running_containers()?;
@@ -217,7 +217,7 @@ fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     print!("{}", table);
-    println!("{}", "─".repeat(80).green());
+    println!("{}", "─".repeat(120).green());
 
     if all_running {
         println!("{}", "All services are running!".green().bold());
@@ -231,7 +231,7 @@ fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
 /// Print uptime information if system is running
 fn print_uptime() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n{} {}", "⏱️".magenta(), "System Uptime".bold().magenta());
-    println!("{}", "─".repeat(80).magenta());
+    println!("{}", "─".repeat(120).magenta());
 
     let containers = get_running_containers()?;
 

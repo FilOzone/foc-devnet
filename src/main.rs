@@ -1,6 +1,5 @@
 use clap::Parser;
 use crossterm::style::Stylize;
-use foc_localnet::app;
 use foc_localnet::cli::{BuildCommands, Cli, Commands, ConfigCommands};
 use foc_localnet::commands;
 use foc_localnet::commands::build::Project;
@@ -10,7 +9,6 @@ use foc_localnet::poison;
 use std::fs;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    app::init_tracing();
 
     let cli = Cli::parse();
 

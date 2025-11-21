@@ -1,7 +1,6 @@
 use crate::paths::foc_localnet_logs;
 use crossterm::style::Stylize;
 use std::path::PathBuf;
-use tracing::info;
 
 /// Execute the start command.
 ///
@@ -30,9 +29,9 @@ pub fn start_cluster(
     std::fs::create_dir_all(&volumes_dir)?;
     std::fs::create_dir_all(&logs_dir)?;
 
-    info!("Starting local cluster...");
-    info!("Volumes directory: {}", volumes_dir.display());
-    info!("Logs directory: {}", logs_dir.display());
+    println!("{}", "Starting local cluster...".green());
+    println!("{}", format!("Volumes directory: {}", volumes_dir.display()).green());
+    println!("{}", format!("Logs directory: {}", logs_dir.display()).green());
     // TODO: Implement start logic
     println!("{}", "Local cluster started.".green());
     Ok(())
