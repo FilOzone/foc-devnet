@@ -45,7 +45,14 @@ impl YugabyteStep {
     /// Check if a container with the given name exists
     fn container_exists(name: &str) -> Result<bool, Box<dyn Error>> {
         let output = Command::new("docker")
-            .args(["ps", "-a", "--filter", &format!("name=^{}$", name), "--format", "{{.Names}}"])
+            .args([
+                "ps",
+                "-a",
+                "--filter",
+                &format!("name=^{}$", name),
+                "--format",
+                "{{.Names}}",
+            ])
             .output()?;
 
         Ok(String::from_utf8_lossy(&output.stdout)
@@ -56,7 +63,13 @@ impl YugabyteStep {
     /// Check if a container is running
     fn container_is_running(name: &str) -> Result<bool, Box<dyn Error>> {
         let output = Command::new("docker")
-            .args(["ps", "--filter", &format!("name=^{}$", name), "--format", "{{.Names}}"])
+            .args([
+                "ps",
+                "--filter",
+                &format!("name=^{}$", name),
+                "--format",
+                "{{.Names}}",
+            ])
             .output()?;
 
         Ok(String::from_utf8_lossy(&output.stdout)
@@ -68,16 +81,12 @@ impl YugabyteStep {
     fn stop_and_remove_container(name: &str) -> Result<(), Box<dyn Error>> {
         if Self::container_is_running(name)? {
             println!("    Stopping existing container '{}'...", name);
-            Command::new("docker")
-                .args(["stop", name])
-                .output()?;
+            Command::new("docker").args(["stop", name]).output()?;
         }
 
         if Self::container_exists(name)? {
             println!("    Removing existing container '{}'...", name);
-            Command::new("docker")
-                .args(["rm", name])
-                .output()?;
+            Command::new("docker").args(["rm", name]).output()?;
         }
 
         Ok(())
@@ -185,11 +194,7 @@ impl Step for YugabyteStep {
             .into());
         }
 
-        println!(
-            "    {} Docker image '{}' found",
-            "✓".green(),
-            IMAGE_NAME
-        );
+        println!("    {} Docker image '{}' found", "✓".green(), IMAGE_NAME);
 
         Ok(())
     }
@@ -200,12 +205,7 @@ impl Step for YugabyteStep {
         std::fs::create_dir_all(&yugabyte_data_dir)?;
 
         // Build docker run command
-        let mut docker_args = vec![
-            "run",
-            "-d",
-            "--name",
-            CONTAINER_NAME,
-        ];
+        let mut docker_args = vec!["run", "-d", "--name", CONTAINER_NAME];
 
         // Add port mappings
         let port_args: Vec<String> = YUGABYTE_PORTS
@@ -237,7 +237,11 @@ impl Step for YugabyteStep {
 
         let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
         context.set("yugabyte_container_id", container_id.clone());
-        println!("    {} Container started with ID: {}", "✓".green(), &container_id[..12]);
+        println!(
+            "    {} Container started with ID: {}",
+            "✓".green(),
+            &container_id[..12]
+        );
 
         Ok(())
     }
@@ -271,11 +275,16 @@ impl Step for YugabyteStep {
         thread::sleep(Duration::from_secs(3)); // Give YugabyteDB a moment to fully initialize
         match Self::verify_postgres_connection() {
             Ok(_) => {
-                println!("    {} PostgreSQL is ready and accepting queries", "✓".green());
+                println!(
+                    "    {} PostgreSQL is ready and accepting queries",
+                    "✓".green()
+                );
             }
             Err(e) => {
                 println!("    {} PostgreSQL verification failed: {}", "⚠".yellow(), e);
-                println!("    Note: YugabyteDB may still be initializing. This is usually not a critical error.");
+                println!(
+                    "    Note: YugabyteDB may still be initializing. This is usually not a critical error."
+                );
             }
         }
 

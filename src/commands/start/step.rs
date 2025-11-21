@@ -32,10 +32,10 @@ pub trait Step {
     fn name(&self) -> &str;
 
     /// Pre-execution checks and setup
-    /// 
+    ///
     /// This method should perform all necessary checks before the main execution.
     /// For example: checking if ports are available, checking if required files exist, etc.
-    /// 
+    ///
     /// Returns Ok(()) if all checks pass, or an error describing what failed.
     fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         let _ = context; // Default implementation does nothing
@@ -43,18 +43,18 @@ pub trait Step {
     }
 
     /// Main execution logic
-    /// 
+    ///
     /// This method performs the actual work of the step.
     /// For example: starting a docker container, running a command, etc.
-    /// 
+    ///
     /// Returns Ok(()) if execution was successful, or an error describing what failed.
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>>;
 
     /// Post-execution verification
-    /// 
+    ///
     /// This method verifies that the execution was successful and the system is in the expected state.
     /// For example: checking if ports are accessible, verifying a service is responding, etc.
-    /// 
+    ///
     /// Returns Ok(()) if verification passes, or an error describing what failed.
     fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         let _ = context; // Default implementation does nothing
@@ -63,7 +63,10 @@ pub trait Step {
 
     /// Run the complete step (pre, execute, post)
     fn run(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        println!("{}", format!("Starting step: {}", self.name()).blue().bold());
+        println!(
+            "{}",
+            format!("Starting step: {}", self.name()).blue().bold()
+        );
 
         println!("{}", "  Running pre-execution checks...".cyan());
         self.pre_execute(context)?;
@@ -92,9 +95,14 @@ pub fn execute_steps(steps: Vec<&dyn Step>) -> Result<(), Box<dyn Error>> {
     for (index, step) in steps.iter().enumerate() {
         println!(
             "\n{}",
-            format!("=== Step {}/{}: {} ===", index + 1, steps.len(), step.name())
-                .blue()
-                .bold()
+            format!(
+                "=== Step {}/{}: {} ===",
+                index + 1,
+                steps.len(),
+                step.name()
+            )
+            .blue()
+            .bold()
         );
         step.run(&mut context)?;
     }

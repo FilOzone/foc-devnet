@@ -38,7 +38,7 @@ fn stop_yugabyte() -> Result<(), Box<dyn std::error::Error>> {
 
     // Check if container is running
     let is_running = container_is_running(CONTAINER_NAME)?;
-    
+
     if is_running {
         println!("  Stopping container '{}'...", CONTAINER_NAME);
         let output = Command::new("docker")
@@ -57,7 +57,11 @@ fn stop_yugabyte() -> Result<(), Box<dyn std::error::Error>> {
 
         // Verify container is stopped
         if container_is_running(CONTAINER_NAME)? {
-            return Err(format!("Container '{}' is still running after stop command", CONTAINER_NAME).into());
+            return Err(format!(
+                "Container '{}' is still running after stop command",
+                CONTAINER_NAME
+            )
+            .into());
         }
     } else {
         println!(
@@ -95,7 +99,14 @@ fn stop_yugabyte() -> Result<(), Box<dyn std::error::Error>> {
 /// Check if a container with the given name exists
 fn container_exists(name: &str) -> Result<bool, Box<dyn std::error::Error>> {
     let output = Command::new("docker")
-        .args(["ps", "-a", "--filter", &format!("name=^{}$", name), "--format", "{{.Names}}"])
+        .args([
+            "ps",
+            "-a",
+            "--filter",
+            &format!("name=^{}$", name),
+            "--format",
+            "{{.Names}}",
+        ])
         .output()?;
 
     Ok(String::from_utf8_lossy(&output.stdout)
@@ -106,7 +117,13 @@ fn container_exists(name: &str) -> Result<bool, Box<dyn std::error::Error>> {
 /// Check if a container is running
 fn container_is_running(name: &str) -> Result<bool, Box<dyn std::error::Error>> {
     let output = Command::new("docker")
-        .args(["ps", "--filter", &format!("name=^{}$", name), "--format", "{{.Names}}"])
+        .args([
+            "ps",
+            "--filter",
+            &format!("name=^{}$", name),
+            "--format",
+            "{{.Names}}",
+        ])
         .output()?;
 
     Ok(String::from_utf8_lossy(&output.stdout)

@@ -1,7 +1,7 @@
 mod step;
 mod yugabyte;
 
-pub use step::{execute_steps, Step, StepContext};
+pub use step::{Step, StepContext, execute_steps};
 use yugabyte::YugabyteStep;
 
 use crate::paths::foc_localnet_logs;

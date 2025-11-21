@@ -235,11 +235,19 @@ fn run_build_in_container(
 
     let build_script = match project {
         Project::Lotus => format!(
-            "git config --global --add safe.directory {} && cd {} && make clean all && cp lotus lotus-miner lotus-worker {}",
+            r#"git config --global --add safe.directory {} && \
+                cd {} && \
+                make clean && \
+                make 2k && \
+                make lotus-shed && \
+                cp lotus lotus-miner lotus-shed lotus-seed {}"#,
             container_source_dir, container_source_dir, container_output_dir
         ),
         Project::Curio => format!(
-            "git config --global --add safe.directory {} && cd {} && make clean all && cp curio {}",
+            r#"git config --global --add safe.directory {} && \
+                cd {} && \
+                make clean all && \
+                cp curio {}"#,
             container_source_dir, container_source_dir, container_output_dir
         ),
     };
