@@ -1,18 +1,19 @@
-# Dockerfile for Lotus Miner (Alpine-based)
+# Dockerfile for Lotus Miner (Ubuntu-based)
 #
 # This container runs the lotus-miner, the first generation miner node
 # that builds tipsets and performs PoRep (original Filecoin).
 
-FROM alpine:latest
+FROM ubuntu:24.04
 
 # Install runtime dependencies
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y \
     ca-certificates \
     bash \
     jq \
     curl \
-    hwloc \
-    mesa-gl
+    libhwloc-dev \
+    mesa-utils \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create necessary directories
 RUN mkdir -p /var/tmp/filecoin-proof-parameters \

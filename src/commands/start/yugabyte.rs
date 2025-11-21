@@ -1,4 +1,3 @@
-use super::docker_utils::load_image_from_tar;
 use super::step::{Step, StepContext};
 use crossterm::style::Stylize;
 use std::error::Error;
@@ -41,6 +40,15 @@ impl YugabyteStep {
     /// Check if a port is available (not in use)
     fn is_port_available(port: u16) -> bool {
         TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok()
+    }
+
+    /// Check if a Docker image exists
+    fn image_exists(image_name: &str) -> bool {
+        Command::new("docker")
+            .args(["image", "inspect", image_name])
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
     }
 
     /// Check if a container with the given name exists
@@ -182,8 +190,15 @@ impl Step for YugabyteStep {
 
         println!("    {} All required ports are available", "✓".green());
 
-        // Load Docker image from tar file
-        load_image_from_tar(IMAGE_NAME, "YugabyteDB")?;
+        // Verify Docker image exists
+        if !Self::image_exists(IMAGE_NAME) {
+            return Err(format!(
+                "Docker image '{}' not found. Please run 'foc-localnet init' to build the image.",
+                IMAGE_NAME
+            )
+            .into());
+        }
+        println!("    {} Docker image '{}' found", "✓".green(), IMAGE_NAME);
 
         Ok(())
     }

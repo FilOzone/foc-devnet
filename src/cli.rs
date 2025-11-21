@@ -21,6 +21,9 @@ pub enum Commands {
         /// Directory where logs of running docker instances will be stored
         #[arg(long)]
         logs_dir: Option<String>,
+        /// Reset genesis data by deleting keys and genesis sectors before starting
+        #[arg(long)]
+        reset: bool,
     },
     /// Stop the local cluster
     Stop,

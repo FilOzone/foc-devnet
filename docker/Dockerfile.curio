@@ -1,19 +1,20 @@
-# Dockerfile for Curio (Alpine-based)
+# Dockerfile for Curio (Ubuntu-based)
 #
 # This container runs curio, the second generation miner node
 # that performs PDP but does not build tipsets.
 
-FROM alpine:latest
+FROM ubuntu:24.04
 
 # Install runtime dependencies
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y \
     ca-certificates \
     bash \
     jq \
     curl \
     postgresql-client \
-    hwloc \
-    mesa-gl
+    libhwloc-dev \
+    mesa-utils \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create necessary directories
 RUN mkdir -p /var/tmp/filecoin-proof-parameters \

@@ -3,9 +3,11 @@
 //! This module handles starting the Lotus-Miner container, which is the first
 //! generation miner node that builds tipsets and performs PoRep (Proof of Replication).
 
-use super::docker_utils::load_image_from_tar;
 use super::step::{Step, StepContext};
-use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_genesis_sectors};
+use crate::paths::{
+    foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_genesis_sectors,
+    foc_localnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
+};
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::fs;
@@ -40,6 +42,15 @@ impl LotusMinerStep {
     /// Check if a port is available (not in use)
     fn is_port_available(port: u16) -> bool {
         TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok()
+    }
+
+    /// Check if a Docker image exists
+    fn image_exists(image_name: &str) -> bool {
+        Command::new("docker")
+            .args(["image", "inspect", image_name])
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
     }
 
     /// Check if a container with the given name exists
@@ -112,7 +123,7 @@ impl LotusMinerStep {
     fn check_miner_api() -> Result<(), Box<dyn Error>> {
         // Try to execute a simple lotus-miner command via docker exec
         let output = Command::new("docker")
-            .args(["exec", CONTAINER_NAME, "/bin/lotus-miner", "version"])
+            .args(["exec", CONTAINER_NAME, "/usr/local/bin/lotus-bins/lotus-miner", "version"])
             .output()?;
 
         if !output.status.success() {
@@ -183,8 +194,15 @@ impl Step for LotusMinerStep {
 
         println!("    {} All required ports are available", "✓".green());
 
-        // Load Docker image from tar file
-        load_image_from_tar(IMAGE_NAME, "Lotus-Miner")?;
+        // Verify Docker image exists
+        if !Self::image_exists(IMAGE_NAME) {
+            return Err(format!(
+                "Docker image '{}' not found. Please run 'foc-localnet init' to build the image.",
+                IMAGE_NAME
+            )
+            .into());
+        }
+        println!("    {} Docker image '{}' found", "✓".green(), IMAGE_NAME);
 
         // Verify lotus-miner binary exists
         let miner_bin = foc_localnet_bin().join("lotus-miner");
@@ -217,27 +235,37 @@ impl Step for LotusMinerStep {
         let miner_data_dir = self.volumes_dir.join("lotus-miner-data");
         fs::create_dir_all(&miner_data_dir)?;
 
+        // Get lotus daemon data directory (needed for API access)
+        let lotus_data_dir = self.volumes_dir.join("lotus-data");
+
         // Get paths
         let bin_dir = foc_localnet_bin();
         let sectors_dir = foc_localnet_genesis_sectors();
         let builder_volumes_dir = foc_localnet_docker_volumes().join("foc-builder");
+        let params_dir = foc_localnet_proof_parameters();
 
-        // Find the pre-seal metadata file
+        // Find the pre-seal metadata file and key file
         let mut preseal_file = None;
+        let mut preseal_key_file = None;
         for entry in fs::read_dir(&sectors_dir)? {
             let entry = entry?;
             let path = entry.path();
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "json") {
-                let filename = path.file_name().unwrap().to_string_lossy().to_string();
-                if filename.starts_with("pre-seal-") {
-                    preseal_file = Some(filename);
-                    break;
+            let filename = path.file_name().unwrap().to_string_lossy().to_string();
+            
+            if path.is_file() {
+                if path.extension().map_or(false, |ext| ext == "json") && filename.starts_with("pre-seal-") {
+                    preseal_file = Some(filename.clone());
+                }
+                if path.extension().map_or(false, |ext| ext == "key") && filename.starts_with("pre-seal-") {
+                    preseal_key_file = Some(filename);
                 }
             }
         }
 
         let preseal_file =
             preseal_file.ok_or("Pre-seal metadata file not found in sectors directory")?;
+        let preseal_key_file =
+            preseal_key_file.ok_or("Pre-seal key file not found in sectors directory")?;
 
         // Build docker run command
         // Use host network mode to allow lotus-miner to connect to lotus daemon
@@ -252,9 +280,15 @@ impl Step for LotusMinerStep {
 
         // Add volume mounts
         let volume_mounts = vec![
-            format!("{}:/bin", bin_dir.display()),
+            format!("{}:/usr/local/bin/lotus-bins", bin_dir.display()),
             format!("{}:/data", miner_data_dir.display()),
+            format!("{}:/root/.lotus-local-net", lotus_data_dir.display()),
             format!("{}:/sectors", sectors_dir.display()),
+            format!(
+                "{}:{}",
+                params_dir.display(),
+                CONTAINER_FILECOIN_PROOF_PARAMS_PATH
+            ),
             format!("{}:/cargo", builder_volumes_dir.join("cargo").display()),
         ];
 
@@ -268,15 +302,22 @@ impl Step for LotusMinerStep {
         // Add image name
         docker_args.push(IMAGE_NAME);
 
-        // Add command: init then run
-        // The init command sets up the miner, and run starts it
+        // Add command: import wallet key, init, then run
+        // Step 1: Import the pre-sealed miner key as the default wallet
+        // Step 2: Initialize the lotus-miner with pre-sealed sectors
+        // Step 3: Run the miner
         let miner_cmd = format!(
             r#"if [ ! -f /data/.lotus-miner-initialized ]; then \
-                 /bin/lotus-miner init --genesis-miner --actor=t01000 --sector-size=2KiB \
+                 echo "Importing pre-sealed miner key..." && \
+                 /usr/local/bin/lotus-bins/lotus wallet import --as-default /sectors/{} && \
+                 echo "Initializing lotus-miner..." && \
+                 /usr/local/bin/lotus-bins/lotus-miner init --genesis-miner --actor=t01000 --sector-size=2KiB \
                    --pre-sealed-sectors=/sectors --pre-sealed-metadata=/sectors/{} --nosync && \
                  touch /data/.lotus-miner-initialized; \
                fi && \
-               /bin/lotus-miner run --nosync"#,
+               echo "Starting lotus-miner..." && \
+               /usr/local/bin/lotus-bins/lotus-miner run --nosync"#,
+            preseal_key_file,
             preseal_file
         );
         docker_args.extend_from_slice(&["/bin/bash", "-c", &miner_cmd]);

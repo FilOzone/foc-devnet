@@ -19,9 +19,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Start {
             volumes_dir,
             logs_dir,
+            reset,
         } => {
             poison::create_poison("Start")?;
-            commands::start_cluster(volumes_dir, logs_dir)
+            commands::start_cluster(volumes_dir, logs_dir, reset)
         }
         Commands::Stop => {
             poison::create_poison("Stop")?;

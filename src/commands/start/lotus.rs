@@ -3,7 +3,7 @@
 //! This module handles starting the Lotus daemon container, which runs the
 //! Filecoin execution node (FEVM and FVM).
 
-use super::docker_utils::load_image_from_tar;
+use super::genesis::constants::GENESIS_FILE;
 use super::step::{Step, StepContext};
 use crate::paths::{
     CONTAINER_FILECOIN_PROOF_PARAMS_PATH, foc_localnet_bin, foc_localnet_genesis,
@@ -43,6 +43,15 @@ impl LotusStep {
     /// Check if a port is available (not in use)
     fn is_port_available(port: u16) -> bool {
         TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok()
+    }
+
+    /// Check if a Docker image exists
+    fn image_exists(image_name: &str) -> bool {
+        Command::new("docker")
+            .args(["image", "inspect", image_name])
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
     }
 
     /// Check if a container with the given name exists
@@ -114,7 +123,7 @@ impl LotusStep {
     /// Verify that the genesis block file exists
     fn verify_genesis_file() -> Result<PathBuf, Box<dyn Error>> {
         let genesis_dir = foc_localnet_genesis();
-        let genesis_file = genesis_dir.join("localnet.json");
+        let genesis_file = genesis_dir.join(GENESIS_FILE);
 
         if !genesis_file.exists() {
             return Err(
@@ -130,7 +139,7 @@ impl LotusStep {
     fn check_lotus_api() -> Result<(), Box<dyn Error>> {
         // Try to execute a simple lotus command via docker exec
         let output = Command::new("docker")
-            .args(["exec", CONTAINER_NAME, "/bin/lotus", "version"])
+            .args(["exec", CONTAINER_NAME, "/usr/local/bin/lotus-bins/lotus", "version"])
             .output()?;
 
         if !output.status.success() {
@@ -189,8 +198,15 @@ impl Step for LotusStep {
 
         println!("    {} All required ports are available", "✓".green());
 
-        // Load Docker image from tar file
-        load_image_from_tar(IMAGE_NAME, "Lotus")?;
+        // Verify Docker image exists
+        if !Self::image_exists(IMAGE_NAME) {
+            return Err(format!(
+                "Docker image '{}' not found. Please run 'foc-localnet init' to build the image.",
+                IMAGE_NAME
+            )
+            .into());
+        }
+        println!("    {} Docker image '{}' found", "✓".green(), IMAGE_NAME);
 
         // Verify lotus binary exists
         let lotus_bin = foc_localnet_bin().join("lotus");
@@ -238,12 +254,16 @@ impl Step for LotusStep {
         let lotus_data_dir = self.volumes_dir.join("lotus-data");
         fs::create_dir_all(&lotus_data_dir)?;
 
+        // Create devgen directory for the genesis block and state tree snapshot
+        let devgen_dir = self.volumes_dir.join("devgen");
+        fs::create_dir_all(&devgen_dir)?;
+
         // Get paths
         let bin_dir = foc_localnet_bin();
         let params_dir = foc_localnet_proof_parameters();
         let genesis_dir = foc_localnet_genesis();
         let sectors_dir = foc_localnet_genesis_sectors();
-        let genesis_file = genesis_dir.join("localnet.json");
+        let genesis_file = genesis_dir.join(GENESIS_FILE);
 
         // Build docker run command
         let mut docker_args = vec!["run", "-d", "--name", CONTAINER_NAME];
@@ -260,8 +280,9 @@ impl Step for LotusStep {
 
         // Add volume mounts
         let volume_mounts = vec![
-            format!("{}:/bin", bin_dir.display()),
-            format!("{}:/data", lotus_data_dir.display()),
+            format!("{}:/usr/local/bin/lotus-bins", bin_dir.display()),
+            format!("{}:/root/.lotus-local-net", lotus_data_dir.display()),
+            format!("{}:/devgen", devgen_dir.display()),
             format!(
                 "{}:{}",
                 params_dir.display(),
@@ -288,7 +309,10 @@ impl Step for LotusStep {
             .to_string_lossy()
             .to_string();
         let lotus_cmd = format!(
-            "/bin/lotus daemon --lotus-make-genesis=/data/devgen.car --genesis-template=/genesis/{} --bootstrap=false",
+            r#"/usr/local/bin/lotus-bins/lotus daemon \
+                --lotus-make-genesis=/devgen/devgen.car \
+                --genesis-template=/genesis/{} \
+                --bootstrap=false"#,
             genesis_filename
         );
         docker_args.extend_from_slice(&["/bin/bash", "-c", &lotus_cmd]);

@@ -132,3 +132,28 @@ It needs a few volumes loaded:
 
 This again, needs to be done under `foc-builder`.
 
+-----
+
+Great, once we have genesis setup, 
+The following needs to be started in order, which maybe different from `init`:
+- `lotus`, execution node, running FEVM and FVM
+- `lotus-miner`, first generation miner node building tipsets and doing PoRep (original filecoin)
+- `yugabyte`, a postgres like database needed by curio
+- `curio`, second generation miner node not building tipsets but doing PDP
+
+
+## Lotus
+
+Start the first node - Lotus daemon:
+```
+./lotus daemon --lotus-make-genesis=devgen.car --genesis-template=localnet.json --bootstrap=false 
+```
+This command will continue to run while outputting information. As a result of this command, a genesis block and a state tree will be generated and stored in a devgen.car as a snapshot. This should be yet another docker volume.
+
+By default, the lotus daemon will start listening on port `1234`. Do not reuse this port for other nodes on the devnet.
+
+Let this run and stablize before starting `lotus-miner`.
+
+Ensure lotus can be brought up using `start` and down using `stop` properly. Leave other steps for now.
+
+run `cargo run start` and `cargo run stop` and `cargo run status` to verify.

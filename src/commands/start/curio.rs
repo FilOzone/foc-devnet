@@ -4,7 +4,6 @@
 //! generation miner node that performs PDP (Proof of Data Possession) but
 //! does not build tipsets.
 
-use super::docker_utils::load_image_from_tar;
 use super::step::{Step, StepContext};
 use crate::paths::{
     CONTAINER_FILECOIN_PROOF_PARAMS_PATH, foc_localnet_bin, foc_localnet_proof_parameters,
@@ -43,6 +42,15 @@ impl CurioStep {
     /// Check if a port is available (not in use)
     fn is_port_available(port: u16) -> bool {
         TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok()
+    }
+
+    /// Check if a Docker image exists
+    fn image_exists(image_name: &str) -> bool {
+        Command::new("docker")
+            .args(["image", "inspect", image_name])
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
     }
 
     /// Check if a container with the given name exists
@@ -115,7 +123,7 @@ impl CurioStep {
     fn check_curio_api() -> Result<(), Box<dyn Error>> {
         // Try to execute a simple curio command via docker exec
         let output = Command::new("docker")
-            .args(["exec", CONTAINER_NAME, "/bin/curio", "version"])
+            .args(["exec", CONTAINER_NAME, "/usr/local/bin/lotus-bins/curio", "version"])
             .output()?;
 
         if !output.status.success() {
@@ -184,8 +192,15 @@ impl Step for CurioStep {
 
         println!("    {} All required ports are available", "✓".green());
 
-        // Load Docker image from tar file
-        load_image_from_tar(IMAGE_NAME, "Curio")?;
+        // Verify Docker image exists
+        if !Self::image_exists(IMAGE_NAME) {
+            return Err(format!(
+                "Docker image '{}' not found. Please run 'foc-localnet init' to build the image.",
+                IMAGE_NAME
+            )
+            .into());
+        }
+        println!("    {} Docker image '{}' found", "✓".green(), IMAGE_NAME);
 
         // Verify curio binary exists
         let curio_bin = foc_localnet_bin().join("curio");
@@ -222,7 +237,7 @@ impl Step for CurioStep {
 
         // Add volume mounts
         let volume_mounts = vec![
-            format!("{}:/bin", bin_dir.display()),
+            format!("{}:/usr/local/bin/lotus-bins", bin_dir.display()),
             format!("{}:/data", curio_data_dir.display()),
             format!(
                 "{}:{}",
@@ -260,10 +275,10 @@ impl Step for CurioStep {
             "-c",
             r#"if [ ! -f /data/.curio-initialized ]; then \
                  echo "Initializing Curio..."; \
-                 /bin/curio config default > /data/config.toml && \
+                 /usr/local/bin/lotus-bins/curio config default > /data/config.toml && \
                  touch /data/.curio-initialized; \
                fi && \
-               /bin/curio run"#,
+               /usr/local/bin/lotus-bins/curio run"#,
         ]);
 
         println!("    Starting Curio container '{}'...", CONTAINER_NAME);

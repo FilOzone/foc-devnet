@@ -1,5 +1,4 @@
 mod curio;
-mod docker_utils;
 mod genesis;
 mod lotus;
 mod lotus_miner;
@@ -23,6 +22,7 @@ use std::path::PathBuf;
 pub fn start_cluster(
     volumes_dir: Option<String>,
     logs_dir: Option<String>,
+    reset: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Determine volumes directory
     let volumes_dir = if let Some(dir) = volumes_dir {
@@ -42,6 +42,40 @@ pub fn start_cluster(
     // Create directories if they don't exist
     std::fs::create_dir_all(&volumes_dir)?;
     std::fs::create_dir_all(&logs_dir)?;
+
+    // Handle reset flag - delete genesis-related files and keys
+    if reset {
+        println!("{}", "Resetting genesis data...".yellow().bold());
+        
+        let base_volumes = foc_localnet_docker_volumes();
+        
+        // Files and directories to delete
+        let paths_to_delete = vec![
+            base_volumes.join("lotus-keys").join("key-1"),
+            base_volumes.join("lotus-keys").join("key-2"),
+            base_volumes.join("lotus-keys").join("prefunded-1"),
+            base_volumes.join("lotus-keys").join("prefunded-2"),
+            base_volumes.join("genesis-sectors"),
+            base_volumes.join("genesis").join("foc-localnet.json"),
+        ];
+        
+        for path in paths_to_delete {
+            if path.exists() {
+                if path.is_dir() {
+                    std::fs::remove_dir_all(&path)?;
+                    println!("  {} {}", "Removed directory:".red(), path.display());
+                } else {
+                    std::fs::remove_file(&path)?;
+                    println!("  {} {}", "Removed file:".red(), path.display());
+                }
+            } else {
+                println!("  {} {}", "Skipped (not found):".dim(), path.display());
+            }
+        }
+        
+        println!("{}", "Reset complete.".green().bold());
+        println!();
+    }
 
     println!("{}", "Starting local cluster...".green().bold());
     println!(

@@ -1,18 +1,21 @@
-# Dockerfile for Lotus execution node (Alpine-based)
+# Dockerfile for Lotus execution node (Ubuntu-based)
 #
 # This container runs the lotus daemon, which is the execution node for
 # the Filecoin network, handling FEVM and FVM.
+# 
+# Note: Using Ubuntu 24.04 because lotus binaries are dynamically linked
+# against glibc 2.38/2.39 which is available in Ubuntu 24.04.
 
-FROM alpine:latest
+FROM ubuntu:24.04
 
 # Install runtime dependencies
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y \
     ca-certificates \
     bash \
     jq \
     curl \
-    hwloc \
-    mesa-gl
+    libhwloc-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create necessary directories
 RUN mkdir -p /var/tmp/filecoin-proof-parameters \
