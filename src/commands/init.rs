@@ -20,8 +20,8 @@ use std::process::Command;
 use crate::config::{Config, Location};
 use crate::paths::{
     foc_localnet_artifacts, foc_localnet_bin, foc_localnet_code, foc_localnet_config,
-    foc_localnet_docker_images, foc_localnet_docker_volumes, foc_localnet_home, foc_localnet_logs, foc_localnet_state,
-    foc_localnet_tmp,
+    foc_localnet_docker_images, foc_localnet_docker_volumes, foc_localnet_home, foc_localnet_logs,
+    foc_localnet_state, foc_localnet_tmp,
 };
 
 /// Initialize foc-localnet comprehensively.
@@ -127,7 +127,11 @@ fn generate_default_config(
         std::fs::remove_file(&config_path)?;
     }
 
-    println!("  {} Generating default config: {:?}", "ℹ".cyan(), config_path);
+    println!(
+        "  {} Generating default config: {:?}",
+        "ℹ".cyan(),
+        config_path
+    );
 
     // Start with default config
     let mut config = Config::default();
@@ -278,12 +282,12 @@ fn create_volumes_for_image(
     volumes_base_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let content = fs::read_to_string(volumes_map_path)?;
-    
+
     #[derive(serde::Deserialize)]
     struct VolumesMap {
         volumes: HashMap<String, String>,
     }
-    
+
     let volume_config: VolumesMap = toml::from_str(&content)
         .map_err(|e| format!("Failed to parse {}: {}", volumes_map_path.display(), e))?;
 
@@ -443,7 +447,7 @@ fn build_yugabyte_docker_image(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let image_tag = format!("foc-{}", name);
     let artifacts_dir = foc_localnet_artifacts();
-    
+
     // Check if yugabyte directory exists in artifacts
     let yugabyte_dir = artifacts_dir.join("yugabyte");
     if !yugabyte_dir.exists() {
@@ -572,10 +576,7 @@ fn download_code_repositories() -> Result<(), Box<dyn std::error::Error>> {
     // Download curio repository if Git-based
     download_repository("curio", &config.curio)?;
 
-    println!(
-        "  {} Code repositories are now available.",
-        "✓".green()
-    );
+    println!("  {} Code repositories are now available.", "✓".green());
     Ok(())
 }
 

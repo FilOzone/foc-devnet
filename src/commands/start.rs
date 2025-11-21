@@ -30,8 +30,14 @@ pub fn start_cluster(
     std::fs::create_dir_all(&logs_dir)?;
 
     println!("{}", "Starting local cluster...".green());
-    println!("{}", format!("Volumes directory: {}", volumes_dir.display()).green());
-    println!("{}", format!("Logs directory: {}", logs_dir.display()).green());
+    println!(
+        "{}",
+        format!("Volumes directory: {}", volumes_dir.display()).green()
+    );
+    println!(
+        "{}",
+        format!("Logs directory: {}", logs_dir.display()).green()
+    );
     // TODO: Implement start logic
     println!("{}", "Local cluster started.".green());
     Ok(())

@@ -9,7 +9,6 @@ use foc_localnet::poison;
 use std::fs;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-
     let cli = Cli::parse();
 
     // Check for poison file and attempt recovery
