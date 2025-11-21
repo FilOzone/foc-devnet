@@ -86,3 +86,49 @@ The two signer keys are from volumes `lotus-keys-1` and `lotus-keys-2` respectiv
 
 This again, needs to be done under `foc-builder` and output of this needs to be in its own volume.
 
+
+
+
+--------
+We are preparing pre-requisites for the localnet.
+
+Much of work has been done in `genesis.rs` in `ensure_genesis_prerequisites`
+
+It currently completes two sector pre-sealing. More described here: https://lotus.filecoin.io/lotus/developers/local-network/
+
+Next, we need to:
+
+## Do genesis
+A genesis is constructed via:
+```
+lotus-seed genesis new \
+    --network-name foc-localnet \
+    --timestamp <CURRENT_TIME> \
+    foc-localnet.json
+```
+
+Later, signers are added:
+```
+lotus-seed genesis set-signers --threshold=2 \
+    --signers <root-key-1> \
+    --signers <root-key-2> \
+    foc-localnet.json
+```
+This command doesn’t output anything on success.
+
+Later, atleast one miner is to be initialized as follows:
+```
+lotus-seed genesis add-miner \
+    foc-localnet.json \
+    ~/.genesis-sectors/pre-seal-t01000.json
+```
+
+This makes for us a localnet with two signer keys 
+
+It needs a few volumes loaded:
+- The two signer keys are from volumes `lotus-keys-1` and `lotus-keys-2` respectively, containing BLS keys.
+- The presealed sectors available at `artifacts/docker/volumes/genesis-sectors`
+- The volume `genesis` where foc-localnet.json will be generated into.
+
+This again, needs to be done under `foc-builder`.
+

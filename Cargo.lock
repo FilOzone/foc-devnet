@@ -339,6 +339,7 @@ dependencies = [
  "indicatif",
  "regex",
  "serde",
+ "serde_json",
  "tabular",
  "tempfile",
  "toml",

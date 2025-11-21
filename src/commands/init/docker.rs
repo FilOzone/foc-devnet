@@ -244,12 +244,7 @@ fn build_docker_image(
         pb.set_message(format!("Saving image {} to tarball", image_tag));
 
         let status = Command::new("docker")
-            .args([
-                "save",
-                &image_tag,
-                "-o",
-                &tar_path.to_string_lossy(),
-            ])
+            .args(["save", &image_tag, "-o", &tar_path.to_string_lossy()])
             .status()?;
 
         if !status.success() {
@@ -367,12 +362,7 @@ fn build_yugabyte_docker_image(
         pb.set_message(format!("Saving image {} to tarball", image_tag));
 
         let status = Command::new("docker")
-            .args([
-                "save",
-                &image_tag,
-                "-o",
-                &tar_path.to_string_lossy(),
-            ])
+            .args(["save", &image_tag, "-o", &tar_path.to_string_lossy()])
             .status()?;
 
         if !status.success() {

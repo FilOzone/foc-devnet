@@ -7,6 +7,7 @@ edition = "2021"
 clap = { version = "4.0", features = ["derive"] }
 indicatif = "0.17"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 toml = "0.8"
 crossterm = "0.27"
 dirs = "5.0"
