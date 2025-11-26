@@ -53,6 +53,11 @@ pub const NUM_SIGNER_KEYS: u32 = 2;
 /// but do not have signing authority. They are useful for testing transactions
 /// and smart contracts without affecting the signer accounts.
 ///
+/// IMPORTANT: prefunded-1 is designated as GLOBAL_FIL_FAUCET and is used for:
+/// - Transferring FIL to Ethereum addresses via f4 addresses
+/// - Funding FOC (Filecoin Onchain Contracts) deployment operations
+/// - General testing and development activities
+///
 /// To modify this value:
 /// 1. Change this constant (e.g., to 3)
 /// 2. Run `cargo run start` to regenerate the keys
@@ -61,4 +66,4 @@ pub const NUM_SIGNER_KEYS: u32 = 2;
 ///
 /// Example: Set to 3 to create 3 additional pre-funded accounts.
 /// Set to 0 to follow the minimal official Lotus local network setup.
-pub const NUM_PREFUNDED_KEYS: u32 = 0;
+pub const NUM_PREFUNDED_KEYS: u32 = 1;

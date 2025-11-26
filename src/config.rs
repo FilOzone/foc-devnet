@@ -173,6 +173,13 @@ pub struct Config {
     /// See [`Location`] for available options.
     pub curio: Location,
 
+    /// Location specification for the filecoin-services repository.
+    ///
+    /// Defines how to obtain the filecoin-services code, which contains
+    /// the FOC (Filecoin Onchain Contracts) deployment scripts needed by Curio.
+    /// See [`Location`] for available options.
+    pub filecoin_services: Location,
+
     /// URL to download Yugabyte database tarball.
     ///
     /// This is the direct link to the Yugabyte tarball required for running curio.
@@ -201,6 +208,10 @@ impl Default for Config {
             curio: Location::GitBranch {
                 url: "https://github.com/filecoin-project/curio.git".to_string(),
                 branch: "pdpv0".to_string(),
+            },
+            filecoin_services: Location::GitTag {
+                url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
+                tag: "v1.0.0".to_string(),
             },
             yugabyte_download_url: "https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz".to_string(),
         }

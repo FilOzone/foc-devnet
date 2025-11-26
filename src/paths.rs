@@ -42,6 +42,11 @@ pub fn foc_localnet_curio_repo() -> PathBuf {
     foc_localnet_code().join("curio")
 }
 
+/// Returns the path to the "filecoin-services" repository
+pub fn foc_localnet_filecoin_services_repo() -> PathBuf {
+    foc_localnet_code().join("filecoin-services")
+}
+
 /// Returns the path to the foc-localnet temporary directory, e.g., ~/.foc-localnet/tmp
 pub fn foc_localnet_tmp() -> PathBuf {
     foc_localnet_home().join("tmp")

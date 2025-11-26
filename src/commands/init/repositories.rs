@@ -36,6 +36,9 @@ pub fn download_code_repositories() -> Result<(), Box<dyn std::error::Error>> {
     // Download curio repository if Git-based
     download_repository("curio", &config.curio)?;
 
+    // Download filecoin-services repository if Git-based
+    download_repository("filecoin-services", &config.filecoin_services)?;
+
     println!("  {} Code repositories are now available.", "✓".green());
     Ok(())
 }
