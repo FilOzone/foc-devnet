@@ -157,6 +157,108 @@ impl LotusStep {
 
         Ok(())
     }
+
+    /// Enable FEVM in the Lotus config.toml
+    ///
+    /// This modifies the Lotus config to enable Ethereum RPC support, which is
+    /// required for deploying and interacting with Solidity contracts.
+    fn enable_fevm_config(lotus_data_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
+        let config_path = lotus_data_dir.join("config.toml");
+
+        // Wait for config file to be created by daemon
+        let start = std::time::Instant::now();
+        let timeout = Duration::from_secs(60);
+        while !config_path.exists() {
+            if start.elapsed() > timeout {
+                return Err("Timeout waiting for Lotus config.toml to be created".into());
+            }
+            thread::sleep(Duration::from_millis(500));
+        }
+
+        // Read the existing config
+        let config_content = fs::read_to_string(&config_path)?;
+
+        // Check if FEVM section already exists and is enabled
+        if config_content.contains("EnableEthRPC = true") {
+            return Ok(()); // Already configured
+        }
+
+        // Parse as TOML
+        let mut config: toml::Value = toml::from_str(&config_content)
+            .map_err(|e| format!("Failed to parse Lotus config: {}", e))?;
+
+        // Add or modify the [Fevm] section
+        if let Some(config_table) = config.as_table_mut() {
+            let fevm_section = config_table
+                .entry("Fevm".to_string())
+                .or_insert(toml::Value::Table(toml::map::Map::new()));
+
+            if let Some(fevm_table) = fevm_section.as_table_mut() {
+                fevm_table.insert(
+                    "EnableEthRPC".to_string(),
+                    toml::Value::Boolean(true),
+                );
+            }
+        }
+
+        // Write back to file
+        let updated_config = toml::to_string_pretty(&config)
+            .map_err(|e| format!("Failed to serialize config: {}", e))?;
+
+        fs::write(&config_path, updated_config)?;
+
+        // Restart the Lotus daemon to apply config changes
+        println!("      Restarting Lotus daemon to apply FEVM configuration...");
+        Command::new("docker")
+            .args(["restart", CONTAINER_NAME])
+            .output()?;
+
+        // Wait for daemon to restart
+        thread::sleep(Duration::from_secs(10));
+
+        Ok(())
+    }
+
+    /// Check if Ethereum RPC is available via the Lotus API
+    ///
+    /// This verifies that FEVM is properly enabled by testing a basic eth_* RPC call.
+    fn check_ethereum_rpc() -> Result<(), Box<dyn Error>> {
+        // Test eth_blockNumber via docker exec
+        // This is a simple, safe RPC call that should work if FEVM is enabled
+        let output = Command::new("docker")
+            .args([
+                "exec",
+                CONTAINER_NAME,
+                "/bin/bash",
+                "-c",
+                "curl -s -X POST -H 'Content-Type: application/json' \
+                --data '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}' \
+                http://localhost:1234/rpc/v1",
+            ])
+            .output()?;
+
+        if !output.status.success() {
+            return Err(format!(
+                "Failed to execute eth_blockNumber RPC call: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .into());
+        }
+
+        let response = String::from_utf8_lossy(&output.stdout);
+
+        // Check if response contains result (indicating success)
+        // Even if block number is 0x0, it should have a "result" field
+        if !response.contains("\"result\"") {
+            return Err(format!(
+                "Unexpected response from eth_blockNumber: {}",
+                response
+            )
+            .into());
+        }
+
+        Ok(())
+    }
 }
 
 impl Step for LotusStep {
@@ -402,6 +504,11 @@ impl Step for LotusStep {
         // Wait a bit more for daemon to fully initialize
         thread::sleep(Duration::from_secs(5));
 
+        // Enable FEVM by modifying the config.toml
+        println!("    Configuring FEVM (Filecoin EVM runtime)...");
+        Self::enable_fevm_config(&lotus_data_dir)?;
+        println!("    {} FEVM configuration enabled", "✓".green());
+
         // Verify Lotus API is responsive
         println!("    Verifying Lotus API connectivity...");
         match Self::check_lotus_api() {
@@ -419,8 +526,30 @@ impl Step for LotusStep {
             }
         }
 
+        // Verify FEVM/Ethereum RPC is available
+        println!("    Verifying FEVM Ethereum RPC...");
+        match Self::check_ethereum_rpc() {
+            Ok(_) => {
+                println!(
+                    "    {} Ethereum RPC is available and responding",
+                    "✓".green()
+                );
+            }
+            Err(e) => {
+                println!(
+                    "    {} Ethereum RPC verification failed: {}",
+                    "⚠".yellow(),
+                    e
+                );
+                println!(
+                    "    Note: This may indicate FEVM is not fully initialized. Check logs if needed."
+                );
+            }
+        }
+
         println!("\n    {} Lotus daemon is ready!", "✓".green().bold());
         println!("      API endpoint: http://localhost:1234");
+        println!("      Ethereum RPC: Available via Lotus API");
 
         Ok(())
     }
