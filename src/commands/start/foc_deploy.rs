@@ -49,7 +49,13 @@ impl FOCDeployStep {
     /// Check if Lotus is running and accessible
     fn check_lotus_running() -> Result<(), Box<dyn Error>> {
         let output = Command::new("docker")
-            .args(["ps", "--filter", "name=^foc-lotus$", "--format", "{{.Names}}"])
+            .args([
+                "ps",
+                "--filter",
+                "name=^foc-lotus$",
+                "--format",
+                "{{.Names}}",
+            ])
             .output()?;
 
         if !String::from_utf8_lossy(&output.stdout)
@@ -88,11 +94,9 @@ impl FOCDeployStep {
             .collect();
 
         if entries.is_empty() {
-            return Err(format!(
-                "No BLS keyinfo file found in {}",
-                faucet_key_dir.display()
-            )
-            .into());
+            return Err(
+                format!("No BLS keyinfo file found in {}", faucet_key_dir.display()).into(),
+            );
         }
 
         // Extract address from filename: bls-<address>.keyinfo
@@ -118,7 +122,10 @@ impl FOCDeployStep {
                 "/usr/local/bin/lotus-bins/lotus",
                 "wallet",
                 "import",
-                &format!("/keys/{}", keyinfo_path.file_name().unwrap().to_str().unwrap()),
+                &format!(
+                    "/keys/{}",
+                    keyinfo_path.file_name().unwrap().to_str().unwrap()
+                ),
             ])
             .output()?;
 
@@ -166,7 +173,12 @@ impl FOCDeployStep {
         }
 
         let address = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        println!("      {} {} address created: {}", "✓".green(), name, address);
+        println!(
+            "      {} {} address created: {}",
+            "✓".green(),
+            name,
+            address
+        );
         Ok(address)
     }
 
@@ -293,10 +305,10 @@ impl FOCDeployStep {
         // Use cast to deploy the contract
         // Format: cast send --create <bytecode> --rpc-url <url> --private-key <key>
         // For now, we'll use a simpler approach with solc + cast
-        
+
         // Compile the contract using solc in foc-builder
         println!("        Compiling MockUSDFC.sol...");
-        
+
         let compile_output = Command::new("docker")
             .args([
                 "exec",
@@ -323,7 +335,7 @@ impl FOCDeployStep {
         // For now, return a placeholder - we need forge/solc in the container
         println!("        {} MockUSDFC deployment placeholder", "⚠".yellow());
         println!("        Using deployer address as temporary token address");
-        
+
         // Return the deployer's address as a placeholder
         // In a real implementation, we'd compile and deploy the contract
         Ok(deployer_eth_addr.to_string())
@@ -350,10 +362,7 @@ impl Step for FOCDeployStep {
             )
             .into());
         }
-        println!(
-            "    {} filecoin-services repository found",
-            "✓".green()
-        );
+        println!("    {} filecoin-services repository found", "✓".green());
 
         // Check if deployment script exists
         let deploy_script = services_repo
@@ -362,11 +371,9 @@ impl Step for FOCDeployStep {
             .join("deploy-all-warm-storage.sh");
 
         if !deploy_script.exists() {
-            return Err(format!(
-                "Deployment script not found at {}",
-                deploy_script.display()
-            )
-            .into());
+            return Err(
+                format!("Deployment script not found at {}", deploy_script.display()).into(),
+            );
         }
         println!("    {} Deployment script found", "✓".green());
 
@@ -449,7 +456,10 @@ impl Step for FOCDeployStep {
             mock_usdfc_address
         );
 
-        println!("\n    {} FOC deployment prerequisites ready!", "✓".green().bold());
+        println!(
+            "\n    {} FOC deployment prerequisites ready!",
+            "✓".green().bold()
+        );
         println!("      GLOBAL_FIL_FAUCET: {}", global_faucet);
         println!("      FEVM_FAUCET: {}", fevm_faucet);
         println!("      FOC_DEPLOYER: {}", foc_deployer);
@@ -462,7 +472,10 @@ impl Step for FOCDeployStep {
 
         // TODO: Implement actual contract deployment
         // For now, we'll mark this as a placeholder
-        println!("      {} Contract deployment implementation pending", "⚠".yellow());
+        println!(
+            "      {} Contract deployment implementation pending",
+            "⚠".yellow()
+        );
         println!("      This will execute deploy-all-warm-storage.sh via foc-builder");
 
         Ok(())
@@ -475,7 +488,10 @@ impl Step for FOCDeployStep {
         // For now, just check prerequisites are in place
         println!("      {} Deployment verification pending", "⚠".yellow());
 
-        println!("\n    {} FOC deployment step completed!", "✓".green().bold());
+        println!(
+            "\n    {} FOC deployment step completed!",
+            "✓".green().bold()
+        );
         println!("      Note: Contract deployment implementation is pending.");
         println!("      All prerequisites (accounts, transfers) are in place.");
 

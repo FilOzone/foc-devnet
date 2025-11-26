@@ -116,7 +116,12 @@ pub fn start_cluster(
 
     // Handle reset flag - reset lotus and lotus-miner to block 0
     if reset {
-        println!("{}", "Resetting lotus and lotus-miner to block 0...".yellow().bold());
+        println!(
+            "{}",
+            "Resetting lotus and lotus-miner to block 0..."
+                .yellow()
+                .bold()
+        );
 
         // Stop lotus-miner and lotus containers
         let containers = vec!["foc-lotus-miner", "foc-lotus"];
@@ -202,7 +207,12 @@ pub fn start_cluster(
     let _curio_step = CurioStep::new(volumes_dir.clone(), logs_dir.clone());
 
     // Execute all steps
-    let steps: Vec<&dyn Step> = vec![&lotus_step, &lotus_miner_step, &foc_deploy_step, &yugabyte_step];
+    let steps: Vec<&dyn Step> = vec![
+        &lotus_step,
+        &lotus_miner_step,
+        &foc_deploy_step,
+        &yugabyte_step,
+    ];
     execute_steps(steps)?;
 
     println!("\n{}", "Local cluster started successfully!".green().bold());

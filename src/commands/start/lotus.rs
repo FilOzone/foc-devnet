@@ -194,10 +194,7 @@ impl LotusStep {
                 .or_insert(toml::Value::Table(toml::map::Map::new()));
 
             if let Some(fevm_table) = fevm_section.as_table_mut() {
-                fevm_table.insert(
-                    "EnableEthRPC".to_string(),
-                    toml::Value::Boolean(true),
-                );
+                fevm_table.insert("EnableEthRPC".to_string(), toml::Value::Boolean(true));
             }
         }
 
@@ -250,11 +247,7 @@ impl LotusStep {
         // Check if response contains result (indicating success)
         // Even if block number is 0x0, it should have a "result" field
         if !response.contains("\"result\"") {
-            return Err(format!(
-                "Unexpected response from eth_blockNumber: {}",
-                response
-            )
-            .into());
+            return Err(format!("Unexpected response from eth_blockNumber: {}", response).into());
         }
 
         Ok(())
