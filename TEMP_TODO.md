@@ -8,8 +8,11 @@ We need to add support for deploying filecoin-onchain-contracts (FOC) on the Lot
 - ✅ Yugabyte and Curio can start after Lotus is healthy
 - ✅ Added filecoin-services repository configuration (v1.0.0 default)
 - ✅ Added GLOBAL_FIL_FAUCET (NUM_PREFUNDED_KEYS = 1)
-- 🔄 Working on: FEVM enablement and FOC deployment step
-- ❌ Missing: FOC contract deployment between Lotus and Curio startup
+- ✅ FEVM enabled in Lotus with Ethereum RPC support
+- ✅ FOCDeploy step created with account setup and fund transfers
+- 🔄 Working on: Contract deployment implementation
+- ❌ Pending: Actual deploy-all-warm-storage.sh execution
+- ❌ Pending: Contract address capture and storage for Curio
 
 ## Implementation Tasks
 
@@ -32,23 +35,29 @@ We need to add support for deploying filecoin-onchain-contracts (FOC) on the Lot
   - [ ] Set up transfer from FEVM_FAUCET to FOC_DEPLOYER
 
 ### Phase 3: FEVM Enablement in Lotus
-- [ ] Update Lotus configuration to enable FEVM
-  - [ ] Add EnableEthRPC = true in [Fevm] section of config.toml
-  - [ ] Config file needs to be created/modified in container after daemon starts
-  - [ ] Reference: https://lotus.filecoin.io/lotus/developers/local-network/#fevm-features
-- [ ] Add post-execution tests for FEVM
-  - [ ] Test Ethereum RPC is available (port may be different or same as Lotus API)
-  - [ ] Test basic eth_* RPC calls work
-  - [ ] Add verification step after Lotus starts
+- [x] Update Lotus configuration to enable FEVM
+  - [x] Add EnableEthRPC = true in [Fevm] section of config.toml
+  - [x] Config file modified and daemon restarted after creation
+  - [x] Reference: https://lotus.filecoin.io/lotus/developers/local-network/#fevm-features
+- [x] Add post-execution tests for FEVM
+  - [x] Test Ethereum RPC is available
+  - [x] Test basic eth_* RPC calls work (eth_blockNumber)
+  - [x] Add verification step after Lotus starts
 
 ### Phase 4: FOC Deploy Step
-- [ ] Create new start step: `FOCDeploy`
-  - [ ] Add to start/mod.rs step enum
-  - [ ] Create start/foc_deploy.rs module
-  - [ ] Insert step between Lotus-miner and Yugabyte
+- [x] Create new start step: `FOCDeploy`
+  - [x] Add to start/mod.rs step enum
+  - [x] Create start/foc_deploy.rs module
+  - [x] Insert step between Lotus-miner and Yugabyte
+- [x] Implement account setup and fund transfers
+  - [x] Import GLOBAL_FIL_FAUCET key into Lotus wallet
+  - [x] Create FEVM_FAUCET f4 address (10,000 FIL)
+  - [x] Create FOC_DEPLOYER f4 address (5,000 FIL)
+  - [x] Transfer chain: GLOBAL → FEVM_FAUCET → FOC_DEPLOYER
+  - [x] Export FOC_DEPLOYER private key for contract deployment
 - [ ] Implement deployment logic
-  - [ ] Use foc-builder container
-  - [ ] Execute deploy-all-warm-storage.sh script
+  - [ ] Set up foc-builder container with forge/cast/jq tools
+  - [ ] Execute deploy-all-warm-storage.sh script with proper env vars
   - [ ] Script location: filecoin-services:service_contracts/tools/deploy-all-warm-storage.sh
   - [ ] Handle deployment outputs and contract addresses
 - [ ] Add verification/health checks
@@ -72,10 +81,22 @@ We need to add support for deploying filecoin-onchain-contracts (FOC) on the Lot
   - [ ] Verify Curio can interact with deployed contracts
 
 ## Next Steps (Immediate)
-1. Examine current repository structure to understand patterns
-2. Add filecoin-services repository configuration
-3. Implement FEVM enablement in Lotus config
-4. Test each phase incrementally
+1. ~~Examine current repository structure to understand patterns~~ ✅
+2. ~~Add filecoin-services repository configuration~~ ✅
+3. ~~Implement FEVM enablement in Lotus config~~ ✅
+4. ~~Create FOCDeploy step with account setup~~ ✅
+5. **Implement contract deployment execution**
+   - Need to verify foc-builder has forge/cast/jq installed
+   - Set up proper environment variables for deployment script
+   - Execute deploy-all-warm-storage.sh and capture output
+6. **Test full flow manually**
+   - Run `cargo run init` and `cargo run start`
+   - Verify each step works correctly
+   - Document any issues encountered
+7. **Save contract addresses**
+   - Parse deployment script output
+   - Store addresses in a config file for Curio
+8. **Update status command** to show FOC deployment info
 
 ## Notes
 - Script URL: https://raw.githubusercontent.com/FilOzone/filecoin-services/refs/heads/main/service_contracts/tools/deploy-all-warm-storage.sh
