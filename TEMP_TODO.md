@@ -10,6 +10,7 @@ We need to add support for deploying filecoin-onchain-contracts (FOC) on the Lot
 - ✅ Added GLOBAL_FIL_FAUCET (NUM_PREFUNDED_KEYS = 1)
 - ✅ FEVM enabled in Lotus with Ethereum RPC support
 - ✅ FOCDeploy step created with account setup and fund transfers
+- ✅ MockUSDFC token created for local testing (replaces production USDFC)
 - 🔄 Working on: Contract deployment implementation
 - ❌ Pending: Actual deploy-all-warm-storage.sh execution
 - ❌ Pending: Contract address capture and storage for Curio
@@ -57,7 +58,9 @@ We need to add support for deploying filecoin-onchain-contracts (FOC) on the Lot
   - [x] Export FOC_DEPLOYER private key for contract deployment
 - [ ] Implement deployment logic
   - [ ] Set up foc-builder container with forge/cast/jq tools
+  - [x] Deploy MockUSDFC token (toy ERC-20 for local testing)
   - [ ] Execute deploy-all-warm-storage.sh script with proper env vars
+  - [ ] Pass USDFC_TOKEN_ADDRESS env var to deployment script
   - [ ] Script location: filecoin-services:service_contracts/tools/deploy-all-warm-storage.sh
   - [ ] Handle deployment outputs and contract addresses
 - [ ] Add verification/health checks
@@ -105,7 +108,8 @@ We need to add support for deploying filecoin-onchain-contracts (FOC) on the Lot
 - Conventional commits should be used for each milestone
 
 ## Questions/Decisions Needed
-- [ ] Does filecoin-services need to be built, or just cloned?
+- [x] Does filecoin-services need to be built, or just cloned? → Just cloned (contains scripts)
+- [x] What are the exact FEVM config parameters for Lotus? → EnableEthRPC = true in [Fevm] section
+- [x] How to handle USDFC token for local testing? → Created MockUSDFC.sol toy ERC-20
 - [ ] What are the exact environment variables needed for deploy script?
 - [ ] How should contract addresses be stored/passed to Curio?
-- [ ] What are the exact FEVM config parameters for Lotus?
