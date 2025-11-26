@@ -52,6 +52,123 @@ fn get_lotus_block_height() -> Option<u64> {
     height_str.parse::<u64>().ok()
 }
 
+/// Get the current CPU usage for foc- containers as a percentage.
+///
+/// This function uses docker stats to get the CPU usage of all running foc- containers.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use foc_localnet::commands::status::uptime::get_containers_cpu_usage;
+///
+/// if let Some(cpu) = get_containers_cpu_usage() {
+///     println!("Containers CPU usage: {:.1}%", cpu);
+/// }
+/// ```
+fn get_containers_cpu_usage() -> Option<f32> {
+    let output = Command::new("docker")
+        .args([
+            "stats",
+            "--no-stream",
+            "--format",
+            "{{.Name}}\t{{.CPUPerc}}",
+        ])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut total_cpu = 0.0;
+
+    for line in stdout.lines() {
+        let parts: Vec<&str> = line.split('\t').collect();
+        if parts.len() >= 2 && parts[0].starts_with("foc-") {
+            // Parse CPU percentage (remove % sign)
+            if let Some(cpu_str) = parts[1].strip_suffix('%') {
+                if let Ok(cpu) = cpu_str.parse::<f32>() {
+                    total_cpu += cpu;
+                }
+            }
+        }
+    }
+
+    Some(total_cpu)
+}
+
+/// Get the current memory usage for foc- containers.
+///
+/// This function returns a tuple of (used_memory_gb, total_limit_gb).
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use foc_localnet::commands::status::uptime::get_containers_memory_usage;
+///
+/// if let Some((used, limit)) = get_containers_memory_usage() {
+///     println!("Containers memory: {:.1}GB / {:.1}GB", used, limit);
+/// }
+/// ```
+fn get_containers_memory_usage() -> Option<(f64, f64)> {
+    let output = Command::new("docker")
+        .args([
+            "stats",
+            "--no-stream",
+            "--format",
+            "{{.Name}}\t{{.MemUsage}}",
+        ])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut total_used_gb = 0.0;
+    let mut total_limit_gb = 0.0;
+
+    for line in stdout.lines() {
+        let parts: Vec<&str> = line.split('\t').collect();
+        if parts.len() >= 2 && parts[0].starts_with("foc-") {
+            // Parse memory usage (format: "647.5MiB / 62.71GiB")
+            let mem_parts: Vec<&str> = parts[1].split(" / ").collect();
+            if mem_parts.len() == 2 {
+                // Parse used memory
+                if let Some(used_str) = parse_memory_value(mem_parts[0]) {
+                    total_used_gb += used_str;
+                }
+                // Parse limit (only once, assuming all containers have same limit)
+                if total_limit_gb == 0.0 {
+                    total_limit_gb = parse_memory_value(mem_parts[1]).unwrap_or(0.0);
+                }
+            }
+        }
+    }
+
+    if total_used_gb > 0.0 {
+        Some((total_used_gb, total_limit_gb))
+    } else {
+        None
+    }
+}
+
+/// Parse memory value from docker stats format (e.g., "647.5MiB" -> 0.6475 GB)
+fn parse_memory_value(mem_str: &str) -> Option<f64> {
+    let mem_str = mem_str.trim();
+    if let Some(mib_pos) = mem_str.find("MiB") {
+        let value_str = &mem_str[..mib_pos];
+        value_str.parse::<f64>().ok().map(|v| v / 1024.0) // Convert MiB to GiB
+    } else if let Some(gib_pos) = mem_str.find("GiB") {
+        let value_str = &mem_str[..gib_pos];
+        value_str.parse::<f64>().ok()
+    } else {
+        None
+    }
+}
+
 /// Print uptime information if system is running.
 ///
 /// This function displays the total uptime of the foc-localnet system by finding
@@ -102,6 +219,25 @@ pub fn print_uptime() -> Result<(), Box<dyn std::error::Error>> {
                 "{} {}",
                 "Chain height (lotus):".green(),
                 block_height.to_string().green().bold()
+            );
+        }
+
+        // Display CPU usage
+        if let Some(cpu_usage) = get_containers_cpu_usage() {
+            println!(
+                "{} {:.1}%",
+                "Containers CPU usage:".green(),
+                cpu_usage
+            );
+        }
+
+        // Display RAM usage
+        if let Some((used_ram, total_ram)) = get_containers_memory_usage() {
+            println!(
+                "{} {:.1}GB / {:.1}GB",
+                "Containers RAM usage:".green(),
+                used_ram,
+                total_ram
             );
         }
     } else {

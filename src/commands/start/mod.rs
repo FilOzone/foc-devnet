@@ -22,6 +22,7 @@ use std::path::PathBuf;
 pub fn start_cluster(
     volumes_dir: Option<String>,
     logs_dir: Option<String>,
+    regenesis: bool,
     reset: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Determine volumes directory
@@ -43,9 +44,9 @@ pub fn start_cluster(
     std::fs::create_dir_all(&volumes_dir)?;
     std::fs::create_dir_all(&logs_dir)?;
 
-    // Handle reset flag - delete genesis-related files and keys
-    if reset {
-        println!("{}", "Resetting genesis data...".yellow().bold());
+    // Handle regenesis flag - delete genesis-related files and keys
+    if regenesis {
+        println!("{}", "Performing regenesis (full reset)...".yellow().bold());
 
         // First, stop any running containers to ensure clean state
         println!("  Stopping any running containers...");
@@ -107,7 +108,67 @@ pub fn start_cluster(
             }
         }
 
-        println!("{}", "Reset complete.".green().bold());
+        println!("{}", "Regenesis complete.".green().bold());
+        println!();
+    }
+
+    // Handle reset flag - reset lotus and lotus-miner to block 0
+    if reset {
+        println!("{}", "Resetting lotus and lotus-miner to block 0...".yellow().bold());
+
+        // Stop lotus-miner and lotus containers
+        let containers = vec!["foc-lotus-miner", "foc-lotus"];
+        for container in containers {
+            let is_running = std::process::Command::new("docker")
+                .args([
+                    "ps",
+                    "--filter",
+                    &format!("name=^{}$", container),
+                    "--format",
+                    "{{.Names}}",
+                ])
+                .output()
+                .map(|output| {
+                    String::from_utf8_lossy(&output.stdout)
+                        .trim()
+                        .contains(container)
+                })
+                .unwrap_or(false);
+
+            if is_running {
+                println!("  Stopping container '{}'...", container);
+                let _ = std::process::Command::new("docker")
+                    .args(["stop", container])
+                    .output();
+                let _ = std::process::Command::new("docker")
+                    .args(["rm", container])
+                    .output();
+            }
+        }
+
+        let base_volumes = foc_localnet_docker_volumes();
+
+        // Only delete lotus-data and lotus-miner-data to reset to block 0
+        let paths_to_delete = vec![
+            base_volumes.join("lotus-data"),
+            base_volumes.join("lotus-miner-data"),
+        ];
+
+        for path in paths_to_delete {
+            if path.exists() {
+                if path.is_dir() {
+                    std::fs::remove_dir_all(&path)?;
+                    println!("  {} {}", "Removed directory:".red(), path.display());
+                } else {
+                    std::fs::remove_file(&path)?;
+                    println!("  {} {}", "Removed file:".red(), path.display());
+                }
+            } else {
+                println!("  {} {}", "Skipped (not found):".dim(), path.display());
+            }
+        }
+
+        println!("{}", "Reset to block 0 complete.".green().bold());
         println!();
     }
 

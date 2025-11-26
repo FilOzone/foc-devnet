@@ -398,7 +398,9 @@ pub fn parse_docker_running_for(running_for: &str) -> Option<DateTime<Utc>> {
     // This is a simplified parser - in a real implementation you might want more robust parsing
     let now = Utc::now();
 
-    if running_for.contains("second") {
+    if running_for.contains("About a minute") {
+        Some(now - chrono::Duration::minutes(1))
+    } else if running_for.contains("second") {
         let seconds: i64 = running_for.split_whitespace().next()?.parse().ok()?;
         Some(now - chrono::Duration::seconds(seconds))
     } else if running_for.contains("minute") {
