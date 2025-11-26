@@ -278,10 +278,10 @@ impl Step for LotusStep {
             docker_args.push(arg);
         }
 
-        // Add volume mounts
+        // Add volume mounts (paths updated for foc-user)
         let volume_mounts = vec![
             format!("{}:/usr/local/bin/lotus-bins", bin_dir.display()),
-            format!("{}:/root/.lotus-local-net", lotus_data_dir.display()),
+            format!("{}:/home/foc-user/.lotus-local-net", lotus_data_dir.display()),
             format!("{}:/devgen", devgen_dir.display()),
             format!(
                 "{}:{}",
@@ -375,9 +375,27 @@ impl Step for LotusStep {
             }
         }
 
+        // Wait for Lotus API file to exist and daemon to be fully initialized
+        println!("    Waiting for Lotus API to be ready (this may take 1-2 minutes)...");
+        let lotus_data_dir = self.volumes_dir.join("lotus-data");
+        let api_file = lotus_data_dir.join("api");
+        
+        let start = std::time::Instant::now();
+        let timeout = Duration::from_secs(180); // 3 minute timeout
+        
+        while !api_file.exists() {
+            if start.elapsed() > timeout {
+                return Err("Timeout waiting for Lotus API file to be created".into());
+            }
+            thread::sleep(Duration::from_millis(500));
+        }
+        println!("    {} Lotus API file created", "✓".green());
+
+        // Wait a bit more for daemon to fully initialize
+        thread::sleep(Duration::from_secs(5));
+
         // Verify Lotus API is responsive
         println!("    Verifying Lotus API connectivity...");
-        thread::sleep(Duration::from_secs(3)); // Give Lotus a moment to fully initialize
         match Self::check_lotus_api() {
             Ok(_) => {
                 println!(

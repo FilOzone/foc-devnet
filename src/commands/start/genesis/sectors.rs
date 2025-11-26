@@ -50,11 +50,11 @@ pub fn ensure_presealed_sectors() -> Result<(), Box<dyn std::error::Error>> {
             &format!("{}:/opt/bin", bin_dir.display()),
             "-v",
             &format!(
-                "{}:/root/.cargo",
+                "{}:/home/foc-user/.cargo",
                 builder_volumes_dir.join("cargo").display()
             ),
             "-v",
-            &format!("{}:/root/.genesis-sectors", sectors_dir.display()),
+            &format!("{}:/home/foc-user/.genesis-sectors", sectors_dir.display()),
             "foc-builder",
             "/bin/bash",
             "-c",

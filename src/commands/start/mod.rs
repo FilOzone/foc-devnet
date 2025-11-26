@@ -99,11 +99,11 @@ pub fn start_cluster(
     // 4. Curio (second gen miner) - needs both Lotus and YugabyteDB
     let lotus_step = LotusStep::new(volumes_dir.clone(), logs_dir.clone());
     let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), logs_dir.clone());
-    let yugabyte_step = YugabyteStep::new(volumes_dir.clone(), logs_dir.clone());
-    let curio_step = CurioStep::new(volumes_dir.clone(), logs_dir.clone());
+    let _yugabyte_step = YugabyteStep::new(volumes_dir.clone(), logs_dir.clone());
+    let _curio_step = CurioStep::new(volumes_dir.clone(), logs_dir.clone());
 
     // Execute all steps
-    let steps: Vec<&dyn Step> = vec![&lotus_step, &lotus_miner_step, &yugabyte_step, &curio_step];
+    let steps: Vec<&dyn Step> = vec![&lotus_step, &lotus_miner_step];
     execute_steps(steps)?;
 
     println!("\n{}", "Local cluster started successfully!".green().bold());

@@ -3,8 +3,8 @@ use std::process::Command;
 
 // Container names for all services
 const CONTAINERS: &[(&str, &str)] = &[
-    ("foc-curio", "Curio"),
-    ("foc-yugabyte", "YugabyteDB"),
+    // ("foc-curio", "Curio"),
+    // ("foc-yugabyte", "YugabyteDB"),
     ("foc-lotus-miner", "Lotus-Miner"),
     ("foc-lotus", "Lotus"),
 ];

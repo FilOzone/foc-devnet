@@ -4,4 +4,4 @@
 
 [volumes]
 # Curio repository data
-data = "/root/.curio"
+data = "/home/foc-user/.curio"

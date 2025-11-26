@@ -197,11 +197,21 @@ fn build_docker_image(
         );
         pb.set_message(format!("Building Docker image: {}", image_tag));
 
+        // Get current user's UID and GID for non-root container execution
+        let uid_output = Command::new("id").arg("-u").output()?;
+        let gid_output = Command::new("id").arg("-g").output()?;
+        let uid = String::from_utf8_lossy(&uid_output.stdout).trim().to_string();
+        let gid = String::from_utf8_lossy(&gid_output.stdout).trim().to_string();
+
         let status = Command::new("docker")
             .args([
                 "build",
                 "--progress",
-                "tty",
+                "plain",
+                "--build-arg",
+                &format!("USER_ID={}", uid),
+                "--build-arg",
+                &format!("GROUP_ID={}", gid),
                 "--file",
                 &dockerfile_path.to_string_lossy(),
                 "--tag",
@@ -314,12 +324,22 @@ fn build_yugabyte_docker_image(
         );
         pb.set_message(format!("Building Docker image: {}", image_tag));
 
+        // Get current user's UID and GID for non-root container execution
+        let uid_output = Command::new("id").arg("-u").output()?;
+        let gid_output = Command::new("id").arg("-g").output()?;
+        let uid = String::from_utf8_lossy(&uid_output.stdout).trim().to_string();
+        let gid = String::from_utf8_lossy(&gid_output.stdout).trim().to_string();
+
         // Build from artifacts directory as context to include yugabyte folder
         let status = Command::new("docker")
             .args([
                 "build",
                 "--progress",
-                "tty",
+                "plain",
+                "--build-arg",
+                &format!("USER_ID={}", uid),
+                "--build-arg",
+                &format!("GROUP_ID={}", gid),
                 "--file",
                 &dockerfile_path.to_string_lossy(),
                 "--tag",

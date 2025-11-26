@@ -68,10 +68,10 @@ pub fn ensure_bls_key(
             "run",
             "--rm",
             "-v",
-            &format!("{}:/output", bin_dir.display()),
+            &format!("{}:/opt/bin", bin_dir.display()),
             "-v",
             &format!(
-                "{}:/root/.cargo",
+                "{}:/home/foc-user/.cargo",
                 builder_volumes_dir.join("cargo").display()
             ),
             "-v",

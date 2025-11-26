@@ -53,7 +53,7 @@ pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
             &format!("{}:/output", bin_dir.display()),
             "-v",
             &format!(
-                "{}:/root/.cargo",
+                "{}:/home/foc-user/.cargo",
                 builder_volumes_dir.join("cargo").display()
             ),
             "-v",

@@ -376,9 +376,9 @@ services:
       - "127.0.0.1:1234:1234"  # API - bind to localhost only
       - "127.0.0.1:1235:1235"  # EthRPC - bind to localhost only
     volumes:
-      - ./data/lotus:/root/.lotus
+      - ./data/lotus:/home/foc-user/.lotus
     environment:
-      - LOTUS_PATH=/root/.lotus
+      - LOTUS_PATH=/home/foc-user/.lotus
       - LOTUS_SKIP_GENESIS_CHECK=_yes_
     # No external DNS or internet access
     dns:
@@ -394,10 +394,10 @@ services:
     ports:
       - "127.0.0.1:2345:2345"  # Miner API - localhost only
     volumes:
-      - ./data/lotus-miner:/root/.lotusminer
-      - ./data/genesis-sectors:/root/.genesis-sectors
+      - ./data/lotus-miner:/home/foc-user/.lotusminer
+      - ./data/genesis-sectors:/home/foc-user/.genesis-sectors
     environment:
-      - LOTUS_MINER_PATH=/root/.lotusminer
+      - LOTUS_MINER_PATH=/home/foc-user/.lotusminer
       - FULLNODE_API_INFO=<token>:/ip4/172.28.0.2/tcp/1234/http
     dns:
       - 172.28.0.1
@@ -415,7 +415,7 @@ services:
       - "127.0.0.1:12300:12300"  # GUI - localhost only
       - "127.0.0.1:32100:32100"  # API - localhost only
     volumes:
-      - ./data/curio:/root/.curio
+      - ./data/curio:/home/foc-user/.curio
     environment:
       - CURIO_DB_HOST=172.28.0.5
       - CURIO_DB_PORT=5433

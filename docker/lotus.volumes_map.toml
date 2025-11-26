@@ -4,6 +4,6 @@
 
 [volumes]
 # Lotus repository data
-data = "/root/.lotus-local-net"
+data = "/home/foc-user/.lotus-local-net"
 # Genesis files
-genesis = "/root/.genesis"
+genesis = "/home/foc-user/.genesis"
