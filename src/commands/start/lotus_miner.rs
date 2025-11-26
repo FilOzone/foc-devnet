@@ -5,8 +5,8 @@
 
 use super::step::{Step, StepContext};
 use crate::paths::{
-    foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_genesis_sectors,
-    foc_localnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
+    CONTAINER_FILECOIN_PROOF_PARAMS_PATH, foc_localnet_bin, foc_localnet_docker_volumes,
+    foc_localnet_genesis_sectors, foc_localnet_proof_parameters,
 };
 use crossterm::style::Stylize;
 use std::error::Error;
@@ -123,7 +123,12 @@ impl LotusMinerStep {
     fn check_miner_api() -> Result<(), Box<dyn Error>> {
         // Try to execute a simple lotus-miner command via docker exec
         let output = Command::new("docker")
-            .args(["exec", CONTAINER_NAME, "/usr/local/bin/lotus-bins/lotus-miner", "version"])
+            .args([
+                "exec",
+                CONTAINER_NAME,
+                "/usr/local/bin/lotus-bins/lotus-miner",
+                "version",
+            ])
             .output()?;
 
         if !output.status.success() {
@@ -251,12 +256,16 @@ impl Step for LotusMinerStep {
             let entry = entry?;
             let path = entry.path();
             let filename = path.file_name().unwrap().to_string_lossy().to_string();
-            
+
             if path.is_file() {
-                if path.extension().map_or(false, |ext| ext == "json") && filename.starts_with("pre-seal-") {
+                if path.extension().map_or(false, |ext| ext == "json")
+                    && filename.starts_with("pre-seal-")
+                {
                     preseal_file = Some(filename.clone());
                 }
-                if path.extension().map_or(false, |ext| ext == "key") && filename.starts_with("pre-seal-") {
+                if path.extension().map_or(false, |ext| ext == "key")
+                    && filename.starts_with("pre-seal-")
+                {
                     preseal_key_file = Some(filename);
                 }
             }
@@ -281,8 +290,14 @@ impl Step for LotusMinerStep {
         // Add volume mounts (paths updated for foc-user)
         let volume_mounts = vec![
             format!("{}:/usr/local/bin/lotus-bins", bin_dir.display()),
-            format!("{}:/data", miner_data_dir.display()),
-            format!("{}:/home/foc-user/.lotus-local-net", lotus_data_dir.display()),
+            format!(
+                "{}:/home/foc-user/.lotus-miner-local-net",
+                miner_data_dir.display()
+            ),
+            format!(
+                "{}:/home/foc-user/.lotus-local-net",
+                lotus_data_dir.display()
+            ),
             format!("{}:/sectors", sectors_dir.display()),
             format!(
                 "{}:{}",
@@ -296,35 +311,34 @@ impl Step for LotusMinerStep {
             docker_args.extend_from_slice(&["-v", mount]);
         }
 
-        // Set working directory
-        docker_args.extend_from_slice(&["-w", "/data"]);
+        // Set working directory to LOTUS_MINER_PATH
+        docker_args.extend_from_slice(&["-w", "/home/foc-user/.lotus-miner-local-net"]);
 
         // Add image name
         docker_args.push(IMAGE_NAME);
 
         // Add command: wait for lotus, import wallet key, init, then run
         // Step 0: Wait for lotus daemon API to be ready
-        // Step 1: Import the pre-sealed miner key as the default wallet
-        // Step 2: Initialize the lotus-miner with pre-sealed sectors
+        // Step 1: Import the pre-sealed miner key as the default wallet (if not already imported)
+        // Step 2: Initialize the lotus-miner with pre-sealed sectors (if not already initialized)
         // Step 3: Run the miner
+        // Note: We check if the repo is initialized by checking for config.toml in LOTUS_MINER_PATH
         let miner_cmd = format!(
             r#"echo "Waiting for Lotus daemon API to be ready..." && \
                until /usr/local/bin/lotus-bins/lotus version >/dev/null 2>&1; do \
                  echo "Lotus API not ready yet, waiting..." && sleep 2; \
                done && \
                echo "Lotus daemon API is ready!" && \
-               if [ ! -f /data/.lotus-miner-initialized ]; then \
+               if [ ! -f $LOTUS_MINER_PATH/config.toml ]; then \
                  echo "Importing pre-sealed miner key..." && \
-                 /usr/local/bin/lotus-bins/lotus wallet import --as-default /sectors/{} && \
+                 (/usr/local/bin/lotus-bins/lotus wallet import --as-default /sectors/{} 2>&1 | grep -v "key already exists" || true) && \
                  echo "Initializing lotus-miner..." && \
                  /usr/local/bin/lotus-bins/lotus-miner init --genesis-miner --actor=t01000 --sector-size=2KiB \
-                   --pre-sealed-sectors=/sectors --pre-sealed-metadata=/sectors/{} --nosync && \
-                 touch /data/.lotus-miner-initialized; \
+                   --pre-sealed-sectors=/sectors --pre-sealed-metadata=/sectors/{} --nosync; \
                fi && \
                echo "Starting lotus-miner..." && \
                /usr/local/bin/lotus-bins/lotus-miner run --nosync"#,
-            preseal_key_file,
-            preseal_file
+            preseal_key_file, preseal_file
         );
         docker_args.extend_from_slice(&["/bin/bash", "-c", &miner_cmd]);
 
@@ -418,11 +432,7 @@ impl Step for LotusMinerStep {
                 );
             }
             Err(e) => {
-                println!(
-                    "    {} Tipset generation check failed: {}",
-                    "⚠".yellow(),
-                    e
-                );
+                println!("    {} Tipset generation check failed: {}", "⚠".yellow(), e);
                 println!("    Note: The miner may take a few moments to start producing blocks.");
             }
         }
@@ -433,7 +443,9 @@ impl Step for LotusMinerStep {
             "\n    {} The local Filecoin network is now running and producing tipsets!",
             "🎉".bold()
         );
-        println!("      Check chain status: docker exec foc-lotus /usr/local/bin/lotus-bins/lotus chain list");
+        println!(
+            "      Check chain status: docker exec foc-lotus /usr/local/bin/lotus-bins/lotus chain list"
+        );
 
         Ok(())
     }

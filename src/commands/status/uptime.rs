@@ -9,9 +9,48 @@
 
 use chrono::Utc;
 use crossterm::style::Stylize;
+use std::process::Command;
 
 use super::docker::{get_running_containers, get_system_start_time};
 use super::utils::{format_duration, get_terminal_width};
+
+/// Get the current lotus chain block height.
+///
+/// This function queries the lotus node to get the current block height of the chain.
+/// Returns `None` if the lotus container is not running or if the command fails.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use foc_localnet::commands::status::uptime::get_lotus_block_height;
+///
+/// if let Some(height) = get_lotus_block_height() {
+///     println!("Current block height: {}", height);
+/// }
+/// ```
+fn get_lotus_block_height() -> Option<u64> {
+    let output = Command::new("docker")
+        .args([
+            "exec",
+            "foc-lotus",
+            "/usr/local/bin/lotus-bins/lotus",
+            "chain",
+            "list",
+        ])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let first_line = stdout.lines().next()?;
+
+    // Parse the block height from the first line (format: "HEIGHT: (timestamp) [ ... ]")
+    let height_str = first_line.split(':').next()?.trim();
+    height_str.parse::<u64>().ok()
+}
 
 /// Print uptime information if system is running.
 ///
@@ -56,6 +95,15 @@ pub fn print_uptime() -> Result<(), Box<dyn std::error::Error>> {
         let uptime_str = format_duration(total_seconds as i64);
 
         println!("{} {}", "System uptime:".green(), uptime_str.green().bold());
+
+        // Try to get lotus block height if chain is running
+        if let Some(block_height) = get_lotus_block_height() {
+            println!(
+                "{} {}",
+                "Chain height (lotus):".green(),
+                block_height.to_string().green().bold()
+            );
+        }
     } else {
         println!("{}", "Unable to determine uptime".yellow());
     }
@@ -73,5 +121,12 @@ mod tests {
         let result = print_uptime();
         // We expect this to work even if no containers are running
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_get_lotus_block_height() {
+        // This test verifies that the function doesn't panic
+        let _height = get_lotus_block_height();
+        // We don't assert anything as the result depends on whether lotus is running
     }
 }

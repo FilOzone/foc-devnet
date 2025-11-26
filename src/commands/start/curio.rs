@@ -123,7 +123,12 @@ impl CurioStep {
     fn check_curio_api() -> Result<(), Box<dyn Error>> {
         // Try to execute a simple curio command via docker exec
         let output = Command::new("docker")
-            .args(["exec", CONTAINER_NAME, "/usr/local/bin/lotus-bins/curio", "version"])
+            .args([
+                "exec",
+                CONTAINER_NAME,
+                "/usr/local/bin/lotus-bins/curio",
+                "version",
+            ])
             .output()?;
 
         if !output.status.success() {

@@ -46,9 +46,41 @@ pub fn start_cluster(
     // Handle reset flag - delete genesis-related files and keys
     if reset {
         println!("{}", "Resetting genesis data...".yellow().bold());
-        
+
+        // First, stop any running containers to ensure clean state
+        println!("  Stopping any running containers...");
+        let containers = vec!["foc-lotus-miner", "foc-lotus", "foc-curio", "foc-yugabyte"];
+        for container in containers {
+            // Check if container is running and stop it
+            let is_running = std::process::Command::new("docker")
+                .args([
+                    "ps",
+                    "--filter",
+                    &format!("name=^{}$", container),
+                    "--format",
+                    "{{.Names}}",
+                ])
+                .output()
+                .map(|output| {
+                    String::from_utf8_lossy(&output.stdout)
+                        .trim()
+                        .contains(container)
+                })
+                .unwrap_or(false);
+
+            if is_running {
+                println!("    Stopping container '{}'...", container);
+                let _ = std::process::Command::new("docker")
+                    .args(["stop", container])
+                    .output();
+                let _ = std::process::Command::new("docker")
+                    .args(["rm", container])
+                    .output();
+            }
+        }
+
         let base_volumes = foc_localnet_docker_volumes();
-        
+
         // Files and directories to delete
         let paths_to_delete = vec![
             base_volumes.join("lotus-keys").join("key-1"),
@@ -57,8 +89,10 @@ pub fn start_cluster(
             base_volumes.join("lotus-keys").join("prefunded-2"),
             base_volumes.join("genesis-sectors"),
             base_volumes.join("genesis").join("foc-localnet.json"),
+            base_volumes.join("lotus-data"),
+            base_volumes.join("lotus-miner-data"),
         ];
-        
+
         for path in paths_to_delete {
             if path.exists() {
                 if path.is_dir() {
@@ -72,7 +106,7 @@ pub fn start_cluster(
                 println!("  {} {}", "Skipped (not found):".dim(), path.display());
             }
         }
-        
+
         println!("{}", "Reset complete.".green().bold());
         println!();
     }

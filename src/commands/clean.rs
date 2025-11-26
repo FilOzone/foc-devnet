@@ -83,18 +83,12 @@ fn clean_docker_images() -> Result<(), Box<dyn std::error::Error>> {
         for line in stdout.lines() {
             if line.starts_with("foc-") {
                 println!("{} Removing Docker image: {}", "🗑️".bold(), line);
-                let status = Command::new("docker")
-                    .args(["rmi", "-f", line])
-                    .status()?;
+                let status = Command::new("docker").args(["rmi", "-f", line]).status()?;
 
                 if status.success() {
                     removed_count += 1;
                 } else {
-                    println!(
-                        "{} Failed to remove Docker image: {}",
-                        "⚠".yellow(),
-                        line
-                    );
+                    println!("{} Failed to remove Docker image: {}", "⚠".yellow(), line);
                 }
             }
         }
@@ -105,7 +99,10 @@ fn clean_docker_images() -> Result<(), Box<dyn std::error::Error>> {
             println!("{}", "No foc-localnet Docker images found".dim());
         }
     } else {
-        println!("{}", "Could not list Docker images (Docker may not be running)".dim());
+        println!(
+            "{}",
+            "Could not list Docker images (Docker may not be running)".dim()
+        );
     }
 
     Ok(())

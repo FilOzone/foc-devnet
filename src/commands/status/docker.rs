@@ -32,7 +32,9 @@ pub fn image_exists(image_tag: &str) -> bool {
     match output {
         Ok(output) if output.status.success() => {
             let stdout = String::from_utf8_lossy(&output.stdout);
-            stdout.lines().any(|line| line.starts_with(&format!("{}:", image_tag)))
+            stdout
+                .lines()
+                .any(|line| line.starts_with(&format!("{}:", image_tag)))
         }
         _ => false,
     }

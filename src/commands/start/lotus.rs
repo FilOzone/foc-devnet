@@ -139,7 +139,12 @@ impl LotusStep {
     fn check_lotus_api() -> Result<(), Box<dyn Error>> {
         // Try to execute a simple lotus command via docker exec
         let output = Command::new("docker")
-            .args(["exec", CONTAINER_NAME, "/usr/local/bin/lotus-bins/lotus", "version"])
+            .args([
+                "exec",
+                CONTAINER_NAME,
+                "/usr/local/bin/lotus-bins/lotus",
+                "version",
+            ])
             .output()?;
 
         if !output.status.success() {
@@ -281,7 +286,10 @@ impl Step for LotusStep {
         // Add volume mounts (paths updated for foc-user)
         let volume_mounts = vec![
             format!("{}:/usr/local/bin/lotus-bins", bin_dir.display()),
-            format!("{}:/home/foc-user/.lotus-local-net", lotus_data_dir.display()),
+            format!(
+                "{}:/home/foc-user/.lotus-local-net",
+                lotus_data_dir.display()
+            ),
             format!("{}:/devgen", devgen_dir.display()),
             format!(
                 "{}:{}",
@@ -379,10 +387,10 @@ impl Step for LotusStep {
         println!("    Waiting for Lotus API to be ready (this may take 1-2 minutes)...");
         let lotus_data_dir = self.volumes_dir.join("lotus-data");
         let api_file = lotus_data_dir.join("api");
-        
+
         let start = std::time::Instant::now();
         let timeout = Duration::from_secs(180); // 3 minute timeout
-        
+
         while !api_file.exists() {
             if start.elapsed() > timeout {
                 return Err("Timeout waiting for Lotus API file to be created".into());

@@ -10,9 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::paths::{
-    foc_localnet_artifacts, foc_localnet_docker_volumes,
-};
+use crate::paths::{foc_localnet_artifacts, foc_localnet_docker_volumes};
 
 /// Check if a Docker image exists locally in the Docker daemon.
 ///
@@ -178,8 +176,12 @@ fn build_docker_image(
         // Get current user's UID and GID for non-root container execution
         let uid_output = Command::new("id").arg("-u").output()?;
         let gid_output = Command::new("id").arg("-g").output()?;
-        let uid = String::from_utf8_lossy(&uid_output.stdout).trim().to_string();
-        let gid = String::from_utf8_lossy(&gid_output.stdout).trim().to_string();
+        let uid = String::from_utf8_lossy(&uid_output.stdout)
+            .trim()
+            .to_string();
+        let gid = String::from_utf8_lossy(&gid_output.stdout)
+            .trim()
+            .to_string();
 
         let status = Command::new("docker")
             .args([
@@ -268,8 +270,12 @@ fn build_yugabyte_docker_image(
         // Get current user's UID and GID for non-root container execution
         let uid_output = Command::new("id").arg("-u").output()?;
         let gid_output = Command::new("id").arg("-g").output()?;
-        let uid = String::from_utf8_lossy(&uid_output.stdout).trim().to_string();
-        let gid = String::from_utf8_lossy(&gid_output.stdout).trim().to_string();
+        let uid = String::from_utf8_lossy(&uid_output.stdout)
+            .trim()
+            .to_string();
+        let gid = String::from_utf8_lossy(&gid_output.stdout)
+            .trim()
+            .to_string();
 
         // Build from artifacts directory as context to include yugabyte folder
         let status = Command::new("docker")
@@ -396,8 +402,12 @@ fn set_volume_ownership(volume_dir: &Path) -> Result<(), Box<dyn std::error::Err
     // Get current user's UID and GID
     let uid_output = Command::new("id").arg("-u").output()?;
     let gid_output = Command::new("id").arg("-g").output()?;
-    let uid = String::from_utf8_lossy(&uid_output.stdout).trim().to_string();
-    let gid = String::from_utf8_lossy(&gid_output.stdout).trim().to_string();
+    let uid = String::from_utf8_lossy(&uid_output.stdout)
+        .trim()
+        .to_string();
+    let gid = String::from_utf8_lossy(&gid_output.stdout)
+        .trim()
+        .to_string();
 
     // Use chown to set ownership (requires directory to be owned by current user or have appropriate permissions)
     let chown_arg = format!("{}:{}", uid, gid);

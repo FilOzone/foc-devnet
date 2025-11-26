@@ -5,9 +5,7 @@
 pub mod repository;
 
 use crate::config::Config;
-use crate::paths::{
-    foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_logs,
-};
+use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_logs};
 use crossterm::style::Stylize;
 use repository::prepare_repository;
 use std::collections::HashMap;
@@ -94,17 +92,21 @@ fn build_builder_image(dockerfile_dir: &str) -> Result<String, Box<dyn std::erro
         .args(["images", "--format", "{{.Repository}}:{{.Tag}}"])
         .output()
         .map(|output| {
-            output.status.success() && String::from_utf8_lossy(&output.stdout).lines().any(|line| line == image_tag)
+            output.status.success()
+                && String::from_utf8_lossy(&output.stdout)
+                    .lines()
+                    .any(|line| line == image_tag)
         })
         .unwrap_or(false);
 
     if image_exists {
-        println!("{} Docker image {} already exists, skipping build", "✓".green(), image_tag);
-    } else {
         println!(
-            "{}",
-            "Building Docker image for builder...".bold()
+            "{} Docker image {} already exists, skipping build",
+            "✓".green(),
+            image_tag
         );
+    } else {
+        println!("{}", "Building Docker image for builder...".bold());
         build_image_from_dockerfile(dockerfile_dir, image_tag)?;
     }
 
@@ -227,8 +229,12 @@ fn run_build_in_container(
     // Get current user's UID and GID to run container as the same user
     let uid_output = Command::new("id").arg("-u").output()?;
     let gid_output = Command::new("id").arg("-g").output()?;
-    let uid = String::from_utf8_lossy(&uid_output.stdout).trim().to_string();
-    let gid = String::from_utf8_lossy(&gid_output.stdout).trim().to_string();
+    let uid = String::from_utf8_lossy(&uid_output.stdout)
+        .trim()
+        .to_string();
+    let gid = String::from_utf8_lossy(&gid_output.stdout)
+        .trim()
+        .to_string();
 
     docker_run_args.push("-u".to_string());
     docker_run_args.push(format!("{}:{}", uid, gid));

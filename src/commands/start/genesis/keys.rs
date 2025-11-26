@@ -79,7 +79,7 @@ pub fn ensure_bls_key(
             "foc-builder",
             "/bin/bash",
             "-c",
-            "cd /keys && /output/lotus-shed keyinfo new bls",
+            "cd /keys && /opt/bin/lotus-shed keyinfo new bls",
         ])
         .output()?;
 

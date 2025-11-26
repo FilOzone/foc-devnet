@@ -63,12 +63,12 @@ pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
     let update_handle = thread::spawn(move || {
         loop {
             thread::sleep(Duration::from_millis(500));
-            
+
             // Calculate directory size
             if let Ok(size) = get_dir_size(&params_dir_clone) {
                 let mut total = bytes_clone.lock().unwrap();
                 *total = size;
-                
+
                 let elapsed = start_time.elapsed().as_secs_f64();
                 if elapsed > 0.0 {
                     let speed_mbps = (size as f64 / 1_048_576.0) / elapsed;
@@ -79,7 +79,7 @@ pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
                     ));
                 }
             }
-            
+
             if !pb_clone.is_finished() {
                 pb_clone.tick();
             } else {
@@ -128,9 +128,7 @@ pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
     drop(update_handle);
 
     if !status.success() {
-        return Err(
-            "Failed to download proof parameters. Check Docker logs for details.".into(),
-        );
+        return Err("Failed to download proof parameters. Check Docker logs for details.".into());
     }
 
     println!("  {} Proof parameters downloaded successfully", "✓".green());
@@ -145,7 +143,7 @@ fn get_dir_size(path: &std::path::Path) -> std::io::Result<u64> {
         for entry in fs::read_dir(path)? {
             let entry = entry?;
             let metadata = entry.metadata()?;
-            
+
             if metadata.is_dir() {
                 total_size += get_dir_size(&entry.path())?;
             } else {
@@ -165,14 +163,14 @@ fn get_dir_size(path: &std::path::Path) -> std::io::Result<u64> {
 /// - Checks for multiple .vk (verification key) files (>= 5)
 /// - Verifies files follow v28- naming convention
 /// - Ensures total directory size is reasonable (> 1GB)
-fn validate_proof_parameters(params_dir: &std::path::Path) -> Result<bool, Box<dyn std::error::Error>> {
+fn validate_proof_parameters(
+    params_dir: &std::path::Path,
+) -> Result<bool, Box<dyn std::error::Error>> {
     if !params_dir.exists() || !params_dir.is_dir() {
         return Ok(false);
     }
 
-    let entries: Vec<_> = fs::read_dir(params_dir)?
-        .filter_map(|e| e.ok())
-        .collect();
+    let entries: Vec<_> = fs::read_dir(params_dir)?.filter_map(|e| e.ok()).collect();
 
     if entries.is_empty() {
         return Ok(false);
@@ -186,15 +184,13 @@ fn validate_proof_parameters(params_dir: &std::path::Path) -> Result<bool, Box<d
     for entry in entries {
         let path = entry.path();
         let metadata = entry.metadata()?;
-        
+
         if !metadata.is_file() {
             continue;
         }
 
-        let file_name = path.file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("");
-        
+        let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
         let file_size = metadata.len();
         total_size += file_size;
 
@@ -224,10 +220,7 @@ fn validate_proof_parameters(params_dir: &std::path::Path) -> Result<bool, Box<d
     // - At least one .srs file
     // - At least 5 .vk files
     // - Total directory size > 1GB
-    let is_valid = has_large_params 
-        && has_srs_file 
-        && vk_count >= 5
-        && total_size > 1_000_000_000;
+    let is_valid = has_large_params && has_srs_file && vk_count >= 5 && total_size > 1_000_000_000;
 
     Ok(is_valid)
 }
