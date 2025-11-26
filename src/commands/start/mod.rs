@@ -1,4 +1,5 @@
 mod curio;
+mod foc_deploy;
 mod genesis;
 mod lotus;
 mod lotus_miner;
@@ -6,6 +7,7 @@ mod step;
 mod yugabyte;
 
 use curio::CurioStep;
+use foc_deploy::FOCDeployStep;
 pub use genesis::ensure_genesis_prerequisites;
 use lotus::LotusStep;
 use lotus_miner::LotusMinerStep;
@@ -190,15 +192,17 @@ pub fn start_cluster(
     // Create steps in the order they need to be started:
     // 1. Lotus (execution node) - needed by others
     // 2. Lotus-Miner (first gen miner) - builds tipsets
-    // 3. YugabyteDB - database for Curio
-    // 4. Curio (second gen miner) - needs both Lotus and YugabyteDB
+    // 3. FOCDeploy - deploy FOC contracts (requires Lotus with FEVM)
+    // 4. YugabyteDB - database for Curio
+    // 5. Curio (second gen miner) - needs Lotus, FOC contracts, and YugabyteDB
     let lotus_step = LotusStep::new(volumes_dir.clone(), logs_dir.clone());
     let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), logs_dir.clone());
+    let foc_deploy_step = FOCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
     let yugabyte_step = YugabyteStep::new(volumes_dir.clone(), logs_dir.clone());
     let _curio_step = CurioStep::new(volumes_dir.clone(), logs_dir.clone());
 
     // Execute all steps
-    let steps: Vec<&dyn Step> = vec![&lotus_step, &lotus_miner_step, &yugabyte_step];
+    let steps: Vec<&dyn Step> = vec![&lotus_step, &lotus_miner_step, &foc_deploy_step, &yugabyte_step];
     execute_steps(steps)?;
 
     println!("\n{}", "Local cluster started successfully!".green().bold());
