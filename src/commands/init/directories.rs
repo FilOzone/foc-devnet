@@ -7,10 +7,9 @@ use crossterm::style::Stylize;
 use std::fs;
 
 use crate::paths::{
-    foc_localnet_artifacts, foc_localnet_bin, foc_localnet_code, foc_localnet_docker_images,
-    foc_localnet_docker_volumes, foc_localnet_genesis, foc_localnet_genesis_sectors,
-    foc_localnet_home, foc_localnet_logs, foc_localnet_lotus_keys, foc_localnet_proof_parameters,
-    foc_localnet_state, foc_localnet_tmp,
+    foc_localnet_artifacts, foc_localnet_bin, foc_localnet_code, foc_localnet_docker_volumes,
+    foc_localnet_genesis, foc_localnet_genesis_sectors, foc_localnet_home, foc_localnet_logs,
+    foc_localnet_lotus_keys, foc_localnet_proof_parameters, foc_localnet_state, foc_localnet_tmp,
 };
 
 /// Create all necessary directories for foc-localnet.
@@ -39,7 +38,6 @@ pub fn create_directories() -> Result<(), Box<dyn std::error::Error>> {
         foc_localnet_code(),
         foc_localnet_tmp(),
         foc_localnet_artifacts(),
-        foc_localnet_docker_images(),
         foc_localnet_docker_volumes(),
         foc_localnet_proof_parameters(),
         foc_localnet_lotus_keys(),

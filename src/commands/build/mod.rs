@@ -6,7 +6,7 @@ pub mod repository;
 
 use crate::config::Config;
 use crate::paths::{
-    foc_localnet_bin, foc_localnet_docker_images, foc_localnet_docker_volumes, foc_localnet_logs,
+    foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_logs,
 };
 use crossterm::style::Stylize;
 use repository::prepare_repository;
@@ -88,29 +88,22 @@ fn build_in_container(
 /// Build the builder Docker image.
 fn build_builder_image(dockerfile_dir: &str) -> Result<String, Box<dyn std::error::Error>> {
     let image_tag = "foc-localnet-builder:latest";
-    let cached_image_path = foc_localnet_docker_images().join("foc-builder.tar");
 
-    // Check if cached image exists
-    if cached_image_path.exists() {
-        println!("{}", "Loading cached Docker image for builder...".bold());
+    // Check if image already exists in Docker
+    let image_exists = Command::new("docker")
+        .args(["images", "--format", "{{.Repository}}:{{.Tag}}"])
+        .output()
+        .map(|output| {
+            output.status.success() && String::from_utf8_lossy(&output.stdout).lines().any(|line| line == image_tag)
+        })
+        .unwrap_or(false);
 
-        let status = Command::new("docker")
-            .args(["load", "-i", &cached_image_path.to_string_lossy()])
-            .status()?;
-
-        if !status.success() {
-            println!(
-                "{}",
-                "Failed to load cached image, building from Dockerfile...".yellow()
-            );
-            build_image_from_dockerfile(dockerfile_dir, image_tag)?;
-        } else {
-            println!("{} Loaded cached Docker image: {}", "✓".green(), image_tag);
-        }
+    if image_exists {
+        println!("{} Docker image {} already exists, skipping build", "✓".green(), image_tag);
     } else {
         println!(
             "{}",
-            "No cached image found, building Docker image for builder...".bold()
+            "Building Docker image for builder...".bold()
         );
         build_image_from_dockerfile(dockerfile_dir, image_tag)?;
     }
@@ -217,10 +210,10 @@ fn run_build_in_container(
     ];
 
     // Load and apply volume mappings for this image
-    let volume_map = load_volume_map("foc-builder")?;
+    let volume_map = load_volume_map("builder")?;
     if !volume_map.is_empty() {
         let volumes_dir = foc_localnet_docker_volumes();
-        let image_volumes_dir = volumes_dir.join("foc-builder");
+        let image_volumes_dir = volumes_dir.join("builder");
 
         for (host_subdir, container_path) in volume_map {
             let host_path = image_volumes_dir.join(&host_subdir);
@@ -230,6 +223,15 @@ fn run_build_in_container(
             docker_run_args.push(format!("{}:{}", host_path.display(), container_path));
         }
     }
+
+    // Get current user's UID and GID to run container as the same user
+    let uid_output = Command::new("id").arg("-u").output()?;
+    let gid_output = Command::new("id").arg("-g").output()?;
+    let uid = String::from_utf8_lossy(&uid_output.stdout).trim().to_string();
+    let gid = String::from_utf8_lossy(&gid_output.stdout).trim().to_string();
+
+    docker_run_args.push("-u".to_string());
+    docker_run_args.push(format!("{}:{}", uid, gid));
 
     docker_run_args.push(image_tag.to_string());
     docker_run_args.push("/bin/bash".to_string());

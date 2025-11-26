@@ -14,27 +14,28 @@ use crossterm::style::Stylize;
 use std::collections::HashMap;
 use std::process::Command;
 
-use crate::paths::foc_localnet_docker_images;
-
-/// Check if a Docker image exists locally as a cached tar file.
+/// Check if a Docker image exists locally in the Docker daemon.
 ///
-/// This function checks if the Docker image tar file exists in the local cache
-/// at ~/.foc-localnet/artifacts/docker/images/.
+/// This function checks if the Docker image exists in the local Docker daemon
+/// using `docker images`.
 ///
 /// # Arguments
 /// * `image_tag` - The tag of the Docker image to check (e.g., "foc-builder")
 ///
 /// # Returns
-/// Returns `true` if the image tar file exists in the local cache, `false` otherwise.
+/// Returns `true` if the image exists in the local Docker daemon, `false` otherwise.
 pub fn image_exists(image_tag: &str) -> bool {
-    // Extract name from image tag (e.g., "foc-builder" -> "builder")
-    let name = image_tag.strip_prefix("foc-").unwrap_or(image_tag);
+    let output = Command::new("docker")
+        .args(["images", "--format", "{{.Repository}}:{{.Tag}}"])
+        .output();
 
-    // Check if the corresponding tar file exists in the images directory
-    let images_dir = foc_localnet_docker_images();
-    let tar_path = images_dir.join(format!("{}.tar", name));
-
-    tar_path.exists()
+    match output {
+        Ok(output) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            stdout.lines().any(|line| line.starts_with(&format!("{}:", image_tag)))
+        }
+        _ => false,
+    }
 }
 
 /// Get list of running Docker containers with foc- prefix.

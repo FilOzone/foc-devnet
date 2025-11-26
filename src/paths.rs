@@ -47,14 +47,9 @@ pub fn foc_localnet_tmp() -> PathBuf {
     foc_localnet_home().join("tmp")
 }
 
-/// Returns the artifacts directory inside foc-localnet, e.g., ~/.foc-localnet/artifacts
+/// Returns the path to the foc-localnet artifacts directory, e.g., ~/.foc-localnet/artifacts
 pub fn foc_localnet_artifacts() -> PathBuf {
     foc_localnet_home().join("artifacts")
-}
-
-/// Returns the path where docker images are stored, e.g., ~/.foc-localnet/artifacts/docker-images
-pub fn foc_localnet_docker_images() -> PathBuf {
-    foc_localnet_artifacts().join("docker").join("images")
 }
 
 /// Returns the path where docker volumes are stored, e.g., ~/.foc-localnet/artifacts/docker/volumes

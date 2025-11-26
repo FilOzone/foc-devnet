@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::paths::{
-    foc_localnet_artifacts, foc_localnet_docker_images, foc_localnet_docker_volumes,
+    foc_localnet_artifacts, foc_localnet_docker_volumes,
 };
 
 /// Check if a Docker image exists locally in the Docker daemon.
@@ -29,37 +29,15 @@ fn image_exists(image_tag: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Check if a Docker image tarball exists locally.
-///
-/// # Arguments
-/// * `image_tag` - The tag of the Docker image to check (e.g., "foc-builder")
-///
-/// # Returns
-/// Returns `true` if the image tar file exists in the local cache, `false` otherwise.
-fn tarball_exists(image_tag: &str) -> bool {
-    // Extract name from image tag (e.g., "foc-builder" -> "builder")
-    let name = image_tag.strip_prefix("foc-").unwrap_or(image_tag);
-
-    // Check if the corresponding tar file exists in the images directory
-    let images_dir = foc_localnet_docker_images();
-    let tar_path = images_dir.join(format!("{}.tar", name));
-
-    tar_path.exists()
-}
-
 /// Build and cache Docker images.
 ///
-/// This function builds Docker images from Dockerfiles in the docker/ directory,
-/// saves them as tar files, and creates volume directories for each image.
+/// This function builds Docker images from Dockerfiles in the docker/ directory
+/// and creates volume directories for each image.
 ///
 /// # Returns
-/// Returns `Ok(())` if all images are built and cached successfully, or an error if any step fails.
+/// Returns `Ok(())` if all images are built successfully, or an error if any step fails.
 pub fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>> {
-    println!("{}", "Building and caching Docker images...".bold());
-
-    // Ensure the docker images directory exists
-    let images_dir = foc_localnet_docker_images();
-    fs::create_dir_all(&images_dir)?;
+    println!("{}", "Building Docker images...".bold());
 
     // Find all Dockerfile files in the docker directory
     let docker_dir = Path::new("docker");
@@ -102,7 +80,7 @@ pub fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>>
         }
     }
 
-    println!("  {} Docker images built and cached", "✓".green());
+    println!("  {} Docker images built", "✓".green());
 
     // Create and initialize volume directories AFTER images are built
     create_volume_directories_for_images()?;
@@ -228,43 +206,6 @@ fn build_docker_image(
         pb.finish_with_message(format!("✓ Built image: {}", image_tag));
     }
 
-    // Check if tarball already exists
-    if tarball_exists(&image_tag) {
-        println!(
-            "    {} Tarball for {} already exists, skipping save",
-            "✓".green(),
-            image_tag
-        );
-    } else {
-        let images_dir = foc_localnet_docker_images();
-        let tar_path = images_dir.join(format!("{}.tar", name));
-
-        println!(
-            "    {} Saving Docker image {} to tarball",
-            "💾".bold(),
-            image_tag
-        );
-
-        let pb = ProgressBar::new_spinner();
-        pb.set_style(
-            ProgressStyle::default_spinner()
-                .template("{spinner:.green} {msg}")
-                .unwrap(),
-        );
-        pb.set_message(format!("Saving image {} to tarball", image_tag));
-
-        let status = Command::new("docker")
-            .args(["save", &image_tag, "-o", &tar_path.to_string_lossy()])
-            .status()?;
-
-        if !status.success() {
-            pb.finish_with_message(format!("❌ Failed to save Docker image: {}", image_tag));
-            return Err(format!("Failed to save Docker image: {}", image_tag).into());
-        }
-
-        pb.finish_with_message(format!("✓ Saved image to tarball: {}", tar_path.display()));
-    }
-
     Ok(())
 }
 
@@ -356,43 +297,6 @@ fn build_yugabyte_docker_image(
         pb.finish_with_message(format!("✓ Built image: {}", image_tag));
     }
 
-    // Check if tarball already exists
-    if tarball_exists(&image_tag) {
-        println!(
-            "    {} Tarball for {} already exists, skipping save",
-            "✓".green(),
-            image_tag
-        );
-    } else {
-        let images_dir = foc_localnet_docker_images();
-        let tar_path = images_dir.join(format!("{}.tar", name));
-
-        println!(
-            "    {} Saving Docker image {} to tarball",
-            "💾".bold(),
-            image_tag
-        );
-
-        let pb = ProgressBar::new_spinner();
-        pb.set_style(
-            ProgressStyle::default_spinner()
-                .template("{spinner:.green} {msg}")
-                .unwrap(),
-        );
-        pb.set_message(format!("Saving image {} to tarball", image_tag));
-
-        let status = Command::new("docker")
-            .args(["save", &image_tag, "-o", &tar_path.to_string_lossy()])
-            .status()?;
-
-        if !status.success() {
-            pb.finish_with_message(format!("❌ Failed to save Docker image: {}", image_tag));
-            return Err(format!("Failed to save Docker image: {}", image_tag).into());
-        }
-
-        pb.finish_with_message(format!("✓ Saved image to tarball: {}", tar_path.display()));
-    }
-
     Ok(())
 }
 
@@ -468,10 +372,41 @@ fn create_volumes_for_image(
             volume_dir.display()
         );
 
+        // Set correct ownership on the volume directory to match the host user
+        // This ensures the Docker container user can write to these directories
+        set_volume_ownership(&volume_dir)?;
+
         // If the volume is new/empty, copy initial contents from the Docker image
         if is_new_volume {
             copy_initial_volume_contents(&docker_image_tag, container_path, &volume_dir)?;
         }
+    }
+
+    Ok(())
+}
+
+/// Set the ownership of a volume directory to match the current user.
+///
+/// This ensures that mounted volumes have the correct permissions for the
+/// Docker container user, which is created with matching UID/GID.
+///
+/// # Arguments
+/// * `volume_dir` - Path to the volume directory
+fn set_volume_ownership(volume_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    // Get current user's UID and GID
+    let uid_output = Command::new("id").arg("-u").output()?;
+    let gid_output = Command::new("id").arg("-g").output()?;
+    let uid = String::from_utf8_lossy(&uid_output.stdout).trim().to_string();
+    let gid = String::from_utf8_lossy(&gid_output.stdout).trim().to_string();
+
+    // Use chown to set ownership (requires directory to be owned by current user or have appropriate permissions)
+    let chown_arg = format!("{}:{}", uid, gid);
+    let status = Command::new("chown")
+        .args(["-R", &chown_arg, &volume_dir.to_string_lossy()])
+        .status()?;
+
+    if !status.success() {
+        return Err(format!("Failed to set ownership on {}", volume_dir.display()).into());
     }
 
     Ok(())
@@ -502,35 +437,12 @@ fn copy_initial_volume_contents(
         .unwrap_or(false);
 
     if !image_exists_in_docker {
-        // Check if we have a cached tar file
-        let name = image_tag.strip_prefix("foc-").unwrap_or(image_tag);
-        let images_dir = foc_localnet_docker_images();
-        let tar_path = images_dir.join(format!("{}.tar", name));
-
-        if tar_path.exists() {
-            println!("    {} Loading image {} from cache", "📦".bold(), image_tag);
-
-            // Load the image from tar
-            let load_status = Command::new("docker")
-                .args(["load", "-i", &tar_path.to_string_lossy()])
-                .status()?;
-
-            if !load_status.success() {
-                println!(
-                    "    {} Failed to load image {} from cache, skipping volume initialization",
-                    "⚠".yellow(),
-                    image_tag
-                );
-                return Ok(());
-            }
-        } else {
-            println!(
-                "    {} Image {} not yet built, skipping volume initialization",
-                "ℹ".cyan(),
-                image_tag
-            );
-            return Ok(());
-        }
+        println!(
+            "    {} Image {} not yet built, skipping volume initialization",
+            "ℹ".cyan(),
+            image_tag
+        );
+        return Ok(());
     }
 
     println!(

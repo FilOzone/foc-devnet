@@ -3,8 +3,7 @@
 //! This module handles cleaning various parts of the foc-localnet environment.
 
 use crate::paths::{
-    foc_localnet_artifacts, foc_localnet_bin, foc_localnet_curio_repo, foc_localnet_docker_images,
-    foc_localnet_lotus_repo,
+    foc_localnet_artifacts, foc_localnet_bin, foc_localnet_curio_repo, foc_localnet_lotus_repo,
 };
 use crossterm::style::Stylize;
 use std::fs;
@@ -72,46 +71,41 @@ fn clean_artifacts() -> Result<(), Box<dyn std::error::Error>> {
 fn clean_docker_images() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "Cleaning foc-localnet Docker images...".bold());
 
-    // Remove the builder image
-    let image_name = "foc-localnet-builder:latest";
-
+    // Get list of foc-localnet images
     let output = Command::new("docker")
-        .args(["images", "-q", image_name])
+        .args(["images", "--format", "{{.Repository}}:{{.Tag}}"])
         .output()?;
 
-    if !output.stdout.is_empty() {
-        println!("{} Removing Docker image: {}", "🗑️".bold(), image_name);
-        let status = Command::new("docker")
-            .args(["rmi", "-f", image_name])
-            .status()?;
+    if output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut removed_count = 0;
 
-        if status.success() {
-            println!("{} Docker image removed: {}", "✓".green(), image_name);
+        for line in stdout.lines() {
+            if line.starts_with("foc-") {
+                println!("{} Removing Docker image: {}", "🗑️".bold(), line);
+                let status = Command::new("docker")
+                    .args(["rmi", "-f", line])
+                    .status()?;
+
+                if status.success() {
+                    removed_count += 1;
+                } else {
+                    println!(
+                        "{} Failed to remove Docker image: {}",
+                        "⚠".yellow(),
+                        line
+                    );
+                }
+            }
+        }
+
+        if removed_count > 0 {
+            println!("{} Removed {} Docker image(s)", "✓".green(), removed_count);
         } else {
-            println!(
-                "{} Failed to remove Docker image: {}",
-                "⚠".yellow(),
-                image_name
-            );
+            println!("{}", "No foc-localnet Docker images found".dim());
         }
     } else {
-        println!(
-            "{} Docker image {} not found, skipping",
-            "ℹ️".dim(),
-            image_name
-        );
-    }
-
-    // Clean the docker images directory
-    let docker_images_dir = foc_localnet_docker_images();
-    if docker_images_dir.exists() {
-        println!(
-            "{} Cleaning docker images directory: {}",
-            "🧹".bold(),
-            docker_images_dir.display()
-        );
-        fs::remove_dir_all(&docker_images_dir)?;
-        println!("{}", "✓ Docker images directory cleaned".green());
+        println!("{}", "Could not list Docker images (Docker may not be running)".dim());
     }
 
     Ok(())

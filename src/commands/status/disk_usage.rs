@@ -8,9 +8,8 @@
 //! - Show breakdown by directory type
 
 use crate::paths::{
-    foc_localnet_artifacts, foc_localnet_bin, foc_localnet_code, foc_localnet_docker_images,
-    foc_localnet_docker_volumes, foc_localnet_home, foc_localnet_logs, foc_localnet_state,
-    foc_localnet_tmp,
+    foc_localnet_artifacts, foc_localnet_bin, foc_localnet_code, foc_localnet_docker_volumes,
+    foc_localnet_home, foc_localnet_logs, foc_localnet_state, foc_localnet_tmp,
 };
 use crossterm::style::Stylize;
 use tabular::{Row, Table};
@@ -85,16 +84,6 @@ pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
             .with_ansi_cell(artifacts_dir.display().to_string().dim()),
     );
 
-    // Docker images
-    let docker_images_dir = foc_localnet_docker_images();
-    let docker_images_size = get_directory_size(&docker_images_dir)?;
-    table.add_row(
-        Row::new()
-            .with_cell("  └─ Docker Images")
-            .with_ansi_cell(format_size(docker_images_size))
-            .with_ansi_cell(docker_images_dir.display().to_string().dim()),
-    );
-
     // Docker volumes
     let docker_volumes_dir = foc_localnet_docker_volumes();
     let docker_volumes_size = get_directory_size(&docker_volumes_dir)?;
@@ -105,9 +94,8 @@ pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
             .with_ansi_cell(docker_volumes_dir.display().to_string().dim()),
     );
 
-    // Other artifacts (total - docker images - docker volumes)
-    let other_artifacts_size =
-        artifacts_size.saturating_sub(docker_images_size + docker_volumes_size);
+    // Other artifacts (total - docker volumes)
+    let other_artifacts_size = artifacts_size.saturating_sub(docker_volumes_size);
     let other_artifacts_path = artifacts_dir.display().to_string();
     table.add_row(
         Row::new()
@@ -134,8 +122,6 @@ pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use tempfile::tempdir;
 
     #[test]
     fn test_print_disk_usage() {
