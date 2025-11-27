@@ -100,6 +100,7 @@ fn cleanup_previous_installation() -> Result<(), Box<dyn std::error::Error>> {
 /// # Arguments
 /// * `curio_location` - Optional override for Curio repository location
 /// * `lotus_location` - Optional override for Lotus repository location
+/// * `filecoin_services_location` - Optional override for Filecoin Services repository location
 /// * `yugabyte_url` - Optional override for Yugabyte download URL
 /// * `force` - Whether to force regeneration of config file
 ///
@@ -108,6 +109,7 @@ fn cleanup_previous_installation() -> Result<(), Box<dyn std::error::Error>> {
 pub fn init_environment(
     curio_location: Option<String>,
     lotus_location: Option<String>,
+    filecoin_services_location: Option<String>,
     yugabyte_url: Option<String>,
     force: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -125,6 +127,7 @@ pub fn init_environment(
     config::generate_default_config(
         curio_location.clone(),
         lotus_location.clone(),
+        filecoin_services_location.clone(),
         yugabyte_url.clone(),
         force,
     )?;

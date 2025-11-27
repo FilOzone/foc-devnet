@@ -36,11 +36,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Init {
             curio,
             lotus,
+            filecoin_services,
             yugabyte_url,
             force,
         } => {
             poison::create_poison("Init")?;
-            commands::init_environment(curio, lotus, yugabyte_url, force)
+            commands::init_environment(curio, lotus, filecoin_services, yugabyte_url, force)
         }
         Commands::Build { build_command } => {
             poison::create_poison("Build")?;
