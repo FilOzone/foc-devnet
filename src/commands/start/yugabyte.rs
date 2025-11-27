@@ -1,5 +1,5 @@
 use super::step::{Step, StepContext};
-use crate::utils::{container_exists, container_is_running, image_exists, is_port_available, stop_and_remove_container, wait_for_port};
+use crate::docker::{container_exists, container_is_running, image_exists, is_port_available, stop_and_remove_container, wait_for_port};
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::path::PathBuf;

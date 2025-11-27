@@ -1,7 +1,7 @@
-//! Common utility functions for foc-localnet
+//! Docker utility functions for foc-localnet
 //!
-//! This module contains shared utility functions used across different
-//! commands, particularly Docker-related operations.
+//! This module contains shared utility functions for Docker operations
+//! used across different commands, particularly container management.
 
 use std::net::TcpListener;
 use std::process::Command;

@@ -8,7 +8,7 @@ use super::step::{Step, StepContext};
 use crate::paths::{
     CONTAINER_FILECOIN_PROOF_PARAMS_PATH, foc_localnet_bin, foc_localnet_proof_parameters,
 };
-use crate::utils::{container_exists, container_is_running, image_exists, is_port_available, stop_and_remove_container, wait_for_port};
+use crate::docker::{container_exists, container_is_running, image_exists, is_port_available, stop_and_remove_container, wait_for_port};
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::path::PathBuf;

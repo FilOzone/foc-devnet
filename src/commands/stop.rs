@@ -1,4 +1,4 @@
-use crate::utils::{container_exists, container_is_running};
+use crate::docker::{container_exists, container_is_running};
 use crossterm::style::Stylize;
 use std::process::Command;
 
