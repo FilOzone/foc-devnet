@@ -5,6 +5,7 @@
 pub mod repository;
 
 use crate::config::Config;
+use crate::embedded_assets;
 use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_logs};
 use crossterm::style::Stylize;
 use repository::prepare_repository;
@@ -150,26 +151,23 @@ fn create_build_log_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
     Ok(log_path)
 }
 
-/// Load volume mappings from a .volumes_map.toml file for a specific image.
+/// Load volume mappings from embedded volumes_map.toml file for a specific image.
 fn load_volume_map(
     image_name: &str,
 ) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
-    let volumes_map_path = Path::new("docker").join(format!("{}.volumes_map.toml", image_name));
-
-    if !volumes_map_path.exists() {
-        // Return empty map if no volumes_map file exists
-        return Ok(HashMap::new());
-    }
-
-    let content = fs::read_to_string(&volumes_map_path)?;
+    let content_bytes = embedded_assets::get_volumes_map(image_name)
+        .ok_or_else(|| format!("Embedded volumes map not found for: {}", image_name))?;
+    
+    let content = std::str::from_utf8(content_bytes)
+        .map_err(|e| format!("Invalid UTF-8 in volumes map for {}: {}", image_name, e))?;
 
     #[derive(serde::Deserialize)]
     struct VolumesMap {
         volumes: HashMap<String, String>,
     }
 
-    let volume_config: VolumesMap = toml::from_str(&content)
-        .map_err(|e| format!("Failed to parse {}: {}", volumes_map_path.display(), e))?;
+    let volume_config: VolumesMap = toml::from_str(content)
+        .map_err(|e| format!("Failed to parse embedded volumes map for {}: {}", image_name, e))?;
 
     Ok(volume_config.volumes)
 }

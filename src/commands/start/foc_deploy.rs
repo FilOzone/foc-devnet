@@ -4,6 +4,7 @@
 //! These contracts are required by Curio for storage provider operations.
 
 use super::step::{Step, StepContext};
+use crate::embedded_assets;
 use crate::paths::{
     contract_addresses_file, foc_localnet_bin, foc_localnet_docker_volumes,
     foc_localnet_filecoin_services_repo, foc_localnet_lotus_keys,
@@ -352,28 +353,22 @@ impl FOCDeployStep {
     ) -> Result<String, Box<dyn Error>> {
         println!("      Deploying MockUSDFC token...");
 
-        // Get the contract source path (relative to project root)
-        let contract_path = std::env::current_dir()?.join("contracts/MockUSDFC.sol");
-
-        if !contract_path.exists() {
-            return Err(format!(
-                "MockUSDFC contract not found at {}",
-                contract_path.display()
-            )
-            .into());
-        }
+        // Get the embedded contract content
+        let contract_content = embedded_assets::MOCK_USDFC_CONTRACT;
 
         // Deploy using forge via foc-builder container
         println!("        Compiling and deploying with forge...");
 
         let bin_dir = foc_localnet_bin();
         let builder_volumes_dir = foc_localnet_docker_volumes().join("builder");
-        let contracts_dir = std::env::current_dir()?.join("contracts");
+
+        // Create a temporary contract file
+        let temp_contract_path = std::env::temp_dir().join("MockUSDFC.sol");
+        fs::write(&temp_contract_path, contract_content)?;
 
         // Build forge command to deploy MockUSDFC
-        // Use the full path to the contract file with --contracts flag
         let forge_cmd = format!(
-            r#"forge create /contracts/MockUSDFC.sol:MockUSDFC \
+            r#"forge create /tmp/MockUSDFC.sol:MockUSDFC \
                --rpc-url {} \
                --from {} \
                --unlocked \
@@ -396,13 +391,16 @@ impl FOCDeployStep {
                     builder_volumes_dir.join("cargo").display()
                 ),
                 "-v",
-                &format!("{}:/contracts", contracts_dir.display()),
+                &format!("{}:/tmp/MockUSDFC.sol", temp_contract_path.display()),
                 "foc-builder",
                 "/bin/bash",
                 "-c",
                 &forge_cmd,
             ])
             .output()?;
+
+        // Clean up temp file
+        let _ = fs::remove_file(&temp_contract_path);
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
