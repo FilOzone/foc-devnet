@@ -23,6 +23,20 @@ const IMAGE_NAME: &str = "foc-curio";
 // Curio ports
 const CURIO_PORTS: &[(u16, &str)] = &[(12300, "Curio API"), (12301, "Curio RPC")];
 
+// Database configuration
+const CURIO_DB_HOST: &str = "127.0.0.1";
+const CURIO_DB_PORT: u16 = 5433;
+const CURIO_DB_NAME: &str = "yugabyte";
+const CURIO_DB_USER: &str = "yugabyte";
+
+// Timing constants
+const PORT_CHECK_INTERVAL_MS: u64 = 500;
+const CURIO_START_WAIT_SECS: u64 = 10;
+const LOG_TAIL_LINES: usize = 50;
+const PORT_WAIT_TIMEOUT_SECS: u64 = 30;
+const API_CHECK_DELAY_SECS: u64 = 3;
+const CONTAINER_ID_DISPLAY_LENGTH: usize = 12;
+
 /// Step for starting the Curio node
 pub struct CurioStep {
     volumes_dir: PathBuf,
@@ -115,7 +129,7 @@ impl CurioStep {
                 return Err(format!("Timeout waiting for port {} to be ready", port).into());
             }
 
-            thread::sleep(Duration::from_millis(500));
+            thread::sleep(Duration::from_millis(PORT_CHECK_INTERVAL_MS));
         }
     }
 
@@ -144,11 +158,12 @@ impl CurioStep {
 }
 
 impl Step for CurioStep {
+    /// Get the name of this step
     fn name(&self) -> &str {
         "Start Curio"
     }
 
-    fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         // Check if yugabyte is running (dependency)
         if context.get("yugabyte_container_id").is_none() {
             return Err("YugabyteDB must be started before starting Curio".into());
@@ -220,104 +235,18 @@ impl Step for CurioStep {
         Ok(())
     }
 
-    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        // Create curio data directory in volumes
-        let curio_data_dir = self.volumes_dir.join("curio-data");
-        fs::create_dir_all(&curio_data_dir)?;
-
-        // Get paths
-        let bin_dir = foc_localnet_bin();
-        let params_dir = foc_localnet_proof_parameters();
-
-        // Build docker run command
-        // Use host network mode to allow curio to connect to yugabyte and lotus
-        let mut docker_args = vec![
-            "run",
-            "-d",
-            "--name",
-            CONTAINER_NAME,
-            "--network",
-            "host", // Use host network for easier communication
-        ];
-
-        // Add volume mounts
-        let volume_mounts = vec![
-            format!("{}:/usr/local/bin/lotus-bins", bin_dir.display()),
-            format!("{}:/data", curio_data_dir.display()),
-            format!(
-                "{}:{}",
-                params_dir.display(),
-                CONTAINER_FILECOIN_PROOF_PARAMS_PATH
-            ),
-        ];
-
-        for mount in &volume_mounts {
-            docker_args.extend_from_slice(&["-v", mount]);
-        }
-
-        // Set working directory
-        docker_args.extend_from_slice(&["-w", "/data"]);
-
-        // Set environment variables for database connection
-        docker_args.extend_from_slice(&[
-            "-e",
-            "CURIO_DB_HOST=127.0.0.1",
-            "-e",
-            "CURIO_DB_PORT=5433",
-            "-e",
-            "CURIO_DB_NAME=yugabyte",
-            "-e",
-            "CURIO_DB_USER=yugabyte",
-        ]);
-
-        // Add image name
-        docker_args.push(IMAGE_NAME);
-
-        // Add command to start curio
-        // Note: Curio may need initialization steps - this is a basic startup
-        docker_args.extend_from_slice(&[
-            "/bin/bash",
-            "-c",
-            r#"if [ ! -f /data/.curio-initialized ]; then \
-                 echo "Initializing Curio..."; \
-                 /usr/local/bin/lotus-bins/curio config default > /data/config.toml && \
-                 touch /data/.curio-initialized; \
-               fi && \
-               /usr/local/bin/lotus-bins/curio run"#,
-        ]);
-
-        println!("    Starting Curio container '{}'...", CONTAINER_NAME);
-        let output = Command::new("docker").args(&docker_args).output()?;
-
-        if !output.status.success() {
-            return Err(format!(
-                "Failed to start Curio container: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )
-            .into());
-        }
-
-        let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        context.set("curio_container_id", container_id.clone());
-        println!(
-            "    {} Container started with ID: {}",
-            "✓".green(),
-            &container_id[..12]
-        );
-
-        Ok(())
-    }
-
+    /// Perform post-execution verification for Curio startup
     fn post_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         // Wait for container to initialize
         println!("    Waiting for Curio to start...");
-        thread::sleep(Duration::from_secs(10));
+        thread::sleep(Duration::from_secs(CURIO_START_WAIT_SECS));
 
         // Verify container is running
         if !Self::container_is_running(CONTAINER_NAME)? {
             // Check logs for errors
+            let tail_arg = format!("--tail {}", LOG_TAIL_LINES);
             let logs_output = Command::new("docker")
-                .args(["logs", "--tail", "50", CONTAINER_NAME])
+                .args(["logs", &tail_arg, CONTAINER_NAME])
                 .output()?;
 
             return Err(format!(
@@ -332,7 +261,7 @@ impl Step for CurioStep {
         println!("    Verifying port accessibility...");
         for &(port, description) in CURIO_PORTS {
             print!("      Checking port {} ({})... ", port, description);
-            match Self::wait_for_port(port, 30) {
+            match Self::wait_for_port(port, PORT_WAIT_TIMEOUT_SECS) {
                 Ok(_) => println!("{}", "✓".green()),
                 Err(e) => {
                     println!("{}", "⚠".yellow());
@@ -346,7 +275,7 @@ impl Step for CurioStep {
 
         // Verify Curio API is responsive
         println!("    Verifying Curio API connectivity...");
-        thread::sleep(Duration::from_secs(3));
+        thread::sleep(Duration::from_secs(API_CHECK_DELAY_SECS));
         match Self::check_curio_api() {
             Ok(_) => {
                 println!(
