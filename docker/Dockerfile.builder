@@ -35,6 +35,11 @@ USER foc-user
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH=$PATH:/home/foc-user/.cargo/bin
 
+# Install Foundry (forge, cast, anvil, chisel) for Solidity contract deployment
+RUN curl -L https://foundry.paradigm.xyz | bash
+ENV PATH=$PATH:/home/foc-user/.foundry/bin
+RUN /home/foc-user/.foundry/bin/foundryup
+
 # Set working directory
 WORKDIR /workspace
 
