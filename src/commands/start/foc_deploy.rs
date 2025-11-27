@@ -543,6 +543,14 @@ export AUTO_VERIFY=false"#,
         }
 
         // Parse the deployment output to extract contract addresses
+        let addresses = Self::parse_deployment_output(&output_str)?;
+
+        Ok(addresses)
+    }
+
+    /// Parse deployment output to extract contract addresses
+    fn parse_deployment_output(output_str: &str) -> Result<std::collections::HashMap<String, String>, Box<dyn Error>> {
+        // Look for "DEPLOYMENT SUMMARY" section
         let mut addresses = std::collections::HashMap::new();
 
         // Look for "DEPLOYMENT SUMMARY" section
