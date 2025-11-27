@@ -80,6 +80,39 @@ foc-localnet start
 foc-localnet stop
 ```
 
+## FOC Contract Deployment
+
+When you start the cluster with `foc-localnet start`, the following happens automatically:
+
+1. **Lotus** starts with FEVM enabled for Ethereum RPC support
+2. **Lotus-Miner** builds blocks and maintains the chain
+3. **FOC Contracts** are deployed to the local network:
+   - MockUSDFC token (toy ERC-20 for testing)
+   - PDP Verifier contracts
+   - Warm Storage Service contracts
+   - Service Provider Registry
+4. **Yugabyte** database starts for Curio
+5. **Curio** second-generation miner connects to FOC contracts
+
+### Contract Addresses
+
+After deployment, all contract addresses are saved to:
+```
+~/.foc-localnet/artifacts/docker/volumes/foc-contract-addresses.json
+```
+
+### Fund Transfer Chain
+
+```
+GLOBAL_FIL_FAUCET (50,000 FIL from genesis)
+    ↓ 10,000 FIL
+FEVM_FAUCET (f4 address for FEVM operations)
+    ↓ 5,000 FIL  
+FOC_DEPLOYER (f4 address that deploys contracts)
+```
+
+For detailed information about FOC deployment, see [docs/FOC_DEPLOYMENT.md](docs/FOC_DEPLOYMENT.md).
+
 ### Get Help
 
 ```bash
