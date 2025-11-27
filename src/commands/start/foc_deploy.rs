@@ -124,8 +124,6 @@ impl FOCDeployStep {
 
         Ok(())
     }
-
-    /// Get the GLOBAL_FIL_FAUCET BLS address
     fn get_global_faucet_address() -> Result<String, Box<dyn Error>> {
         let keys_dir = foc_localnet_lotus_keys();
         let faucet_key_dir = keys_dir.join(GLOBAL_FIL_FAUCET_KEY);
@@ -592,6 +590,7 @@ export AUTO_VERIFY=false"#,
 }
 
 impl Step for FOCDeployStep {
+    /// Get the name of this step
     fn name(&self) -> &str {
         "Deploy FOC Contracts"
     }
@@ -637,6 +636,7 @@ impl Step for FOCDeployStep {
         Ok(())
     }
 
+    /// Execute the FOC deployment process
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         // Check if contracts are already deployed
         if let Ok(existing_addresses) = ContractAddresses::load() {
@@ -793,6 +793,7 @@ impl Step for FOCDeployStep {
         Ok(())
     }
 
+    /// Perform post-execution verification for FOC deployment
     fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         println!("    Verifying FOC deployment...");
 
