@@ -13,6 +13,7 @@ pub mod artifacts;
 pub mod config;
 pub mod directories;
 pub mod docker;
+pub mod keys;
 pub mod path_setup;
 pub mod repositories;
 
@@ -112,6 +113,7 @@ pub fn init_environment(
     filecoin_services_location: Option<String>,
     yugabyte_url: Option<String>,
     force: bool,
+    use_random_mnemonic: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use crossterm::style::Stylize;
 
@@ -131,6 +133,9 @@ pub fn init_environment(
         yugabyte_url.clone(),
         force,
     )?;
+
+    // Generate keys
+    keys::generate_keys(use_random_mnemonic)?;
 
     // Set up PATH variables
     path_setup::setup_path_variables()?;

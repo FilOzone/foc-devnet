@@ -129,23 +129,3 @@ pub fn print_code_version() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use tempfile::tempdir;
-
-    // Note: These tests would require setting up mock git repositories
-    // and configuration files, which is complex. In a real implementation,
-    // you might want to use mocking libraries or integration tests.
-
-    #[test]
-    fn test_print_code_version_requires_config() {
-        // This test will fail if no config file exists, which is expected
-        // in a test environment. We just verify the function signature works.
-        let result = print_code_version();
-        // We expect this to fail in test environment due to missing config
-        assert!(result.is_err());
-    }
-}

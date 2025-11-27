@@ -53,6 +53,9 @@ pub enum Commands {
         /// Force regeneration of config file even if it exists
         #[arg(long)]
         force: bool,
+        /// Use random mnemonic instead of deterministic one
+        #[arg(long)]
+        rand: bool,
     },
     /// Build Filecoin projects in a container
     Build {

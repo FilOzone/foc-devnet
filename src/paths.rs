@@ -96,6 +96,12 @@ pub fn foc_localnet_genesis() -> PathBuf {
     foc_localnet_docker_volumes().join("genesis")
 }
 
+/// Returns the path to store generated keys
+/// e.g., ~/.foc-localnet/keys
+pub fn foc_localnet_keys() -> PathBuf {
+    foc_localnet_home().join("keys")
+}
+
 // Constants for container paths
 /// Container path where Filecoin proof parameters are mounted
 pub const CONTAINER_FILECOIN_PROOF_PARAMS_PATH: &str = "/var/tmp/filecoin-proof-parameters";

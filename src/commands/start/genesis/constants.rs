@@ -65,5 +65,5 @@ pub const NUM_SIGNER_KEYS: u32 = 2;
 /// 4. Import keys into lotus using: `lotus wallet import <keyinfo-file>`
 ///
 /// Example: Set to 3 to create 3 additional pre-funded accounts.
-/// Set to 0 to follow the minimal official Lotus local network setup.
 pub const NUM_PREFUNDED_KEYS: u32 = 1;
+const _: () = assert!(NUM_PREFUNDED_KEYS >= 1, "NUM_PREFUNDED_KEYS must be at least 1 for GLOBAL_FIL_FAUCET");

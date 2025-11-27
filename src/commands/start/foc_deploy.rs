@@ -5,8 +5,9 @@
 
 use super::step::{Step, StepContext};
 use crate::embedded_assets;
+use crate::config::{Config, Location};
 use crate::paths::{
-    contract_addresses_file, foc_localnet_bin, foc_localnet_docker_volumes,
+    contract_addresses_file, foc_localnet_bin, foc_localnet_config, foc_localnet_docker_volumes,
     foc_localnet_filecoin_services_repo, foc_localnet_lotus_keys,
 };
 use crossterm::style::Stylize;
@@ -100,6 +101,30 @@ impl FOCDeployStep {
             volumes_dir,
             logs_dir,
         }
+    }
+
+    /// Get the filecoin-services repository path based on configuration
+    fn get_filecoin_services_repo_path() -> Result<PathBuf, Box<dyn Error>> {
+        // Load configuration
+        let config_path = foc_localnet_config();
+        let config_content = fs::read_to_string(&config_path)
+            .map_err(|e| format!("Failed to read config file at {:?}: {}", config_path, e))?;
+        let config: Config = toml::from_str(&config_content)
+            .map_err(|e| format!("Failed to parse config file: {}", e))?;
+
+        // Determine the repository path based on location
+        let repo_path = match &config.filecoin_services {
+            Location::LocalSource { dir } => {
+                // For LocalSource, use the configured directory directly
+                PathBuf::from(dir)
+            }
+            _ => {
+                // For Git-based locations, use the foc-localnet directory
+                foc_localnet_filecoin_services_repo()
+            }
+        };
+
+        Ok(repo_path)
     }
 
     /// Check if Lotus is running and accessible
@@ -510,7 +535,7 @@ impl FOCDeployStep {
     ) -> Result<std::collections::HashMap<String, String>, Box<dyn Error>> {
         println!("      Running deploy-all-warm-storage.sh...");
 
-        let services_repo = foc_localnet_filecoin_services_repo();
+        let services_repo = Self::get_filecoin_services_repo_path()?;
         // Resolve symlinks to get the real path for Docker mounting
         let services_repo = services_repo
             .canonicalize()
@@ -881,7 +906,7 @@ impl Step for FOCDeployStep {
         println!("    {} Lotus is running", "✓".green());
 
         // Check if filecoin-services repository exists
-        let services_repo = foc_localnet_filecoin_services_repo();
+        let services_repo = Self::get_filecoin_services_repo_path()?;
         if !services_repo.exists() {
             return Err(format!(
                 "filecoin-services repository not found at {}. \
