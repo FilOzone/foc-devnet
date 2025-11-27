@@ -17,8 +17,6 @@ use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
-const CONTAINER_NAME: &str = "foc-deploy";
-
 // Service configuration
 const SERVICE_NAME: &str = "FOC LocalNet Warm Storage";
 const SERVICE_DESCRIPTION: &str = "Warm storage service for FOC local development network";
@@ -489,7 +487,12 @@ export DRY_RUN=false
 export CHAIN={}  # Local network chain ID
 export DEPLOYER_ADDRESS='{}'
 export AUTO_VERIFY=false"#,
-            lotus_rpc_url, mock_usdfc_address, SERVICE_NAME, SERVICE_DESCRIPTION, LOCAL_NETWORK_CHAIN_ID, deployer_eth_addr
+            lotus_rpc_url,
+            mock_usdfc_address,
+            SERVICE_NAME,
+            SERVICE_DESCRIPTION,
+            LOCAL_NETWORK_CHAIN_ID,
+            deployer_eth_addr
         );
 
         // Run the deployment script
@@ -549,7 +552,9 @@ export AUTO_VERIFY=false"#,
     }
 
     /// Parse deployment output to extract contract addresses
-    fn parse_deployment_output(output_str: &str) -> Result<std::collections::HashMap<String, String>, Box<dyn Error>> {
+    fn parse_deployment_output(
+        output_str: &str,
+    ) -> Result<std::collections::HashMap<String, String>, Box<dyn Error>> {
         // Look for "DEPLOYMENT SUMMARY" section
         let mut addresses = std::collections::HashMap::new();
 
@@ -597,7 +602,10 @@ export AUTO_VERIFY=false"#,
     }
 
     /// Setup deployment prerequisites including addresses and token deployment
-    fn setup_deployment_prerequisites(&self, context: &mut StepContext) -> Result<(String, String, String, String, String), Box<dyn Error>> {
+    fn setup_deployment_prerequisites(
+        &self,
+        context: &mut StepContext,
+    ) -> Result<(String, String, String, String, String), Box<dyn Error>> {
         // Step 1: Import GLOBAL_FIL_FAUCET key
         let keys_dir = foc_localnet_lotus_keys();
         let faucet_key_dir = keys_dir.join(GLOBAL_FIL_FAUCET_KEY);
@@ -673,7 +681,124 @@ export AUTO_VERIFY=false"#,
         println!("      FOC_DEPLOYER (ETH): {}", deployer_eth_addr);
         println!("      MockUSDFC Token: {}", mock_usdfc_address);
 
-        Ok((global_faucet, fevm_faucet, foc_deployer, deployer_eth_addr, mock_usdfc_address))
+        Ok((
+            global_faucet,
+            fevm_faucet,
+            foc_deployer,
+            deployer_eth_addr,
+            mock_usdfc_address,
+        ))
+    }
+
+    /// Check if contracts are already deployed and handle early return
+    fn check_existing_deployment(&self, context: &mut StepContext) -> Result<bool, Box<dyn Error>> {
+        if let Ok(existing_addresses) = ContractAddresses::load() {
+            if existing_addresses.is_complete() {
+                println!(
+                    "    {} Contracts already deployed, skipping deployment...",
+                    "✓".green()
+                );
+                println!(
+                    "      GLOBAL_FIL_FAUCET: {}",
+                    existing_addresses.global_fil_faucet
+                );
+                println!("      FEVM_FAUCET: {}", existing_addresses.fevm_faucet);
+                println!("      FOC_DEPLOYER: {}", existing_addresses.foc_deployer);
+                println!(
+                    "      FOC_DEPLOYER (ETH): {}",
+                    existing_addresses.foc_deployer_eth
+                );
+                println!("      MockUSDFC Token: {}", existing_addresses.mock_usdfc);
+
+                // Store in context for other steps
+                self.store_addresses_in_context(context, &existing_addresses);
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    /// Store contract addresses in the step context
+    fn store_addresses_in_context(&self, context: &mut StepContext, addresses: &ContractAddresses) {
+        context.set("global_faucet_address", &addresses.global_fil_faucet);
+        context.set("fevm_faucet_address", &addresses.fevm_faucet);
+        context.set("foc_deployer_address", &addresses.foc_deployer);
+        context.set("foc_deployer_eth_address", &addresses.foc_deployer_eth);
+        context.set("mock_usdfc_address", &addresses.mock_usdfc);
+
+        for (name, addr) in &addresses.foc_contracts {
+            context.set(&format!("foc_contract_{}", name.replace(' ', "_")), addr);
+        }
+    }
+
+    /// Perform the full deployment process
+    fn perform_deployment(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        println!("    Setting up FOC deployment prerequisites...");
+
+        let (global_faucet, fevm_faucet, foc_deployer, deployer_eth_addr, mock_usdfc_address) =
+            self.setup_deployment_prerequisites(context)?;
+
+        let lotus_rpc_url = format!("http://localhost:{}/rpc/v1", LOTUS_RPC_PORT);
+
+        self.deploy_contracts_and_save(
+            context,
+            &deployer_eth_addr,
+            &mock_usdfc_address,
+            &lotus_rpc_url,
+            &global_faucet,
+            &fevm_faucet,
+            &foc_deployer,
+        )?;
+        Ok(())
+    }
+
+    /// Deploy contracts and save the results
+    fn deploy_contracts_and_save(
+        &self,
+        context: &mut StepContext,
+        deployer_eth_addr: &str,
+        mock_usdfc_address: &str,
+        lotus_rpc_url: &str,
+        global_faucet: &str,
+        fevm_faucet: &str,
+        foc_deployer: &str,
+    ) -> Result<(), Box<dyn Error>> {
+        // Deploy FOC contracts using deployment script
+        println!("\n    Deploying FOC contracts...");
+        println!("      (This may take several minutes)");
+
+        let contract_addresses =
+            Self::deploy_foc_contracts(deployer_eth_addr, mock_usdfc_address, lotus_rpc_url)?;
+
+        // Store contract addresses in context
+        for (name, addr) in &contract_addresses {
+            context.set(&format!("foc_contract_{}", name.replace(' ', "_")), addr);
+        }
+
+        // Save all addresses to the state file
+        let addresses_struct = ContractAddresses {
+            global_fil_faucet: global_faucet.to_string(),
+            fevm_faucet: fevm_faucet.to_string(),
+            foc_deployer: foc_deployer.to_string(),
+            foc_deployer_eth: deployer_eth_addr.to_string(),
+            mock_usdfc: mock_usdfc_address.to_string(),
+            foc_contracts: contract_addresses.clone(),
+        };
+
+        addresses_struct.save()?;
+        println!(
+            "      {} Contract addresses saved to {}",
+            "✓".green(),
+            contract_addresses_file().display()
+        );
+
+        println!(
+            "\n    {} FOC contracts deployed successfully!",
+            "✓".green().bold()
+        );
+        println!("      Deployed {} contracts", contract_addresses.len());
+
+        Ok(())
     }
 }
 
@@ -726,87 +851,11 @@ impl Step for FOCDeployStep {
 
     /// Execute the FOC deployment process
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        // Check if contracts are already deployed
-        if let Ok(existing_addresses) = ContractAddresses::load() {
-            if existing_addresses.is_complete() {
-                println!(
-                    "    {} Contracts already deployed, skipping deployment...",
-                    "✓".green()
-                );
-                println!(
-                    "      GLOBAL_FIL_FAUCET: {}",
-                    existing_addresses.global_fil_faucet
-                );
-                println!("      FEVM_FAUCET: {}", existing_addresses.fevm_faucet);
-                println!("      FOC_DEPLOYER: {}", existing_addresses.foc_deployer);
-                println!(
-                    "      FOC_DEPLOYER (ETH): {}",
-                    existing_addresses.foc_deployer_eth
-                );
-                println!("      MockUSDFC Token: {}", existing_addresses.mock_usdfc);
-
-                // Store in context for other steps
-                context.set(
-                    "global_faucet_address",
-                    &existing_addresses.global_fil_faucet,
-                );
-                context.set("fevm_faucet_address", &existing_addresses.fevm_faucet);
-                context.set("foc_deployer_address", &existing_addresses.foc_deployer);
-                context.set(
-                    "foc_deployer_eth_address",
-                    &existing_addresses.foc_deployer_eth,
-                );
-                context.set("mock_usdfc_address", &existing_addresses.mock_usdfc);
-
-                for (name, addr) in &existing_addresses.foc_contracts {
-                    context.set(&format!("foc_contract_{}", name.replace(' ', "_")), addr);
-                }
-
-                return Ok(());
-            }
+        if self.check_existing_deployment(context)? {
+            return Ok(());
         }
 
-        println!("    Setting up FOC deployment prerequisites...");
-
-        let (global_faucet, fevm_faucet, foc_deployer, deployer_eth_addr, mock_usdfc_address) = self.setup_deployment_prerequisites(context)?;
-
-        let lotus_rpc_url = format!("http://localhost:{}/rpc/v1", LOTUS_RPC_PORT);
-
-        // Step 9: Deploy FOC contracts using deployment script
-        println!("\n    Deploying FOC contracts...");
-        println!("      (This may take several minutes)");
-
-        let contract_addresses =
-            Self::deploy_foc_contracts(&deployer_eth_addr, &mock_usdfc_address, &lotus_rpc_url)?;
-
-        // Store contract addresses in context
-        for (name, addr) in &contract_addresses {
-            context.set(&format!("foc_contract_{}", name.replace(' ', "_")), addr);
-        }
-
-        // Save all addresses to the state file
-        let addresses_struct = ContractAddresses {
-            global_fil_faucet: global_faucet.clone(),
-            fevm_faucet: fevm_faucet.clone(),
-            foc_deployer: foc_deployer.clone(),
-            foc_deployer_eth: deployer_eth_addr.clone(),
-            mock_usdfc: mock_usdfc_address.clone(),
-            foc_contracts: contract_addresses.clone(),
-        };
-
-        addresses_struct.save()?;
-        println!(
-            "      {} Contract addresses saved to {}",
-            "✓".green(),
-            contract_addresses_file().display()
-        );
-
-        println!(
-            "\n    {} FOC contracts deployed successfully!",
-            "✓".green().bold()
-        );
-        println!("      Deployed {} contracts", contract_addresses.len());
-
+        self.perform_deployment(context)?;
         Ok(())
     }
 

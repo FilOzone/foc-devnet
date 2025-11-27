@@ -4,11 +4,11 @@
 //! generation miner node that builds tipsets and performs PoRep (Proof of Replication).
 
 use super::step::{Step, StepContext};
+use crate::docker::{container_is_running, wait_for_port};
 use crate::paths::{
-    CONTAINER_FILECOIN_PROOF_PARAMS_PATH, foc_localnet_bin, foc_localnet_docker_volumes,
-    foc_localnet_genesis_sectors, foc_localnet_proof_parameters,
+    foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_genesis_sectors,
+    foc_localnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
 };
-use crate::docker::{container_exists, container_is_running, image_exists, is_port_available, stop_and_remove_container, wait_for_port};
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::fs;
@@ -69,31 +69,19 @@ impl LotusMinerStep {
 
         Ok(())
     }
-}
 
-impl Step for LotusMinerStep {
-    /// Get the name of this step
-    fn name(&self) -> &str {
-        "Start Lotus-Miner"
-    }
-
-
-
-    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    /// Set up necessary directories for Lotus-Miner
+    fn setup_miner_directories(&self) -> Result<(), Box<dyn Error>> {
         // Create lotus-miner data directory in volumes
         let miner_data_dir = self.volumes_dir.join("lotus-miner-data");
         fs::create_dir_all(&miner_data_dir)?;
+        Ok(())
+    }
 
-        // Get lotus daemon data directory (needed for API access)
-        let lotus_data_dir = self.volumes_dir.join("lotus-data");
-
-        // Get paths
-        let bin_dir = foc_localnet_bin();
+    /// Find the pre-seal metadata and key files
+    fn find_preseal_files(&self) -> Result<(String, String), Box<dyn Error>> {
         let sectors_dir = foc_localnet_genesis_sectors();
-        let builder_volumes_dir = foc_localnet_docker_volumes().join("foc-builder");
-        let params_dir = foc_localnet_proof_parameters();
 
-        // Find the pre-seal metadata file and key file
         let mut preseal_file = None;
         let mut preseal_key_file = None;
         for entry in fs::read_dir(&sectors_dir)? {
@@ -120,18 +108,38 @@ impl Step for LotusMinerStep {
         let preseal_key_file =
             preseal_key_file.ok_or("Pre-seal key file not found in sectors directory")?;
 
+        Ok((preseal_file, preseal_key_file))
+    }
+
+    /// Build the Docker run command for Lotus-Miner
+    fn build_miner_docker_command(
+        &self,
+        preseal_files: &(String, String),
+    ) -> Result<Vec<String>, Box<dyn Error>> {
+        let (preseal_file, preseal_key_file) = preseal_files;
+
+        // Get lotus daemon data directory (needed for API access)
+        let lotus_data_dir = self.volumes_dir.join("lotus-data");
+
+        // Get paths
+        let bin_dir = foc_localnet_bin();
+        let sectors_dir = foc_localnet_genesis_sectors();
+        let builder_volumes_dir = foc_localnet_docker_volumes().join("foc-builder");
+        let params_dir = foc_localnet_proof_parameters();
+
         // Build docker run command
         // Use the lotus container's network namespace to allow easy communication
         let mut docker_args = vec![
-            "run",
-            "-d",
-            "--name",
-            CONTAINER_NAME,
-            "--network",
-            "container:foc-lotus", // Share network namespace with lotus
+            "run".to_string(),
+            "-d".to_string(),
+            "--name".to_string(),
+            CONTAINER_NAME.to_string(),
+            "--network".to_string(),
+            "container:foc-lotus".to_string(), // Share network namespace with lotus
         ];
 
         // Add volume mounts (paths updated for foc-user)
+        let miner_data_dir = self.volumes_dir.join("lotus-miner-data");
         let volume_mounts = vec![
             format!("{}:/usr/local/bin/lotus-bins", bin_dir.display()),
             format!(
@@ -152,21 +160,19 @@ impl Step for LotusMinerStep {
         ];
 
         for mount in &volume_mounts {
-            docker_args.extend_from_slice(&["-v", mount]);
+            docker_args.extend_from_slice(&["-v".to_string(), mount.clone()]);
         }
 
         // Set working directory to LOTUS_MINER_PATH
-        docker_args.extend_from_slice(&["-w", "/home/foc-user/.lotus-miner-local-net"]);
+        docker_args.extend_from_slice(&[
+            "-w".to_string(),
+            "/home/foc-user/.lotus-miner-local-net".to_string(),
+        ]);
 
         // Add image name
-        docker_args.push(IMAGE_NAME);
+        docker_args.push(IMAGE_NAME.to_string());
 
         // Add command: wait for lotus, import wallet key, init, then run
-        // Step 0: Wait for lotus daemon API to be ready
-        // Step 1: Import the pre-sealed miner key as the default wallet (if not already imported)
-        // Step 2: Initialize the lotus-miner with pre-sealed sectors (if not already initialized)
-        // Step 3: Run the miner
-        // Note: We check if the repo is initialized by checking for config.toml in LOTUS_MINER_PATH
         let miner_cmd = format!(
             r#"echo "Waiting for Lotus daemon API to be ready..." && \
                until /usr/local/bin/lotus-bins/lotus version >/dev/null 2>&1; do \
@@ -184,8 +190,17 @@ impl Step for LotusMinerStep {
                /usr/local/bin/lotus-bins/lotus-miner run --nosync"#,
             LOTUS_API_WAIT_SLEEP_SECS, preseal_key_file, preseal_file
         );
-        docker_args.extend_from_slice(&["/bin/bash", "-c", &miner_cmd]);
+        docker_args.extend_from_slice(&["/bin/bash".to_string(), "-c".to_string(), miner_cmd]);
 
+        Ok(docker_args)
+    }
+
+    /// Start the Lotus-Miner container
+    fn start_miner_container(
+        &self,
+        docker_args: Vec<String>,
+        context: &mut StepContext,
+    ) -> Result<(), Box<dyn Error>> {
         println!("    Starting Lotus-Miner container '{}'...", CONTAINER_NAME);
         let output = Command::new("docker").args(&docker_args).output()?;
 
@@ -205,6 +220,21 @@ impl Step for LotusMinerStep {
             &container_id[..CONTAINER_ID_DISPLAY_LENGTH]
         );
 
+        Ok(())
+    }
+}
+
+impl Step for LotusMinerStep {
+    /// Get the name of this step
+    fn name(&self) -> &str {
+        "Start Lotus-Miner"
+    }
+
+    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        self.setup_miner_directories()?;
+        let preseal_files = self.find_preseal_files()?;
+        let docker_args = self.build_miner_docker_command(&preseal_files)?;
+        self.start_miner_container(docker_args, context)?;
         Ok(())
     }
 
@@ -318,7 +348,10 @@ impl LotusMinerStep {
         let chain_output1 = String::from_utf8_lossy(&output1.stdout);
         let height1 = Self::parse_chain_height(&chain_output1)?;
 
-        println!("      Waiting {} seconds to check for new blocks...", TIPSET_CHECK_DELAY_SECS);
+        println!(
+            "      Waiting {} seconds to check for new blocks...",
+            TIPSET_CHECK_DELAY_SECS
+        );
         thread::sleep(Duration::from_secs(TIPSET_CHECK_DELAY_SECS));
 
         // Get new chain height

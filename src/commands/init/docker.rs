@@ -577,7 +577,5 @@ fn perform_volume_copy(
 /// # Arguments
 /// * `container_name` - Name of the container to remove
 fn cleanup_temp_container(container_name: &str) {
-    let _ = Command::new("docker")
-        .args(["rm", container_name])
-        .status();
+    let _ = Command::new("docker").args(["rm", container_name]).status();
 }

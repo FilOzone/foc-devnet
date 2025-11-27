@@ -264,7 +264,11 @@ fn setup_docker_run_args(
 }
 
 /// Set up the build script for the specific project.
-fn setup_build_script(project: &Project, container_source_dir: &str, container_output_dir: &str) -> String {
+fn setup_build_script(
+    project: &Project,
+    container_source_dir: &str,
+    container_output_dir: &str,
+) -> String {
     match project {
         Project::Lotus => format!(
             r#"git config --global --add safe.directory {} && \

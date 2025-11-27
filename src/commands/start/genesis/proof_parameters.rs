@@ -4,8 +4,8 @@
 //! required for lotus operations.
 
 use crate::paths::{
-    CONTAINER_FILECOIN_PROOF_PARAMS_PATH, foc_localnet_bin, foc_localnet_docker_volumes,
-    foc_localnet_proof_parameters,
+    foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_proof_parameters,
+    CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
 };
 use crossterm::style::Stylize;
 use indicatif::{ProgressBar, ProgressStyle};

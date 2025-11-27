@@ -5,10 +5,11 @@
 //! does not build tipsets.
 
 use super::step::{Step, StepContext};
-use crate::paths::{
-    CONTAINER_FILECOIN_PROOF_PARAMS_PATH, foc_localnet_bin, foc_localnet_proof_parameters,
+use crate::docker::{
+    container_exists, container_is_running, image_exists, is_port_available,
+    stop_and_remove_container, wait_for_port,
 };
-use crate::docker::{container_exists, container_is_running, image_exists, is_port_available, stop_and_remove_container, wait_for_port};
+use crate::paths::foc_localnet_bin;
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::path::PathBuf;
@@ -67,15 +68,9 @@ impl CurioStep {
 
         Ok(())
     }
-}
 
-impl Step for CurioStep {
-    /// Get the name of this step
-    fn name(&self) -> &str {
-        "Start Curio"
-    }
-
-    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    /// Check that required dependencies are running
+    fn check_dependencies(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         // Check if yugabyte is running (dependency)
         if context.get("yugabyte_container_id").is_none() {
             return Err("YugabyteDB must be started before starting Curio".into());
@@ -86,6 +81,11 @@ impl Step for CurioStep {
             return Err("Lotus daemon must be started before starting Curio".into());
         }
 
+        Ok(())
+    }
+
+    /// Check and handle existing Curio container
+    fn check_existing_container(&self) -> Result<(), Box<dyn Error>> {
         // Check if any existing curio container is running
         if container_exists(CONTAINER_NAME)? {
             if container_is_running(CONTAINER_NAME)? {
@@ -105,6 +105,11 @@ impl Step for CurioStep {
             }
         }
 
+        Ok(())
+    }
+
+    /// Check ports availability and verify requirements
+    fn check_ports_and_requirements(&self) -> Result<(), Box<dyn Error>> {
         // Check if all required ports are available
         let mut unavailable_ports = Vec::new();
         for &(port, description) in CURIO_PORTS {
@@ -144,6 +149,20 @@ impl Step for CurioStep {
 
         println!("    {} Curio binary found", "✓".green());
 
+        Ok(())
+    }
+}
+
+impl Step for CurioStep {
+    /// Get the name of this step
+    fn name(&self) -> &str {
+        "Start Curio"
+    }
+
+    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        self.check_dependencies(context)?;
+        self.check_existing_container()?;
+        self.check_ports_and_requirements()?;
         Ok(())
     }
 

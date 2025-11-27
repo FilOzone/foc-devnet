@@ -11,7 +11,7 @@ use foc_deploy::FOCDeployStep;
 pub use genesis::ensure_genesis_prerequisites;
 use lotus::LotusStep;
 use lotus_miner::LotusMinerStep;
-pub use step::{Step, StepContext, execute_steps};
+pub use step::{execute_steps, Step, StepContext};
 use yugabyte::YugabyteStep;
 
 use crate::paths::{foc_localnet_docker_volumes, foc_localnet_logs};

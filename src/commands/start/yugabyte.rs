@@ -1,5 +1,8 @@
 use super::step::{Step, StepContext};
-use crate::docker::{container_exists, container_is_running, image_exists, is_port_available, stop_and_remove_container, wait_for_port};
+use crate::docker::{
+    container_exists, container_is_running, image_exists, is_port_available,
+    stop_and_remove_container, wait_for_port,
+};
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::path::PathBuf;
@@ -64,6 +67,70 @@ impl YugabyteStep {
 
         Ok(())
     }
+
+    /// Create the YugabyteDB data directory
+    fn setup_data_directory(&self) -> Result<(), Box<dyn Error>> {
+        let yugabyte_data_dir = self.volumes_dir.join("yugabyte-data");
+        std::fs::create_dir_all(&yugabyte_data_dir)?;
+        Ok(())
+    }
+
+    /// Build the Docker run command for YugabyteDB
+    fn build_docker_command(&self) -> Result<Vec<String>, Box<dyn Error>> {
+        // Build docker run command
+        let mut docker_args = vec![
+            "run".to_string(),
+            "-d".to_string(),
+            "--name".to_string(),
+            CONTAINER_NAME.to_string(),
+        ];
+
+        // Add port mappings
+        let port_args: Vec<String> = YUGABYTE_PORTS
+            .iter()
+            .flat_map(|&(port, _)| vec!["-p".to_string(), format!("{}:{}", port, port)])
+            .collect();
+
+        docker_args.extend(port_args);
+
+        // Add volume mount
+        let yugabyte_data_dir = self.volumes_dir.join("yugabyte-data");
+        let volume_mount = format!("{}:/yugabyte/data", yugabyte_data_dir.display());
+        docker_args.extend_from_slice(&["-v".to_string(), volume_mount]);
+
+        // Add image name
+        docker_args.push(IMAGE_NAME.to_string());
+
+        Ok(docker_args)
+    }
+
+    /// Start the YugabyteDB container
+    fn start_container(
+        &self,
+        docker_args: Vec<String>,
+        context: &mut StepContext,
+    ) -> Result<(), Box<dyn Error>> {
+        println!("    Starting container '{}'...", CONTAINER_NAME);
+        let output = Command::new("docker").args(&docker_args).output()?;
+
+        if !output.status.success() {
+            return Err(format!(
+                "Failed to start YugabyteDB container: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .into());
+        }
+
+        let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        context.set("yugabyte_container_id", container_id.clone());
+        println!(
+            "    {} Container started with ID: {}",
+            "✓".green(),
+            &container_id[..12]
+        );
+
+        Ok(())
+    }
 }
 
 impl Step for YugabyteStep {
@@ -124,49 +191,9 @@ impl Step for YugabyteStep {
     }
 
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        // Create yugabyte data directory in volumes
-        let yugabyte_data_dir = self.volumes_dir.join("yugabyte-data");
-        std::fs::create_dir_all(&yugabyte_data_dir)?;
-
-        // Build docker run command
-        let mut docker_args = vec!["run", "-d", "--name", CONTAINER_NAME];
-
-        // Add port mappings
-        let port_args: Vec<String> = YUGABYTE_PORTS
-            .iter()
-            .flat_map(|&(port, _)| vec!["-p".to_string(), format!("{}:{}", port, port)])
-            .collect();
-
-        for arg in &port_args {
-            docker_args.push(arg);
-        }
-
-        // Add volume mount
-        let volume_mount = format!("{}:/yugabyte/data", yugabyte_data_dir.display());
-        docker_args.extend_from_slice(&["-v", &volume_mount]);
-
-        // Add image name
-        docker_args.push(IMAGE_NAME);
-
-        println!("    Starting container '{}'...", CONTAINER_NAME);
-        let output = Command::new("docker").args(&docker_args).output()?;
-
-        if !output.status.success() {
-            return Err(format!(
-                "Failed to start YugabyteDB container: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )
-            .into());
-        }
-
-        let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        context.set("yugabyte_container_id", container_id.clone());
-        println!(
-            "    {} Container started with ID: {}",
-            "✓".green(),
-            &container_id[..12]
-        );
-
+        self.setup_data_directory()?;
+        let docker_args = self.build_docker_command()?;
+        self.start_container(docker_args, context)?;
         Ok(())
     }
 
