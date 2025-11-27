@@ -40,11 +40,17 @@ pub struct KeyInfo {
 /// If use_random is true, a random mnemonic is used instead.
 pub fn generate_keys(use_random: bool) -> Result<Vec<KeyInfo>, Box<dyn std::error::Error>> {
     let mnemonic = if use_random {
-        println!("  {} Generating random mnemonic for deterministic addresses", "🔑".cyan());
+        println!(
+            "  {} Generating random mnemonic for deterministic addresses",
+            "🔑".cyan()
+        );
         let entropy: [u8; 32] = rand::random();
         Mnemonic::from_entropy_in(Language::English, &entropy)?
     } else {
-        println!("  {} Using deterministic mnemonic for addresses", "🔑".cyan());
+        println!(
+            "  {} Using deterministic mnemonic for addresses",
+            "🔑".cyan()
+        );
         let static_mnemonic = "sudden spend mask joke vibrant situate tilt history occur rally artwork shadow gather proud urban work own quick holiday bone target zone unknown nut";
         Mnemonic::parse_in_normalized(Language::English, static_mnemonic)?
     };
@@ -89,7 +95,10 @@ pub fn generate_keys(use_random: bool) -> Result<Vec<KeyInfo>, Box<dyn std::erro
     keys.push(KeyInfo {
         name: "FEVM_FAUCET".to_string(),
         private_key: fevm_faucet.private_key,
-        filecoin_address: Some(crate::crypto::compute_t4_address(&fevm_faucet.eth_address, 10)?),
+        filecoin_address: Some(crate::crypto::compute_t4_address(
+            &fevm_faucet.eth_address,
+            10,
+        )?),
         eth_address: Some(fevm_faucet.eth_address),
         actor_id: Some(1),
     });
@@ -98,7 +107,10 @@ pub fn generate_keys(use_random: bool) -> Result<Vec<KeyInfo>, Box<dyn std::erro
     keys.push(KeyInfo {
         name: "MOCKUSDFC_DEPLOYER".to_string(),
         private_key: mock_usdfc_deployer.private_key,
-        filecoin_address: Some(crate::crypto::compute_t4_address(&mock_usdfc_deployer.eth_address, 10)?),
+        filecoin_address: Some(crate::crypto::compute_t4_address(
+            &mock_usdfc_deployer.eth_address,
+            10,
+        )?),
         eth_address: Some(mock_usdfc_deployer.eth_address),
         actor_id: Some(2),
     });
@@ -107,7 +119,10 @@ pub fn generate_keys(use_random: bool) -> Result<Vec<KeyInfo>, Box<dyn std::erro
     keys.push(KeyInfo {
         name: "FOC_DEPLOYER".to_string(),
         private_key: foc_deployer.private_key,
-        filecoin_address: Some(crate::crypto::compute_t4_address(&foc_deployer.eth_address, 10)?),
+        filecoin_address: Some(crate::crypto::compute_t4_address(
+            &foc_deployer.eth_address,
+            10,
+        )?),
         eth_address: Some(foc_deployer.eth_address),
         actor_id: Some(3),
     });
@@ -125,7 +140,10 @@ pub fn generate_keys(use_random: bool) -> Result<Vec<KeyInfo>, Box<dyn std::erro
     keys.push(KeyInfo {
         name: "USER_ADDRESS".to_string(),
         private_key: user_address.private_key,
-        filecoin_address: Some(crate::crypto::compute_t4_address(&user_address.eth_address, 10)?),
+        filecoin_address: Some(crate::crypto::compute_t4_address(
+            &user_address.eth_address,
+            10,
+        )?),
         eth_address: Some(user_address.eth_address),
         actor_id: Some(5),
     });
@@ -162,21 +180,24 @@ mod tests {
     #[test]
     fn test_generate_keys_includes_bls_keys() {
         let keys = generate_keys(false).unwrap();
-        
+
         // Check that we have the expected number of keys
         assert_eq!(keys.len(), 8); // 3 BLS + 5 Ethereum
-        
+
         // Check that BLS keys are present
-        let bls_keys: Vec<_> = keys.iter().filter(|k| k.name.starts_with("BLS_") || k.name == "GLOBAL_FIL_FAUCET").collect();
+        let bls_keys: Vec<_> = keys
+            .iter()
+            .filter(|k| k.name.starts_with("BLS_") || k.name == "GLOBAL_FIL_FAUCET")
+            .collect();
         assert_eq!(bls_keys.len(), 3);
-        
+
         // Check that BLS keys have t3 addresses
         for key in &bls_keys {
             assert!(key.filecoin_address.as_ref().unwrap().starts_with("t3"));
             assert!(key.eth_address.is_none());
             assert!(key.actor_id.is_none());
         }
-        
+
         // Check specific key names
         let key_names: Vec<_> = keys.iter().map(|k| k.name.as_str()).collect();
         assert!(key_names.contains(&"BLS_SIGNER_1"));
@@ -188,19 +209,19 @@ mod tests {
     fn test_derive_bls_key() {
         let mnemonic = Mnemonic::parse_in_normalized(Language::English, "sudden spend mask joke vibrant situate tilt history occur rally artwork shadow gather proud urban work own quick holiday bone target zone unknown nut").unwrap();
         let seed = mnemonic.to_seed("");
-        
+
         let key = crate::crypto::derive_bls_key(&seed, 0).unwrap();
-        
+
         // Check that we get a valid t3 address
         assert!(key.t3_address.starts_with("t3"));
         // t3 addresses can vary in length due to base32 encoding, but should be reasonable length
         assert!(key.t3_address.len() > 10 && key.t3_address.len() < 100);
-        
+
         // Check that private key hex string is valid (BLS private key is 32 bytes = 64 hex chars)
         assert!(hex::decode(&key.private_key).is_ok());
         let pk_bytes = hex::decode(&key.private_key).unwrap();
         assert_eq!(pk_bytes.len(), 32);
-        
+
         // Check that eth_address is empty for BLS
         assert_eq!(key.eth_address, "");
     }

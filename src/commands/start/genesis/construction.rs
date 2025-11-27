@@ -3,8 +3,8 @@
 //! This module handles creating and modifying the genesis JSON file
 //! with signers, miners, and pre-funded accounts.
 
-use crate::commands::start::genesis::keys::get_bls_addresses;
 use crate::commands::init::keys::load_keys;
+use crate::commands::start::genesis::keys::get_bls_addresses;
 use crate::paths::{
     foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_genesis,
     foc_localnet_genesis_sectors, foc_localnet_lotus_keys,
@@ -320,10 +320,14 @@ fn add_foc_accounts() -> Result<(), Box<dyn std::error::Error>> {
 
     // Add evm actors to the Actors array
     if let serde_json::Value::Object(ref mut map) = genesis {
-        let actors_value = map.entry("Actors").or_insert_with(|| serde_json::Value::Array(vec![]));
+        let actors_value = map
+            .entry("Actors")
+            .or_insert_with(|| serde_json::Value::Array(vec![]));
         if let serde_json::Value::Array(ref mut actors_array) = actors_value {
             for key in &keys {
-                if let (Some(actor_id), Some(eth_addr), Some(fil_addr)) = (key.actor_id, &key.eth_address, &key.filecoin_address) {
+                if let (Some(actor_id), Some(eth_addr), Some(fil_addr)) =
+                    (key.actor_id, &key.eth_address, &key.filecoin_address)
+                {
                     if fil_addr.starts_with("t4") {
                         let actor = serde_json::json!({
                             "ID": actor_id,
@@ -334,7 +338,13 @@ fn add_foc_accounts() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         });
                         actors_array.push(actor);
-                        println!("      {} Added {}: {} ({})", "✓".green(), key.name, fil_addr, eth_addr);
+                        println!(
+                            "      {} Added {}: {} ({})",
+                            "✓".green(),
+                            key.name,
+                            fil_addr,
+                            eth_addr
+                        );
                     }
                 }
             }

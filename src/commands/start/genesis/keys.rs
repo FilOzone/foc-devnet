@@ -15,24 +15,31 @@ use std::path::Path;
 /// - Pre-funded keys (prefunded-1, prefunded-2, ...): Additional accounts with balance
 pub fn ensure_bls_keys() -> Result<(), Box<dyn std::error::Error>> {
     use crate::commands::init::keys::load_keys;
-    
+
     let keys_dir = foc_localnet_lotus_keys();
     let all_keys = load_keys()?;
 
     // Filter BLS keys
-    let bls_keys: Vec<_> = all_keys.iter()
+    let bls_keys: Vec<_> = all_keys
+        .iter()
         .filter(|k| k.name.starts_with("BLS_"))
         .collect();
 
     if bls_keys.len() < super::constants::NUM_SIGNER_KEYS as usize {
-        return Err(format!("Not enough BLS keys found. Expected {} BLS keys from init.", super::constants::NUM_SIGNER_KEYS).into());
+        return Err(format!(
+            "Not enough BLS keys found. Expected {} BLS keys from init.",
+            super::constants::NUM_SIGNER_KEYS
+        )
+        .into());
     }
 
     // Generate signer keys (key-1, key-2)
     for i in 1..=super::constants::NUM_SIGNER_KEYS {
         let key_dir = keys_dir.join(format!("key-{}", i));
         let key_name = format!("BLS_SIGNER_{}", i);
-        let key_info = bls_keys.iter().find(|k| k.name == key_name)
+        let key_info = bls_keys
+            .iter()
+            .find(|k| k.name == key_name)
             .ok_or_else(|| format!("BLS key {} not found", key_name))?;
         ensure_bls_key_from_info(&key_dir, key_info, i, "signer")?;
     }
@@ -44,7 +51,9 @@ pub fn ensure_bls_keys() -> Result<(), Box<dyn std::error::Error>> {
             1 => "GLOBAL_FIL_FAUCET",
             n => &format!("BLS_PREFUNDED_{}", n),
         }; // First prefunded key is GLOBAL_FIL_FAUCET
-        let key_info = all_keys.iter().find(|k| k.name == key_name)
+        let key_info = all_keys
+            .iter()
+            .find(|k| k.name == key_name)
             .ok_or_else(|| format!("BLS key {} not found", key_name))?;
         ensure_bls_key_from_info(&key_dir, key_info, i, "prefunded")?;
     }
@@ -83,7 +92,9 @@ fn ensure_bls_key_from_info(
     fs::create_dir_all(key_dir)?;
 
     // Extract address from filecoin_address (remove t3 prefix)
-    let address = key_info.filecoin_address.as_ref()
+    let address = key_info
+        .filecoin_address
+        .as_ref()
         .ok_or("BLS key missing filecoin_address")?
         .strip_prefix("t3")
         .ok_or("Invalid BLS address format")?;
@@ -98,7 +109,7 @@ fn ensure_bls_key_from_info(
 
     // Create Lotus-compatible keyinfo JSON structure
     // Lotus expects: {"Type": "bls", "PrivateKey": <base64-encoded bytes>}
-    use base64::{Engine as _, engine::general_purpose};
+    use base64::{engine::general_purpose, Engine as _};
     let keyinfo_json = serde_json::json!({
         "Type": "bls",
         "PrivateKey": general_purpose::STANDARD.encode(&private_key_bytes)

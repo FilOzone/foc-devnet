@@ -66,4 +66,7 @@ pub const NUM_SIGNER_KEYS: u32 = 2;
 ///
 /// Example: Set to 3 to create 3 additional pre-funded accounts.
 pub const NUM_PREFUNDED_KEYS: u32 = 1;
-const _: () = assert!(NUM_PREFUNDED_KEYS >= 1, "NUM_PREFUNDED_KEYS must be at least 1 for GLOBAL_FIL_FAUCET");
+const _: () = assert!(
+    NUM_PREFUNDED_KEYS >= 1,
+    "NUM_PREFUNDED_KEYS must be at least 1 for GLOBAL_FIL_FAUCET"
+);

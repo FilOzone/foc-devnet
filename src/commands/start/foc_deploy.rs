@@ -4,8 +4,8 @@
 //! These contracts are required by Curio for storage provider operations.
 
 use super::step::{Step, StepContext};
-use crate::embedded_assets;
 use crate::config::{Config, Location};
+use crate::embedded_assets;
 use crate::paths::{
     contract_addresses_file, foc_localnet_bin, foc_localnet_config, foc_localnet_docker_volumes,
     foc_localnet_filecoin_services_repo, foc_localnet_lotus_keys,
@@ -194,13 +194,24 @@ impl FOCDeployStep {
     fn import_faucet_key(keyinfo_path: &PathBuf) -> Result<String, Box<dyn Error>> {
         println!("      Importing GLOBAL_FIL_FAUCET key into Lotus wallet...");
 
-        // Extract the relative path from the lotus-keys directory
-        // keyinfo_path is like: ~/.foc-localnet/artifacts/docker/volumes/lotus-keys/prefunded-1/bls-....keyinfo
-        // We need to convert it to: /keys/prefunded-1/bls-....keyinfo
+        // Read the JSON content from the keyinfo file
+        let json_content = fs::read_to_string(keyinfo_path)
+            .map_err(|e| format!("Failed to read keyinfo file: {}", e))?;
+
+        // Hex-encode the JSON content (lotus wallet import expects hex-encoded JSON)
+        let hex_encoded = hex::encode(json_content);
+
+        // Create a temporary file with the hex-encoded content in the same directory
+        // so it's accessible via the mounted volume
+        let temp_key_file = keyinfo_path.with_extension("keyinfo.hex");
+        fs::write(&temp_key_file, &hex_encoded)
+            .map_err(|e| format!("Failed to write hex key file: {}", e))?;
+
+        // Get the container path for the temp file
         let keys_dir = foc_localnet_lotus_keys();
-        let relative_path = keyinfo_path
+        let relative_path = temp_key_file
             .strip_prefix(&keys_dir)
-            .map_err(|_| "Failed to get relative path for keyinfo")?;
+            .map_err(|_| "Failed to get relative path for hex key file")?;
         let container_path = format!("/keys/{}", relative_path.display());
 
         let output = Command::new("docker")
@@ -213,6 +224,9 @@ impl FOCDeployStep {
                 &container_path,
             ])
             .output()?;
+
+        // Clean up the temp file
+        let _ = fs::remove_file(&temp_key_file);
 
         if !output.status.success() {
             return Err(format!(
@@ -363,32 +377,33 @@ impl FOCDeployStep {
 
         // The output is hex-encoded JSON
         let hex_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        
+
         // Decode from hex to get the JSON string
-        let json_bytes = hex::decode(&hex_str)
-            .map_err(|e| format!("Failed to decode hex output: {}", e))?;
-        
+        let json_bytes =
+            hex::decode(&hex_str).map_err(|e| format!("Failed to decode hex output: {}", e))?;
+
         let keyinfo_str = String::from_utf8(json_bytes)
             .map_err(|e| format!("Failed to convert bytes to string: {}", e))?;
-        
+
         // Parse the JSON to extract the private key
         let keyinfo: serde_json::Value = serde_json::from_str(&keyinfo_str)
             .map_err(|e| format!("Failed to parse keyinfo JSON: {}", e))?;
-        
+
         // The private key is in the "PrivateKey" field as a base64 string
         let private_key_b64 = keyinfo
             .get("PrivateKey")
             .and_then(|v| v.as_str())
             .ok_or("PrivateKey field not found in keyinfo")?;
-        
+
         // Decode from base64
-        use base64::{Engine as _, engine::general_purpose};
-        let private_key_bytes = general_purpose::STANDARD.decode(private_key_b64)
+        use base64::{engine::general_purpose, Engine as _};
+        let private_key_bytes = general_purpose::STANDARD
+            .decode(private_key_b64)
             .map_err(|e| format!("Failed to decode private key from base64: {}", e))?;
-        
+
         // Convert to hex string with 0x prefix
         let private_key_hex = format!("0x{}", hex::encode(&private_key_bytes));
-        
+
         Ok(private_key_hex)
     }
 
@@ -556,7 +571,7 @@ impl FOCDeployStep {
 
         // Get the private key from lotus for the deployer address
         let private_key = Self::get_private_key(foc_deployer)?;
-        
+
         // Prepare environment variables for the deployment script
         let env_vars = format!(
             r#"export ETH_RPC_URL='{}'
@@ -587,8 +602,7 @@ export ETH_KEYSTORE="$HOME/.foundry/keystores/foc-deployer"
 {}
 cd /service_contracts
 bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-deploy.log"#,
-            private_key,
-            env_vars
+            private_key, env_vars
         );
 
         println!("        This may take several minutes...");

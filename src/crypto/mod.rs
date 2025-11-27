@@ -19,7 +19,10 @@ pub struct DerivedKey {
 }
 
 /// Derive a Filecoin BLS key from seed using HD wallet derivation.
-pub fn derive_bls_key(seed: &[u8; 64], account: u32) -> Result<DerivedKey, Box<dyn std::error::Error>> {
+pub fn derive_bls_key(
+    seed: &[u8; 64],
+    account: u32,
+) -> Result<DerivedKey, Box<dyn std::error::Error>> {
     // Filecoin coin type is 461
     let path = format!("m/44'/461'/0'/0/{}", account);
     let private_key_bytes = derive_private_key_bytes(seed, &path)?;
@@ -43,7 +46,10 @@ pub fn derive_bls_key(seed: &[u8; 64], account: u32) -> Result<DerivedKey, Box<d
 }
 
 /// Derive an Ethereum key from seed using HD wallet derivation.
-pub fn derive_ethereum_key(seed: &[u8; 64], account: u32) -> Result<DerivedKey, Box<dyn std::error::Error>> {
+pub fn derive_ethereum_key(
+    seed: &[u8; 64],
+    account: u32,
+) -> Result<DerivedKey, Box<dyn std::error::Error>> {
     // Ethereum coin type is 60
     let path = format!("m/44'/60'/0'/0/{}", account);
     let private_key = derive_private_key(seed, &path)?;
@@ -58,7 +64,10 @@ pub fn derive_ethereum_key(seed: &[u8; 64], account: u32) -> Result<DerivedKey, 
 }
 
 /// Derive an ECDSA private key from seed and derivation path.
-fn derive_private_key(seed: &[u8; 64], path: &str) -> Result<SigningKey, Box<dyn std::error::Error>> {
+fn derive_private_key(
+    seed: &[u8; 64],
+    path: &str,
+) -> Result<SigningKey, Box<dyn std::error::Error>> {
     // Simple derivation: hash seed + path
     let mut hasher = Keccak256::new();
     hasher.update(seed);
@@ -69,7 +78,10 @@ fn derive_private_key(seed: &[u8; 64], path: &str) -> Result<SigningKey, Box<dyn
 }
 
 /// Derive 32 bytes of key material from seed and derivation path.
-fn derive_private_key_bytes(seed: &[u8; 64], path: &str) -> Result<[u8; 32], Box<dyn std::error::Error>> {
+fn derive_private_key_bytes(
+    seed: &[u8; 64],
+    path: &str,
+) -> Result<[u8; 32], Box<dyn std::error::Error>> {
     // Simple derivation: hash seed + path
     let mut hasher = Keccak256::new();
     hasher.update(seed);
@@ -124,7 +136,8 @@ pub fn compute_bls_address(public_key: &PublicKey) -> Result<String, Box<dyn std
 
     // Step 5: Encode to base32 (lowercase, no padding)
     // 52 bytes → ceil(52 * 8 / 5) = 84 base32 characters
-    let address = base32::encode(base32::Alphabet::RFC4648 { padding: false }, &address_bytes).to_lowercase();
+    let address =
+        base32::encode(base32::Alphabet::RFC4648 { padding: false }, &address_bytes).to_lowercase();
 
     // Step 6: Construct final address with network and protocol prefix
     // Format: "t" + "3" + base32_encoded_data
@@ -135,7 +148,9 @@ pub fn compute_bls_address(public_key: &PublicKey) -> Result<String, Box<dyn std
 }
 
 /// Compute Ethereum address from public key.
-pub fn compute_eth_address(public_key: &ethers_core::k256::ecdsa::VerifyingKey) -> Result<String, Box<dyn std::error::Error>> {
+pub fn compute_eth_address(
+    public_key: &ethers_core::k256::ecdsa::VerifyingKey,
+) -> Result<String, Box<dyn std::error::Error>> {
     let pubkey_bytes = public_key.to_encoded_point(false).as_bytes()[1..].to_vec(); // Remove 0x04
     let hash = Keccak256::new().chain_update(&pubkey_bytes).finalize();
     let address_bytes = &hash[12..32];
@@ -143,7 +158,10 @@ pub fn compute_eth_address(public_key: &ethers_core::k256::ecdsa::VerifyingKey) 
 }
 
 /// Compute Filecoin t4 address from Ethereum address and address manager ID.
-pub fn compute_t4_address(eth_address: &str, manager_id: u64) -> Result<String, Box<dyn std::error::Error>> {
+pub fn compute_t4_address(
+    eth_address: &str,
+    manager_id: u64,
+) -> Result<String, Box<dyn std::error::Error>> {
     let eth_bytes = hex::decode(&eth_address[2..])?; // Remove 0x prefix
     let leb = leb128_encode(manager_id);
     let mut binary = vec![4u8];
@@ -152,7 +170,8 @@ pub fn compute_t4_address(eth_address: &str, manager_id: u64) -> Result<String, 
     let checksum = blake2::Blake2b::<blake2::digest::consts::U4>::digest(&binary); // 32-bit checksum
     let mut sub_address = eth_bytes;
     sub_address.extend(checksum);
-    let base32 = base32::encode(base32::Alphabet::RFC4648 { padding: false }, &sub_address).to_lowercase();
+    let base32 =
+        base32::encode(base32::Alphabet::RFC4648 { padding: false }, &sub_address).to_lowercase();
     Ok(format!("t4{}f{}", manager_id, base32))
 }
 
