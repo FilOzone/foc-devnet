@@ -14,6 +14,9 @@ use crossterm::style::Stylize;
 use std::collections::HashMap;
 use std::process::Command;
 
+// Constants
+const PORT_CHECK_TIMEOUT_MS: u64 = 100;
+
 /// Check if a Docker image exists locally in the Docker daemon.
 ///
 /// This function checks if the Docker image exists in the local Docker daemon
@@ -120,24 +123,35 @@ pub fn get_container_uptime(container_name: &str) -> Result<String, Box<dyn std:
         let now = Utc::now();
         let duration = now.signed_duration_since(started_at_utc);
 
-        let days = duration.num_days();
-        let hours = duration.num_hours() % 24;
-        let minutes = duration.num_minutes() % 60;
-        let seconds = duration.num_seconds() % 60;
-
-        let uptime_str = if days > 0 {
-            format!("{}d {}h", days, hours)
-        } else if hours > 0 {
-            format!("{}h {}m", hours, minutes)
-        } else if minutes > 0 {
-            format!("{}m {}s", minutes, seconds)
-        } else {
-            format!("{}s", seconds)
-        };
-
-        Ok(uptime_str.green().to_string())
+        Ok(format_duration(duration).green().to_string())
     } else {
         Ok("Unknown".dark_grey().to_string())
+    }
+}
+
+/// Format a duration into a human-readable string.
+///
+/// # Parameters
+///
+/// * `duration` - The duration to format
+///
+/// # Returns
+///
+/// A formatted string representing the duration.
+fn format_duration(duration: chrono::Duration) -> String {
+    let days = duration.num_days();
+    let hours = duration.num_hours() % 24;
+    let minutes = duration.num_minutes() % 60;
+    let seconds = duration.num_seconds() % 60;
+
+    if days > 0 {
+        format!("{}d {}h", days, hours)
+    } else if hours > 0 {
+        format!("{}h {}m", hours, minutes)
+    } else if minutes > 0 {
+        format!("{}m {}s", minutes, seconds)
+    } else {
+        format!("{}s", seconds)
     }
 }
 
@@ -266,25 +280,35 @@ pub fn get_container_port_mappings(
 
     if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
-        // Format: "5433/tcp -> 0.0.0.0:5433" or "5433/tcp -> [::]:5433"
-        for line in stdout.lines() {
-            if let Some((container_port_str, host_part)) = line.split_once(" -> ") {
-                // Extract container port
-                if let Some(port_str) = container_port_str.split('/').next() {
-                    if let Ok(container_port) = port_str.parse::<u16>() {
-                        // Extract host port
-                        if let Some(host_port_str) = host_part.split(':').last() {
-                            if let Ok(host_port) = host_port_str.trim().parse::<u16>() {
-                                mappings.insert(container_port, host_port);
-                            }
+        parse_port_mappings(&stdout, &mut mappings);
+    }
+
+    Ok(mappings)
+}
+
+/// Parse the output of `docker port` command into a port mappings HashMap.
+///
+/// # Parameters
+///
+/// * `output` - The stdout from `docker port` command
+/// * `mappings` - The HashMap to populate with port mappings
+fn parse_port_mappings(output: &str, mappings: &mut HashMap<u16, u16>) {
+    // Format: "5433/tcp -> 0.0.0.0:5433" or "5433/tcp -> [::]:5433"
+    for line in output.lines() {
+        if let Some((container_port_str, host_part)) = line.split_once(" -> ") {
+            // Extract container port
+            if let Some(port_str) = container_port_str.split('/').next() {
+                if let Ok(container_port) = port_str.parse::<u16>() {
+                    // Extract host port
+                    if let Some(host_port_str) = host_part.split(':').last() {
+                        if let Ok(host_port) = host_port_str.trim().parse::<u16>() {
+                            mappings.insert(container_port, host_port);
                         }
                     }
                 }
             }
         }
     }
-
-    Ok(mappings)
 }
 
 /// Check if a port is accessible on the host.
@@ -319,7 +343,7 @@ pub fn is_port_accessible(host: &str, port: u16) -> bool {
     // Try to connect to the port with a short timeout
     match TcpStream::connect_timeout(
         &format!("{}:{}", host, port).parse().unwrap(),
-        Duration::from_millis(100),
+        Duration::from_millis(PORT_CHECK_TIMEOUT_MS),
     ) {
         Ok(_) => true,
         Err(_) => false,
@@ -400,21 +424,42 @@ pub fn parse_docker_running_for(running_for: &str) -> Option<DateTime<Utc>> {
 
     if running_for.contains("About a minute") {
         Some(now - chrono::Duration::minutes(1))
-    } else if running_for.contains("second") {
-        let seconds: i64 = running_for.split_whitespace().next()?.parse().ok()?;
-        Some(now - chrono::Duration::seconds(seconds))
-    } else if running_for.contains("minute") {
-        let minutes: i64 = running_for.split_whitespace().next()?.parse().ok()?;
-        Some(now - chrono::Duration::minutes(minutes))
-    } else if running_for.contains("hour") {
-        let hours: i64 = running_for.split_whitespace().next()?.parse().ok()?;
-        Some(now - chrono::Duration::hours(hours))
-    } else if running_for.contains("day") {
-        let days: i64 = running_for.split_whitespace().next()?.parse().ok()?;
-        Some(now - chrono::Duration::days(days))
-    } else if running_for.contains("week") {
-        let weeks: i64 = running_for.split_whitespace().next()?.parse().ok()?;
-        Some(now - chrono::Duration::weeks(weeks))
+    } else if let Some(duration) = parse_time_unit(running_for, "second") {
+        Some(now - duration)
+    } else if let Some(duration) = parse_time_unit(running_for, "minute") {
+        Some(now - duration)
+    } else if let Some(duration) = parse_time_unit(running_for, "hour") {
+        Some(now - duration)
+    } else if let Some(duration) = parse_time_unit(running_for, "day") {
+        Some(now - duration)
+    } else if let Some(duration) = parse_time_unit(running_for, "week") {
+        Some(now - duration)
+    } else {
+        None
+    }
+}
+
+/// Parse a time unit from a Docker running time string.
+///
+/// # Parameters
+///
+/// * `running_for` - The full string
+/// * `unit` - The time unit to look for (e.g., "second", "minute")
+///
+/// # Returns
+///
+/// An `Option<chrono::Duration>` representing the parsed duration.
+fn parse_time_unit(running_for: &str, unit: &str) -> Option<chrono::Duration> {
+    if running_for.contains(unit) {
+        let value: i64 = running_for.split_whitespace().next()?.parse().ok()?;
+        match unit {
+            "second" => Some(chrono::Duration::seconds(value)),
+            "minute" => Some(chrono::Duration::minutes(value)),
+            "hour" => Some(chrono::Duration::hours(value)),
+            "day" => Some(chrono::Duration::days(value)),
+            "week" => Some(chrono::Duration::weeks(value)),
+            _ => None,
+        }
     } else {
         None
     }
