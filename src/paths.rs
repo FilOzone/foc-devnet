@@ -27,6 +27,11 @@ pub fn poison_file() -> PathBuf {
     foc_localnet_state().join(".poison")
 }
 
+/// Returns the path to the contract addresses file, e.g., ~/.foc-localnet/state/contract_addresses.json
+pub fn contract_addresses_file() -> PathBuf {
+    foc_localnet_state().join("contract_addresses.json")
+}
+
 /// Returns the path to the foc-localnet remote pulls directory, e.g., ~/.foc-localnet/remote-pulls
 pub fn foc_localnet_code() -> PathBuf {
     foc_localnet_home().join("code")

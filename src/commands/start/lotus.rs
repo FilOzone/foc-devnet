@@ -7,7 +7,7 @@ use super::genesis::constants::GENESIS_FILE;
 use super::step::{Step, StepContext};
 use crate::paths::{
     CONTAINER_FILECOIN_PROOF_PARAMS_PATH, foc_localnet_bin, foc_localnet_genesis,
-    foc_localnet_genesis_sectors, foc_localnet_proof_parameters,
+    foc_localnet_genesis_sectors, foc_localnet_lotus_keys, foc_localnet_proof_parameters,
 };
 use crossterm::style::Stylize;
 use std::error::Error;
@@ -172,6 +172,9 @@ impl LotusStep {
   ListenAddress = "/ip4/0.0.0.0/tcp/1234/http"
   Timeout = "30s"
 
+[Chainstore]
+  EnableSplitstore = false
+
 [Fevm]
   EnableEthRPC = true
 
@@ -335,6 +338,7 @@ impl Step for LotusStep {
         let params_dir = foc_localnet_proof_parameters();
         let genesis_dir = foc_localnet_genesis();
         let sectors_dir = foc_localnet_genesis_sectors();
+        let keys_dir = foc_localnet_lotus_keys();
         let genesis_file = genesis_dir.join(GENESIS_FILE);
 
         // Build docker run command
@@ -365,6 +369,7 @@ impl Step for LotusStep {
             ),
             format!("{}:/genesis", genesis_dir.display()),
             format!("{}:/sectors", sectors_dir.display()),
+            format!("{}:/keys", keys_dir.display()),
         ];
 
         for mount in &volume_mounts {
@@ -470,7 +475,10 @@ impl Step for LotusStep {
         thread::sleep(Duration::from_secs(5));
 
         // FEVM is already configured in config.toml before container start
-        println!("    {} FEVM and ChainIndexer enabled via config.toml", "✓".green());
+        println!(
+            "    {} FEVM and ChainIndexer enabled via config.toml",
+            "✓".green()
+        );
 
         // Verify Lotus API is responsive
         println!("    Verifying Lotus API connectivity...");

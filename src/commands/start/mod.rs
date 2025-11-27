@@ -175,6 +175,17 @@ pub fn start_cluster(
             }
         }
 
+        // Delete contract addresses file to allow re-deployment
+        let contract_addresses_path = crate::paths::contract_addresses_file();
+        if contract_addresses_path.exists() {
+            std::fs::remove_file(&contract_addresses_path)?;
+            println!(
+                "  {} {}",
+                "Removed file:".red(),
+                contract_addresses_path.display()
+            );
+        }
+
         println!("{}", "Reset to block 0 complete.".green().bold());
         println!();
     }

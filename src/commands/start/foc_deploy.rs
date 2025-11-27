@@ -5,10 +5,11 @@
 
 use super::step::{Step, StepContext};
 use crate::paths::{
-    foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_filecoin_services_repo,
-    foc_localnet_lotus_keys,
+    contract_addresses_file, foc_localnet_bin, foc_localnet_docker_volumes,
+    foc_localnet_filecoin_services_repo, foc_localnet_lotus_keys,
 };
 use crossterm::style::Stylize;
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
@@ -29,6 +30,57 @@ const FOC_DEPLOYER_AMOUNT: &str = "5000"; // 5,000 FIL for contract deployment
 
 // Token configuration
 const MOCK_USDFC_INITIAL_SUPPLY: &str = "1000000000000000000000000"; // 1 million tokens (18 decimals)
+
+/// Contract addresses and deployment information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContractAddresses {
+    /// Global FIL faucet address (BLS/f3)
+    pub global_fil_faucet: String,
+    /// FEVM faucet address (f4/delegated)
+    pub fevm_faucet: String,
+    /// FOC deployer address (f4/delegated)
+    pub foc_deployer: String,
+    /// FOC deployer Ethereum address (0x)
+    pub foc_deployer_eth: String,
+    /// MockUSDFC token contract address
+    pub mock_usdfc: String,
+    /// Other deployed FOC contracts
+    pub foc_contracts: std::collections::HashMap<String, String>,
+}
+
+impl ContractAddresses {
+    /// Load contract addresses from the state file
+    pub fn load() -> Result<Self, Box<dyn Error>> {
+        let path = contract_addresses_file();
+        if !path.exists() {
+            return Err("Contract addresses file not found".into());
+        }
+        let content = fs::read_to_string(&path)?;
+        let addresses: ContractAddresses = serde_json::from_str(&content)?;
+        Ok(addresses)
+    }
+
+    /// Save contract addresses to the state file
+    pub fn save(&self) -> Result<(), Box<dyn Error>> {
+        let path = contract_addresses_file();
+        // Ensure the state directory exists
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let json = serde_json::to_string_pretty(self)?;
+        fs::write(&path, json)?;
+        Ok(())
+    }
+
+    /// Check if all required addresses are present
+    pub fn is_complete(&self) -> bool {
+        !self.global_fil_faucet.is_empty()
+            && !self.fevm_faucet.is_empty()
+            && !self.foc_deployer.is_empty()
+            && !self.foc_deployer_eth.is_empty()
+            && !self.mock_usdfc.is_empty()
+    }
+}
 
 /// Step for deploying FOC contracts
 pub struct FOCDeployStep {
@@ -115,6 +167,15 @@ impl FOCDeployStep {
     fn import_faucet_key(keyinfo_path: &PathBuf) -> Result<String, Box<dyn Error>> {
         println!("      Importing GLOBAL_FIL_FAUCET key into Lotus wallet...");
 
+        // Extract the relative path from the lotus-keys directory
+        // keyinfo_path is like: ~/.foc-localnet/artifacts/docker/volumes/lotus-keys/prefunded-1/bls-....keyinfo
+        // We need to convert it to: /keys/prefunded-1/bls-....keyinfo
+        let keys_dir = foc_localnet_lotus_keys();
+        let relative_path = keyinfo_path
+            .strip_prefix(&keys_dir)
+            .map_err(|_| "Failed to get relative path for keyinfo")?;
+        let container_path = format!("/keys/{}", relative_path.display());
+
         let output = Command::new("docker")
             .args([
                 "exec",
@@ -122,10 +183,7 @@ impl FOCDeployStep {
                 "/usr/local/bin/lotus-bins/lotus",
                 "wallet",
                 "import",
-                &format!(
-                    "/keys/{}",
-                    keyinfo_path.file_name().unwrap().to_str().unwrap()
-                ),
+                &container_path,
             ])
             .output()?;
 
@@ -214,8 +272,10 @@ impl FOCDeployStep {
 
         println!("      {} Transfer successful", "✓".green());
 
-        // Wait for transaction to be included in a block
-        thread::sleep(Duration::from_secs(5));
+        // Wait for transaction to be included in a block and address to be activated
+        // F4 addresses need time to be activated on-chain
+        println!("      Waiting for transaction confirmation and address activation...");
+        thread::sleep(Duration::from_secs(15));
 
         Ok(())
     }
@@ -310,10 +370,9 @@ impl FOCDeployStep {
         let contracts_dir = std::env::current_dir()?.join("contracts");
 
         // Build forge command to deploy MockUSDFC
-        // We'll use --unlocked and --from to use the already-funded deployer address
+        // Use the full path to the contract file with --contracts flag
         let forge_cmd = format!(
-            r#"cd /contracts && \
-               forge create MockUSDFC \
+            r#"forge create /contracts/MockUSDFC.sol:MockUSDFC \
                --rpc-url {} \
                --from {} \
                --unlocked \
@@ -348,17 +407,24 @@ impl FOCDeployStep {
             let stderr = String::from_utf8_lossy(&output.stderr);
             println!("        {} Forge deployment failed", "✗".red());
             println!("        Error: {}", stderr);
-            println!("        {} Using deployer address as placeholder", "⚠".yellow());
+            println!(
+                "        {} Using deployer address as placeholder",
+                "⚠".yellow()
+            );
             return Ok(deployer_eth_addr.to_string());
         }
 
         // Parse the JSON output to get the deployed address
         let output_str = String::from_utf8_lossy(&output.stdout);
-        
+
         // Try to parse as JSON
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&output_str) {
             if let Some(deployed_to) = json.get("deployedTo").and_then(|v| v.as_str()) {
-                println!("        {} MockUSDFC deployed to: {}", "✓".green(), deployed_to);
+                println!(
+                    "        {} MockUSDFC deployed to: {}",
+                    "✓".green(),
+                    deployed_to
+                );
                 return Ok(deployed_to.to_string());
             }
         }
@@ -373,7 +439,10 @@ impl FOCDeployStep {
             }
         }
 
-        println!("        {} Could not parse deployment address", "⚠".yellow());
+        println!(
+            "        {} Could not parse deployment address",
+            "⚠".yellow()
+        );
         println!("        Using deployer address as placeholder");
         Ok(deployer_eth_addr.to_string())
     }
@@ -389,17 +458,19 @@ impl FOCDeployStep {
         println!("      Running deploy-all-warm-storage.sh...");
 
         let services_repo = foc_localnet_filecoin_services_repo();
+        // Resolve symlinks to get the real path for Docker mounting
+        let services_repo = services_repo
+            .canonicalize()
+            .unwrap_or_else(|_| services_repo.clone());
         let contracts_dir = services_repo.join("service_contracts");
         let deploy_script = contracts_dir
             .join("tools")
             .join("deploy-all-warm-storage.sh");
 
         if !deploy_script.exists() {
-            return Err(format!(
-                "Deployment script not found at {}",
-                deploy_script.display()
-            )
-            .into());
+            return Err(
+                format!("Deployment script not found at {}", deploy_script.display()).into(),
+            );
         }
 
         let bin_dir = foc_localnet_bin();
@@ -415,11 +486,7 @@ export DRY_RUN=false
 export CHAIN=31415926  # Local network chain ID
 export DEPLOYER_ADDRESS='{}'
 export AUTO_VERIFY=false"#,
-            lotus_rpc_url,
-            mock_usdfc_address,
-            SERVICE_NAME,
-            SERVICE_DESCRIPTION,
-            deployer_eth_addr
+            lotus_rpc_url, mock_usdfc_address, SERVICE_NAME, SERVICE_DESCRIPTION, deployer_eth_addr
         );
 
         // Run the deployment script
@@ -502,37 +569,24 @@ export AUTO_VERIFY=false"#,
         }
 
         if addresses.is_empty() {
-            println!("        {} No contract addresses found in output", "⚠".yellow());
+            println!(
+                "        {} No contract addresses found in output",
+                "⚠".yellow()
+            );
             println!("        Deployment may have failed or output format changed");
         } else {
-            println!("        {} Successfully deployed {} contracts", "✓".green(), addresses.len());
+            println!(
+                "        {} Successfully deployed {} contracts",
+                "✓".green(),
+                addresses.len()
+            );
         }
 
         Ok(addresses)
     }
+}
 
-    /// Save contract addresses to a JSON file for later use
-    fn save_contract_addresses(
-        addresses: &std::collections::HashMap<String, String>,
-        mock_usdfc_address: &str,
-        volumes_dir: &PathBuf,
-    ) -> Result<(), Box<dyn Error>> {
-        let mut all_addresses = addresses.clone();
-        all_addresses.insert("MockUSDFC".to_string(), mock_usdfc_address.to_string());
-
-        let addresses_file = volumes_dir.join("foc-contract-addresses.json");
-        let json = serde_json::to_string_pretty(&all_addresses)?;
-        fs::write(&addresses_file, json)?;
-
-        println!(
-            "      {} Contract addresses saved to {}",
-            "✓".green(),
-            addresses_file.display()
-        );
-
-        Ok(())
-    }
-}impl Step for FOCDeployStep {
+impl Step for FOCDeployStep {
     fn name(&self) -> &str {
         "Deploy FOC Contracts"
     }
@@ -579,6 +633,46 @@ export AUTO_VERIFY=false"#,
     }
 
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        // Check if contracts are already deployed
+        if let Ok(existing_addresses) = ContractAddresses::load() {
+            if existing_addresses.is_complete() {
+                println!(
+                    "    {} Contracts already deployed, skipping deployment...",
+                    "✓".green()
+                );
+                println!(
+                    "      GLOBAL_FIL_FAUCET: {}",
+                    existing_addresses.global_fil_faucet
+                );
+                println!("      FEVM_FAUCET: {}", existing_addresses.fevm_faucet);
+                println!("      FOC_DEPLOYER: {}", existing_addresses.foc_deployer);
+                println!(
+                    "      FOC_DEPLOYER (ETH): {}",
+                    existing_addresses.foc_deployer_eth
+                );
+                println!("      MockUSDFC Token: {}", existing_addresses.mock_usdfc);
+
+                // Store in context for other steps
+                context.set(
+                    "global_faucet_address",
+                    &existing_addresses.global_fil_faucet,
+                );
+                context.set("fevm_faucet_address", &existing_addresses.fevm_faucet);
+                context.set("foc_deployer_address", &existing_addresses.foc_deployer);
+                context.set(
+                    "foc_deployer_eth_address",
+                    &existing_addresses.foc_deployer_eth,
+                );
+                context.set("mock_usdfc_address", &existing_addresses.mock_usdfc);
+
+                for (name, addr) in &existing_addresses.foc_contracts {
+                    context.set(&format!("foc_contract_{}", name.replace(' ', "_")), addr);
+                }
+
+                return Ok(());
+            }
+        }
+
         println!("    Setting up FOC deployment prerequisites...");
 
         // Step 1: Import GLOBAL_FIL_FAUCET key
@@ -660,25 +754,35 @@ export AUTO_VERIFY=false"#,
         println!("\n    Deploying FOC contracts...");
         println!("      (This may take several minutes)");
 
-        let contract_addresses = Self::deploy_foc_contracts(
-            &deployer_eth_addr,
-            &mock_usdfc_address,
-            lotus_rpc_url,
-        )?;
+        let contract_addresses =
+            Self::deploy_foc_contracts(&deployer_eth_addr, &mock_usdfc_address, lotus_rpc_url)?;
 
         // Store contract addresses in context
         for (name, addr) in &contract_addresses {
             context.set(&format!("foc_contract_{}", name.replace(' ', "_")), addr);
         }
 
-        // Save contract addresses to a file
-        Self::save_contract_addresses(
-            &contract_addresses,
-            &mock_usdfc_address,
-            &self.volumes_dir,
-        )?;
+        // Save all addresses to the state file
+        let addresses_struct = ContractAddresses {
+            global_fil_faucet: global_faucet.clone(),
+            fevm_faucet: fevm_faucet.clone(),
+            foc_deployer: foc_deployer.clone(),
+            foc_deployer_eth: deployer_eth_addr.clone(),
+            mock_usdfc: mock_usdfc_address.clone(),
+            foc_contracts: contract_addresses.clone(),
+        };
 
-        println!("\n    {} FOC contracts deployed successfully!", "✓".green().bold());
+        addresses_struct.save()?;
+        println!(
+            "      {} Contract addresses saved to {}",
+            "✓".green(),
+            contract_addresses_file().display()
+        );
+
+        println!(
+            "\n    {} FOC contracts deployed successfully!",
+            "✓".green().bold()
+        );
         println!("      Deployed {} contracts", contract_addresses.len());
 
         Ok(())
@@ -696,7 +800,11 @@ export AUTO_VERIFY=false"#,
         }
 
         if contract_count > 0 {
-            println!("      {} {} contracts verified in context", "✓".green(), contract_count);
+            println!(
+                "      {} {} contracts verified in context",
+                "✓".green(),
+                contract_count
+            );
         } else {
             println!("      {} No contracts found in context", "⚠".yellow());
         }
