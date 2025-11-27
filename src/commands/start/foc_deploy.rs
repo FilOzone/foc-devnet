@@ -587,6 +587,86 @@ export AUTO_VERIFY=false"#,
 
         Ok(addresses)
     }
+
+    /// Setup deployment prerequisites including addresses and token deployment
+    fn setup_deployment_prerequisites(&self, context: &mut StepContext) -> Result<(String, String, String, String, String), Box<dyn Error>> {
+        // Step 1: Import GLOBAL_FIL_FAUCET key
+        let keys_dir = foc_localnet_lotus_keys();
+        let faucet_key_dir = keys_dir.join(GLOBAL_FIL_FAUCET_KEY);
+        let keyinfo_files: Vec<_> = fs::read_dir(&faucet_key_dir)?
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                e.file_name()
+                    .to_str()
+                    .map(|s| s.starts_with("bls-") && s.ends_with(".keyinfo"))
+                    .unwrap_or(false)
+            })
+            .collect();
+
+        let keyinfo_path = keyinfo_files[0].path();
+        let global_faucet = Self::import_faucet_key(&keyinfo_path)?;
+        context.set("global_faucet_address", &global_faucet);
+
+        // Step 2: Create FEVM_FAUCET address
+        let fevm_faucet = Self::create_fevm_address("FEVM_FAUCET")?;
+        context.set("fevm_faucet_address", &fevm_faucet);
+
+        // Step 3: Transfer FIL from GLOBAL_FIL_FAUCET to FEVM_FAUCET
+        Self::transfer_fil(
+            &global_faucet,
+            &fevm_faucet,
+            FEVM_FAUCET_AMOUNT,
+            "GLOBAL_FIL_FAUCET → FEVM_FAUCET",
+        )?;
+
+        // Step 4: Create FOC_DEPLOYER address
+        let foc_deployer = Self::create_fevm_address("FOC_DEPLOYER")?;
+        context.set("foc_deployer_address", &foc_deployer);
+
+        // Step 5: Transfer FIL from FEVM_FAUCET to FOC_DEPLOYER
+        Self::transfer_fil(
+            &fevm_faucet,
+            &foc_deployer,
+            FOC_DEPLOYER_AMOUNT,
+            "FEVM_FAUCET → FOC_DEPLOYER",
+        )?;
+
+        // Step 6: Get Ethereum address for FOC_DEPLOYER
+        let deployer_eth_addr = Self::get_eth_address(&foc_deployer)?;
+        println!(
+            "      {} FOC_DEPLOYER Ethereum address: {}",
+            "✓".green(),
+            deployer_eth_addr
+        );
+        context.set("foc_deployer_eth_address", &deployer_eth_addr);
+
+        // Step 7: Export private key for FOC_DEPLOYER
+        let deployer_key_file = self.volumes_dir.join("foc-deployer.key");
+        Self::export_private_key(&foc_deployer, &deployer_key_file)?;
+
+        // Step 8: Deploy MockUSDFC token for local testing
+        println!("\n    Deploying MockUSDFC token for FOC contracts...");
+        let lotus_rpc_url = format!("http://localhost:{}/rpc/v1", LOTUS_RPC_PORT);
+        let mock_usdfc_address = Self::deploy_mock_usdfc(&deployer_eth_addr, &lotus_rpc_url)?;
+        context.set("mock_usdfc_address", &mock_usdfc_address);
+        println!(
+            "      {} MockUSDFC token address: {}",
+            "✓".green(),
+            mock_usdfc_address
+        );
+
+        println!(
+            "\n    {} FOC deployment prerequisites ready!",
+            "✓".green().bold()
+        );
+        println!("      GLOBAL_FIL_FAUCET: {}", global_faucet);
+        println!("      FEVM_FAUCET: {}", fevm_faucet);
+        println!("      FOC_DEPLOYER: {}", foc_deployer);
+        println!("      FOC_DEPLOYER (ETH): {}", deployer_eth_addr);
+        println!("      MockUSDFC Token: {}", mock_usdfc_address);
+
+        Ok((global_faucet, fevm_faucet, foc_deployer, deployer_eth_addr, mock_usdfc_address))
+    }
 }
 
 impl Step for FOCDeployStep {
@@ -680,80 +760,9 @@ impl Step for FOCDeployStep {
 
         println!("    Setting up FOC deployment prerequisites...");
 
-        // Step 1: Import GLOBAL_FIL_FAUCET key
-        let keys_dir = foc_localnet_lotus_keys();
-        let faucet_key_dir = keys_dir.join(GLOBAL_FIL_FAUCET_KEY);
-        let keyinfo_files: Vec<_> = fs::read_dir(&faucet_key_dir)?
-            .filter_map(|e| e.ok())
-            .filter(|e| {
-                e.file_name()
-                    .to_str()
-                    .map(|s| s.starts_with("bls-") && s.ends_with(".keyinfo"))
-                    .unwrap_or(false)
-            })
-            .collect();
+        let (global_faucet, fevm_faucet, foc_deployer, deployer_eth_addr, mock_usdfc_address) = self.setup_deployment_prerequisites(context)?;
 
-        let keyinfo_path = keyinfo_files[0].path();
-        let global_faucet = Self::import_faucet_key(&keyinfo_path)?;
-        context.set("global_faucet_address", &global_faucet);
-
-        // Step 2: Create FEVM_FAUCET address
-        let fevm_faucet = Self::create_fevm_address("FEVM_FAUCET")?;
-        context.set("fevm_faucet_address", &fevm_faucet);
-
-        // Step 3: Transfer FIL from GLOBAL_FIL_FAUCET to FEVM_FAUCET
-        Self::transfer_fil(
-            &global_faucet,
-            &fevm_faucet,
-            FEVM_FAUCET_AMOUNT,
-            "GLOBAL_FIL_FAUCET → FEVM_FAUCET",
-        )?;
-
-        // Step 4: Create FOC_DEPLOYER address
-        let foc_deployer = Self::create_fevm_address("FOC_DEPLOYER")?;
-        context.set("foc_deployer_address", &foc_deployer);
-
-        // Step 5: Transfer FIL from FEVM_FAUCET to FOC_DEPLOYER
-        Self::transfer_fil(
-            &fevm_faucet,
-            &foc_deployer,
-            FOC_DEPLOYER_AMOUNT,
-            "FEVM_FAUCET → FOC_DEPLOYER",
-        )?;
-
-        // Step 6: Get Ethereum address for FOC_DEPLOYER
-        let deployer_eth_addr = Self::get_eth_address(&foc_deployer)?;
-        println!(
-            "      {} FOC_DEPLOYER Ethereum address: {}",
-            "✓".green(),
-            deployer_eth_addr
-        );
-        context.set("foc_deployer_eth_address", &deployer_eth_addr);
-
-        // Step 7: Export private key for FOC_DEPLOYER
-        let deployer_key_file = self.volumes_dir.join("foc-deployer.key");
-        Self::export_private_key(&foc_deployer, &deployer_key_file)?;
-
-        // Step 8: Deploy MockUSDFC token for local testing
-        println!("\n    Deploying MockUSDFC token for FOC contracts...");
         let lotus_rpc_url = format!("http://localhost:{}/rpc/v1", LOTUS_RPC_PORT);
-        let mock_usdfc_address = Self::deploy_mock_usdfc(&deployer_eth_addr, &lotus_rpc_url)?;
-        context.set("mock_usdfc_address", &mock_usdfc_address);
-        println!(
-            "      {} MockUSDFC token address: {}",
-            "✓".green(),
-            mock_usdfc_address
-        );
-
-        println!(
-            "\n    {} FOC deployment prerequisites ready!",
-            "✓".green().bold()
-        );
-        println!("      GLOBAL_FIL_FAUCET: {}", global_faucet);
-        println!("      FEVM_FAUCET: {}", fevm_faucet);
-        println!("      FOC_DEPLOYER: {}", foc_deployer);
-        println!("      FOC_DEPLOYER (ETH): {}", deployer_eth_addr);
-        println!("      MockUSDFC Token: {}", mock_usdfc_address);
 
         // Step 9: Deploy FOC contracts using deployment script
         println!("\n    Deploying FOC contracts...");
