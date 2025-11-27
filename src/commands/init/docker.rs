@@ -66,7 +66,6 @@ pub fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>>
     Ok(())
 }
 
-
 /// Build a Docker image from embedded Dockerfile.
 ///
 /// # Arguments
@@ -134,7 +133,7 @@ fn perform_docker_build_from_embedded(
     // Create a temporary Dockerfile
     let temp_dockerfile_path = std::env::temp_dir().join(format!("Dockerfile.{}", name));
     fs::write(&temp_dockerfile_path, dockerfile_content)?;
-    
+
     let status = Command::new("docker")
         .args([
             "build",
@@ -204,7 +203,7 @@ fn perform_yugabyte_docker_build_from_embedded(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let dockerfile_content = embedded_assets::get_dockerfile(name)
         .ok_or_else(|| format!("Embedded Dockerfile not found for: {}", name))?;
-    
+
     let artifacts_dir = foc_localnet_artifacts();
 
     // Check if yugabyte directory exists in artifacts
@@ -309,7 +308,7 @@ fn create_volumes_for_image_from_embedded(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let content_bytes = embedded_assets::get_volumes_map(image_name)
         .ok_or_else(|| format!("Embedded volumes map not found for: {}", image_name))?;
-    
+
     let content = std::str::from_utf8(content_bytes)
         .map_err(|e| format!("Invalid UTF-8 in volumes map for {}: {}", image_name, e))?;
 
@@ -318,8 +317,12 @@ fn create_volumes_for_image_from_embedded(
         volumes: HashMap<String, String>,
     }
 
-    let volume_config: VolumesMap = toml::from_str(content)
-        .map_err(|e| format!("Failed to parse embedded volumes map for {}: {}", image_name, e))?;
+    let volume_config: VolumesMap = toml::from_str(content).map_err(|e| {
+        format!(
+            "Failed to parse embedded volumes map for {}: {}",
+            image_name, e
+        )
+    })?;
 
     let docker_image_tag = format!("foc-{}", image_name);
 

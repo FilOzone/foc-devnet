@@ -13,7 +13,8 @@ pub static DOCKERFILE_YUGABYTE: &[u8] = include_bytes!("../docker/Dockerfile.yug
 // Volumes maps
 pub static BUILDER_VOLUMES_MAP: &[u8] = include_bytes!("../docker/builder.volumes_map.toml");
 pub static CURIO_VOLUMES_MAP: &[u8] = include_bytes!("../docker/curio.volumes_map.toml");
-pub static LOTUS_MINER_VOLUMES_MAP: &[u8] = include_bytes!("../docker/lotus-miner.volumes_map.toml");
+pub static LOTUS_MINER_VOLUMES_MAP: &[u8] =
+    include_bytes!("../docker/lotus-miner.volumes_map.toml");
 pub static LOTUS_VOLUMES_MAP: &[u8] = include_bytes!("../docker/lotus.volumes_map.toml");
 pub static YUGABYTE_VOLUMES_MAP: &[u8] = include_bytes!("../docker/yugabyte.volumes_map.toml");
 

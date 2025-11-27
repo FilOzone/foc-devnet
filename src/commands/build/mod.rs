@@ -157,7 +157,7 @@ fn load_volume_map(
 ) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
     let content_bytes = embedded_assets::get_volumes_map(image_name)
         .ok_or_else(|| format!("Embedded volumes map not found for: {}", image_name))?;
-    
+
     let content = std::str::from_utf8(content_bytes)
         .map_err(|e| format!("Invalid UTF-8 in volumes map for {}: {}", image_name, e))?;
 
@@ -166,8 +166,12 @@ fn load_volume_map(
         volumes: HashMap<String, String>,
     }
 
-    let volume_config: VolumesMap = toml::from_str(content)
-        .map_err(|e| format!("Failed to parse embedded volumes map for {}: {}", image_name, e))?;
+    let volume_config: VolumesMap = toml::from_str(content).map_err(|e| {
+        format!(
+            "Failed to parse embedded volumes map for {}: {}",
+            image_name, e
+        )
+    })?;
 
     Ok(volume_config.volumes)
 }

@@ -84,6 +84,17 @@ pub enum Commands {
     },
     /// Show status of the foc-localnet system
     Status,
+    /// Generate shell completion scripts
+    Completions {
+        /// Shell to generate completions for (bash, zsh, fish, powershell, elvish)
+        /// If not provided, will attempt to detect from $SHELL environment variable
+        shell: Option<String>,
+        /// Install the completion script to the appropriate location for the shell
+        #[arg(long)]
+        install: bool,
+    },
+    /// Show version information
+    Version,
 }
 
 /// Build subcommands
