@@ -9,10 +9,10 @@ use crate::paths::{
     CONTAINER_FILECOIN_PROOF_PARAMS_PATH, foc_localnet_bin, foc_localnet_genesis,
     foc_localnet_genesis_sectors, foc_localnet_lotus_keys, foc_localnet_proof_parameters,
 };
+use crate::utils::{container_exists, container_is_running, image_exists, is_port_available, stop_and_remove_container, wait_for_port};
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::fs;
-use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::Command;
 use std::thread;
@@ -47,86 +47,6 @@ impl LotusStep {
         Self {
             volumes_dir,
             logs_dir,
-        }
-    }
-
-    /// Check if a port is available (not in use)
-    fn is_port_available(port: u16) -> bool {
-        TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok()
-    }
-
-    /// Check if a Docker image exists
-    fn image_exists(image_name: &str) -> bool {
-        Command::new("docker")
-            .args(["image", "inspect", image_name])
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false)
-    }
-
-    /// Check if a container with the given name exists
-    fn container_exists(name: &str) -> Result<bool, Box<dyn Error>> {
-        let output = Command::new("docker")
-            .args([
-                "ps",
-                "-a",
-                "--filter",
-                &format!("name=^{}$", name),
-                "--format",
-                "{{.Names}}",
-            ])
-            .output()?;
-
-        Ok(String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .contains(name))
-    }
-
-    /// Check if a container is running
-    fn container_is_running(name: &str) -> Result<bool, Box<dyn Error>> {
-        let output = Command::new("docker")
-            .args([
-                "ps",
-                "--filter",
-                &format!("name=^{}$", name),
-                "--format",
-                "{{.Names}}",
-            ])
-            .output()?;
-
-        Ok(String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .contains(name))
-    }
-
-    /// Stop and remove a container if it exists
-    fn stop_and_remove_container(name: &str) -> Result<(), Box<dyn Error>> {
-        if Self::container_is_running(name)? {
-            println!("    Stopping existing container '{}'...", name);
-            Command::new("docker").args(["stop", name]).output()?;
-        }
-
-        if Self::container_exists(name)? {
-            println!("    Removing existing container '{}'...", name);
-            Command::new("docker").args(["rm", name]).output()?;
-        }
-
-        Ok(())
-    }
-
-    /// Wait for a port to be accepting connections
-    fn wait_for_port(port: u16, timeout_secs: u64) -> Result<(), Box<dyn Error>> {
-        let start = std::time::Instant::now();
-        loop {
-            if std::net::TcpStream::connect(format!("127.0.0.1:{}", port)).is_ok() {
-                return Ok(());
-            }
-
-            if start.elapsed().as_secs() > timeout_secs {
-                return Err(format!("Timeout waiting for port {} to be ready", port).into());
-            }
-
-            thread::sleep(Duration::from_millis(PORT_CHECK_INTERVAL_MS));
         }
     }
 
@@ -201,21 +121,21 @@ impl LotusStep {
     /// Check and handle any existing Lotus container
     fn check_existing_container() -> Result<(), Box<dyn Error>> {
         // Check if any existing lotus container is running
-        if Self::container_exists(CONTAINER_NAME)? {
-            if Self::container_is_running(CONTAINER_NAME)? {
+        if container_exists(CONTAINER_NAME)? {
+            if container_is_running(CONTAINER_NAME)? {
                 println!(
                     "    {} Container '{}' is already running",
                     "⚠".yellow(),
                     CONTAINER_NAME
                 );
-                Self::stop_and_remove_container(CONTAINER_NAME)?;
+                stop_and_remove_container(CONTAINER_NAME)?;
             } else {
                 println!(
                     "    {} Container '{}' exists but is not running",
                     "⚠".yellow(),
                     CONTAINER_NAME
                 );
-                Self::stop_and_remove_container(CONTAINER_NAME)?;
+                stop_and_remove_container(CONTAINER_NAME)?;
             }
         }
         Ok(())
@@ -226,7 +146,7 @@ impl LotusStep {
         // Check if all required ports are available
         let mut unavailable_ports = Vec::new();
         for &(port, description) in LOTUS_PORTS {
-            if !Self::is_port_available(port) {
+            if !is_port_available(port) {
                 unavailable_ports.push((port, description));
             }
         }
@@ -247,7 +167,7 @@ impl LotusStep {
     /// Check that required Docker image and Lotus binary exist
     fn check_image_and_binary() -> Result<(), Box<dyn Error>> {
         // Verify Docker image exists
-        if !Self::image_exists(IMAGE_NAME) {
+        if !image_exists(IMAGE_NAME) {
             return Err(format!(
                 "Docker image '{}' not found. Please run 'foc-localnet init' to build the image.",
                 IMAGE_NAME
@@ -424,7 +344,7 @@ impl LotusStep {
         thread::sleep(Duration::from_secs(CONTAINER_INIT_WAIT_SECS));
 
         // Verify container is running
-        if !Self::container_is_running(CONTAINER_NAME)? {
+        if !container_is_running(CONTAINER_NAME)? {
             // Check logs for errors
             let logs_output = Command::new("docker")
                 .args(["logs", "--tail", LOG_TAIL_LINES, CONTAINER_NAME])
@@ -446,7 +366,7 @@ impl LotusStep {
         println!("    Verifying port accessibility...");
         for &(port, description) in LOTUS_PORTS {
             print!("      Checking port {} ({})... ", port, description);
-            match Self::wait_for_port(port, PORT_CHECK_TIMEOUT_SECS) {
+            match wait_for_port(port, PORT_CHECK_TIMEOUT_SECS) {
                 Ok(_) => println!("{}", "✓".green()),
                 Err(e) => {
                     println!("{}", "✗".red());

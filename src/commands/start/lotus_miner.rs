@@ -8,10 +8,10 @@ use crate::paths::{
     CONTAINER_FILECOIN_PROOF_PARAMS_PATH, foc_localnet_bin, foc_localnet_docker_volumes,
     foc_localnet_genesis_sectors, foc_localnet_proof_parameters,
 };
+use crate::utils::{container_exists, container_is_running, image_exists, is_port_available, stop_and_remove_container, wait_for_port};
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::fs;
-use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::Command;
 use std::thread;
@@ -24,7 +24,6 @@ const IMAGE_NAME: &str = "foc-lotus-miner";
 const LOTUS_MINER_PORTS: &[(u16, &str)] = &[(2345, "Lotus-Miner API")];
 
 // Timing constants
-const PORT_CHECK_INTERVAL_MS: u64 = 500;
 const LOTUS_API_WAIT_SLEEP_SECS: u64 = 2;
 const CONTAINER_INIT_WAIT_SECS: u64 = 15;
 const MINER_API_CHECK_DELAY_SECS: u64 = 5;
@@ -48,86 +47,6 @@ impl LotusMinerStep {
         }
     }
 
-    /// Check if a port is available (not in use)
-    fn is_port_available(port: u16) -> bool {
-        TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok()
-    }
-
-    /// Check if a Docker image exists
-    fn image_exists(image_name: &str) -> bool {
-        Command::new("docker")
-            .args(["image", "inspect", image_name])
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false)
-    }
-
-    /// Check if a container with the given name exists
-    fn container_exists(name: &str) -> Result<bool, Box<dyn Error>> {
-        let output = Command::new("docker")
-            .args([
-                "ps",
-                "-a",
-                "--filter",
-                &format!("name=^{}$", name),
-                "--format",
-                "{{.Names}}",
-            ])
-            .output()?;
-
-        Ok(String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .contains(name))
-    }
-
-    /// Check if a container is running
-    fn container_is_running(name: &str) -> Result<bool, Box<dyn Error>> {
-        let output = Command::new("docker")
-            .args([
-                "ps",
-                "--filter",
-                &format!("name=^{}$", name),
-                "--format",
-                "{{.Names}}",
-            ])
-            .output()?;
-
-        Ok(String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .contains(name))
-    }
-
-    /// Stop and remove a container if it exists
-    fn stop_and_remove_container(name: &str) -> Result<(), Box<dyn Error>> {
-        if Self::container_is_running(name)? {
-            println!("    Stopping existing container '{}'...", name);
-            Command::new("docker").args(["stop", name]).output()?;
-        }
-
-        if Self::container_exists(name)? {
-            println!("    Removing existing container '{}'...", name);
-            Command::new("docker").args(["rm", name]).output()?;
-        }
-
-        Ok(())
-    }
-
-    /// Wait for a port to be accepting connections
-    fn wait_for_port(port: u16, timeout_secs: u64) -> Result<(), Box<dyn Error>> {
-        let start = std::time::Instant::now();
-        loop {
-            if std::net::TcpStream::connect(format!("127.0.0.1:{}", port)).is_ok() {
-                return Ok(());
-            }
-
-            if start.elapsed().as_secs() > timeout_secs {
-                return Err(format!("Timeout waiting for port {} to be ready", port).into());
-            }
-
-            thread::sleep(Duration::from_millis(PORT_CHECK_INTERVAL_MS));
-        }
-    }
-
     /// Check if lotus-miner is responsive
     fn check_miner_api() -> Result<(), Box<dyn Error>> {
         // Try to execute a simple lotus-miner command via docker exec
@@ -148,13 +67,6 @@ impl LotusMinerStep {
             .into());
         }
 
-        Ok(())
-    }
-
-    /// Check if lotus daemon is reachable from this container
-    fn verify_lotus_connection() -> Result<(), Box<dyn Error>> {
-        // We need to ensure the lotus daemon is accessible
-        // In a Docker network context, we'll use the host network
         Ok(())
     }
 }
@@ -297,13 +209,13 @@ impl Step for LotusMinerStep {
     }
 
     /// Perform post-execution verification for Lotus-Miner startup
-    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn post_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         // Wait for container to initialize
         println!("    Waiting for Lotus-Miner to initialize (this may take a while)...");
         thread::sleep(Duration::from_secs(CONTAINER_INIT_WAIT_SECS));
 
         // Verify container is running
-        if !Self::container_is_running(CONTAINER_NAME)? {
+        if !container_is_running(CONTAINER_NAME)? {
             // Check logs for errors
             let logs_output = Command::new("docker")
                 .args(["logs", "--tail", "50", CONTAINER_NAME])
@@ -321,7 +233,7 @@ impl Step for LotusMinerStep {
         println!("    Verifying port accessibility...");
         for &(port, description) in LOTUS_MINER_PORTS {
             print!("      Checking port {} ({})... ", port, description);
-            match Self::wait_for_port(port, PORT_WAIT_TIMEOUT_SECS) {
+            match wait_for_port(port, PORT_WAIT_TIMEOUT_SECS) {
                 Ok(_) => println!("{}", "✓".green()),
                 Err(e) => {
                     println!("{}", "⚠".yellow());

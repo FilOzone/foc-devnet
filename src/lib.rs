@@ -9,3 +9,4 @@ pub mod commands;
 pub mod config;
 pub mod paths;
 pub mod poison;
+pub mod utils;
