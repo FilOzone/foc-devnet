@@ -23,6 +23,15 @@ const IMAGE_NAME: &str = "foc-lotus-miner";
 // Lotus-Miner ports
 const LOTUS_MINER_PORTS: &[(u16, &str)] = &[(2345, "Lotus-Miner API")];
 
+// Timing constants
+const PORT_CHECK_INTERVAL_MS: u64 = 500;
+const LOTUS_API_WAIT_SLEEP_SECS: u64 = 2;
+const CONTAINER_INIT_WAIT_SECS: u64 = 15;
+const MINER_API_CHECK_DELAY_SECS: u64 = 5;
+const TIPSET_CHECK_DELAY_SECS: u64 = 10;
+const PORT_WAIT_TIMEOUT_SECS: u64 = 45;
+const CONTAINER_ID_DISPLAY_LENGTH: usize = 12;
+
 /// Step for starting the Lotus-Miner node
 pub struct LotusMinerStep {
     volumes_dir: PathBuf,
@@ -115,7 +124,7 @@ impl LotusMinerStep {
                 return Err(format!("Timeout waiting for port {} to be ready", port).into());
             }
 
-            thread::sleep(Duration::from_millis(500));
+            thread::sleep(Duration::from_millis(PORT_CHECK_INTERVAL_MS));
         }
     }
 
@@ -151,89 +160,12 @@ impl LotusMinerStep {
 }
 
 impl Step for LotusMinerStep {
+    /// Get the name of this step
     fn name(&self) -> &str {
         "Start Lotus-Miner"
     }
 
-    fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        // Check if lotus daemon is running (dependency)
-        if context.get("lotus_container_id").is_none() {
-            return Err("Lotus daemon must be started before starting Lotus-Miner".into());
-        }
 
-        // Check if any existing lotus-miner container is running
-        if Self::container_exists(CONTAINER_NAME)? {
-            if Self::container_is_running(CONTAINER_NAME)? {
-                println!(
-                    "    {} Container '{}' is already running",
-                    "⚠".yellow(),
-                    CONTAINER_NAME
-                );
-                Self::stop_and_remove_container(CONTAINER_NAME)?;
-            } else {
-                println!(
-                    "    {} Container '{}' exists but is not running",
-                    "⚠".yellow(),
-                    CONTAINER_NAME
-                );
-                Self::stop_and_remove_container(CONTAINER_NAME)?;
-            }
-        }
-
-        // Check if all required ports are available
-        let mut unavailable_ports = Vec::new();
-        for &(port, description) in LOTUS_MINER_PORTS {
-            if !Self::is_port_available(port) {
-                unavailable_ports.push((port, description));
-            }
-        }
-
-        if !unavailable_ports.is_empty() {
-            let mut error_msg = String::from("The following required ports are not available:\n");
-            for (port, description) in unavailable_ports {
-                error_msg.push_str(&format!("  - Port {}: {}\n", port, description));
-            }
-            error_msg.push_str("\nPlease free these ports before starting Lotus-Miner.");
-            return Err(error_msg.into());
-        }
-
-        println!("    {} All required ports are available", "✓".green());
-
-        // Verify Docker image exists
-        if !Self::image_exists(IMAGE_NAME) {
-            return Err(format!(
-                "Docker image '{}' not found. Please run 'foc-localnet init' to build the image.",
-                IMAGE_NAME
-            )
-            .into());
-        }
-        println!("    {} Docker image '{}' found", "✓".green(), IMAGE_NAME);
-
-        // Verify lotus-miner binary exists
-        let miner_bin = foc_localnet_bin().join("lotus-miner");
-        if !miner_bin.exists() {
-            return Err(
-                "Lotus-Miner binary not found. Please run 'foc-localnet build lotus' first.".into(),
-            );
-        }
-
-        println!("    {} Lotus-Miner binary found", "✓".green());
-
-        // Verify pre-sealed sectors exist
-        let sectors_dir = foc_localnet_genesis_sectors();
-        if !sectors_dir.exists() || sectors_dir.read_dir()?.next().is_none() {
-            return Err(
-                "Pre-sealed sectors not found. They should have been created during genesis preparation.".into(),
-            );
-        }
-
-        println!("    {} Pre-sealed sectors found", "✓".green());
-
-        Self::verify_lotus_connection()?;
-        println!("    {} Lotus daemon connectivity verified", "✓".green());
-
-        Ok(())
-    }
 
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         // Create lotus-miner data directory in volumes
@@ -326,7 +258,7 @@ impl Step for LotusMinerStep {
         let miner_cmd = format!(
             r#"echo "Waiting for Lotus daemon API to be ready..." && \
                until /usr/local/bin/lotus-bins/lotus version >/dev/null 2>&1; do \
-                 echo "Lotus API not ready yet, waiting..." && sleep 2; \
+                 echo "Lotus API not ready yet, waiting..." && sleep {}; \
                done && \
                echo "Lotus daemon API is ready!" && \
                if [ ! -f $LOTUS_MINER_PATH/config.toml ]; then \
@@ -338,7 +270,7 @@ impl Step for LotusMinerStep {
                fi && \
                echo "Starting lotus-miner..." && \
                /usr/local/bin/lotus-bins/lotus-miner run --nosync"#,
-            preseal_key_file, preseal_file
+            LOTUS_API_WAIT_SLEEP_SECS, preseal_key_file, preseal_file
         );
         docker_args.extend_from_slice(&["/bin/bash", "-c", &miner_cmd]);
 
@@ -358,16 +290,17 @@ impl Step for LotusMinerStep {
         println!(
             "    {} Container started with ID: {}",
             "✓".green(),
-            &container_id[..12]
+            &container_id[..CONTAINER_ID_DISPLAY_LENGTH]
         );
 
         Ok(())
     }
 
-    fn post_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    /// Perform post-execution verification for Lotus-Miner startup
+    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         // Wait for container to initialize
         println!("    Waiting for Lotus-Miner to initialize (this may take a while)...");
-        thread::sleep(Duration::from_secs(15));
+        thread::sleep(Duration::from_secs(CONTAINER_INIT_WAIT_SECS));
 
         // Verify container is running
         if !Self::container_is_running(CONTAINER_NAME)? {
@@ -388,7 +321,7 @@ impl Step for LotusMinerStep {
         println!("    Verifying port accessibility...");
         for &(port, description) in LOTUS_MINER_PORTS {
             print!("      Checking port {} ({})... ", port, description);
-            match Self::wait_for_port(port, 45) {
+            match Self::wait_for_port(port, PORT_WAIT_TIMEOUT_SECS) {
                 Ok(_) => println!("{}", "✓".green()),
                 Err(e) => {
                     println!("{}", "⚠".yellow());
@@ -402,7 +335,7 @@ impl Step for LotusMinerStep {
 
         // Verify Lotus-Miner API is responsive
         println!("    Verifying Lotus-Miner API connectivity...");
-        thread::sleep(Duration::from_secs(5)); // Give miner time to fully initialize
+        thread::sleep(Duration::from_secs(MINER_API_CHECK_DELAY_SECS)); // Give miner time to fully initialize
         match Self::check_miner_api() {
             Ok(_) => {
                 println!(
@@ -473,9 +406,8 @@ impl LotusMinerStep {
         let chain_output1 = String::from_utf8_lossy(&output1.stdout);
         let height1 = Self::parse_chain_height(&chain_output1)?;
 
-        // Wait for a few seconds
-        println!("      Waiting 10 seconds to check for new blocks...");
-        thread::sleep(Duration::from_secs(10));
+        println!("      Waiting {} seconds to check for new blocks...", TIPSET_CHECK_DELAY_SECS);
+        thread::sleep(Duration::from_secs(TIPSET_CHECK_DELAY_SECS));
 
         // Get new chain height
         let output2 = Command::new("docker")
