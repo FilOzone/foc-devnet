@@ -31,6 +31,11 @@ const FOC_DEPLOYER_AMOUNT: &str = "5000"; // 5,000 FIL for contract deployment
 // Token configuration
 const MOCK_USDFC_INITIAL_SUPPLY: &str = "1000000000000000000000000"; // 1 million tokens (18 decimals)
 
+// Network configuration
+const LOTUS_RPC_PORT: u16 = 1234;
+const LOCAL_NETWORK_CHAIN_ID: u64 = 31415926; // Local network chain ID
+const TRANSACTION_CONFIRMATION_WAIT_SECS: u64 = 15;
+
 /// Contract addresses and deployment information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContractAddresses {
@@ -275,7 +280,7 @@ impl FOCDeployStep {
         // Wait for transaction to be included in a block and address to be activated
         // F4 addresses need time to be activated on-chain
         println!("      Waiting for transaction confirmation and address activation...");
-        thread::sleep(Duration::from_secs(15));
+        thread::sleep(Duration::from_secs(TRANSACTION_CONFIRMATION_WAIT_SECS));
 
         Ok(())
     }
@@ -483,10 +488,10 @@ export USDFC_TOKEN_ADDRESS='{}'
 export SERVICE_NAME='{}'
 export SERVICE_DESCRIPTION='{}'
 export DRY_RUN=false
-export CHAIN=31415926  # Local network chain ID
+export CHAIN={}  # Local network chain ID
 export DEPLOYER_ADDRESS='{}'
 export AUTO_VERIFY=false"#,
-            lotus_rpc_url, mock_usdfc_address, SERVICE_NAME, SERVICE_DESCRIPTION, deployer_eth_addr
+            lotus_rpc_url, mock_usdfc_address, SERVICE_NAME, SERVICE_DESCRIPTION, LOCAL_NETWORK_CHAIN_ID, deployer_eth_addr
         );
 
         // Run the deployment script
@@ -731,8 +736,8 @@ impl Step for FOCDeployStep {
 
         // Step 8: Deploy MockUSDFC token for local testing
         println!("\n    Deploying MockUSDFC token for FOC contracts...");
-        let lotus_rpc_url = "http://localhost:1234/rpc/v1";
-        let mock_usdfc_address = Self::deploy_mock_usdfc(&deployer_eth_addr, lotus_rpc_url)?;
+        let lotus_rpc_url = format!("http://localhost:{}/rpc/v1", LOTUS_RPC_PORT);
+        let mock_usdfc_address = Self::deploy_mock_usdfc(&deployer_eth_addr, &lotus_rpc_url)?;
         context.set("mock_usdfc_address", &mock_usdfc_address);
         println!(
             "      {} MockUSDFC token address: {}",
@@ -755,7 +760,7 @@ impl Step for FOCDeployStep {
         println!("      (This may take several minutes)");
 
         let contract_addresses =
-            Self::deploy_foc_contracts(&deployer_eth_addr, &mock_usdfc_address, lotus_rpc_url)?;
+            Self::deploy_foc_contracts(&deployer_eth_addr, &mock_usdfc_address, &lotus_rpc_url)?;
 
         // Store contract addresses in context
         for (name, addr) in &contract_addresses {
