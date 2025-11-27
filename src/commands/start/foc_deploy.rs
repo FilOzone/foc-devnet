@@ -314,6 +314,59 @@ impl FOCDeployStep {
         Ok(eth_addr)
     }
 
+    /// Get the private key for an f4 address in hex format (for use with cast/forge)
+    fn get_private_key(f4_address: &str) -> Result<String, Box<dyn Error>> {
+        // Export the private key from lotus
+        let output = Command::new("docker")
+            .args([
+                "exec",
+                "foc-lotus",
+                "/usr/local/bin/lotus-bins/lotus",
+                "wallet",
+                "export",
+                f4_address,
+            ])
+            .output()?;
+
+        if !output.status.success() {
+            return Err(format!(
+                "Failed to export private key: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .into());
+        }
+
+        // The output is hex-encoded JSON
+        let hex_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        
+        // Decode from hex to get the JSON string
+        let json_bytes = hex::decode(&hex_str)
+            .map_err(|e| format!("Failed to decode hex output: {}", e))?;
+        
+        let keyinfo_str = String::from_utf8(json_bytes)
+            .map_err(|e| format!("Failed to convert bytes to string: {}", e))?;
+        
+        // Parse the JSON to extract the private key
+        let keyinfo: serde_json::Value = serde_json::from_str(&keyinfo_str)
+            .map_err(|e| format!("Failed to parse keyinfo JSON: {}", e))?;
+        
+        // The private key is in the "PrivateKey" field as a base64 string
+        let private_key_b64 = keyinfo
+            .get("PrivateKey")
+            .and_then(|v| v.as_str())
+            .ok_or("PrivateKey field not found in keyinfo")?;
+        
+        // Decode from base64
+        use base64::{Engine as _, engine::general_purpose};
+        let private_key_bytes = general_purpose::STANDARD.decode(private_key_b64)
+            .map_err(|e| format!("Failed to decode private key from base64: {}", e))?;
+        
+        // Convert to hex string with 0x prefix
+        let private_key_hex = format!("0x{}", hex::encode(&private_key_bytes));
+        
+        Ok(private_key_hex)
+    }
+
     /// Export private key for an f4 address to use with forge/cast
     fn export_private_key(f4_address: &str, output_file: &PathBuf) -> Result<(), Box<dyn Error>> {
         println!("      Exporting private key for contract deployment...");
@@ -450,6 +503,7 @@ impl FOCDeployStep {
     ///
     /// Returns a map of contract names to addresses
     fn deploy_foc_contracts(
+        foc_deployer: &str,
         deployer_eth_addr: &str,
         mock_usdfc_address: &str,
         lotus_rpc_url: &str,
@@ -475,6 +529,9 @@ impl FOCDeployStep {
         let bin_dir = foc_localnet_bin();
         let builder_volumes_dir = foc_localnet_docker_volumes().join("builder");
 
+        // Get the private key from lotus for the deployer address
+        let private_key = Self::get_private_key(foc_deployer)?;
+        
         // Prepare environment variables for the deployment script
         let env_vars = format!(
             r#"export ETH_RPC_URL='{}'
@@ -482,22 +539,30 @@ export USDFC_TOKEN_ADDRESS='{}'
 export SERVICE_NAME='{}'
 export SERVICE_DESCRIPTION='{}'
 export DRY_RUN=false
-export CHAIN={}  # Local network chain ID
+export CHAIN={}
 export DEPLOYER_ADDRESS='{}'
-export AUTO_VERIFY=false"#,
+export AUTO_VERIFY=false
+export ETH_PRIVATE_KEY='{}'
+export PASSWORD=''"#,
             lotus_rpc_url,
             mock_usdfc_address,
             SERVICE_NAME,
             SERVICE_DESCRIPTION,
             LOCAL_NETWORK_CHAIN_ID,
-            deployer_eth_addr
+            deployer_eth_addr,
+            private_key
         );
 
         // Run the deployment script
+        // First, create a keystore from the private key with empty password
         let deploy_cmd = format!(
-            r#"{} && \
-               cd /service_contracts && \
-               bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-deploy.log"#,
+            r#"set -e
+cast wallet import foc-deployer --private-key {} --unsafe-password ''
+export ETH_KEYSTORE="$HOME/.foundry/keystores/foc-deployer"
+{}
+cd /service_contracts
+bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-deploy.log"#,
+            private_key,
             env_vars
         );
 
@@ -517,7 +582,7 @@ export AUTO_VERIFY=false"#,
                     builder_volumes_dir.join("cargo").display()
                 ),
                 "-v",
-                &format!("{}:/service_contracts", services_repo.display()),
+                &format!("{}:/service_contracts", contracts_dir.display()),
                 "foc-builder",
                 "/bin/bash",
                 "-c",
@@ -765,8 +830,12 @@ export AUTO_VERIFY=false"#,
         println!("\n    Deploying FOC contracts...");
         println!("      (This may take several minutes)");
 
-        let contract_addresses =
-            Self::deploy_foc_contracts(deployer_eth_addr, mock_usdfc_address, lotus_rpc_url)?;
+        let contract_addresses = Self::deploy_foc_contracts(
+            foc_deployer,
+            deployer_eth_addr,
+            mock_usdfc_address,
+            lotus_rpc_url,
+        )?;
 
         // Store contract addresses in context
         for (name, addr) in &contract_addresses {

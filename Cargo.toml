@@ -20,3 +20,5 @@ tempfile = "3.0"
 downloader = "0.2"
 tabular = { version = "0.2", features = ["ansi-cell"] }
 regex = "1.0"
+base64 = "0.21"
+hex = "0.4"
