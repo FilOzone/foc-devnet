@@ -191,12 +191,29 @@ fn run_build_in_container(
         log_path.display()
     );
 
-    let log_file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(&log_path)?;
+    let container_source_dir = "/workspace/source";
+    let container_output_dir = "/workspace/output";
 
+    let docker_run_args = setup_docker_run_args(source_dir, output_dir, image_tag)?;
+    let build_script = setup_build_script(project, container_source_dir, container_output_dir);
+
+    execute_build_process(docker_run_args, build_script, &log_path, project)?;
+
+    println!(
+        "{} Build logs saved to: {}",
+        "✓".green(),
+        log_path.display()
+    );
+
+    Ok(())
+}
+
+/// Set up the Docker run arguments for the build container.
+fn setup_docker_run_args(
+    source_dir: &str,
+    output_dir: &str,
+    image_tag: &str,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     let container_source_dir = "/workspace/source";
     let container_output_dir = "/workspace/output";
 
@@ -243,7 +260,12 @@ fn run_build_in_container(
     docker_run_args.push("/bin/bash".to_string());
     docker_run_args.push("-c".to_string());
 
-    let build_script = match project {
+    Ok(docker_run_args)
+}
+
+/// Set up the build script for the specific project.
+fn setup_build_script(project: &Project, container_source_dir: &str, container_output_dir: &str) -> String {
+    match project {
         Project::Lotus => format!(
             r#"git config --global --add safe.directory {} && \
                 cd {} && \
@@ -260,8 +282,16 @@ fn run_build_in_container(
                 cp curio {}"#,
             container_source_dir, container_source_dir, container_output_dir
         ),
-    };
+    }
+}
 
+/// Execute the build process in the Docker container.
+fn execute_build_process(
+    mut docker_run_args: Vec<String>,
+    build_script: String,
+    log_path: &Path,
+    project: &Project,
+) -> Result<(), Box<dyn std::error::Error>> {
     docker_run_args.push(build_script);
 
     // Spawn the process with piped stdout/stderr
@@ -276,11 +306,14 @@ fn run_build_in_container(
     let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
 
     // Create clones of the log file for writing
-    let log_file_clone = log_file.try_clone()?;
+    let log_file_clone = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path)?;
 
     // Stream stdout to both console and log file
     let stdout_handle = std::thread::spawn({
-        let mut log_file = log_file;
+        let mut log_file = log_file_clone;
         move || {
             let reader = BufReader::new(stdout);
             for line in reader.lines() {
@@ -294,7 +327,10 @@ fn run_build_in_container(
 
     // Stream stderr to both console and log file
     let stderr_handle = std::thread::spawn({
-        let mut log_file = log_file_clone;
+        let mut log_file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_path)?;
         move || {
             let reader = BufReader::new(stderr);
             for line in reader.lines() {
@@ -321,12 +357,6 @@ fn run_build_in_container(
         )
         .into());
     }
-
-    println!(
-        "{} Build logs saved to: {}",
-        "✓".green(),
-        log_path.display()
-    );
 
     Ok(())
 }
