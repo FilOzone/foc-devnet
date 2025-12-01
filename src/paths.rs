@@ -102,6 +102,31 @@ pub fn foc_localnet_keys() -> PathBuf {
     foc_localnet_home().join("keys")
 }
 
+/// Returns the path to the project root directory
+/// This is determined by finding the directory containing Cargo.toml
+pub fn project_root() -> Result<PathBuf, std::io::Error> {
+    // Get the current executable path
+    let exe_path = std::env::current_exe()?;
+
+    // Walk up from the executable until we find Cargo.toml
+    let mut current = exe_path.parent();
+    while let Some(dir) = current {
+        let cargo_toml = dir.join("Cargo.toml");
+        if cargo_toml.exists() {
+            return Ok(dir.to_path_buf());
+        }
+        current = dir.parent();
+    }
+
+    // Fallback: use CARGO_MANIFEST_DIR if available (during build/test)
+    if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
+        return Ok(PathBuf::from(manifest_dir));
+    }
+
+    // Last resort: current directory
+    std::env::current_dir()
+}
+
 // Constants for container paths
 /// Container path where Filecoin proof parameters are mounted
 pub const CONTAINER_FILECOIN_PROOF_PARAMS_PATH: &str = "/var/tmp/filecoin-proof-parameters";

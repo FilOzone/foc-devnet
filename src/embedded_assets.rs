@@ -19,7 +19,9 @@ pub static LOTUS_VOLUMES_MAP: &[u8] = include_bytes!("../docker/lotus.volumes_ma
 pub static YUGABYTE_VOLUMES_MAP: &[u8] = include_bytes!("../docker/yugabyte.volumes_map.toml");
 
 // Contracts
-pub static MOCK_USDFC_CONTRACT: &[u8] = include_bytes!("../contracts/MockUSDFC.sol");
+// Note: MockUSDFC.sol is now part of the Foundry project in contracts/MockUSDFC/
+// The old standalone contract file is kept for backward compatibility but not embedded
+// pub static MOCK_USDFC_CONTRACT: &[u8] = include_bytes!("../contracts/MockUSDFC.sol");
 
 /// Get a Dockerfile by name
 pub fn get_dockerfile(name: &str) -> Option<&'static [u8]> {

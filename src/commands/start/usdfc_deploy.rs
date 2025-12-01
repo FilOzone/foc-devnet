@@ -1,11 +1,17 @@
 //! MockUSDFC Token Deployment step.
 //!
 //! This module handles the deployment of the MockUSDFC ERC-20 token
-//! required by FOC contracts for local testing.
+//! using the Foundry project located in contracts/MockUSDFC/.
+//!
+//! The deployment is delegated to the Foundry scripts which handle:
+//! - Contract compilation with OpenZeppelin dependencies
+//! - Deployment via forge script
+//! - Verification of deployed contract functions
+//!
+//! This approach provides better separation of concerns and easier debugging.
 
 use super::step::{Step, StepContext};
-use crate::embedded_assets;
-use crate::paths::foc_localnet_bin;
+use crate::paths::{contract_addresses_file, project_root};
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::fs;
@@ -56,6 +62,56 @@ impl USDFCDeployStep {
         Ok(())
     }
 
+    /// Get the private key for the deployer from the exported key file
+    fn get_deployer_private_key(
+        &self,
+        _foc_deployer_address: &str,
+    ) -> Result<String, Box<dyn Error>> {
+        use base64::{engine::general_purpose, Engine as _};
+
+        // The key was exported by ETHAccFundingStep to volumes_dir/foc-deployer.key
+        let key_file = self.volumes_dir.join("foc-deployer.key");
+
+        if !key_file.exists() {
+            return Err(format!(
+                "Deployer key file not found at {}. \
+                 Ensure ETHAccFunding step has completed successfully.",
+                key_file.display()
+            )
+            .into());
+        }
+
+        // Read the hex-encoded JSON from the file
+        let hex_str = fs::read_to_string(&key_file)?.trim().to_string();
+
+        // Decode from hex to get the JSON string
+        let json_bytes =
+            hex::decode(&hex_str).map_err(|e| format!("Failed to decode hex output: {}", e))?;
+
+        let keyinfo_str = String::from_utf8(json_bytes)
+            .map_err(|e| format!("Failed to convert bytes to string: {}", e))?;
+
+        // Parse the JSON to extract the private key
+        let keyinfo: serde_json::Value = serde_json::from_str(&keyinfo_str)
+            .map_err(|e| format!("Failed to parse keyinfo JSON: {}", e))?;
+
+        // The private key is in the "PrivateKey" field as a base64 string
+        let private_key_b64 = keyinfo
+            .get("PrivateKey")
+            .and_then(|v| v.as_str())
+            .ok_or("PrivateKey field not found in keyinfo")?;
+
+        // Decode from base64
+        let private_key_bytes = general_purpose::STANDARD
+            .decode(private_key_b64)
+            .map_err(|e| format!("Failed to decode private key from base64: {}", e))?;
+
+        // Convert to hex string with 0x prefix
+        let private_key_hex = format!("0x{}", hex::encode(&private_key_bytes));
+
+        Ok(private_key_hex)
+    }
+
     /// Check if required addresses are available in context
     fn check_required_addresses(
         &self,
@@ -77,37 +133,128 @@ impl USDFCDeployStep {
         context.get("mock_usdfc_address").is_some()
     }
 
-    /// Deploy MockUSDFC token for local testing
-    ///
-    /// Returns the deployed contract address
-    fn deploy_mock_usdfc(
-        deployer_eth_addr: &str,
+    /// Setup the Foundry project (install dependencies if needed)
+    fn setup_foundry_project(contract_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
+        let openzeppelin_path = contract_dir.join("lib/openzeppelin-contracts");
+
+        if !openzeppelin_path.exists() {
+            println!("      Installing OpenZeppelin contracts...");
+
+            // First, initialize git repo if it doesn't exist
+            let git_dir = contract_dir.join(".git");
+            if !git_dir.exists() {
+                println!("        Initializing git repository...");
+                let output = Command::new("docker")
+                    .args([
+                        "run",
+                        "--rm",
+                        "-v",
+                        &format!("{}:/workspace", contract_dir.display()),
+                        "foc-builder",
+                        "bash",
+                        "-c",
+                        "cd /workspace && git init && git config user.email 'foc@localnet' && git config user.name 'FOC Localnet'",
+                    ])
+                    .output()?;
+
+                if !output.status.success() {
+                    return Err(format!(
+                        "Failed to initialize git repository: {}",
+                        String::from_utf8_lossy(&output.stderr)
+                    )
+                    .into());
+                }
+            }
+
+            // Install dependencies
+            let output = Command::new("docker")
+                .args([
+                    "run",
+                    "--rm",
+                    "-v",
+                    &format!("{}:/workspace", contract_dir.display()),
+                    "foc-builder",
+                    "bash",
+                    "-c",
+                    "cd /workspace && \
+                     forge install OpenZeppelin/openzeppelin-contracts@v5.0.0 && \
+                     forge install foundry-rs/forge-std",
+                ])
+                .output()?;
+
+            if !output.status.success() {
+                return Err(format!(
+                    "Failed to install dependencies: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                )
+                .into());
+            }
+
+            println!("        {} Dependencies installed", "✓".green());
+        }
+
+        // Build contracts
+        println!("      Building MockUSDFC contract...");
+        let output = Command::new("docker")
+            .args([
+                "run",
+                "--rm",
+                "-v",
+                &format!("{}:/workspace", contract_dir.display()),
+                "foc-builder",
+                "bash",
+                "-c",
+                "cd /workspace && forge build",
+            ])
+            .output()?;
+
+        if !output.status.success() {
+            return Err(format!(
+                "Failed to build contracts: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .into());
+        }
+
+        println!("        {} Contracts built", "✓".green());
+        Ok(())
+    }
+
+    /// Deploy MockUSDFC using the Foundry project
+    fn deploy_mock_usdfc_foundry(
+        private_key: &str,
         lotus_rpc_url: &str,
     ) -> Result<String, Box<dyn Error>> {
-        println!("      Deploying MockUSDFC token...");
+        println!("      Deploying MockUSDFC using Foundry project...");
 
-        // Get the embedded contract content
-        let contract_content = embedded_assets::MOCK_USDFC_CONTRACT;
+        // Get the contract directory
+        let project_root = project_root()?;
+        let contract_dir = project_root.join("contracts/MockUSDFC");
 
-        // Deploy using forge via foc-builder container
-        println!("        Compiling and deploying with forge...");
+        if !contract_dir.exists() {
+            return Err(format!(
+                "MockUSDFC Foundry project not found at: {}",
+                contract_dir.display()
+            )
+            .into());
+        }
 
-        let bin_dir = foc_localnet_bin();
-        let builder_volumes_dir = foc_localnet_bin().parent().unwrap().join("builder");
+        // Setup the Foundry project (install deps, build)
+        Self::setup_foundry_project(&contract_dir)?;
 
-        // Create a temporary contract file
-        let temp_contract_path = std::env::temp_dir().join("MockUSDFC.sol");
-        fs::write(&temp_contract_path, contract_content)?;
+        // Deploy using forge script with explicit gas limit for FEVM
+        println!("      Executing deployment script...");
 
-        // Build forge command to deploy MockUSDFC
-        let forge_cmd = format!(
-            r#"forge create /tmp/MockUSDFC.sol:MockUSDFC \
-               --rpc-url {} \
-               --from {} \
-               --unlocked \
-               --constructor-args {} \
-               --json"#,
-            lotus_rpc_url, deployer_eth_addr, MOCK_USDFC_INITIAL_SUPPLY
+        let deploy_cmd = format!(
+            "cd /workspace && \
+             forge script script/Deploy.s.sol:DeployMockUSDFC \
+             --rpc-url {} \
+             --private-key {} \
+             --broadcast \
+             --slow \
+             --gas-estimate-multiplier 10000 \
+             -vv",
+            lotus_rpc_url, private_key
         );
 
         let output = Command::new("docker")
@@ -117,85 +264,187 @@ impl USDFCDeployStep {
                 "--network",
                 "host", // Use host network to access localhost:1234
                 "-v",
-                &format!("{}:/opt/bin", bin_dir.display()),
-                "-v",
-                &format!(
-                    "{}:/home/foc-user/.cargo",
-                    builder_volumes_dir.join("cargo").display()
-                ),
-                "-v",
-                &format!("{}:/tmp/MockUSDFC.sol", temp_contract_path.display()),
+                &format!("{}:/workspace", contract_dir.display()),
                 "foc-builder",
-                "/bin/bash",
+                "bash",
                 "-c",
-                &forge_cmd,
+                &deploy_cmd,
             ])
             .output()?;
 
-        // Clean up temp file
-        let _ = fs::remove_file(&temp_contract_path);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        // Print output for debugging
+        if !stdout.is_empty() {
+            println!("        Deployment output:");
+            for line in stdout.lines() {
+                println!("          {}", line);
+            }
+        }
 
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            println!("        {} Forge deployment failed", "✗".red());
-            println!("        Error: {}", stderr);
-            println!(
-                "        {} Using deployer address as placeholder",
-                "⚠".yellow()
-            );
-            return Ok(deployer_eth_addr.to_string());
-        }
-
-        // Parse the JSON output to get the deployed address
-        let output_str = String::from_utf8_lossy(&output.stdout);
-
-        // Try to parse as JSON
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&output_str) {
-            if let Some(deployed_to) = json.get("deployedTo").and_then(|v| v.as_str()) {
-                println!(
-                    "        {} MockUSDFC deployed to: {}",
-                    "✓".green(),
-                    deployed_to
-                );
-                return Ok(deployed_to.to_string());
-            }
-        }
-
-        // Fallback: try to find address in output
-        for line in output_str.lines() {
-            if line.contains("Deployed to:") {
-                if let Some(addr) = line.split_whitespace().last() {
-                    println!("        {} MockUSDFC deployed to: {}", "✓".green(), addr);
-                    return Ok(addr.to_string());
+            println!("        {} Deployment failed", "✗".red());
+            if !stderr.is_empty() {
+                println!("        Error output:");
+                for line in stderr.lines() {
+                    println!("          {}", line);
                 }
             }
+            return Err("MockUSDFC deployment failed".into());
         }
 
+        // Extract contract address from output
+        // Look for "MockUSDFC deployed at:" in the output
+        let contract_address = stdout
+            .lines()
+            .find(|line| line.contains("MockUSDFC deployed at:"))
+            .and_then(|line| line.split_whitespace().last())
+            .ok_or("Failed to extract contract address from deployment output")?;
+
         println!(
-            "        {} Could not parse deployment address",
-            "⚠".yellow()
+            "        {} MockUSDFC deployed at: {}",
+            "✓".green(),
+            contract_address.cyan().bold()
         );
-        println!("        Using deployer address as placeholder");
-        Ok(deployer_eth_addr.to_string())
+
+        Ok(contract_address.to_string())
+    }
+
+    /// Verify the deployed MockUSDFC contract
+    fn verify_mock_usdfc(
+        private_key: &str,
+        contract_address: &str,
+        lotus_rpc_url: &str,
+    ) -> Result<(), Box<dyn Error>> {
+        println!("      Verifying MockUSDFC contract functions...");
+
+        let project_root = project_root()?;
+        let contract_dir = project_root.join("contracts/MockUSDFC");
+
+        // Wait a bit for transaction confirmation
+        println!("        Waiting for transaction confirmation...");
+        std::thread::sleep(std::time::Duration::from_secs(6));
+
+        let verify_cmd = format!(
+            "cd /workspace && \
+             forge script script/Verify.s.sol:VerifyMockUSDFC \
+             --rpc-url {} \
+             --private-key {} \
+             --sig 'run(address)' {} \
+             -vv",
+            lotus_rpc_url, private_key, contract_address
+        );
+
+        let output = Command::new("docker")
+            .args([
+                "run",
+                "--rm",
+                "--network",
+                "host",
+                "-v",
+                &format!("{}:/workspace", contract_dir.display()),
+                "foc-builder",
+                "bash",
+                "-c",
+                &verify_cmd,
+            ])
+            .output()?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        // Print verification output
+        if !stdout.is_empty() {
+            println!("        Verification output:");
+            for line in stdout.lines() {
+                println!("          {}", line);
+            }
+        }
+
+        if !output.status.success() {
+            println!("        {} Verification failed", "⚠".yellow());
+            if !stderr.is_empty() {
+                println!("        Error output:");
+                for line in stderr.lines() {
+                    println!("          {}", line);
+                }
+            }
+            // Don't fail the step, just warn
+            println!(
+                "        {} Continuing despite verification warning",
+                "→".cyan()
+            );
+        } else {
+            println!("        {} All contract functions verified", "✓".green());
+        }
+
+        Ok(())
+    }
+
+    /// Save contract address to the contract addresses file
+    fn save_contract_address(name: &str, address: &str) -> Result<(), Box<dyn Error>> {
+        let file_path = contract_addresses_file();
+
+        // Ensure parent directory exists
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        // Read existing addresses or create new file
+        let mut addresses: serde_json::Value = if file_path.exists() {
+            let content = fs::read_to_string(&file_path)?;
+            serde_json::from_str(&content).unwrap_or(serde_json::json!({}))
+        } else {
+            serde_json::json!({})
+        };
+
+        // Add/update the address
+        addresses[name] = serde_json::json!(address);
+
+        // Write back to file
+        let content = serde_json::to_string_pretty(&addresses)?;
+        fs::write(&file_path, content)?;
+
+        println!(
+            "        {} Contract address saved to {}",
+            "✓".green(),
+            file_path.display()
+        );
+
+        Ok(())
     }
 
     /// Perform the MockUSDFC deployment process
     fn perform_token_deployment(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        println!("    Deploying MockUSDFC token...");
+        println!("    Deploying MockUSDFC token using Foundry project...");
 
         // Get required addresses from context
         let (foc_deployer, foc_deployer_eth) = self.check_required_addresses(context)?;
 
-        // Deploy MockUSDFC token
+        // Get deployer private key from the exported key file
+        let private_key = self.get_deployer_private_key(&foc_deployer)?;
+
+        println!("      Deployer ETH address: {}", foc_deployer_eth.cyan());
+
+        // Deploy MockUSDFC token using Foundry
         let lotus_rpc_url = format!("http://localhost:{}/rpc/v1", LOTUS_RPC_PORT);
-        let mock_usdfc_address = Self::deploy_mock_usdfc(&foc_deployer_eth, &lotus_rpc_url)?;
+        let mock_usdfc_address = Self::deploy_mock_usdfc_foundry(&private_key, &lotus_rpc_url)?;
+
+        // Store in context
         context.set("mock_usdfc_address", &mock_usdfc_address);
+
+        // Save to contract addresses file
+        Self::save_contract_address("MockUSDFC", &mock_usdfc_address)?;
+
+        // Verify the deployment
+        Self::verify_mock_usdfc(&private_key, &mock_usdfc_address, &lotus_rpc_url)?;
 
         println!(
             "\n    {} MockUSDFC token deployed successfully!",
             "✓".green().bold()
         );
-        println!("      Token Address: {}", mock_usdfc_address);
+        println!("      Token Address: {}", mock_usdfc_address.cyan().bold());
         println!("      Initial Supply: {} tokens", MOCK_USDFC_INITIAL_SUPPLY);
         println!("      Decimals: 18");
 
@@ -215,11 +464,16 @@ impl Step for USDFCDeployStep {
         println!("    {} Lotus is running", "✓".green());
 
         // Check if required addresses are available
-        let (_foc_deployer, foc_deployer_eth) = self.check_required_addresses(context)?;
+        let (foc_deployer, foc_deployer_eth) = self.check_required_addresses(context)?;
+        println!(
+            "    {} FOC_DEPLOYER address: {}",
+            "✓".green(),
+            foc_deployer.cyan()
+        );
         println!(
             "    {} FOC_DEPLOYER Ethereum address: {}",
             "✓".green(),
-            foc_deployer_eth
+            foc_deployer_eth.cyan()
         );
 
         Ok(())
@@ -245,7 +499,11 @@ impl Step for USDFCDeployStep {
 
         // Check if token address is in context
         if let Some(token_address) = context.get("mock_usdfc_address") {
-            println!("      {} MockUSDFC address: {}", "✓".green(), token_address);
+            println!(
+                "      {} MockUSDFC address: {}",
+                "✓".green(),
+                token_address.as_str().cyan().bold()
+            );
         } else {
             println!("      {} MockUSDFC address not found in context", "✗".red());
             return Err("MockUSDFC deployment failed - no address in context".into());
