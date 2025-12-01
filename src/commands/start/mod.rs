@@ -1,6 +1,8 @@
+mod contract_addresses;
 mod curio;
 mod eth_acc_funding;
 mod foc_deploy;
+mod foc_deployer;
 mod genesis;
 mod lotus;
 mod lotus_miner;

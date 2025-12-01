@@ -295,6 +295,17 @@ docker run --rm --network host \
 
 ## Code Style & Conventions
 
+### Code Quality Policies
+- **File sizes**: No greater than 150 lines
+- **Larger files**: Split into multi-file modules when exceeding 150 lines
+- **Function sizes**: No greater than 15 lines
+- **Magic numbers**: All magic numbers like sleep durations should be constants
+- **Magic names**: All magic names like "foc-builder", "foc-deployer" should be constants
+- **Command calls**: Refactor all `Command::new(...)` calls into a "shell" module so that nitty gritties and flags are not interspersed throughout the codebase
+- **Documentation**: Each function must have a docstring describing its intent
+- **Function decomposition**: Break down functions doing multiple things into smaller functions
+- **Complex tasks**: Provide examples for functions undertaking complicated tasks
+
 ### Module Documentation
 Every module should have a module-level doc comment explaining its purpose:
 ```rust
