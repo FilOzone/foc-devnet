@@ -2,9 +2,9 @@
 //!
 //! This module provides utilities for checking port mappings and accessibility.
 
+use crate::shell::get_container_ports;
 use crossterm::style::Stylize;
 use std::collections::HashMap;
-use std::process::Command;
 
 // Constants
 const PORT_CHECK_TIMEOUT_MS: u64 = 100;
@@ -126,9 +126,7 @@ pub fn get_expected_ports(container_name: &str) -> Vec<(u16, &'static str)> {
 pub fn get_container_port_mappings(
     container_name: &str,
 ) -> Result<HashMap<u16, u16>, Box<dyn std::error::Error>> {
-    let output = Command::new("docker")
-        .args(["port", container_name])
-        .output()?;
+    let output = get_container_ports(container_name)?;
 
     let mut mappings = HashMap::new();
 

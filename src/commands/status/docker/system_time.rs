@@ -2,8 +2,8 @@
 //!
 //! This module provides utilities for parsing Docker time strings and determining system start times.
 
+use crate::shell::get_foc_containers_running_time;
 use chrono::{DateTime, Utc};
-use std::process::Command;
 
 /// Get the system start time (oldest container start time).
 ///
@@ -26,9 +26,7 @@ use std::process::Command;
 ///
 /// An `Option<DateTime<Utc>>` representing the system start time, or `None` if it cannot be determined.
 pub fn get_system_start_time() -> Result<Option<DateTime<Utc>>, Box<dyn std::error::Error>> {
-    let output = Command::new("docker")
-        .args(["ps", "--filter", "name=foc-", "--format", "{{.RunningFor}}"])
-        .output()?;
+    let output = get_foc_containers_running_time()?;
 
     if !output.status.success() {
         return Ok(None);

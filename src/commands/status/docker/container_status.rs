@@ -2,9 +2,9 @@
 //!
 //! This module provides utilities for checking container status and uptime.
 
+use crate::shell::{get_container_start_time, get_running_foc_containers};
 use chrono::{DateTime, Utc};
 use crossterm::style::Stylize;
-use std::process::Command;
 
 /// Get list of running Docker containers with foc- prefix.
 ///
@@ -25,22 +25,7 @@ use std::process::Command;
 ///
 /// Returns an error if the Docker command fails to execute.
 pub fn get_running_containers() -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let output = Command::new("docker")
-        .args(["ps", "--filter", "name=foc-", "--format", "{{.Names}}"])
-        .output()?;
-
-    if !output.status.success() {
-        return Ok(vec![]);
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let containers: Vec<String> = stdout
-        .lines()
-        .map(|line| line.trim().to_string())
-        .filter(|line| !line.is_empty())
-        .collect();
-
-    Ok(containers)
+    get_running_foc_containers()
 }
 
 /// Get uptime for a running container.
@@ -65,20 +50,7 @@ pub fn get_running_containers() -> Result<Vec<String>, Box<dyn std::error::Error
 ///
 /// Returns an error if the Docker command fails or if the timestamp cannot be parsed.
 pub fn get_container_uptime(container_name: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let output = Command::new("docker")
-        .args([
-            "inspect",
-            container_name,
-            "--format",
-            "{{.State.StartedAt}}",
-        ])
-        .output()?;
-
-    if !output.status.success() {
-        return Ok("Unknown".dark_grey().to_string());
-    }
-
-    let started_at_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let started_at_str = get_container_start_time(container_name)?;
 
     // Parse the datetime string from Docker
     if let Ok(started_at) = DateTime::parse_from_rfc3339(&started_at_str) {

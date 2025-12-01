@@ -2,6 +2,9 @@
 //!
 //! This module contains shared utility functions for Docker operations
 //! used across different commands, particularly container management.
+//!
+//! This is the central location for all basic Docker operations to avoid
+//! duplication across the codebase.
 
 use std::net::TcpListener;
 use std::process::Command;
@@ -57,19 +60,53 @@ pub fn container_is_running(name: &str) -> Result<bool, Box<dyn std::error::Erro
         .contains(name))
 }
 
-/// Stop and remove a container if it exists
-pub fn stop_and_remove_container(name: &str) -> Result<(), Box<dyn std::error::Error>> {
+/// Stop a container if it's running
+pub fn stop_container(name: &str) -> Result<(), Box<dyn std::error::Error>> {
     if container_is_running(name)? {
-        println!("    Stopping existing container '{}'...", name);
         Command::new("docker").args(["stop", name]).output()?;
     }
+    Ok(())
+}
 
+/// Remove a container if it exists
+pub fn remove_container(name: &str) -> Result<(), Box<dyn std::error::Error>> {
     if container_exists(name)? {
-        println!("    Removing existing container '{}'...", name);
         Command::new("docker").args(["rm", name]).output()?;
     }
-
     Ok(())
+}
+
+/// Stop and remove a container if it exists
+pub fn stop_and_remove_container(name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    stop_container(name)?;
+    remove_container(name)?;
+    Ok(())
+}
+
+/// Execute a command inside a running container
+pub fn exec_in_container(
+    container: &str,
+    command: &str,
+    args: &[&str],
+) -> Result<std::process::Output, Box<dyn std::error::Error>> {
+    let mut exec_args = vec!["exec", container, command];
+    exec_args.extend_from_slice(args);
+
+    Command::new("docker")
+        .args(&exec_args)
+        .output()
+        .map_err(|e| e.into())
+}
+
+/// Run a Docker container
+pub fn run_container(args: &[&str]) -> Result<std::process::Output, Box<dyn std::error::Error>> {
+    let mut run_args = vec!["run"];
+    run_args.extend_from_slice(args);
+
+    Command::new("docker")
+        .args(&run_args)
+        .output()
+        .map_err(|e| e.into())
 }
 
 /// Wait for a port to be accepting connections

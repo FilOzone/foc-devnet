@@ -5,11 +5,11 @@
 use super::container_utils::{cleanup_temp_container, create_temp_container, perform_volume_copy};
 use crate::embedded_assets;
 use crate::paths::foc_localnet_docker_volumes;
+use crate::shell::{chown_command, get_current_gid, get_current_uid, image_exists};
 use crossterm::style::Stylize;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 /// Create volume directories for all Docker images based on their embedded volume map files.
 ///
@@ -96,22 +96,14 @@ pub fn create_volumes_for_image_from_embedded(
 /// * `volume_dir` - Path to the volume directory
 pub fn set_volume_ownership(volume_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     // Get current user's UID and GID
-    let uid_output = Command::new("id").arg("-u").output()?;
-    let gid_output = Command::new("id").arg("-g").output()?;
-    let uid = String::from_utf8_lossy(&uid_output.stdout)
-        .trim()
-        .to_string();
-    let gid = String::from_utf8_lossy(&gid_output.stdout)
-        .trim()
-        .to_string();
+    let uid = get_current_uid()?;
+    let gid = get_current_gid()?;
 
     // Use chown to set ownership (requires directory to be owned by current user or have appropriate permissions)
     let chown_arg = format!("{}:{}", uid, gid);
-    let status = Command::new("chown")
-        .args(["-R", &chown_arg, &volume_dir.to_string_lossy()])
-        .status()?;
+    let output = chown_command(&["-R", &chown_arg, &volume_dir.to_string_lossy()])?;
 
-    if !status.success() {
+    if !output.status.success() {
         return Err(format!("Failed to set ownership on {}", volume_dir.display()).into());
     }
 
@@ -133,11 +125,7 @@ pub fn copy_initial_volume_contents(
     host_volume_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Check if the image exists
-    let image_exists_in_docker = Command::new("docker")
-        .args(["image", "inspect", image_tag])
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false);
+    let image_exists_in_docker = image_exists(image_tag)?;
 
     if !image_exists_in_docker {
         println!(

@@ -1,8 +1,9 @@
 //! Docker image existence checking utilities.
 //!
 //! This module provides functions to check if Docker images exist locally.
+//! Uses the centralized docker utilities to avoid duplication.
 
-use std::process::Command;
+use crate::docker;
 
 /// Check if a Docker image exists locally in the Docker daemon.
 ///
@@ -12,9 +13,5 @@ use std::process::Command;
 /// # Returns
 /// Returns `true` if the image exists in the local Docker daemon, `false` otherwise.
 pub fn image_exists(image_tag: &str) -> bool {
-    Command::new("docker")
-        .args(["image", "inspect", image_tag])
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
+    docker::image_exists(image_tag)
 }

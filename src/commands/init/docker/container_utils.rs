@@ -2,7 +2,7 @@
 //!
 //! This module provides utilities for creating and managing temporary Docker containers.
 
-use std::process::Command;
+use crate::shell::{docker_copy_from_container, docker_create_container, docker_remove_container};
 
 /// Create a temporary container for volume copying.
 ///
@@ -15,9 +15,7 @@ pub fn create_temp_container(image_tag: &str) -> Result<String, Box<dyn std::err
     let container_name = format!("temp-volume-init-{}", std::process::id());
 
     // Create a container without starting it
-    let create_output = Command::new("docker")
-        .args(["create", "--name", &container_name, image_tag, "/bin/true"])
-        .output()?;
+    let create_output = docker_create_container(&container_name, image_tag, "/bin/true")?;
 
     if !create_output.status.success() {
         return Err(
@@ -44,13 +42,7 @@ pub fn perform_volume_copy(
 ) -> Result<std::process::Output, Box<dyn std::error::Error>> {
     // Copy files from container to host - need to copy contents, not the directory itself
     // Use format: container:path/. to copy contents of path into destination
-    let copy_output = Command::new("docker")
-        .args([
-            "cp",
-            &format!("{}:{}/.", container_name, container_path),
-            &host_volume_dir.to_string_lossy(),
-        ])
-        .output()?;
+    let copy_output = docker_copy_from_container(container_name, &format!("{}/.", container_path), &host_volume_dir.to_string_lossy())?;
 
     Ok(copy_output)
 }
@@ -60,5 +52,5 @@ pub fn perform_volume_copy(
 /// # Arguments
 /// * `container_name` - Name of the container to remove
 pub fn cleanup_temp_container(container_name: &str) {
-    let _ = Command::new("docker").args(["rm", container_name]).status();
+    let _ = docker_remove_container(container_name);
 }

@@ -4,10 +4,10 @@
 
 use crate::embedded_assets;
 use crate::paths::foc_localnet_docker_volumes;
+use crate::shell::{build_docker_image, get_current_gid, get_current_uid, image_exists};
 use crossterm::style::Stylize;
 use std::collections::HashMap;
 use std::fs;
-use std::process::Command;
 
 use super::Project;
 
@@ -16,18 +16,7 @@ pub fn build_builder_image(dockerfile_dir: &str) -> Result<String, Box<dyn std::
     let image_tag = "foc-localnet-builder:latest";
 
     // Check if image already exists in Docker
-    let image_exists = Command::new("docker")
-        .args(["images", "--format", "{{.Repository}}:{{.Tag}}"])
-        .output()
-        .map(|output| {
-            output.status.success()
-                && String::from_utf8_lossy(&output.stdout)
-                    .lines()
-                    .any(|line| line == image_tag)
-        })
-        .unwrap_or(false);
-
-    if image_exists {
+    if image_exists(image_tag)? {
         println!(
             "{} Docker image {} already exists, skipping build",
             "✓".green(),
@@ -46,21 +35,10 @@ pub fn build_image_from_dockerfile(
     dockerfile_dir: &str,
     image_tag: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let status = Command::new("docker")
-        .args([
-            "build",
-            "--progress",
-            "tty",
-            "-f",
-            "docker/Dockerfile.builder",
-            "-t",
-            image_tag,
-            dockerfile_dir,
-        ])
-        .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .status()?;
+    let dockerfile_path = "docker/Dockerfile.builder";
+    let output = build_docker_image(dockerfile_path, image_tag, dockerfile_dir)?;
 
-    if !status.success() {
+    if !output.status.success() {
         return Err("Failed to build Docker image".into());
     }
 
@@ -128,14 +106,8 @@ pub fn setup_docker_run_args(
     }
 
     // Get current user's UID and GID to run container as the same user
-    let uid_output = Command::new("id").arg("-u").output()?;
-    let gid_output = Command::new("id").arg("-g").output()?;
-    let uid = String::from_utf8_lossy(&uid_output.stdout)
-        .trim()
-        .to_string();
-    let gid = String::from_utf8_lossy(&gid_output.stdout)
-        .trim()
-        .to_string();
+    let uid = get_current_uid()?;
+    let gid = get_current_gid()?;
 
     docker_run_args.push("-u".to_string());
     docker_run_args.push(format!("{}:{}", uid, gid));

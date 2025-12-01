@@ -4,10 +4,10 @@
 
 use super::image_checking::image_exists;
 use crate::embedded_assets;
+use crate::shell::{build_docker_image_with_args, get_current_gid, get_current_uid};
 use crossterm::style::Stylize;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::fs;
-use std::process::Command;
 
 /// Build a Docker image from embedded Dockerfile.
 ///
@@ -64,40 +64,25 @@ pub fn perform_docker_build_from_embedded(
     pb.set_message(format!("Building Docker image: {}", image_tag));
 
     // Get current user's UID and GID for non-root container execution
-    let uid_output = Command::new("id").arg("-u").output()?;
-    let gid_output = Command::new("id").arg("-g").output()?;
-    let uid = String::from_utf8_lossy(&uid_output.stdout)
-        .trim()
-        .to_string();
-    let gid = String::from_utf8_lossy(&gid_output.stdout)
-        .trim()
-        .to_string();
+    let uid = get_current_uid()?;
+    let gid = get_current_gid()?;
 
     // Create a temporary Dockerfile
     let temp_dockerfile_path = std::env::temp_dir().join(format!("Dockerfile.{}", name));
     fs::write(&temp_dockerfile_path, dockerfile_content)?;
 
-    let status = Command::new("docker")
-        .args([
-            "build",
-            "--progress",
-            "plain",
-            "--build-arg",
-            &format!("USER_ID={}", uid),
-            "--build-arg",
-            &format!("GROUP_ID={}", gid),
-            "--file",
-            &temp_dockerfile_path.to_string_lossy(),
-            "--tag",
-            image_tag,
-            ".", // Build context is current directory
-        ])
-        .status()?;
+    let build_args = vec![("USER_ID", uid.as_str()), ("GROUP_ID", gid.as_str())];
+    let output = build_docker_image_with_args(
+        &temp_dockerfile_path.to_string_lossy(),
+        image_tag,
+        ".", // Build context is current directory
+        &build_args,
+    )?;
 
     // Clean up temp file
     let _ = fs::remove_file(&temp_dockerfile_path);
 
-    if !status.success() {
+    if !output.status.success() {
         pb.finish_with_message(format!("❌ Failed to build Docker image: {}", image_tag));
         return Err(format!("Failed to build Docker image: {}", image_tag).into());
     }
@@ -182,41 +167,26 @@ pub fn perform_yugabyte_docker_build_from_embedded(
     pb.set_message(format!("Building Docker image: {}", image_tag));
 
     // Get current user's UID and GID for non-root container execution
-    let uid_output = Command::new("id").arg("-u").output()?;
-    let gid_output = Command::new("id").arg("-g").output()?;
-    let uid = String::from_utf8_lossy(&uid_output.stdout)
-        .trim()
-        .to_string();
-    let gid = String::from_utf8_lossy(&gid_output.stdout)
-        .trim()
-        .to_string();
+    let uid = get_current_uid()?;
+    let gid = get_current_gid()?;
 
     // Create a temporary Dockerfile
     let temp_dockerfile_path = std::env::temp_dir().join(format!("Dockerfile.{}", name));
     fs::write(&temp_dockerfile_path, dockerfile_content)?;
 
     // Build from artifacts directory as context to include yugabyte folder
-    let status = Command::new("docker")
-        .args([
-            "build",
-            "--progress",
-            "plain",
-            "--build-arg",
-            &format!("USER_ID={}", uid),
-            "--build-arg",
-            &format!("GROUP_ID={}", gid),
-            "--file",
-            &temp_dockerfile_path.to_string_lossy(),
-            "--tag",
-            image_tag,
-            &artifacts_dir.to_string_lossy(),
-        ])
-        .status()?;
+    let build_args = vec![("USER_ID", uid.as_str()), ("GROUP_ID", gid.as_str())];
+    let output = build_docker_image_with_args(
+        &temp_dockerfile_path.to_string_lossy(),
+        image_tag,
+        &artifacts_dir.to_string_lossy(),
+        &build_args,
+    )?;
 
     // Clean up temp file
     let _ = fs::remove_file(&temp_dockerfile_path);
 
-    if !status.success() {
+    if !output.status.success() {
         pb.finish_with_message(format!("❌ Failed to build Docker image: {}", image_tag));
         return Err(format!("Failed to build Docker image: {}", image_tag).into());
     }
