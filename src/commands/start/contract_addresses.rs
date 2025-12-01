@@ -48,15 +48,6 @@ impl ContractAddresses {
         fs::write(&path, json)?;
         Ok(())
     }
-
-    /// Check if all required addresses are present
-    pub fn is_complete(&self) -> bool {
-        !self.global_fil_faucet.is_empty()
-            && !self.fevm_faucet.is_empty()
-            && !self.foc_deployer.is_empty()
-            && !self.foc_deployer_eth.is_empty()
-            && !self.mock_usdfc.is_empty()
-    }
 }
 
 impl Default for ContractAddresses {

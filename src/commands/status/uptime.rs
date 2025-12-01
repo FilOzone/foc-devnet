@@ -11,7 +11,7 @@ use chrono::Utc;
 use crossterm::style::Stylize;
 use std::process::Command;
 
-use super::docker::{get_running_containers, get_system_start_time};
+use crate::docker::status::{get_running_foc_containers, get_system_start_time};
 use super::utils::{format_duration, get_terminal_width};
 
 /// Get the current lotus chain block height.
@@ -196,7 +196,7 @@ pub fn print_uptime() -> Result<(), Box<dyn std::error::Error>> {
     let width = get_terminal_width().min(120);
     println!("{}", "─".repeat(width).magenta());
 
-    let containers = get_running_containers()?;
+    let containers = get_running_foc_containers()?;
 
     if containers.is_empty() {
         println!("{}", "System is not running".red());

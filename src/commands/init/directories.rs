@@ -14,18 +14,7 @@ use crate::paths::{
 };
 
 /// Create all necessary directories for foc-localnet.
-///
-/// This function creates the following directories if they don't already exist:
-/// - Home directory (~/.foc-localnet)
-/// - Logs directory
-/// - Bin directory
-/// - State directory
-/// - Code directory
-/// - Temporary directory
-/// - Artifacts directory
-/// - Docker images directory
-/// - Docker volumes directory
-///
+/// 
 /// # Returns
 /// Returns `Ok(())` if all directories are created successfully, or an error if creation fails.
 pub fn create_directories() -> Result<(), Box<dyn std::error::Error>> {
@@ -49,11 +38,10 @@ pub fn create_directories() -> Result<(), Box<dyn std::error::Error>> {
 
     for dir in directories {
         if !dir.exists() {
-            println!("  {} Creating directory: {:?}", "ℹ".cyan(), dir);
             fs::create_dir_all(&dir)?;
-            println!("\r  {} Created: {}", "✓".green(), dir.display());
+            println!("  {} Created: {}", "✓".green(), dir.display());
         } else {
-            println!("  {} Exists: {}", "✓".green(), dir.display());
+            println!("  {} Exists : {}", "✓".green(), dir.display());
         }
     }
 

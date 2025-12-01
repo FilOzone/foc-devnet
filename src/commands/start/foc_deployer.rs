@@ -6,14 +6,14 @@
 
 use crate::constants::*;
 use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes};
-use crate::shell::{docker_command, docker_exec};
+use crate::docker::core::{docker_command, exec_in_container};
 use crossterm::style::Stylize;
 use std::error::Error;
 
 /// Get the private key for an f4 address in hex format (for use with cast/forge)
 pub fn get_private_key(f4_address: &str) -> Result<String, Box<dyn Error>> {
     // Export the private key from lotus
-    let output = docker_exec(
+    let output = exec_in_container(
         LOTUS_CONTAINER,
         LOTUS_BINARY_PATH,
         &["wallet", "export", f4_address],

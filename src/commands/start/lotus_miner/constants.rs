@@ -10,7 +10,6 @@ pub const LOTUS_MINER_PORTS: &[(u16, &str)] = &[(2345, "Lotus-Miner API")];
 
 // Timing constants
 pub const LOTUS_API_WAIT_SLEEP_SECS: u64 = 2;
-pub const CONTAINER_INIT_WAIT_SECS: u64 = 15;
 pub const MINER_API_CHECK_DELAY_SECS: u64 = 5;
 pub const TIPSET_CHECK_DELAY_SECS: u64 = 10;
 pub const PORT_WAIT_TIMEOUT_SECS: u64 = 45;

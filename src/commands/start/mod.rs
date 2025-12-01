@@ -21,7 +21,7 @@ use usdfc_deploy::USDFCDeployStep;
 use yugabyte::YugabyteStep;
 
 use crate::paths::{foc_localnet_docker_volumes, foc_localnet_logs};
-use crate::shell::{docker_remove_container, docker_stop_container, is_container_running};
+use crate::docker::core::{container_is_running, remove_container, stop_container};
 use crossterm::style::Stylize;
 use std::path::PathBuf;
 
@@ -61,10 +61,10 @@ pub fn start_cluster(
         println!("  Stopping any running containers...");
         let containers = vec!["foc-lotus-miner", "foc-lotus", "foc-curio", "foc-yugabyte"];
         for container in containers {
-            if is_container_running(container)? {
+            if container_is_running(container)? {
                 println!("    Stopping container '{}'...", container);
-                docker_stop_container(container)?;
-                docker_remove_container(container)?;
+                stop_container(container)?;
+                remove_container(container)?;
             }
         }
 
@@ -112,10 +112,10 @@ pub fn start_cluster(
         // Stop lotus-miner and lotus containers
         let containers = vec!["foc-lotus-miner", "foc-lotus"];
         for container in containers {
-            if is_container_running(container)? {
+            if container_is_running(container)? {
                 println!("  Stopping container '{}'...", container);
-                docker_stop_container(container)?;
-                docker_remove_container(container)?;
+                stop_container(container)?;
+                remove_container(container)?;
             }
         }
 

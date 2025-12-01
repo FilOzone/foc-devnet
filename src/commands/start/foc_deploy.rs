@@ -11,7 +11,7 @@ use crate::constants::*;
 use crate::paths::{
     contract_addresses_file, foc_localnet_config, foc_localnet_filecoin_services_repo,
 };
-use crate::shell::docker_container_is_running;
+use crate::docker::core::container_is_running;
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::fs;
@@ -19,16 +19,14 @@ use std::path::PathBuf;
 
 /// Step for deploying FOC service contracts
 pub struct FOCDeployStep {
-    volumes_dir: PathBuf,
     #[allow(dead_code)]
     logs_dir: PathBuf,
 }
 
 impl FOCDeployStep {
     /// Create a new FOCDeployStep
-    pub fn new(volumes_dir: PathBuf, logs_dir: PathBuf) -> Self {
+    pub fn new(_volumes_dir: PathBuf, logs_dir: PathBuf) -> Self {
         Self {
-            volumes_dir,
             logs_dir,
         }
     }
@@ -59,7 +57,7 @@ impl FOCDeployStep {
 
     /// Check if Lotus is running and accessible
     fn check_lotus_running() -> Result<(), Box<dyn Error>> {
-        if !docker_container_is_running(LOTUS_CONTAINER)? {
+        if !container_is_running(LOTUS_CONTAINER)? {
             return Err("Lotus container is not running. FOC deployment requires Lotus to be running with FEVM enabled.".into());
         }
         Ok(())

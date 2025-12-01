@@ -6,7 +6,7 @@
 use crate::config::{Config, Location};
 use crate::constants::*;
 use crate::paths::{foc_localnet_config, foc_localnet_filecoin_services_repo};
-use crate::shell::docker_container_is_running;
+use crate::docker::core::container_is_running;
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
@@ -43,7 +43,7 @@ pub fn get_filecoin_services_repo_path() -> Result<PathBuf, Box<dyn Error>> {
 /// # Returns
 /// Ok(()) if Lotus is running, error otherwise
 pub fn check_lotus_running() -> Result<(), Box<dyn Error>> {
-    if !docker_container_is_running(LOTUS_CONTAINER)? {
+    if !container_is_running(LOTUS_CONTAINER)? {
         return Err("Lotus container is not running. FOC deployment requires Lotus to be running with FEVM enabled.".into());
     }
     Ok(())

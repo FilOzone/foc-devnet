@@ -4,7 +4,7 @@
 
 use crate::embedded_assets;
 use crate::paths::foc_localnet_docker_volumes;
-use crate::shell::{build_docker_image, get_current_gid, get_current_uid, image_exists};
+use crate::docker::{build::{build_docker_image}, core::{get_current_gid, get_current_uid, image_exists}};
 use crossterm::style::Stylize;
 use std::collections::HashMap;
 use std::fs;

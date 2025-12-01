@@ -6,7 +6,7 @@
 
 use super::step::{Step, StepContext};
 use crate::docker::{
-    container_exists, container_is_running, image_exists, is_port_available,
+    container_exists, container_is_running, is_port_available,
     stop_and_remove_container, wait_for_port,
 };
 use crate::paths::foc_localnet_bin;
@@ -130,7 +130,7 @@ impl CurioStep {
         println!("    {} All required ports are available", "✓".green());
 
         // Verify Docker image exists
-        if !image_exists(IMAGE_NAME) {
+        if !crate::docker::core::image_exists(IMAGE_NAME).unwrap_or(true) {
             return Err(format!(
                 "Docker image '{}' not found. Please run 'foc-localnet init' to build the image.",
                 IMAGE_NAME

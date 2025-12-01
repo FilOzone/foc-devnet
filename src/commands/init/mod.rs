@@ -12,7 +12,6 @@
 pub mod artifacts;
 pub mod config;
 pub mod directories;
-pub mod docker;
 pub mod keys;
 pub mod path_setup;
 pub mod repositories;
@@ -147,7 +146,7 @@ pub fn init_environment(
     artifacts::download_artifacts()?;
 
     // Build and cache Docker images
-    docker::build_and_cache_docker_images()?;
+    crate::docker::build::build_and_cache_docker_images()?;
 
     println!("{}", "✓ Initialization completed successfully".green());
     println!(

@@ -11,7 +11,8 @@
 use crossterm::style::Stylize;
 use tabular::{Row, Table};
 
-use super::docker::{get_container_uptime, get_port_status, get_running_containers, image_exists};
+use crate::docker::core::image_exists;
+use crate::docker::status::{get_container_ports, get_container_uptime, get_running_foc_containers};
 use super::utils;
 
 /// Print running status of the system in tabular format.
@@ -42,7 +43,7 @@ pub fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "─".repeat(width).green());
 
     // Check for running Docker containers
-    let containers = get_running_containers()?;
+    let containers = get_running_foc_containers()?;
 
     let expected_containers = vec![
         ("Lotus Daemon", "foc-lotus"),
@@ -66,7 +67,7 @@ pub fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
     let mut all_running = true;
     for (service_name, container_name) in &expected_containers {
         let is_running = containers.contains(&container_name.to_string());
-        let image_available = image_exists(container_name);
+        let image_available = image_exists(container_name).unwrap_or(false);
 
         // Determine status based on image availability and running state
         let status = if !image_available {
@@ -90,7 +91,10 @@ pub fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
 
         // Get port status if container is running
         let port_status = if is_running {
-            get_port_status(container_name)?
+            let ports_output = get_container_ports(container_name)?;
+            String::from_utf8_lossy(&ports_output.stdout)
+                .trim()
+                .to_string()
         } else {
             "N/A".dark_grey().to_string()
         };
