@@ -3,37 +3,68 @@
 //! This module handles generating and managing BLS keys for lotus,
 //! including signer keys and additional pre-funded accounts.
 
-use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_lotus_keys};
+use crate::paths::foc_localnet_lotus_keys;
 use crossterm::style::Stylize;
 use std::fs;
 use std::path::Path;
 
 /// Ensure BLS keys are generated for lotus.
 ///
-/// Generates signer keys and additional pre-funded keys using lotus-shed.
+/// Generates signer keys and additional pre-funded keys using pre-generated keys from init.
 /// - Signer keys (key-1, key-2, ...): Used for multisig signers
 /// - Pre-funded keys (prefunded-1, prefunded-2, ...): Additional accounts with balance
 pub fn ensure_bls_keys() -> Result<(), Box<dyn std::error::Error>> {
-    let keys_dir = foc_localnet_lotus_keys();
+    use crate::commands::init::keys::load_keys;
 
-    // Generate signer keys
-    for i in 1..=super::constants::NUM_SIGNER_KEYS {
-        let key_dir = keys_dir.join(format!("key-{}", i));
-        ensure_bls_key(&key_dir, i, "signer")?;
+    let keys_dir = foc_localnet_lotus_keys();
+    let all_keys = load_keys()?;
+
+    // Filter BLS keys
+    let bls_keys: Vec<_> = all_keys
+        .iter()
+        .filter(|k| k.name.starts_with("BLS_"))
+        .collect();
+
+    if bls_keys.len() < super::constants::NUM_SIGNER_KEYS as usize {
+        return Err(format!(
+            "Not enough BLS keys found. Expected {} BLS keys from init.",
+            super::constants::NUM_SIGNER_KEYS
+        )
+        .into());
     }
 
-    // Generate additional pre-funded keys (non-signers)
+    // Generate signer keys (key-1, key-2)
+    for i in 1..=super::constants::NUM_SIGNER_KEYS {
+        let key_dir = keys_dir.join(format!("key-{}", i));
+        let key_name = format!("BLS_SIGNER_{}", i);
+        let key_info = bls_keys
+            .iter()
+            .find(|k| k.name == key_name)
+            .ok_or_else(|| format!("BLS key {} not found", key_name))?;
+        ensure_bls_key_from_info(&key_dir, key_info, i, "signer")?;
+    }
+
+    // Generate additional pre-funded keys (prefunded-1)
     for i in 1..=super::constants::NUM_PREFUNDED_KEYS {
         let key_dir = keys_dir.join(format!("prefunded-{}", i));
-        ensure_bls_key(&key_dir, i, "prefunded")?;
+        let key_name = match i {
+            1 => "GLOBAL_FIL_FAUCET",
+            n => &format!("BLS_PREFUNDED_{}", n),
+        }; // First prefunded key is GLOBAL_FIL_FAUCET
+        let key_info = all_keys
+            .iter()
+            .find(|k| k.name == key_name)
+            .ok_or_else(|| format!("BLS key {} not found", key_name))?;
+        ensure_bls_key_from_info(&key_dir, key_info, i, "prefunded")?;
     }
 
     Ok(())
 }
 
-/// Ensure a single BLS key exists in the specified directory.
-pub fn ensure_bls_key(
+/// Ensure a single BLS key exists using pre-generated key info.
+fn ensure_bls_key_from_info(
     key_dir: &Path,
+    key_info: &crate::commands::init::keys::KeyInfo,
     key_num: u32,
     key_type: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -50,54 +81,50 @@ pub fn ensure_bls_key(
     }
 
     println!(
-        "  {} Generating BLS {} key {}...",
+        "  {} Using pre-generated BLS {} key {} ({})",
         "🔑".cyan(),
         key_type,
-        key_num
+        key_num,
+        key_info.name
     );
 
     // Create the directory
     fs::create_dir_all(key_dir)?;
 
-    // Generate key using lotus-shed in builder container
-    let bin_dir = foc_localnet_bin();
-    let builder_volumes_dir = foc_localnet_docker_volumes().join("builder");
+    // Extract address from filecoin_address (remove t3 prefix)
+    let address = key_info
+        .filecoin_address
+        .as_ref()
+        .ok_or("BLS key missing filecoin_address")?
+        .strip_prefix("t3")
+        .ok_or("Invalid BLS address format")?;
 
-    let output = std::process::Command::new("docker")
-        .args([
-            "run",
-            "--rm",
-            "-v",
-            &format!("{}:/opt/bin", bin_dir.display()),
-            "-v",
-            &format!(
-                "{}:/home/foc-user/.cargo",
-                builder_volumes_dir.join("cargo").display()
-            ),
-            "-v",
-            &format!("{}:/keys", key_dir.display()),
-            "foc-builder",
-            "/bin/bash",
-            "-c",
-            "cd /keys && /opt/bin/lotus-shed keyinfo new bls",
-        ])
-        .output()?;
+    // Create keyinfo file
+    let keyinfo_filename = format!("bls-{}.keyinfo", address);
+    let keyinfo_path = key_dir.join(keyinfo_filename);
 
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to generate BLS {} key {}: {}",
-            key_type,
-            key_num,
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
+    // Decode the hex-encoded private key
+    let private_key_bytes = hex::decode(&key_info.private_key)
+        .map_err(|e| format!("Failed to decode private key hex: {}", e))?;
+
+    // Create Lotus-compatible keyinfo JSON structure
+    // Lotus expects: {"Type": "bls", "PrivateKey": <base64-encoded bytes>}
+    use base64::{engine::general_purpose, Engine as _};
+    let keyinfo_json = serde_json::json!({
+        "Type": "bls",
+        "PrivateKey": general_purpose::STANDARD.encode(&private_key_bytes)
+    });
+
+    // Write the JSON keyinfo file
+    let json_str = serde_json::to_string(&keyinfo_json)?;
+    fs::write(&keyinfo_path, json_str)?;
 
     println!(
-        "  {} BLS {} key {} generated successfully",
+        "  {} BLS {} key {} created successfully at {}",
         "✓".green(),
         key_type,
-        key_num
+        key_num,
+        address
     );
     Ok(())
 }
@@ -156,7 +183,8 @@ pub fn get_bls_addresses(
             .and_then(|s| s.strip_suffix(".keyinfo"))
             .ok_or("Invalid keyinfo filename format")?;
 
-        addresses.push(address.to_string());
+        // Add t3 prefix for testnet addresses
+        addresses.push(format!("t3{}", address));
     }
 
     Ok(addresses)

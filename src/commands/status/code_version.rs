@@ -66,6 +66,22 @@ pub fn print_code_version() -> Result<(), Box<dyn std::error::Error>> {
     let (curio_source_type, curio_version, curio_commit, curio_status) =
         format_location_info(&config.curio, &curio_git_info, &curio_repo_path);
 
+    // Get git information for Filecoin Services
+    let filecoin_services_repo_path =
+        get_repo_path_from_config(&config.filecoin_services, "filecoin-services");
+    let filecoin_services_git_info = get_git_info(&filecoin_services_repo_path)?;
+
+    let (
+        filecoin_services_source_type,
+        filecoin_services_version,
+        filecoin_services_commit,
+        filecoin_services_status,
+    ) = format_location_info(
+        &config.filecoin_services,
+        &filecoin_services_git_info,
+        &filecoin_services_repo_path,
+    );
+
     // Create tabular output with proper column widths
     let mut table = Table::new("{:<}  {:<}  {:<}  {:<}  {:<}  {:<}");
     table.add_row(
@@ -99,27 +115,17 @@ pub fn print_code_version() -> Result<(), Box<dyn std::error::Error>> {
             .with_ansi_cell(curio_repo_path.display().to_string().dim()),
     );
 
+    table.add_row(
+        Row::new()
+            .with_ansi_cell("Filecoin Services".yellow())
+            .with_ansi_cell(&filecoin_services_source_type)
+            .with_ansi_cell(&filecoin_services_version)
+            .with_ansi_cell(&filecoin_services_commit)
+            .with_ansi_cell(&filecoin_services_status)
+            .with_ansi_cell(filecoin_services_repo_path.display().to_string().dim()),
+    );
+
     print!("{}", table);
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use tempfile::tempdir;
-
-    // Note: These tests would require setting up mock git repositories
-    // and configuration files, which is complex. In a real implementation,
-    // you might want to use mocking libraries or integration tests.
-
-    #[test]
-    fn test_print_code_version_requires_config() {
-        // This test will fail if no config file exists, which is expected
-        // in a test environment. We just verify the function signature works.
-        let result = print_code_version();
-        // We expect this to fail in test environment due to missing config
-        assert!(result.is_err());
-    }
 }

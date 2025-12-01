@@ -6,3 +6,4 @@
 cargo = "/home/foc-user/.cargo"
 rustup = "/home/foc-user/.rustup"
 go = "/home/foc-user/go"
+foundry = "/home/foc-user/.foundry"

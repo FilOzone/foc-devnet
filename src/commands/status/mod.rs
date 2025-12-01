@@ -36,6 +36,7 @@ pub mod code_version;
 pub mod disk_usage;
 pub mod docker;
 pub mod git;
+pub mod keys;
 pub mod running_status;
 pub mod uptime;
 pub mod utils;
@@ -89,6 +90,9 @@ pub fn status() -> Result<(), Box<dyn std::error::Error>> {
 
     // Uptime information (if running)
     uptime::print_uptime()?;
+
+    // Keys information
+    keys::print_keys_status()?;
 
     // Disk usage information
     disk_usage::print_disk_usage()?;

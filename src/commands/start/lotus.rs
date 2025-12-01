@@ -5,14 +5,17 @@
 
 use super::genesis::constants::GENESIS_FILE;
 use super::step::{Step, StepContext};
+use crate::docker::{
+    container_exists, container_is_running, image_exists, is_port_available,
+    stop_and_remove_container, wait_for_port,
+};
 use crate::paths::{
-    CONTAINER_FILECOIN_PROOF_PARAMS_PATH, foc_localnet_bin, foc_localnet_genesis,
-    foc_localnet_genesis_sectors, foc_localnet_proof_parameters,
+    foc_localnet_bin, foc_localnet_genesis, foc_localnet_genesis_sectors, foc_localnet_lotus_keys,
+    foc_localnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
 };
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::fs;
-use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::Command;
 use std::thread;
@@ -23,6 +26,16 @@ const IMAGE_NAME: &str = "foc-lotus";
 
 // Lotus daemon ports
 const LOTUS_PORTS: &[(u16, &str)] = &[(1234, "Lotus API"), (1235, "Lotus P2P")];
+
+// Timing constants
+const CONTAINER_INIT_WAIT_SECS: u64 = 10;
+const PORT_CHECK_TIMEOUT_SECS: u64 = 30;
+const API_FILE_TIMEOUT_SECS: u64 = 180;
+const PORT_CHECK_INTERVAL_MS: u64 = 500;
+const DAEMON_INIT_WAIT_SECS: u64 = 5;
+
+// Log constants
+const LOG_TAIL_LINES: &str = "50";
 
 /// Step for starting the Lotus execution node
 pub struct LotusStep {
@@ -37,86 +50,6 @@ impl LotusStep {
         Self {
             volumes_dir,
             logs_dir,
-        }
-    }
-
-    /// Check if a port is available (not in use)
-    fn is_port_available(port: u16) -> bool {
-        TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok()
-    }
-
-    /// Check if a Docker image exists
-    fn image_exists(image_name: &str) -> bool {
-        Command::new("docker")
-            .args(["image", "inspect", image_name])
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false)
-    }
-
-    /// Check if a container with the given name exists
-    fn container_exists(name: &str) -> Result<bool, Box<dyn Error>> {
-        let output = Command::new("docker")
-            .args([
-                "ps",
-                "-a",
-                "--filter",
-                &format!("name=^{}$", name),
-                "--format",
-                "{{.Names}}",
-            ])
-            .output()?;
-
-        Ok(String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .contains(name))
-    }
-
-    /// Check if a container is running
-    fn container_is_running(name: &str) -> Result<bool, Box<dyn Error>> {
-        let output = Command::new("docker")
-            .args([
-                "ps",
-                "--filter",
-                &format!("name=^{}$", name),
-                "--format",
-                "{{.Names}}",
-            ])
-            .output()?;
-
-        Ok(String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .contains(name))
-    }
-
-    /// Stop and remove a container if it exists
-    fn stop_and_remove_container(name: &str) -> Result<(), Box<dyn Error>> {
-        if Self::container_is_running(name)? {
-            println!("    Stopping existing container '{}'...", name);
-            Command::new("docker").args(["stop", name]).output()?;
-        }
-
-        if Self::container_exists(name)? {
-            println!("    Removing existing container '{}'...", name);
-            Command::new("docker").args(["rm", name]).output()?;
-        }
-
-        Ok(())
-    }
-
-    /// Wait for a port to be accepting connections
-    fn wait_for_port(port: u16, timeout_secs: u64) -> Result<(), Box<dyn Error>> {
-        let start = std::time::Instant::now();
-        loop {
-            if std::net::TcpStream::connect(format!("127.0.0.1:{}", port)).is_ok() {
-                return Ok(());
-            }
-
-            if start.elapsed().as_secs() > timeout_secs {
-                return Err(format!("Timeout waiting for port {} to be ready", port).into());
-            }
-
-            thread::sleep(Duration::from_millis(500));
         }
     }
 
@@ -157,37 +90,66 @@ impl LotusStep {
 
         Ok(())
     }
-}
 
-impl Step for LotusStep {
-    fn name(&self) -> &str {
-        "Start Lotus Daemon"
+    /// Enable FEVM in the Lotus config.toml
+    ///
+    /// This modifies the Lotus config to enable Ethereum RPC support, which is
+    /// required for deploying and interacting with Solidity contracts.
+    /// Create a pre-configured config.toml with FEVM and ChainIndexer enabled
+    fn create_fevm_config(lotus_data_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
+        fs::create_dir_all(lotus_data_dir)?;
+        let config_path = lotus_data_dir.join("config.toml");
+
+        // Create a minimal config with FEVM enabled
+        let config_content = r#"[API]
+  ListenAddress = "/ip4/0.0.0.0/tcp/1234/http"
+  Timeout = "30s"
+
+[Chainstore]
+  EnableSplitstore = false
+
+[Fevm]
+  EnableEthRPC = true
+
+[ChainIndexer]
+  EnableIndexer = true
+"#;
+
+        fs::write(&config_path, config_content)?;
+        Ok(())
     }
 
-    fn pre_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    // Note: Old enable_fevm_config() removed - config is now created before container starts
+
+    /// Check and handle any existing Lotus container
+    fn check_existing_container() -> Result<(), Box<dyn Error>> {
         // Check if any existing lotus container is running
-        if Self::container_exists(CONTAINER_NAME)? {
-            if Self::container_is_running(CONTAINER_NAME)? {
+        if container_exists(CONTAINER_NAME)? {
+            if container_is_running(CONTAINER_NAME)? {
                 println!(
                     "    {} Container '{}' is already running",
                     "⚠".yellow(),
                     CONTAINER_NAME
                 );
-                Self::stop_and_remove_container(CONTAINER_NAME)?;
+                stop_and_remove_container(CONTAINER_NAME)?;
             } else {
                 println!(
                     "    {} Container '{}' exists but is not running",
                     "⚠".yellow(),
                     CONTAINER_NAME
                 );
-                Self::stop_and_remove_container(CONTAINER_NAME)?;
+                stop_and_remove_container(CONTAINER_NAME)?;
             }
         }
+        Ok(())
+    }
 
+    /// Check that all required ports are available
+    fn check_ports_availability() -> Result<(), Box<dyn Error>> {
         // Check if all required ports are available
         let mut unavailable_ports = Vec::new();
         for &(port, description) in LOTUS_PORTS {
-            if !Self::is_port_available(port) {
+            if !is_port_available(port) {
                 unavailable_ports.push((port, description));
             }
         }
@@ -202,9 +164,13 @@ impl Step for LotusStep {
         }
 
         println!("    {} All required ports are available", "✓".green());
+        Ok(())
+    }
 
+    /// Check that required Docker image and Lotus binary exist
+    fn check_image_and_binary() -> Result<(), Box<dyn Error>> {
         // Verify Docker image exists
-        if !Self::image_exists(IMAGE_NAME) {
+        if !image_exists(IMAGE_NAME) {
             return Err(format!(
                 "Docker image '{}' not found. Please run 'foc-localnet init' to build the image.",
                 IMAGE_NAME
@@ -222,7 +188,11 @@ impl Step for LotusStep {
         }
 
         println!("    {} Lotus binary found", "✓".green());
+        Ok(())
+    }
 
+    /// Check that genesis file, proof parameters, and sectors exist
+    fn check_genesis_and_params() -> Result<(), Box<dyn Error>> {
         // Verify genesis file exists
         let genesis_file = Self::verify_genesis_file()?;
         println!(
@@ -250,11 +220,11 @@ impl Step for LotusStep {
         }
 
         println!("    {} Pre-sealed sectors found", "✓".green());
-
         Ok(())
     }
 
-    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    /// Set up necessary directories for Lotus daemon
+    fn setup_directories(&self) -> Result<(), Box<dyn Error>> {
         // Create lotus data directory in volumes
         let lotus_data_dir = self.volumes_dir.join("lotus-data");
         fs::create_dir_all(&lotus_data_dir)?;
@@ -263,15 +233,29 @@ impl Step for LotusStep {
         let devgen_dir = self.volumes_dir.join("devgen");
         fs::create_dir_all(&devgen_dir)?;
 
+        // Pre-create config.toml with FEVM and ChainIndexer enabled
+        Self::create_fevm_config(&lotus_data_dir)?;
+
+        Ok(())
+    }
+
+    /// Build the Docker run command for starting Lotus daemon
+    fn build_docker_command(&self) -> Result<Vec<String>, Box<dyn Error>> {
         // Get paths
         let bin_dir = foc_localnet_bin();
         let params_dir = foc_localnet_proof_parameters();
         let genesis_dir = foc_localnet_genesis();
         let sectors_dir = foc_localnet_genesis_sectors();
+        let keys_dir = foc_localnet_lotus_keys();
         let genesis_file = genesis_dir.join(GENESIS_FILE);
 
         // Build docker run command
-        let mut docker_args = vec!["run", "-d", "--name", CONTAINER_NAME];
+        let mut docker_args = vec![
+            "run".to_string(),
+            "-d".to_string(),
+            "--name".to_string(),
+            CONTAINER_NAME.to_string(),
+        ];
 
         // Add port mappings
         let port_args: Vec<String> = LOTUS_PORTS
@@ -279,7 +263,7 @@ impl Step for LotusStep {
             .flat_map(|&(port, _)| vec!["-p".to_string(), format!("{}:{}", port, port)])
             .collect();
 
-        for arg in &port_args {
+        for arg in port_args {
             docker_args.push(arg);
         }
 
@@ -288,9 +272,9 @@ impl Step for LotusStep {
             format!("{}:/usr/local/bin/lotus-bins", bin_dir.display()),
             format!(
                 "{}:/home/foc-user/.lotus-local-net",
-                lotus_data_dir.display()
+                self.volumes_dir.join("lotus-data").display()
             ),
-            format!("{}:/devgen", devgen_dir.display()),
+            format!("{}:/devgen", self.volumes_dir.join("devgen").display()),
             format!(
                 "{}:{}",
                 params_dir.display(),
@@ -298,17 +282,18 @@ impl Step for LotusStep {
             ),
             format!("{}:/genesis", genesis_dir.display()),
             format!("{}:/sectors", sectors_dir.display()),
+            format!("{}:/keys", keys_dir.display()),
         ];
 
         for mount in &volume_mounts {
-            docker_args.extend_from_slice(&["-v", mount]);
+            docker_args.extend_from_slice(&["-v".to_string(), mount.clone()]);
         }
 
         // Set working directory
-        docker_args.extend_from_slice(&["-w", "/data"]);
+        docker_args.extend_from_slice(&["-w".to_string(), "/data".to_string()]);
 
         // Add image name
-        docker_args.push(IMAGE_NAME);
+        docker_args.push(IMAGE_NAME.to_string());
 
         // Add command to start lotus daemon
         let genesis_filename = genesis_file
@@ -323,8 +308,17 @@ impl Step for LotusStep {
                 --bootstrap=false"#,
             genesis_filename
         );
-        docker_args.extend_from_slice(&["/bin/bash", "-c", &lotus_cmd]);
+        docker_args.extend_from_slice(&["/bin/bash".to_string(), "-c".to_string(), lotus_cmd]);
 
+        Ok(docker_args)
+    }
+
+    /// Start the Lotus daemon container
+    fn start_container(
+        &self,
+        docker_args: Vec<String>,
+        context: &mut StepContext,
+    ) -> Result<(), Box<dyn Error>> {
         println!(
             "    Starting Lotus daemon container '{}'...",
             CONTAINER_NAME
@@ -350,16 +344,17 @@ impl Step for LotusStep {
         Ok(())
     }
 
-    fn post_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    /// Wait for the container to initialize after starting
+    fn wait_for_container_init(&self) -> Result<(), Box<dyn Error>> {
         // Wait for container to initialize
         println!("    Waiting for Lotus daemon to start...");
-        thread::sleep(Duration::from_secs(10));
+        thread::sleep(Duration::from_secs(CONTAINER_INIT_WAIT_SECS));
 
         // Verify container is running
-        if !Self::container_is_running(CONTAINER_NAME)? {
+        if !container_is_running(CONTAINER_NAME)? {
             // Check logs for errors
             let logs_output = Command::new("docker")
-                .args(["logs", "--tail", "50", CONTAINER_NAME])
+                .args(["logs", "--tail", LOG_TAIL_LINES, CONTAINER_NAME])
                 .output()?;
 
             return Err(format!(
@@ -369,12 +364,16 @@ impl Step for LotusStep {
             .into());
         }
         println!("    {} Container is running", "✓".green());
+        Ok(())
+    }
 
+    /// Verify that all required ports are accessible
+    fn verify_ports(&self) -> Result<(), Box<dyn Error>> {
         // Check all ports are accessible
         println!("    Verifying port accessibility...");
         for &(port, description) in LOTUS_PORTS {
             print!("      Checking port {} ({})... ", port, description);
-            match Self::wait_for_port(port, 30) {
+            match wait_for_port(port, PORT_CHECK_TIMEOUT_SECS) {
                 Ok(_) => println!("{}", "✓".green()),
                 Err(e) => {
                     println!("{}", "✗".red());
@@ -382,26 +381,40 @@ impl Step for LotusStep {
                 }
             }
         }
+        Ok(())
+    }
 
+    /// Wait for the Lotus API file to be created
+    fn wait_for_api_file(&self) -> Result<(), Box<dyn Error>> {
         // Wait for Lotus API file to exist and daemon to be fully initialized
         println!("    Waiting for Lotus API to be ready (this may take 1-2 minutes)...");
         let lotus_data_dir = self.volumes_dir.join("lotus-data");
         let api_file = lotus_data_dir.join("api");
 
         let start = std::time::Instant::now();
-        let timeout = Duration::from_secs(180); // 3 minute timeout
+        let timeout = Duration::from_secs(API_FILE_TIMEOUT_SECS); // 3 minute timeout
 
         while !api_file.exists() {
             if start.elapsed() > timeout {
                 return Err("Timeout waiting for Lotus API file to be created".into());
             }
-            thread::sleep(Duration::from_millis(500));
+            thread::sleep(Duration::from_millis(PORT_CHECK_INTERVAL_MS));
         }
         println!("    {} Lotus API file created", "✓".green());
 
         // Wait a bit more for daemon to fully initialize
-        thread::sleep(Duration::from_secs(5));
+        thread::sleep(Duration::from_secs(DAEMON_INIT_WAIT_SECS));
 
+        // FEVM is already configured in config.toml before container start
+        println!(
+            "    {} FEVM and ChainIndexer enabled via config.toml",
+            "✓".green()
+        );
+        Ok(())
+    }
+
+    /// Verify Lotus API and Ethereum RPC connectivity
+    fn verify_api_connectivity(&self) -> Result<(), Box<dyn Error>> {
         // Verify Lotus API is responsive
         println!("    Verifying Lotus API connectivity...");
         match Self::check_lotus_api() {
@@ -419,9 +432,111 @@ impl Step for LotusStep {
             }
         }
 
+        // Verify FEVM/Ethereum RPC is available
+        println!("    Verifying FEVM Ethereum RPC...");
+        match Self::check_ethereum_rpc() {
+            Ok(_) => {
+                println!(
+                    "    {} Ethereum RPC is available and responding",
+                    "✓".green()
+                );
+            }
+            Err(e) => {
+                println!(
+                    "    {} Ethereum RPC verification failed: {}",
+                    "⚠".yellow(),
+                    e
+                );
+                println!(
+                    "    Note: This may indicate FEVM is not fully initialized. Check logs if needed."
+                );
+            }
+        }
+
         println!("\n    {} Lotus daemon is ready!", "✓".green().bold());
         println!("      API endpoint: http://localhost:1234");
+        println!("      Ethereum RPC: Available via Lotus API");
+        Ok(())
+    }
 
+    /// Check if Ethereum RPC is available via the Lotus API
+    ///
+    /// This verifies that FEVM is properly enabled by testing a basic eth_* RPC call.
+    fn check_ethereum_rpc() -> Result<(), Box<dyn Error>> {
+        // Test eth_blockNumber via docker exec
+        // This is a simple, safe RPC call that should work if FEVM is enabled
+        let output = Command::new("docker")
+            .args([
+                "exec",
+                CONTAINER_NAME,
+                "/bin/bash",
+                "-c",
+                "curl -s -X POST -H 'Content-Type: application/json' \
+                --data '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}' \
+                http://localhost:1234/rpc/v1",
+            ])
+            .output()?;
+
+        if !output.status.success() {
+            return Err(format!(
+                "Failed to execute eth_blockNumber RPC call: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .into());
+        }
+
+        let response = String::from_utf8_lossy(&output.stdout);
+
+        // Check if response contains result (indicating success)
+        // Even if block number is 0x0, it should have a "result" field
+        if !response.contains("\"result\"") {
+            return Err(format!("Unexpected response from eth_blockNumber: {}", response).into());
+        }
+
+        Ok(())
+    }
+}
+
+impl Step for LotusStep {
+    /// Returns the name of this step
+    fn name(&self) -> &str {
+        "Start Lotus Daemon"
+    }
+
+    /// Performs pre-execution checks before starting the Lotus daemon
+    ///
+    /// This includes checking for existing containers, verifying port availability,
+    /// ensuring required Docker images and binaries exist, and validating
+    /// genesis and proof parameter files.
+    fn pre_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        Self::check_existing_container()?;
+        Self::check_ports_availability()?;
+        Self::check_image_and_binary()?;
+        Self::check_genesis_and_params()?;
+        Ok(())
+    }
+
+    /// Executes the main logic to start the Lotus daemon container
+    ///
+    /// This creates necessary directories, builds the Docker run command with
+    /// appropriate volume mounts and port mappings, and starts the container.
+    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        self.setup_directories()?;
+        let docker_args = self.build_docker_command()?;
+        self.start_container(docker_args, context)?;
+        Ok(())
+    }
+
+    /// Performs post-execution verification after the Lotus daemon starts
+    ///
+    /// This waits for the container to initialize, verifies port accessibility,
+    /// waits for the Lotus API file to be created, and checks API connectivity
+    /// including FEVM/Ethereum RPC availability.
+    fn post_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        self.wait_for_container_init()?;
+        self.verify_ports()?;
+        self.wait_for_api_file()?;
+        self.verify_api_connectivity()?;
         Ok(())
     }
 }

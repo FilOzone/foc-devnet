@@ -27,6 +27,11 @@ pub fn poison_file() -> PathBuf {
     foc_localnet_state().join(".poison")
 }
 
+/// Returns the path to the contract addresses file, e.g., ~/.foc-localnet/state/contract_addresses.json
+pub fn contract_addresses_file() -> PathBuf {
+    foc_localnet_state().join("contract_addresses.json")
+}
+
 /// Returns the path to the foc-localnet remote pulls directory, e.g., ~/.foc-localnet/remote-pulls
 pub fn foc_localnet_code() -> PathBuf {
     foc_localnet_home().join("code")
@@ -40,6 +45,11 @@ pub fn foc_localnet_lotus_repo() -> PathBuf {
 /// Returns the path to the "curio" repository
 pub fn foc_localnet_curio_repo() -> PathBuf {
     foc_localnet_code().join("curio")
+}
+
+/// Returns the path to the "filecoin-services" repository
+pub fn foc_localnet_filecoin_services_repo() -> PathBuf {
+    foc_localnet_code().join("filecoin-services")
 }
 
 /// Returns the path to the foc-localnet temporary directory, e.g., ~/.foc-localnet/tmp
@@ -84,6 +94,37 @@ pub fn foc_localnet_genesis_sectors() -> PathBuf {
 /// e.g., ~/.foc-localnet/artifacts/docker/volumes/genesis
 pub fn foc_localnet_genesis() -> PathBuf {
     foc_localnet_docker_volumes().join("genesis")
+}
+
+/// Returns the path to store generated keys
+/// e.g., ~/.foc-localnet/keys
+pub fn foc_localnet_keys() -> PathBuf {
+    foc_localnet_home().join("keys")
+}
+
+/// Returns the path to the project root directory
+/// This is determined by finding the directory containing Cargo.toml
+pub fn project_root() -> Result<PathBuf, std::io::Error> {
+    // Get the current executable path
+    let exe_path = std::env::current_exe()?;
+
+    // Walk up from the executable until we find Cargo.toml
+    let mut current = exe_path.parent();
+    while let Some(dir) = current {
+        let cargo_toml = dir.join("Cargo.toml");
+        if cargo_toml.exists() {
+            return Ok(dir.to_path_buf());
+        }
+        current = dir.parent();
+    }
+
+    // Fallback: use CARGO_MANIFEST_DIR if available (during build/test)
+    if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
+        return Ok(PathBuf::from(manifest_dir));
+    }
+
+    // Last resort: current directory
+    std::env::current_dir()
 }
 
 // Constants for container paths

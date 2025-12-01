@@ -1,3 +1,4 @@
+use crate::docker::{container_exists, container_is_running};
 use crossterm::style::Stylize;
 use std::process::Command;
 
@@ -109,39 +110,4 @@ fn stop_container(
         format!("{} stopped successfully", service_name).green()
     );
     Ok(())
-}
-
-/// Check if a container with the given name exists
-fn container_exists(name: &str) -> Result<bool, Box<dyn std::error::Error>> {
-    let output = Command::new("docker")
-        .args([
-            "ps",
-            "-a",
-            "--filter",
-            &format!("name=^{}$", name),
-            "--format",
-            "{{.Names}}",
-        ])
-        .output()?;
-
-    Ok(String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .contains(name))
-}
-
-/// Check if a container is running
-fn container_is_running(name: &str) -> Result<bool, Box<dyn std::error::Error>> {
-    let output = Command::new("docker")
-        .args([
-            "ps",
-            "--filter",
-            &format!("name=^{}$", name),
-            "--format",
-            "{{.Names}}",
-        ])
-        .output()?;
-
-    Ok(String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .contains(name))
 }

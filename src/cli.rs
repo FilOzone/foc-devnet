@@ -44,12 +44,18 @@ pub enum Commands {
         /// Lotus source location (e.g., 'gittag:v1.0.0', 'gittag:url:tag', 'gitcommit:abc123', 'gitcommit:url:commit', 'gitbranch:main', 'gitbranch:url:main', 'local:/path/to/lotus')
         #[arg(long)]
         lotus: Option<String>,
+        /// Filecoin Services source location (e.g., 'gittag:v1.0.0', 'gittag:url:tag', 'gitcommit:abc123', 'gitcommit:url:commit', 'gitbranch:main', 'gitbranch:url:main', 'local:/path/to/filecoin-services')
+        #[arg(long)]
+        filecoin_services: Option<String>,
         /// Yugabyte download URL
         #[arg(long)]
         yugabyte_url: Option<String>,
         /// Force regeneration of config file even if it exists
         #[arg(long)]
         force: bool,
+        /// Use random mnemonic instead of deterministic one
+        #[arg(long)]
+        rand: bool,
     },
     /// Build Filecoin projects in a container
     Build {
@@ -81,6 +87,17 @@ pub enum Commands {
     },
     /// Show status of the foc-localnet system
     Status,
+    /// Generate shell completion scripts
+    Completions {
+        /// Shell to generate completions for (bash, zsh, fish, powershell, elvish)
+        /// If not provided, will attempt to detect from $SHELL environment variable
+        shell: Option<String>,
+        /// Install the completion script to the appropriate location for the shell
+        #[arg(long)]
+        install: bool,
+    },
+    /// Show version information
+    Version,
 }
 
 /// Build subcommands

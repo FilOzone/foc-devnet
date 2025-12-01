@@ -224,11 +224,7 @@ pub fn print_uptime() -> Result<(), Box<dyn std::error::Error>> {
 
         // Display CPU usage
         if let Some(cpu_usage) = get_containers_cpu_usage() {
-            println!(
-                "{} {:.1}%",
-                "Containers CPU usage:".green(),
-                cpu_usage
-            );
+            println!("{} {:.1}%", "Containers CPU usage:".green(), cpu_usage);
         }
 
         // Display RAM usage

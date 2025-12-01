@@ -1,7 +1,10 @@
 use super::step::{Step, StepContext};
+use crate::docker::{
+    container_exists, container_is_running, image_exists, is_port_available,
+    stop_and_remove_container, wait_for_port,
+};
 use crossterm::style::Stylize;
 use std::error::Error;
-use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::Command;
 use std::thread;
@@ -37,86 +40,6 @@ impl YugabyteStep {
         }
     }
 
-    /// Check if a port is available (not in use)
-    fn is_port_available(port: u16) -> bool {
-        TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok()
-    }
-
-    /// Check if a Docker image exists
-    fn image_exists(image_name: &str) -> bool {
-        Command::new("docker")
-            .args(["image", "inspect", image_name])
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false)
-    }
-
-    /// Check if a container with the given name exists
-    fn container_exists(name: &str) -> Result<bool, Box<dyn Error>> {
-        let output = Command::new("docker")
-            .args([
-                "ps",
-                "-a",
-                "--filter",
-                &format!("name=^{}$", name),
-                "--format",
-                "{{.Names}}",
-            ])
-            .output()?;
-
-        Ok(String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .contains(name))
-    }
-
-    /// Check if a container is running
-    fn container_is_running(name: &str) -> Result<bool, Box<dyn Error>> {
-        let output = Command::new("docker")
-            .args([
-                "ps",
-                "--filter",
-                &format!("name=^{}$", name),
-                "--format",
-                "{{.Names}}",
-            ])
-            .output()?;
-
-        Ok(String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .contains(name))
-    }
-
-    /// Stop and remove a container if it exists
-    fn stop_and_remove_container(name: &str) -> Result<(), Box<dyn Error>> {
-        if Self::container_is_running(name)? {
-            println!("    Stopping existing container '{}'...", name);
-            Command::new("docker").args(["stop", name]).output()?;
-        }
-
-        if Self::container_exists(name)? {
-            println!("    Removing existing container '{}'...", name);
-            Command::new("docker").args(["rm", name]).output()?;
-        }
-
-        Ok(())
-    }
-
-    /// Wait for a port to be accepting connections
-    fn wait_for_port(port: u16, timeout_secs: u64) -> Result<(), Box<dyn Error>> {
-        let start = std::time::Instant::now();
-        loop {
-            if std::net::TcpStream::connect(format!("127.0.0.1:{}", port)).is_ok() {
-                return Ok(());
-            }
-
-            if start.elapsed().as_secs() > timeout_secs {
-                return Err(format!("Timeout waiting for port {} to be ready", port).into());
-            }
-
-            thread::sleep(Duration::from_millis(500));
-        }
-    }
-
     /// Verify PostgreSQL connectivity on port 5433
     fn verify_postgres_connection() -> Result<(), Box<dyn Error>> {
         // Try to connect to the database using docker exec
@@ -144,72 +67,23 @@ impl YugabyteStep {
 
         Ok(())
     }
-}
 
-impl Step for YugabyteStep {
-    fn name(&self) -> &str {
-        "Start YugabyteDB"
-    }
-
-    fn pre_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        // Check if any existing yugabyte container is running
-        if Self::container_exists(CONTAINER_NAME)? {
-            if Self::container_is_running(CONTAINER_NAME)? {
-                println!(
-                    "    {} Container '{}' is already running",
-                    "⚠".yellow(),
-                    CONTAINER_NAME
-                );
-                Self::stop_and_remove_container(CONTAINER_NAME)?;
-            } else {
-                println!(
-                    "    {} Container '{}' exists but is not running",
-                    "⚠".yellow(),
-                    CONTAINER_NAME
-                );
-                Self::stop_and_remove_container(CONTAINER_NAME)?;
-            }
-        }
-
-        // Check if all required ports are available
-        let mut unavailable_ports = Vec::new();
-        for &(port, description) in YUGABYTE_PORTS {
-            if !Self::is_port_available(port) {
-                unavailable_ports.push((port, description));
-            }
-        }
-
-        if !unavailable_ports.is_empty() {
-            let mut error_msg = String::from("The following required ports are not available:\n");
-            for (port, description) in unavailable_ports {
-                error_msg.push_str(&format!("  - Port {}: {}\n", port, description));
-            }
-            error_msg.push_str("\nPlease free these ports before starting YugabyteDB.");
-            return Err(error_msg.into());
-        }
-
-        println!("    {} All required ports are available", "✓".green());
-
-        // Verify Docker image exists
-        if !Self::image_exists(IMAGE_NAME) {
-            return Err(format!(
-                "Docker image '{}' not found. Please run 'foc-localnet init' to build the image.",
-                IMAGE_NAME
-            )
-            .into());
-        }
-        println!("    {} Docker image '{}' found", "✓".green(), IMAGE_NAME);
-
+    /// Create the YugabyteDB data directory
+    fn setup_data_directory(&self) -> Result<(), Box<dyn Error>> {
+        let yugabyte_data_dir = self.volumes_dir.join("yugabyte-data");
+        std::fs::create_dir_all(&yugabyte_data_dir)?;
         Ok(())
     }
 
-    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        // Create yugabyte data directory in volumes
-        let yugabyte_data_dir = self.volumes_dir.join("yugabyte-data");
-        std::fs::create_dir_all(&yugabyte_data_dir)?;
-
+    /// Build the Docker run command for YugabyteDB
+    fn build_docker_command(&self) -> Result<Vec<String>, Box<dyn Error>> {
         // Build docker run command
-        let mut docker_args = vec!["run", "-d", "--name", CONTAINER_NAME];
+        let mut docker_args = vec![
+            "run".to_string(),
+            "-d".to_string(),
+            "--name".to_string(),
+            CONTAINER_NAME.to_string(),
+        ];
 
         // Add port mappings
         let port_args: Vec<String> = YUGABYTE_PORTS
@@ -217,17 +91,25 @@ impl Step for YugabyteStep {
             .flat_map(|&(port, _)| vec!["-p".to_string(), format!("{}:{}", port, port)])
             .collect();
 
-        for arg in &port_args {
-            docker_args.push(arg);
-        }
+        docker_args.extend(port_args);
 
         // Add volume mount
+        let yugabyte_data_dir = self.volumes_dir.join("yugabyte-data");
         let volume_mount = format!("{}:/yugabyte/data", yugabyte_data_dir.display());
-        docker_args.extend_from_slice(&["-v", &volume_mount]);
+        docker_args.extend_from_slice(&["-v".to_string(), volume_mount]);
 
         // Add image name
-        docker_args.push(IMAGE_NAME);
+        docker_args.push(IMAGE_NAME.to_string());
 
+        Ok(docker_args)
+    }
+
+    /// Start the YugabyteDB container
+    fn start_container(
+        &self,
+        docker_args: Vec<String>,
+        context: &mut StepContext,
+    ) -> Result<(), Box<dyn Error>> {
         println!("    Starting container '{}'...", CONTAINER_NAME);
         let output = Command::new("docker").args(&docker_args).output()?;
 
@@ -249,6 +131,71 @@ impl Step for YugabyteStep {
 
         Ok(())
     }
+}
+
+impl Step for YugabyteStep {
+    fn name(&self) -> &str {
+        "Start YugabyteDB"
+    }
+
+    fn pre_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        // Check if any existing yugabyte container is running
+        if container_exists(CONTAINER_NAME)? {
+            if container_is_running(CONTAINER_NAME)? {
+                println!(
+                    "    {} Container '{}' is already running",
+                    "⚠".yellow(),
+                    CONTAINER_NAME
+                );
+                stop_and_remove_container(CONTAINER_NAME)?;
+            } else {
+                println!(
+                    "    {} Container '{}' exists but is not running",
+                    "⚠".yellow(),
+                    CONTAINER_NAME
+                );
+                stop_and_remove_container(CONTAINER_NAME)?;
+            }
+        }
+
+        // Check if all required ports are available
+        let mut unavailable_ports = Vec::new();
+        for &(port, description) in YUGABYTE_PORTS {
+            if !is_port_available(port) {
+                unavailable_ports.push((port, description));
+            }
+        }
+
+        if !unavailable_ports.is_empty() {
+            let mut error_msg = String::from("The following required ports are not available:\n");
+            for (port, description) in unavailable_ports {
+                error_msg.push_str(&format!("  - Port {}: {}\n", port, description));
+            }
+            error_msg.push_str("\nPlease free these ports before starting YugabyteDB.");
+            return Err(error_msg.into());
+        }
+
+        println!("    {} All required ports are available", "✓".green());
+
+        // Verify Docker image exists
+        if !image_exists(IMAGE_NAME) {
+            return Err(format!(
+                "Docker image '{}' not found. Please run 'foc-localnet init' to build the image.",
+                IMAGE_NAME
+            )
+            .into());
+        }
+        println!("    {} Docker image '{}' found", "✓".green(), IMAGE_NAME);
+
+        Ok(())
+    }
+
+    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        self.setup_data_directory()?;
+        let docker_args = self.build_docker_command()?;
+        self.start_container(docker_args, context)?;
+        Ok(())
+    }
 
     fn post_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         // Wait for container to be healthy
@@ -256,7 +203,7 @@ impl Step for YugabyteStep {
         thread::sleep(Duration::from_secs(5));
 
         // Verify container is running
-        if !Self::container_is_running(CONTAINER_NAME)? {
+        if !container_is_running(CONTAINER_NAME)? {
             return Err("Container stopped unexpectedly".into());
         }
         println!("    {} Container is running", "✓".green());
@@ -265,7 +212,7 @@ impl Step for YugabyteStep {
         println!("    Verifying port accessibility...");
         for &(port, description) in YUGABYTE_PORTS {
             print!("      Checking port {} ({})... ", port, description);
-            match Self::wait_for_port(port, 30) {
+            match wait_for_port(port, 30) {
                 Ok(_) => println!("{}", "✓".green()),
                 Err(e) => {
                     println!("{}", "✗".red());

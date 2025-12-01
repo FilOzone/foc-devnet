@@ -1,15 +1,21 @@
 mod curio;
+mod eth_acc_funding;
+mod foc_deploy;
 mod genesis;
 mod lotus;
 mod lotus_miner;
 mod step;
+mod usdfc_deploy;
 mod yugabyte;
 
 use curio::CurioStep;
+use eth_acc_funding::ETHAccFundingStep;
+use foc_deploy::FOCDeployStep;
 pub use genesis::ensure_genesis_prerequisites;
 use lotus::LotusStep;
 use lotus_miner::LotusMinerStep;
-pub use step::{Step, StepContext, execute_steps};
+pub use step::{execute_steps, Step, StepContext};
+use usdfc_deploy::USDFCDeployStep;
 use yugabyte::YugabyteStep;
 
 use crate::paths::{foc_localnet_docker_volumes, foc_localnet_logs};
@@ -114,7 +120,12 @@ pub fn start_cluster(
 
     // Handle reset flag - reset lotus and lotus-miner to block 0
     if reset {
-        println!("{}", "Resetting lotus and lotus-miner to block 0...".yellow().bold());
+        println!(
+            "{}",
+            "Resetting lotus and lotus-miner to block 0..."
+                .yellow()
+                .bold()
+        );
 
         // Stop lotus-miner and lotus containers
         let containers = vec!["foc-lotus-miner", "foc-lotus"];
@@ -168,6 +179,17 @@ pub fn start_cluster(
             }
         }
 
+        // Delete contract addresses file to allow re-deployment
+        let contract_addresses_path = crate::paths::contract_addresses_file();
+        if contract_addresses_path.exists() {
+            std::fs::remove_file(&contract_addresses_path)?;
+            println!(
+                "  {} {}",
+                "Removed file:".red(),
+                contract_addresses_path.display()
+            );
+        }
+
         println!("{}", "Reset to block 0 complete.".green().bold());
         println!();
     }
@@ -190,15 +212,28 @@ pub fn start_cluster(
     // Create steps in the order they need to be started:
     // 1. Lotus (execution node) - needed by others
     // 2. Lotus-Miner (first gen miner) - builds tipsets
-    // 3. YugabyteDB - database for Curio
-    // 4. Curio (second gen miner) - needs both Lotus and YugabyteDB
+    // 3. ETHAccFunding - create and fund Ethereum accounts for FOC deployment
+    // 4. USDFCDeploy - deploy MockUSDFC token for FOC contracts
+    // 5. FOCDeploy - deploy FOC service contracts (requires Lotus with FEVM)
+    // 6. YugabyteDB - database for Curio
+    // 7. Curio (second gen miner) - needs Lotus, FOC contracts, and YugabyteDB
     let lotus_step = LotusStep::new(volumes_dir.clone(), logs_dir.clone());
     let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), logs_dir.clone());
+    let eth_acc_funding_step = ETHAccFundingStep::new(volumes_dir.clone(), logs_dir.clone());
+    let usdfc_deploy_step = USDFCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
+    let foc_deploy_step = FOCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
     let yugabyte_step = YugabyteStep::new(volumes_dir.clone(), logs_dir.clone());
     let _curio_step = CurioStep::new(volumes_dir.clone(), logs_dir.clone());
 
     // Execute all steps
-    let steps: Vec<&dyn Step> = vec![&lotus_step, &lotus_miner_step, &yugabyte_step];
+    let steps: Vec<&dyn Step> = vec![
+        &lotus_step,
+        &lotus_miner_step,
+        &eth_acc_funding_step,
+        &usdfc_deploy_step,
+        &foc_deploy_step,
+        &yugabyte_step,
+    ];
     execute_steps(steps)?;
 
     println!("\n{}", "Local cluster started successfully!".green().bold());
