@@ -7,6 +7,7 @@ pub mod app;
 pub mod cli;
 pub mod commands;
 pub mod config;
+pub mod constants;
 pub mod crypto;
 pub mod docker;
 pub mod embedded_assets;

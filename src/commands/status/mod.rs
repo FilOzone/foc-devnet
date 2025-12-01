@@ -34,7 +34,6 @@
 pub mod build_status;
 pub mod code_version;
 pub mod disk_usage;
-pub mod docker;
 pub mod git;
 pub mod keys;
 pub mod running_status;
