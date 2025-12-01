@@ -138,7 +138,10 @@ impl FOCDeployStep {
     }
 
     /// Check if required addresses are available in context
-    fn check_required_addresses(&self, context: &StepContext) -> Result<(String, String, String, String), Box<dyn Error>> {
+    fn check_required_addresses(
+        &self,
+        context: &StepContext,
+    ) -> Result<(String, String, String, String), Box<dyn Error>> {
         let foc_deployer = context
             .get("foc_deployer_address")
             .ok_or("FOC_DEPLOYER address not found in context. Ensure ETHAccFunding step has been completed.")?;
@@ -147,15 +150,20 @@ impl FOCDeployStep {
             .get("foc_deployer_eth_address")
             .ok_or("FOC_DEPLOYER Ethereum address not found in context. Ensure ETHAccFunding step has been completed.")?;
 
-        let mock_usdfc = context
-            .get("mock_usdfc_address")
-            .ok_or("MockUSDFC address not found in context. Ensure USDFCDeploy step has been completed.")?;
+        let mock_usdfc = context.get("mock_usdfc_address").ok_or(
+            "MockUSDFC address not found in context. Ensure USDFCDeploy step has been completed.",
+        )?;
 
         let global_faucet = context
             .get("global_faucet_address")
             .ok_or("GLOBAL_FIL_FAUCET address not found in context. Ensure ETHAccFunding step has been completed.")?;
 
-        Ok((foc_deployer.clone(), foc_deployer_eth.clone(), mock_usdfc.clone(), global_faucet.clone()))
+        Ok((
+            foc_deployer.clone(),
+            foc_deployer_eth.clone(),
+            mock_usdfc.clone(),
+            global_faucet.clone(),
+        ))
     }
 
     /// Get the private key for an f4 address in hex format (for use with cast/forge)
@@ -400,7 +408,8 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
         println!("    Deploying FOC service contracts...");
 
         // Get required addresses from context
-        let (foc_deployer, foc_deployer_eth, mock_usdfc_address, global_faucet) = self.check_required_addresses(context)?;
+        let (foc_deployer, foc_deployer_eth, mock_usdfc_address, global_faucet) =
+            self.check_required_addresses(context)?;
 
         let lotus_rpc_url = format!("http://localhost:{}/rpc/v1", LOTUS_RPC_PORT);
 
@@ -418,14 +427,18 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
         }
 
         // Load existing addresses and update with FOC contracts
-        let mut addresses_struct = ContractAddresses::load().unwrap_or_else(|_| ContractAddresses {
-            global_fil_faucet: global_faucet,
-            fevm_faucet: context.get("fevm_faucet_address").unwrap_or(&String::new()).clone(),
-            foc_deployer: foc_deployer,
-            foc_deployer_eth: foc_deployer_eth,
-            mock_usdfc: mock_usdfc_address,
-            foc_contracts: std::collections::HashMap::new(),
-        });
+        let mut addresses_struct =
+            ContractAddresses::load().unwrap_or_else(|_| ContractAddresses {
+                global_fil_faucet: global_faucet,
+                fevm_faucet: context
+                    .get("fevm_faucet_address")
+                    .unwrap_or(&String::new())
+                    .clone(),
+                foc_deployer: foc_deployer,
+                foc_deployer_eth: foc_deployer_eth,
+                mock_usdfc: mock_usdfc_address,
+                foc_contracts: std::collections::HashMap::new(),
+            });
 
         addresses_struct.foc_contracts = contract_addresses.clone();
 
@@ -483,7 +496,8 @@ impl Step for FOCDeployStep {
         println!("    {} Deployment script found", "✓".green());
 
         // Check if required addresses are available
-        let (_foc_deployer, foc_deployer_eth, mock_usdfc, _global_faucet) = self.check_required_addresses(context)?;
+        let (_foc_deployer, foc_deployer_eth, mock_usdfc, _global_faucet) =
+            self.check_required_addresses(context)?;
         println!(
             "    {} FOC_DEPLOYER Ethereum address: {}",
             "✓".green(),
