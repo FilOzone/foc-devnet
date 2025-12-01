@@ -4,9 +4,9 @@
 //! required by foc-localnet.
 
 pub mod container_utils;
+pub mod docker_init;
 pub mod image_building;
 pub mod image_checking;
 pub mod volume_management;
-pub mod docker_init;
 
 pub use docker_init::build_and_cache_docker_images;

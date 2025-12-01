@@ -3,11 +3,15 @@
 //! This module contains the LotusStep struct and its implementation
 //! of the Step trait for starting the Lotus daemon.
 
-use super::container_management::{check_existing_container, start_container, wait_for_container_init};
-use super::prerequisites::{check_genesis_and_params, check_image_and_binary, check_ports_availability};
+use super::super::step::{Step, StepContext};
+use super::container_management::{
+    check_existing_container, start_container, wait_for_container_init,
+};
+use super::prerequisites::{
+    check_genesis_and_params, check_image_and_binary, check_ports_availability,
+};
 use super::setup::{build_docker_command, setup_directories};
 use super::verification::{verify_api_connectivity, verify_ports, wait_for_api_file};
-use super::super::step::{Step, StepContext};
 use std::error::Error;
 use std::path::PathBuf;
 

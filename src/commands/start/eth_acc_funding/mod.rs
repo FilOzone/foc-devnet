@@ -5,9 +5,9 @@
 //! and funds them with FIL for FEVM operations.
 
 pub mod constants;
-pub mod lotus_checks;
-pub mod key_operations;
-pub mod funding_operations;
 pub mod eth_acc_funding_step;
+pub mod funding_operations;
+pub mod key_operations;
+pub mod lotus_checks;
 
 pub use eth_acc_funding_step::ETHAccFundingStep;

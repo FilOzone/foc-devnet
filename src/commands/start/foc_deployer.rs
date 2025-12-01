@@ -72,9 +72,7 @@ pub fn deploy_foc_contracts(
         .join("deploy-all-warm-storage.sh");
 
     if !deploy_script.exists() {
-        return Err(
-            format!("Deployment script not found at {}", deploy_script.display()).into(),
-        );
+        return Err(format!("Deployment script not found at {}", deploy_script.display()).into());
     }
 
     let bin_dir = foc_localnet_bin();
@@ -97,11 +95,7 @@ export DEPLOYER_ADDRESS='{}'
 export AUTO_VERIFY=false
 export ETH_PRIVATE_KEY='{}'
 export PASSWORD=''"#,
-        lotus_rpc_url,
-        mock_usdfc_address,
-        LOCAL_NETWORK_CHAIN_ID,
-        deployer_eth_addr,
-        private_key
+        lotus_rpc_url, mock_usdfc_address, LOCAL_NETWORK_CHAIN_ID, deployer_eth_addr, private_key
     );
 
     // Run the deployment script

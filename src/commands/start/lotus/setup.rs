@@ -59,8 +59,12 @@ pub fn setup_directories(volumes_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
 
 /// Build the Docker run command for starting Lotus daemon
 pub fn build_docker_command(volumes_dir: &PathBuf) -> Result<Vec<String>, Box<dyn Error>> {
-    use crate::paths::{foc_localnet_bin, foc_localnet_genesis, foc_localnet_genesis_sectors, foc_localnet_lotus_keys, foc_localnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH};
     use super::super::genesis::constants::GENESIS_FILE;
+    use crate::paths::{
+        foc_localnet_bin, foc_localnet_genesis, foc_localnet_genesis_sectors,
+        foc_localnet_lotus_keys, foc_localnet_proof_parameters,
+        CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
+    };
 
     // Get paths
     let bin_dir = foc_localnet_bin();

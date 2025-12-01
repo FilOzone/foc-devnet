@@ -6,8 +6,8 @@ use std::error::Error;
 use std::fs;
 use std::process::Command;
 
-use crate::paths::foc_localnet_lotus_keys;
 use crate::commands::start::eth_acc_funding::constants::GLOBAL_FIL_FAUCET_KEY;
+use crate::paths::foc_localnet_lotus_keys;
 
 /// Check if Lotus is running and accessible
 pub fn check_lotus_running() -> Result<(), Box<dyn Error>> {
@@ -57,9 +57,7 @@ pub fn get_global_faucet_address() -> Result<String, Box<dyn Error>> {
         .collect();
 
     if entries.is_empty() {
-        return Err(
-            format!("No BLS keyinfo file found in {}", faucet_key_dir.display()).into(),
-        );
+        return Err(format!("No BLS keyinfo file found in {}", faucet_key_dir.display()).into());
     }
 
     // Extract address from filename: bls-<address>.keyinfo

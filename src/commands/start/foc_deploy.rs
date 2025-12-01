@@ -8,7 +8,9 @@ use super::foc_deployer::deploy_foc_contracts;
 use super::step::{Step, StepContext};
 use crate::config::{Config, Location};
 use crate::constants::*;
-use crate::paths::{contract_addresses_file, foc_localnet_config, foc_localnet_filecoin_services_repo};
+use crate::paths::{
+    contract_addresses_file, foc_localnet_config, foc_localnet_filecoin_services_repo,
+};
 use crate::shell::docker_container_is_running;
 use crossterm::style::Stylize;
 use std::error::Error;

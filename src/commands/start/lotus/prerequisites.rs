@@ -5,7 +5,10 @@
 
 use super::super::genesis::constants::GENESIS_FILE;
 use crate::docker::{image_exists, is_port_available};
-use crate::paths::{foc_localnet_bin, foc_localnet_genesis, foc_localnet_genesis_sectors, foc_localnet_proof_parameters};
+use crate::paths::{
+    foc_localnet_bin, foc_localnet_genesis, foc_localnet_genesis_sectors,
+    foc_localnet_proof_parameters,
+};
 use crossterm::style::Stylize;
 use std::error::Error;
 
@@ -68,9 +71,7 @@ pub fn check_image_and_binary() -> Result<(), Box<dyn Error>> {
     // Verify lotus binary exists
     let lotus_bin = foc_localnet_bin().join("lotus");
     if !lotus_bin.exists() {
-        return Err(
-            "Lotus binary not found. Please run 'foc-localnet build lotus' first.".into(),
-        );
+        return Err("Lotus binary not found. Please run 'foc-localnet build lotus' first.".into());
     }
 
     println!("    {} Lotus binary found", "✓".green());

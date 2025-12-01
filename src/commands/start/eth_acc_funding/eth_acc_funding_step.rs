@@ -4,7 +4,9 @@
 
 use super::constants::{FEVM_FAUCET_AMOUNT, FOC_DEPLOYER_AMOUNT, GLOBAL_FIL_FAUCET_KEY};
 use super::funding_operations::transfer_fil;
-use super::key_operations::{create_fevm_address, export_private_key, get_eth_address, import_faucet_key};
+use super::key_operations::{
+    create_fevm_address, export_private_key, get_eth_address, import_faucet_key,
+};
 use super::lotus_checks::{check_lotus_running, get_global_faucet_address};
 use crate::commands::start::step::{Step, StepContext};
 use crossterm::style::Stylize;

@@ -7,8 +7,8 @@
 //! Instead of scattering `Command::new()` calls throughout the codebase, all shell
 //! operations should go through functions in this module.
 
-use std::process::{Command, Output};
 use std::error::Error;
+use std::process::{Command, Output};
 
 /// Execute a shell command and return its output.
 ///
@@ -30,7 +30,13 @@ pub fn run_command(program: &str, args: &[&str]) -> Result<Output, Box<dyn Error
     let output = Command::new(program).args(args).output()?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Command failed: {} {} -> {}", program, args.join(" "), stderr).into());
+        return Err(format!(
+            "Command failed: {} {} -> {}",
+            program,
+            args.join(" "),
+            stderr
+        )
+        .into());
     }
     Ok(output)
 }
@@ -69,7 +75,9 @@ pub fn docker_container_exists(name: &str) -> Result<bool, Box<dyn Error>> {
         "--format",
         "{{.Names}}",
     ])?;
-    Ok(String::from_utf8_lossy(&output.stdout).trim().contains(name))
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .contains(name))
 }
 
 /// Check if a docker container is running.
@@ -87,7 +95,9 @@ pub fn docker_container_is_running(name: &str) -> Result<bool, Box<dyn Error>> {
         "--format",
         "{{.Names}}",
     ])?;
-    Ok(String::from_utf8_lossy(&output.stdout).trim().contains(name))
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .contains(name))
 }
 
 /// Stop a docker container.
@@ -124,7 +134,11 @@ pub fn docker_remove_container(name: &str) -> Result<(), Box<dyn Error>> {
 ///
 /// let output = docker_exec("foc-lotus", "lotus", &["wallet", "list"])?;
 /// ```
-pub fn docker_exec(container: &str, command: &str, args: &[&str]) -> Result<Output, Box<dyn Error>> {
+pub fn docker_exec(
+    container: &str,
+    command: &str,
+    args: &[&str],
+) -> Result<Output, Box<dyn Error>> {
     let mut exec_args = vec!["exec", container, command];
     exec_args.extend_from_slice(args);
     docker_command(&exec_args)
@@ -181,7 +195,11 @@ pub fn lotus_command(args: &[&str]) -> Result<Output, Box<dyn Error>> {
 /// # Returns
 /// The command output.
 pub fn lotus_miner_command(args: &[&str]) -> Result<Output, Box<dyn Error>> {
-    docker_exec("foc-lotus-miner", "/usr/local/bin/lotus-bins/lotus-miner", args)
+    docker_exec(
+        "foc-lotus-miner",
+        "/usr/local/bin/lotus-bins/lotus-miner",
+        args,
+    )
 }
 
 /// Execute a forge command inside the foc-builder container.

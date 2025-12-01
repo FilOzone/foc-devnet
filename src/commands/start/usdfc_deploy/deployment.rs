@@ -138,7 +138,10 @@ pub fn perform_token_deployment(
         "✓".green().bold()
     );
     println!("      Token Address: {}", mock_usdfc_address.cyan().bold());
-    println!("      Initial Supply: {} tokens", super::usdfc_deploy_step::MOCK_USDFC_INITIAL_SUPPLY);
+    println!(
+        "      Initial Supply: {} tokens",
+        super::usdfc_deploy_step::MOCK_USDFC_INITIAL_SUPPLY
+    );
     println!("      Decimals: 18");
 
     Ok(())

@@ -4,7 +4,9 @@
 
 use crossterm::style::Stylize;
 
-use crate::commands::init::docker::image_building::{build_docker_image_from_embedded, build_yugabyte_docker_image};
+use crate::commands::init::docker::image_building::{
+    build_docker_image_from_embedded, build_yugabyte_docker_image,
+};
 use crate::commands::init::docker::volume_management::create_volume_directories_for_images;
 
 /// Build and cache Docker images.

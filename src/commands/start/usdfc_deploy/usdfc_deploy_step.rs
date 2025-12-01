@@ -3,9 +3,11 @@
 //! This module contains the USDFCDeployStep struct and its implementation
 //! of the Step trait for deploying the MockUSDFC ERC-20 token.
 
-use super::deployment::perform_token_deployment;
-use super::prerequisites::{check_existing_deployment, check_lotus_running, check_required_addresses};
 use super::super::step::{Step, StepContext};
+use super::deployment::perform_token_deployment;
+use super::prerequisites::{
+    check_existing_deployment, check_lotus_running, check_required_addresses,
+};
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::path::PathBuf;
