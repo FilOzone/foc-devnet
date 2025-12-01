@@ -1,14 +1,13 @@
 //! FOC (Filecoin Onchain Contracts) deployment step.
 //!
-//! This module handles deploying FOC contracts to the Lotus node with FEVM enabled.
+//! This module handles deploying FOC service contracts to the Lotus node with FEVM enabled.
 //! These contracts are required by Curio for storage provider operations.
 
 use super::step::{Step, StepContext};
 use crate::config::{Config, Location};
-use crate::embedded_assets;
 use crate::paths::{
     contract_addresses_file, foc_localnet_bin, foc_localnet_config, foc_localnet_docker_volumes,
-    foc_localnet_filecoin_services_repo, foc_localnet_lotus_keys,
+    foc_localnet_filecoin_services_repo,
 };
 use crossterm::style::Stylize;
 use serde::{Deserialize, Serialize};
@@ -16,25 +15,14 @@ use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
-use std::thread;
-use std::time::Duration;
 
 // Service configuration
 const SERVICE_NAME: &str = "FOC LocalNet Warm Storage";
 const SERVICE_DESCRIPTION: &str = "Warm storage service for FOC local development network";
 
-// Account configuration
-const GLOBAL_FIL_FAUCET_KEY: &str = "prefunded-1"; // The GLOBAL_FIL_FAUCET account
-const FEVM_FAUCET_AMOUNT: &str = "10000"; // 10,000 FIL to transfer to FEVM ecosystem
-const FOC_DEPLOYER_AMOUNT: &str = "5000"; // 5,000 FIL for contract deployment
-
-// Token configuration
-const MOCK_USDFC_INITIAL_SUPPLY: &str = "1000000000000000000000000"; // 1 million tokens (18 decimals)
-
 // Network configuration
 const LOTUS_RPC_PORT: u16 = 1234;
 const LOCAL_NETWORK_CHAIN_ID: u64 = 31415926; // Local network chain ID
-const TRANSACTION_CONFIRMATION_WAIT_SECS: u64 = 15;
 
 /// Contract addresses and deployment information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,7 +75,7 @@ impl ContractAddresses {
     }
 }
 
-/// Step for deploying FOC contracts
+/// Step for deploying FOC service contracts
 pub struct FOCDeployStep {
     volumes_dir: PathBuf,
     #[allow(dead_code)]
@@ -148,209 +136,26 @@ impl FOCDeployStep {
 
         Ok(())
     }
-    fn get_global_faucet_address() -> Result<String, Box<dyn Error>> {
-        let keys_dir = foc_localnet_lotus_keys();
-        let faucet_key_dir = keys_dir.join(GLOBAL_FIL_FAUCET_KEY);
 
-        if !faucet_key_dir.exists() {
-            return Err(format!(
-                "GLOBAL_FIL_FAUCET key directory not found at {}. \
-                 Ensure genesis preparation has created this key.",
-                faucet_key_dir.display()
-            )
-            .into());
-        }
+    /// Check if required addresses are available in context
+    fn check_required_addresses(&self, context: &StepContext) -> Result<(String, String, String, String), Box<dyn Error>> {
+        let foc_deployer = context
+            .get("foc_deployer_address")
+            .ok_or("FOC_DEPLOYER address not found in context. Ensure ETHAccFunding step has been completed.")?;
 
-        // Find the keyinfo file
-        let entries: Vec<_> = fs::read_dir(&faucet_key_dir)?
-            .filter_map(|e| e.ok())
-            .filter(|e| {
-                e.file_name()
-                    .to_str()
-                    .map(|s| s.starts_with("bls-") && s.ends_with(".keyinfo"))
-                    .unwrap_or(false)
-            })
-            .collect();
+        let foc_deployer_eth = context
+            .get("foc_deployer_eth_address")
+            .ok_or("FOC_DEPLOYER Ethereum address not found in context. Ensure ETHAccFunding step has been completed.")?;
 
-        if entries.is_empty() {
-            return Err(
-                format!("No BLS keyinfo file found in {}", faucet_key_dir.display()).into(),
-            );
-        }
+        let mock_usdfc = context
+            .get("mock_usdfc_address")
+            .ok_or("MockUSDFC address not found in context. Ensure USDFCDeploy step has been completed.")?;
 
-        // Extract address from filename: bls-<address>.keyinfo
-        let filename = entries[0].file_name();
-        let filename_str = filename.to_str().ok_or("Invalid filename encoding")?;
+        let global_faucet = context
+            .get("global_faucet_address")
+            .ok_or("GLOBAL_FIL_FAUCET address not found in context. Ensure ETHAccFunding step has been completed.")?;
 
-        let address = filename_str
-            .strip_prefix("bls-")
-            .and_then(|s| s.strip_suffix(".keyinfo"))
-            .ok_or("Invalid keyinfo filename format")?;
-
-        Ok(address.to_string())
-    }
-
-    /// Import the GLOBAL_FIL_FAUCET key into Lotus wallet
-    fn import_faucet_key(keyinfo_path: &PathBuf) -> Result<String, Box<dyn Error>> {
-        println!("      Importing GLOBAL_FIL_FAUCET key into Lotus wallet...");
-
-        // Read the JSON content from the keyinfo file
-        let json_content = fs::read_to_string(keyinfo_path)
-            .map_err(|e| format!("Failed to read keyinfo file: {}", e))?;
-
-        // Hex-encode the JSON content (lotus wallet import expects hex-encoded JSON)
-        let hex_encoded = hex::encode(json_content);
-
-        // Create a temporary file with the hex-encoded content in the same directory
-        // so it's accessible via the mounted volume
-        let temp_key_file = keyinfo_path.with_extension("keyinfo.hex");
-        fs::write(&temp_key_file, &hex_encoded)
-            .map_err(|e| format!("Failed to write hex key file: {}", e))?;
-
-        // Get the container path for the temp file
-        let keys_dir = foc_localnet_lotus_keys();
-        let relative_path = temp_key_file
-            .strip_prefix(&keys_dir)
-            .map_err(|_| "Failed to get relative path for hex key file")?;
-        let container_path = format!("/keys/{}", relative_path.display());
-
-        let output = Command::new("docker")
-            .args([
-                "exec",
-                "foc-lotus",
-                "/usr/local/bin/lotus-bins/lotus",
-                "wallet",
-                "import",
-                &container_path,
-            ])
-            .output()?;
-
-        // Clean up the temp file
-        let _ = fs::remove_file(&temp_key_file);
-
-        if !output.status.success() {
-            return Err(format!(
-                "Failed to import GLOBAL_FIL_FAUCET key: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )
-            .into());
-        }
-
-        let address = String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .find(|line| line.starts_with("imported key"))
-            .and_then(|line| line.split_whitespace().nth(2))
-            .ok_or("Failed to extract imported address")?
-            .to_string();
-
-        println!("      {} Key imported: {}", "✓".green(), address);
-        Ok(address)
-    }
-
-    /// Create a new f4 (delegated/Ethereum) address for FEVM operations
-    fn create_fevm_address(name: &str) -> Result<String, Box<dyn Error>> {
-        println!("      Creating {} f4 address...", name);
-
-        let output = Command::new("docker")
-            .args([
-                "exec",
-                "foc-lotus",
-                "/usr/local/bin/lotus-bins/lotus",
-                "wallet",
-                "new",
-                "delegated",
-            ])
-            .output()?;
-
-        if !output.status.success() {
-            return Err(format!(
-                "Failed to create {} f4 address: {}",
-                name,
-                String::from_utf8_lossy(&output.stderr)
-            )
-            .into());
-        }
-
-        let address = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        println!(
-            "      {} {} address created: {}",
-            "✓".green(),
-            name,
-            address
-        );
-        Ok(address)
-    }
-
-    /// Transfer FIL from one address to another
-    fn transfer_fil(
-        from: &str,
-        to: &str,
-        amount: &str,
-        description: &str,
-    ) -> Result<(), Box<dyn Error>> {
-        println!("      Transferring {} FIL: {}...", amount, description);
-
-        let output = Command::new("docker")
-            .args([
-                "exec",
-                "foc-lotus",
-                "/usr/local/bin/lotus-bins/lotus",
-                "send",
-                "--from",
-                from,
-                to,
-                amount,
-            ])
-            .output()?;
-
-        if !output.status.success() {
-            return Err(format!(
-                "Failed to transfer FIL: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )
-            .into());
-        }
-
-        println!("      {} Transfer successful", "✓".green());
-
-        // Wait for transaction to be included in a block and address to be activated
-        // F4 addresses need time to be activated on-chain
-        println!("      Waiting for transaction confirmation and address activation...");
-        thread::sleep(Duration::from_secs(TRANSACTION_CONFIRMATION_WAIT_SECS));
-
-        Ok(())
-    }
-
-    /// Get the Ethereum address corresponding to an f4 address
-    fn get_eth_address(f4_address: &str) -> Result<String, Box<dyn Error>> {
-        let output = Command::new("docker")
-            .args([
-                "exec",
-                "foc-lotus",
-                "/usr/local/bin/lotus-bins/lotus",
-                "evm",
-                "stat",
-                f4_address,
-            ])
-            .output()?;
-
-        if !output.status.success() {
-            return Err(format!(
-                "Failed to get Ethereum address: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )
-            .into());
-        }
-
-        let output_str = String::from_utf8_lossy(&output.stdout);
-        let eth_addr = output_str
-            .lines()
-            .find(|line| line.contains("Eth address:"))
-            .and_then(|line| line.split_whitespace().nth(2))
-            .ok_or("Failed to extract Ethereum address")?
-            .to_string();
-
-        Ok(eth_addr)
+        Ok((foc_deployer.clone(), foc_deployer_eth.clone(), mock_usdfc.clone(), global_faucet.clone()))
     }
 
     /// Get the private key for an f4 address in hex format (for use with cast/forge)
@@ -405,138 +210,6 @@ impl FOCDeployStep {
         let private_key_hex = format!("0x{}", hex::encode(&private_key_bytes));
 
         Ok(private_key_hex)
-    }
-
-    /// Export private key for an f4 address to use with forge/cast
-    fn export_private_key(f4_address: &str, output_file: &PathBuf) -> Result<(), Box<dyn Error>> {
-        println!("      Exporting private key for contract deployment...");
-
-        let output = Command::new("docker")
-            .args([
-                "exec",
-                "foc-lotus",
-                "/usr/local/bin/lotus-bins/lotus",
-                "wallet",
-                "export",
-                f4_address,
-            ])
-            .output()?;
-
-        if !output.status.success() {
-            return Err(format!(
-                "Failed to export private key: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )
-            .into());
-        }
-
-        // Write the keyinfo to a file
-        fs::write(output_file, &output.stdout)?;
-        println!("      {} Private key exported", "✓".green());
-
-        Ok(())
-    }
-
-    /// Deploy MockUSDFC token for local testing
-    ///
-    /// Returns the deployed contract address
-    fn deploy_mock_usdfc(
-        deployer_eth_addr: &str,
-        lotus_rpc_url: &str,
-    ) -> Result<String, Box<dyn Error>> {
-        println!("      Deploying MockUSDFC token...");
-
-        // Get the embedded contract content
-        let contract_content = embedded_assets::MOCK_USDFC_CONTRACT;
-
-        // Deploy using forge via foc-builder container
-        println!("        Compiling and deploying with forge...");
-
-        let bin_dir = foc_localnet_bin();
-        let builder_volumes_dir = foc_localnet_docker_volumes().join("builder");
-
-        // Create a temporary contract file
-        let temp_contract_path = std::env::temp_dir().join("MockUSDFC.sol");
-        fs::write(&temp_contract_path, contract_content)?;
-
-        // Build forge command to deploy MockUSDFC
-        let forge_cmd = format!(
-            r#"forge create /tmp/MockUSDFC.sol:MockUSDFC \
-               --rpc-url {} \
-               --from {} \
-               --unlocked \
-               --constructor-args {} \
-               --json"#,
-            lotus_rpc_url, deployer_eth_addr, MOCK_USDFC_INITIAL_SUPPLY
-        );
-
-        let output = Command::new("docker")
-            .args([
-                "run",
-                "--rm",
-                "--network",
-                "host", // Use host network to access localhost:1234
-                "-v",
-                &format!("{}:/opt/bin", bin_dir.display()),
-                "-v",
-                &format!(
-                    "{}:/home/foc-user/.cargo",
-                    builder_volumes_dir.join("cargo").display()
-                ),
-                "-v",
-                &format!("{}:/tmp/MockUSDFC.sol", temp_contract_path.display()),
-                "foc-builder",
-                "/bin/bash",
-                "-c",
-                &forge_cmd,
-            ])
-            .output()?;
-
-        // Clean up temp file
-        let _ = fs::remove_file(&temp_contract_path);
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            println!("        {} Forge deployment failed", "✗".red());
-            println!("        Error: {}", stderr);
-            println!(
-                "        {} Using deployer address as placeholder",
-                "⚠".yellow()
-            );
-            return Ok(deployer_eth_addr.to_string());
-        }
-
-        // Parse the JSON output to get the deployed address
-        let output_str = String::from_utf8_lossy(&output.stdout);
-
-        // Try to parse as JSON
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&output_str) {
-            if let Some(deployed_to) = json.get("deployedTo").and_then(|v| v.as_str()) {
-                println!(
-                    "        {} MockUSDFC deployed to: {}",
-                    "✓".green(),
-                    deployed_to
-                );
-                return Ok(deployed_to.to_string());
-            }
-        }
-
-        // Fallback: try to find address in output
-        for line in output_str.lines() {
-            if line.contains("Deployed to:") {
-                if let Some(addr) = line.split_whitespace().last() {
-                    println!("        {} MockUSDFC deployed to: {}", "✓".green(), addr);
-                    return Ok(addr.to_string());
-                }
-            }
-        }
-
-        println!(
-            "        {} Could not parse deployment address",
-            "⚠".yellow()
-        );
-        println!("        Using deployer address as placeholder");
-        Ok(deployer_eth_addr.to_string())
     }
 
     /// Deploy FOC contracts using the deployment script
@@ -703,177 +376,40 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
         Ok(addresses)
     }
 
-    /// Setup deployment prerequisites including addresses and token deployment
-    fn setup_deployment_prerequisites(
-        &self,
-        context: &mut StepContext,
-    ) -> Result<(String, String, String, String, String), Box<dyn Error>> {
-        // Step 1: Import GLOBAL_FIL_FAUCET key
-        let keys_dir = foc_localnet_lotus_keys();
-        let faucet_key_dir = keys_dir.join(GLOBAL_FIL_FAUCET_KEY);
-        let keyinfo_files: Vec<_> = fs::read_dir(&faucet_key_dir)?
-            .filter_map(|e| e.ok())
-            .filter(|e| {
-                e.file_name()
-                    .to_str()
-                    .map(|s| s.starts_with("bls-") && s.ends_with(".keyinfo"))
-                    .unwrap_or(false)
-            })
-            .collect();
-
-        let keyinfo_path = keyinfo_files[0].path();
-        let global_faucet = Self::import_faucet_key(&keyinfo_path)?;
-        context.set("global_faucet_address", &global_faucet);
-
-        // Step 2: Create FEVM_FAUCET address
-        let fevm_faucet = Self::create_fevm_address("FEVM_FAUCET")?;
-        context.set("fevm_faucet_address", &fevm_faucet);
-
-        // Step 3: Transfer FIL from GLOBAL_FIL_FAUCET to FEVM_FAUCET
-        Self::transfer_fil(
-            &global_faucet,
-            &fevm_faucet,
-            FEVM_FAUCET_AMOUNT,
-            "GLOBAL_FIL_FAUCET → FEVM_FAUCET",
-        )?;
-
-        // Step 4: Create FOC_DEPLOYER address
-        let foc_deployer = Self::create_fevm_address("FOC_DEPLOYER")?;
-        context.set("foc_deployer_address", &foc_deployer);
-
-        // Step 5: Transfer FIL from FEVM_FAUCET to FOC_DEPLOYER
-        Self::transfer_fil(
-            &fevm_faucet,
-            &foc_deployer,
-            FOC_DEPLOYER_AMOUNT,
-            "FEVM_FAUCET → FOC_DEPLOYER",
-        )?;
-
-        // Step 6: Get Ethereum address for FOC_DEPLOYER
-        let deployer_eth_addr = Self::get_eth_address(&foc_deployer)?;
-        println!(
-            "      {} FOC_DEPLOYER Ethereum address: {}",
-            "✓".green(),
-            deployer_eth_addr
-        );
-        context.set("foc_deployer_eth_address", &deployer_eth_addr);
-
-        // Step 7: Export private key for FOC_DEPLOYER
-        let deployer_key_file = self.volumes_dir.join("foc-deployer.key");
-        Self::export_private_key(&foc_deployer, &deployer_key_file)?;
-
-        // Step 8: Deploy MockUSDFC token for local testing
-        println!("\n    Deploying MockUSDFC token for FOC contracts...");
-        let lotus_rpc_url = format!("http://localhost:{}/rpc/v1", LOTUS_RPC_PORT);
-        let mock_usdfc_address = Self::deploy_mock_usdfc(&deployer_eth_addr, &lotus_rpc_url)?;
-        context.set("mock_usdfc_address", &mock_usdfc_address);
-        println!(
-            "      {} MockUSDFC token address: {}",
-            "✓".green(),
-            mock_usdfc_address
-        );
-
-        println!(
-            "\n    {} FOC deployment prerequisites ready!",
-            "✓".green().bold()
-        );
-        println!("      GLOBAL_FIL_FAUCET: {}", global_faucet);
-        println!("      FEVM_FAUCET: {}", fevm_faucet);
-        println!("      FOC_DEPLOYER: {}", foc_deployer);
-        println!("      FOC_DEPLOYER (ETH): {}", deployer_eth_addr);
-        println!("      MockUSDFC Token: {}", mock_usdfc_address);
-
-        Ok((
-            global_faucet,
-            fevm_faucet,
-            foc_deployer,
-            deployer_eth_addr,
-            mock_usdfc_address,
-        ))
-    }
-
-    /// Check if contracts are already deployed and handle early return
+    /// Check if FOC contracts are already deployed
     fn check_existing_deployment(&self, context: &mut StepContext) -> Result<bool, Box<dyn Error>> {
         if let Ok(existing_addresses) = ContractAddresses::load() {
-            if existing_addresses.is_complete() {
+            if !existing_addresses.foc_contracts.is_empty() {
                 println!(
-                    "    {} Contracts already deployed, skipping deployment...",
+                    "    {} FOC contracts already deployed, skipping deployment...",
                     "✓".green()
                 );
-                println!(
-                    "      GLOBAL_FIL_FAUCET: {}",
-                    existing_addresses.global_fil_faucet
-                );
-                println!("      FEVM_FAUCET: {}", existing_addresses.fevm_faucet);
-                println!("      FOC_DEPLOYER: {}", existing_addresses.foc_deployer);
-                println!(
-                    "      FOC_DEPLOYER (ETH): {}",
-                    existing_addresses.foc_deployer_eth
-                );
-                println!("      MockUSDFC Token: {}", existing_addresses.mock_usdfc);
 
-                // Store in context for other steps
-                self.store_addresses_in_context(context, &existing_addresses);
+                // Store contract addresses in context
+                for (name, addr) in &existing_addresses.foc_contracts {
+                    context.set(&format!("foc_contract_{}", name.replace(' ', "_")), addr);
+                }
                 return Ok(true);
             }
         }
         Ok(false)
     }
 
-    /// Store contract addresses in the step context
-    fn store_addresses_in_context(&self, context: &mut StepContext, addresses: &ContractAddresses) {
-        context.set("global_faucet_address", &addresses.global_fil_faucet);
-        context.set("fevm_faucet_address", &addresses.fevm_faucet);
-        context.set("foc_deployer_address", &addresses.foc_deployer);
-        context.set("foc_deployer_eth_address", &addresses.foc_deployer_eth);
-        context.set("mock_usdfc_address", &addresses.mock_usdfc);
-
-        for (name, addr) in &addresses.foc_contracts {
-            context.set(&format!("foc_contract_{}", name.replace(' ', "_")), addr);
-        }
-    }
-
-    /// Perform the full deployment process
+    /// Perform the FOC contract deployment process
     fn perform_deployment(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        println!("    Setting up FOC deployment prerequisites...");
+        println!("    Deploying FOC service contracts...");
 
-        let (global_faucet, fevm_faucet, foc_deployer, deployer_eth_addr, mock_usdfc_address) =
-            self.setup_deployment_prerequisites(context)?;
+        // Get required addresses from context
+        let (foc_deployer, foc_deployer_eth, mock_usdfc_address, global_faucet) = self.check_required_addresses(context)?;
 
         let lotus_rpc_url = format!("http://localhost:{}/rpc/v1", LOTUS_RPC_PORT);
 
-        self.deploy_contracts_and_save(
-            context,
-            &deployer_eth_addr,
+        // Deploy FOC contracts using deployment script
+        let contract_addresses = Self::deploy_foc_contracts(
+            &foc_deployer,
+            &foc_deployer_eth,
             &mock_usdfc_address,
             &lotus_rpc_url,
-            &global_faucet,
-            &fevm_faucet,
-            &foc_deployer,
-        )?;
-        Ok(())
-    }
-
-    /// Deploy contracts and save the results
-    fn deploy_contracts_and_save(
-        &self,
-        context: &mut StepContext,
-        deployer_eth_addr: &str,
-        mock_usdfc_address: &str,
-        lotus_rpc_url: &str,
-        global_faucet: &str,
-        fevm_faucet: &str,
-        foc_deployer: &str,
-    ) -> Result<(), Box<dyn Error>> {
-        // Deploy FOC contracts using deployment script
-        println!("\n    Deploying FOC contracts...");
-        println!("      (This may take several minutes)");
-
-        let contract_addresses = Self::deploy_foc_contracts(
-            foc_deployer,
-            deployer_eth_addr,
-            mock_usdfc_address,
-            lotus_rpc_url,
         )?;
 
         // Store contract addresses in context
@@ -881,15 +417,17 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
             context.set(&format!("foc_contract_{}", name.replace(' ', "_")), addr);
         }
 
-        // Save all addresses to the state file
-        let addresses_struct = ContractAddresses {
-            global_fil_faucet: global_faucet.to_string(),
-            fevm_faucet: fevm_faucet.to_string(),
-            foc_deployer: foc_deployer.to_string(),
-            foc_deployer_eth: deployer_eth_addr.to_string(),
-            mock_usdfc: mock_usdfc_address.to_string(),
-            foc_contracts: contract_addresses.clone(),
-        };
+        // Load existing addresses and update with FOC contracts
+        let mut addresses_struct = ContractAddresses::load().unwrap_or_else(|_| ContractAddresses {
+            global_fil_faucet: global_faucet,
+            fevm_faucet: context.get("fevm_faucet_address").unwrap_or(&String::new()).clone(),
+            foc_deployer: foc_deployer,
+            foc_deployer_eth: foc_deployer_eth,
+            mock_usdfc: mock_usdfc_address,
+            foc_contracts: std::collections::HashMap::new(),
+        });
+
+        addresses_struct.foc_contracts = contract_addresses.clone();
 
         addresses_struct.save()?;
         println!(
@@ -899,7 +437,7 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
         );
 
         println!(
-            "\n    {} FOC contracts deployed successfully!",
+            "\n    {} FOC service contracts deployed successfully!",
             "✓".green().bold()
         );
         println!("      Deployed {} contracts", contract_addresses.len());
@@ -914,7 +452,7 @@ impl Step for FOCDeployStep {
         "Deploy FOC Contracts"
     }
 
-    fn pre_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         // Check if Lotus is running
         Self::check_lotus_running()?;
         println!("    {} Lotus is running", "✓".green());
@@ -944,12 +482,17 @@ impl Step for FOCDeployStep {
         }
         println!("    {} Deployment script found", "✓".green());
 
-        // Check if GLOBAL_FIL_FAUCET key exists
-        let faucet_addr = Self::get_global_faucet_address()?;
+        // Check if required addresses are available
+        let (_foc_deployer, foc_deployer_eth, mock_usdfc, _global_faucet) = self.check_required_addresses(context)?;
         println!(
-            "    {} GLOBAL_FIL_FAUCET address: {}",
+            "    {} FOC_DEPLOYER Ethereum address: {}",
             "✓".green(),
-            faucet_addr
+            foc_deployer_eth
+        );
+        println!(
+            "    {} MockUSDFC token address: {}",
+            "✓".green(),
+            mock_usdfc
         );
 
         Ok(())
@@ -991,7 +534,7 @@ impl Step for FOCDeployStep {
             "\n    {} FOC deployment step completed!",
             "✓".green().bold()
         );
-        println!("      All prerequisites and contracts are deployed.");
+        println!("      All FOC service contracts are deployed and ready.");
 
         Ok(())
     }
