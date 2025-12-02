@@ -5,8 +5,8 @@
 //! and output parsing.
 
 use crate::constants::*;
-use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes};
 use crate::docker::core::{docker_command, exec_in_container};
+use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes};
 use crossterm::style::Stylize;
 use std::error::Error;
 

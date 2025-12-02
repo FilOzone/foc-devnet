@@ -11,9 +11,11 @@
 use crossterm::style::Stylize;
 use tabular::{Row, Table};
 
-use crate::docker::core::image_exists;
-use crate::docker::status::{get_container_ports, get_container_uptime, get_running_foc_containers};
 use super::utils;
+use crate::docker::core::image_exists;
+use crate::docker::status::{
+    get_container_ports, get_container_uptime, get_running_foc_containers,
+};
 
 /// Print running status of the system in tabular format.
 ///

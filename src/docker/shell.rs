@@ -131,9 +131,12 @@ pub fn forge_script_deploy(
     extra_args: &[&str],
 ) -> Result<Output, Box<dyn Error>> {
     let mut args = vec![
-        "script", script_path,
-        "--rpc-url", rpc_url,
-        "--private-key", private_key,
+        "script",
+        script_path,
+        "--rpc-url",
+        rpc_url,
+        "--private-key",
+        private_key,
         "--broadcast",
     ];
     args.extend_from_slice(extra_args);

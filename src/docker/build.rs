@@ -3,8 +3,8 @@
 //! This module provides functions for building Docker images, including
 //! support for embedded Dockerfiles and custom build arguments.
 
-use crate::embedded_assets;
 use crate::docker::core::{docker_command, get_current_gid, get_current_uid, image_exists};
+use crate::embedded_assets;
 use crossterm::style::Stylize;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::fs;
@@ -43,7 +43,8 @@ pub fn perform_build_from_embedded(
     print_build_info(name, image_tag);
     let pb = setup_build_progress_bar(image_tag);
     let (uid, gid) = get_build_user_ids()?;
-    let temp_dockerfile_path = create_temp_dockerfile(name, std::str::from_utf8(&dockerfile_content)?)?;
+    let temp_dockerfile_path =
+        create_temp_dockerfile(name, std::str::from_utf8(&dockerfile_content)?)?;
 
     let result = execute_standard_build(&temp_dockerfile_path, image_tag, &uid, &gid);
 
@@ -152,9 +153,11 @@ fn perform_yugabyte_build(name: &str, image_tag: &str) -> Result<(), Box<dyn std
 
     let pb = setup_build_progress_bar(image_tag);
     let (uid, gid) = get_build_user_ids()?;
-    let temp_dockerfile_path = create_temp_dockerfile(name, std::str::from_utf8(&dockerfile_content)?)?;
+    let temp_dockerfile_path =
+        create_temp_dockerfile(name, std::str::from_utf8(&dockerfile_content)?)?;
 
-    let result = execute_yugabyte_build(&temp_dockerfile_path, image_tag, &artifacts_dir, &uid, &gid);
+    let result =
+        execute_yugabyte_build(&temp_dockerfile_path, image_tag, &artifacts_dir, &uid, &gid);
 
     let _ = fs::remove_file(&temp_dockerfile_path);
     finalize_build_progress(&pb, image_tag, result)
@@ -195,7 +198,10 @@ fn get_build_user_ids() -> Result<(String, String), Box<dyn std::error::Error>> 
 }
 
 /// Create temporary Dockerfile for build.
-fn create_temp_dockerfile(name: &str, content: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+fn create_temp_dockerfile(
+    name: &str,
+    content: &str,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let temp_path = std::env::temp_dir().join(format!("Dockerfile.{}", name));
     fs::write(&temp_path, content)?;
     Ok(temp_path)
@@ -227,7 +233,7 @@ fn execute_yugabyte_build(
 fn finalize_build_progress(
     pb: &ProgressBar,
     image_tag: &str,
-    result: Result<(), Box<dyn std::error::Error>>
+    result: Result<(), Box<dyn std::error::Error>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match result {
         Ok(()) => {

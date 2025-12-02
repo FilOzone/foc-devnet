@@ -14,7 +14,7 @@ use crate::paths::{
 };
 
 /// Create all necessary directories for foc-localnet.
-/// 
+///
 /// # Returns
 /// Returns `Ok(())` if all directories are created successfully, or an error if creation fails.
 pub fn create_directories() -> Result<(), Box<dyn std::error::Error>> {

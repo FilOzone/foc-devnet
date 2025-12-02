@@ -3,7 +3,10 @@
 //! This module provides functions for initializing Docker volumes,
 //! containers, and other setup tasks required for foc-localnet.
 
-use crate::docker::core::{chown_command, container_exists, copy_from_container, create_container, get_current_gid, get_current_uid, image_exists};
+use crate::docker::core::{
+    chown_command, container_exists, copy_from_container, create_container, get_current_gid,
+    get_current_uid, image_exists,
+};
 use crate::embedded_assets;
 use crate::paths::foc_localnet_docker_volumes;
 use crossterm::style::Stylize;
@@ -36,7 +39,12 @@ pub fn create_volumes_for_image_from_embedded(
     let docker_image_tag = format!("foc-{}", image_name);
 
     for (host_subdir, container_path) in volume_config.volumes.iter() {
-        create_single_volume(&docker_image_tag, host_subdir, container_path, volumes_base_dir.join(image_name))?;
+        create_single_volume(
+            &docker_image_tag,
+            host_subdir,
+            container_path,
+            volumes_base_dir.join(image_name),
+        )?;
     }
     Ok(())
 }
@@ -65,7 +73,10 @@ fn create_single_volume(
     let volume_dir = image_volume_base.join(host_subdir);
 
     let is_new_volume = !volume_dir.exists()
-        || volume_dir.read_dir().map(|mut entries| entries.next().is_none()).unwrap_or(true);
+        || volume_dir
+            .read_dir()
+            .map(|mut entries| entries.next().is_none())
+            .unwrap_or(true);
 
     fs::create_dir_all(&volume_dir)?;
     println!(
@@ -179,7 +190,11 @@ pub fn perform_volume_copy(
     container_path: &str,
     host_volume_dir: &Path,
 ) -> Result<std::process::Output, Box<dyn std::error::Error>> {
-    copy_from_container(container_name, &format!("{}/.", container_path), &host_volume_dir.to_string_lossy())
+    copy_from_container(
+        container_name,
+        &format!("{}/.", container_path),
+        &host_volume_dir.to_string_lossy(),
+    )
 }
 
 /// Clean up the temporary container used for volume copying.

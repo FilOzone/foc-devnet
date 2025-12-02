@@ -4,22 +4,23 @@
 //! well-organized structure. It replaces the old scattered docker.rs and shell.rs
 //! modules with a clean modular design.
 
-pub mod core;
 pub mod build;
-pub mod status;
+pub mod core;
 pub mod init;
 pub mod shell;
+pub mod status;
 
 // Re-export commonly used functions for convenience
 pub use core::{
-    run_command, docker_command, is_port_available, image_exists,
-    container_exists, container_is_running, stop_container, remove_container,
-    stop_and_remove_container, exec_in_container, run_container,
-    create_container, copy_from_container, wait_for_port,
-    get_current_uid, get_current_gid, chown_command
+    chown_command, container_exists, container_is_running, copy_from_container, create_container,
+    docker_command, exec_in_container, get_current_gid, get_current_uid, image_exists,
+    is_port_available, remove_container, run_command, run_container, stop_and_remove_container,
+    stop_container, wait_for_port,
 };
 
-pub use build::{build_image_from_embedded, build_image_with_args, build_yugabyte_image, build_docker_image};
-pub use status::{get_running_foc_containers, get_container_uptime, get_system_start_time};
+pub use build::{
+    build_docker_image, build_image_from_embedded, build_image_with_args, build_yugabyte_image,
+};
 pub use init::{create_volume_directories_for_images, set_volume_ownership};
-pub use shell::{lotus_command, forge_command, cast_command, lotus_wallet_command};
+pub use shell::{cast_command, forge_command, lotus_command, lotus_wallet_command};
+pub use status::{get_container_uptime, get_running_foc_containers, get_system_start_time};

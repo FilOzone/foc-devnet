@@ -20,8 +20,8 @@ pub use step::{execute_steps, Step, StepContext};
 use usdfc_deploy::USDFCDeployStep;
 use yugabyte::YugabyteStep;
 
-use crate::paths::{foc_localnet_docker_volumes, foc_localnet_logs};
 use crate::docker::core::{container_is_running, remove_container, stop_container};
+use crate::paths::{foc_localnet_docker_volumes, foc_localnet_logs};
 use crossterm::style::Stylize;
 use std::path::PathBuf;
 

@@ -19,7 +19,9 @@ pub fn get_running_foc_containers() -> Result<Vec<String>, Box<dyn std::error::E
 }
 
 /// Get the start time of a Docker container.
-pub fn get_container_start_time(container_name: &str) -> Result<String, Box<dyn std::error::Error>> {
+pub fn get_container_start_time(
+    container_name: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
     let output = docker_command(&[
         "inspect",
         container_name,
@@ -30,12 +32,15 @@ pub fn get_container_start_time(container_name: &str) -> Result<String, Box<dyn 
 }
 
 /// Get port mappings for a Docker container.
-pub fn get_container_ports(container_name: &str) -> Result<std::process::Output, Box<dyn std::error::Error>> {
+pub fn get_container_ports(
+    container_name: &str,
+) -> Result<std::process::Output, Box<dyn std::error::Error>> {
     docker_command(&["port", container_name])
 }
 
 /// Get the running time information for foc- containers.
-pub fn get_foc_containers_running_time() -> Result<std::process::Output, Box<dyn std::error::Error>> {
+pub fn get_foc_containers_running_time() -> Result<std::process::Output, Box<dyn std::error::Error>>
+{
     docker_command(&["ps", "--filter", "name=foc-", "--format", "{{.RunningFor}}"])
 }
 
@@ -75,7 +80,9 @@ pub fn get_container_uptime(container_name: &str) -> Result<String, Box<dyn std:
 
 /// Parse container running time from Docker ps output.
 /// Parse container running time into a compact format.
-pub fn parse_container_running_time(running_time: &str) -> Result<String, Box<dyn std::error::Error>> {
+pub fn parse_container_running_time(
+    running_time: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
     if running_time.trim().is_empty() || running_time == "<no value>" {
         return Ok("Not running".to_string());
     }
@@ -125,7 +132,8 @@ fn parse_about_time_format(parts: &[&str]) -> Result<String, Box<dyn std::error:
 }
 
 /// Get the system start time (oldest running container start time).
-pub fn get_system_start_time() -> Result<Option<chrono::DateTime<chrono::Utc>>, Box<dyn std::error::Error>> {
+pub fn get_system_start_time(
+) -> Result<Option<chrono::DateTime<chrono::Utc>>, Box<dyn std::error::Error>> {
     let containers = get_running_foc_containers()?;
 
     if containers.is_empty() {

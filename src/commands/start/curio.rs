@@ -6,8 +6,8 @@
 
 use super::step::{Step, StepContext};
 use crate::docker::{
-    container_exists, container_is_running, is_port_available,
-    stop_and_remove_container, wait_for_port,
+    container_exists, container_is_running, is_port_available, stop_and_remove_container,
+    wait_for_port,
 };
 use crate::paths::foc_localnet_bin;
 use crossterm::style::Stylize;

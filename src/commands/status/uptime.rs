@@ -11,8 +11,8 @@ use chrono::Utc;
 use crossterm::style::Stylize;
 use std::process::Command;
 
-use crate::docker::status::{get_running_foc_containers, get_system_start_time};
 use super::utils::{format_duration, get_terminal_width};
+use crate::docker::status::{get_running_foc_containers, get_system_start_time};
 
 /// Get the current lotus chain block height.
 ///

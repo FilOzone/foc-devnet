@@ -52,14 +52,16 @@ pub fn is_port_available(port: u16) -> bool {
 /// Check if a Docker image exists locally.
 ///
 /// # Arguments
-/// * `image_tag` - The image tag to check (e.g., "foc-localnet-builder:latest")
+/// * `image_name` - The image name to check (e.g., "foc-lotus")
 ///
 /// # Returns
 /// true if the image exists, false otherwise.
-pub fn image_exists(image_tag: &str) -> Result<bool, Box<dyn Error>> {
+pub fn image_exists(image_name: &str) -> Result<bool, Box<dyn Error>> {
     let output = docker_command(&["images", "--format", "{{.Repository}}:{{.Tag}}"])?;
     let stdout = String::from_utf8_lossy(&output.stdout);
-    Ok(stdout.lines().any(|line| line == image_tag))
+    Ok(stdout
+        .lines()
+        .any(|line| line.starts_with(&format!("{}:", image_name))))
 }
 
 /// Check if a container with the given name exists
@@ -147,7 +149,11 @@ pub fn copy_from_container(
     container_path: &str,
     host_path: &str,
 ) -> Result<Output, Box<dyn Error>> {
-    docker_command(&["cp", &format!("{}:{}", container_name, container_path), host_path])
+    docker_command(&[
+        "cp",
+        &format!("{}:{}", container_name, container_path),
+        host_path,
+    ])
 }
 
 /// Wait for a port to be accepting connections
@@ -170,7 +176,11 @@ pub fn wait_for_port(port: u16, timeout_secs: u64) -> Result<(), Box<dyn Error>>
 pub fn get_current_uid() -> Result<String, Box<dyn Error>> {
     let output = Command::new("id").arg("-u").output()?;
     if !output.status.success() {
-        return Err(format!("Failed to get current UID: {}", String::from_utf8_lossy(&output.stderr)).into());
+        return Err(format!(
+            "Failed to get current UID: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
     }
     Ok(String::from_utf8(output.stdout)?.trim().to_string())
 }
@@ -179,7 +189,11 @@ pub fn get_current_uid() -> Result<String, Box<dyn Error>> {
 pub fn get_current_gid() -> Result<String, Box<dyn Error>> {
     let output = Command::new("id").arg("-g").output()?;
     if !output.status.success() {
-        return Err(format!("Failed to get current GID: {}", String::from_utf8_lossy(&output.stderr)).into());
+        return Err(format!(
+            "Failed to get current GID: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
     }
     Ok(String::from_utf8(output.stdout)?.trim().to_string())
 }

@@ -8,10 +8,10 @@ use super::foc_deployer::deploy_foc_contracts;
 use super::step::{Step, StepContext};
 use crate::config::{Config, Location};
 use crate::constants::*;
+use crate::docker::core::container_is_running;
 use crate::paths::{
     contract_addresses_file, foc_localnet_config, foc_localnet_filecoin_services_repo,
 };
-use crate::docker::core::container_is_running;
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::fs;
@@ -26,9 +26,7 @@ pub struct FOCDeployStep {
 impl FOCDeployStep {
     /// Create a new FOCDeployStep
     pub fn new(_volumes_dir: PathBuf, logs_dir: PathBuf) -> Self {
-        Self {
-            logs_dir,
-        }
+        Self { logs_dir }
     }
 
     /// Get the filecoin-services repository path based on configuration

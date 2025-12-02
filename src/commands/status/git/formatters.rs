@@ -3,8 +3,8 @@
 //! This module provides functions for formatting git information
 //! for display in status tables and reports.
 
-use crate::config::Location;
 use crate::commands::status::git::git_info::GitInfo;
+use crate::config::Location;
 
 /// Format location and git information for display.
 ///
