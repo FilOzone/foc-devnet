@@ -1,9 +1,8 @@
-//! MockUSDFC deployment logic.
+//! Multicall3 deployment logic.
 //!
-//! This module contains the core deployment functionality for the MockUSDFC token.
+//! This module contains the core deployment functionality for the Multicall3 contract.
 
-use super::foundry_setup::setup_foundry_project;
-use crate::paths::project_root;
+use crate::paths::foc_localnet_multicall3_repo;
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::process::Command;
@@ -11,39 +10,44 @@ use std::process::Command;
 // Network configuration
 const LOTUS_RPC_PORT: u16 = 1234;
 
-/// Deploy MockUSDFC using the Foundry project
-pub fn deploy_mock_usdfc_foundry(
+/// Deploy Multicall3 using forge create
+pub fn deploy_multicall3(
     private_key: &str,
     lotus_rpc_url: &str,
 ) -> Result<String, Box<dyn Error>> {
-    println!("      Deploying MockUSDFC using Foundry project...");
+    println!("      Deploying Multicall3 contract...");
 
-    // Get the contract directory
-    let project_root = project_root()?;
-    let contract_dir = project_root.join("contracts/MockUSDFC");
+    // Get the multicall3 repository path
+    let multicall3_repo = foc_localnet_multicall3_repo();
 
-    if !contract_dir.exists() {
+    if !multicall3_repo.exists() {
         return Err(format!(
-            "MockUSDFC Foundry project not found at: {}",
-            contract_dir.display()
+            "Multicall3 repository not found at: {}",
+            multicall3_repo.display()
         )
         .into());
     }
 
-    // Setup the Foundry project (install deps, build)
-    setup_foundry_project(&contract_dir)?;
+    // Check if Multicall3.sol exists in the repo
+    let contract_file = multicall3_repo.join("src/Multicall3.sol");
+    if !contract_file.exists() {
+        return Err(format!(
+            "Multicall3.sol not found at: {}",
+            contract_file.display()
+        )
+        .into());
+    }
 
-    // Deploy using forge script with explicit gas limit for FEVM
-    println!("      Executing deployment script...");
+    println!("      Compiling and deploying contract...");
 
+    // Deploy using forge create with explicit gas limit for FEVM
     let deploy_cmd = format!(
         "cd /workspace && \
-         forge script script/Deploy.s.sol:DeployMockUSDFC \
+         forge create src/Multicall3.sol:Multicall3 \
          --rpc-url {} \
          --private-key {} \
-         --broadcast \
-         --slow \
-         --gas-estimate-multiplier 10000 \
+         --legacy \
+         --gas-limit 10000000 \
          -vv",
         lotus_rpc_url, private_key
     );
@@ -55,7 +59,7 @@ pub fn deploy_mock_usdfc_foundry(
             "--network",
             "host", // Use host network to access localhost:1234
             "-v",
-            &format!("{}:/workspace", contract_dir.display()),
+            &format!("{}:/workspace", multicall3_repo.display()),
             "foc-builder",
             "bash",
             "-c",
@@ -82,19 +86,19 @@ pub fn deploy_mock_usdfc_foundry(
                 println!("          {}", line);
             }
         }
-        return Err("MockUSDFC deployment failed".into());
+        return Err("Multicall3 deployment failed".into());
     }
 
     // Extract contract address from output
-    // Look for "MockUSDFC deployed at:" in the output
+    // Look for "Deployed to:" in the output
     let contract_address = stdout
         .lines()
-        .find(|line| line.contains("MockUSDFC deployed at:"))
+        .find(|line| line.contains("Deployed to:"))
         .and_then(|line| line.split_whitespace().last())
         .ok_or("Failed to extract contract address from deployment output")?;
 
     println!(
-        "        {} MockUSDFC deployed at: {}",
+        "        {} Multicall3 deployed at: {}",
         "✓".green(),
         contract_address.cyan().bold()
     );
@@ -102,47 +106,48 @@ pub fn deploy_mock_usdfc_foundry(
     Ok(contract_address.to_string())
 }
 
-/// Perform the MockUSDFC deployment process
-pub fn perform_token_deployment(
+/// Perform the Multicall3 deployment process
+pub fn perform_deployment(
     volumes_dir: &std::path::PathBuf,
     context: &mut super::super::step::StepContext,
 ) -> Result<(), Box<dyn Error>> {
     use super::key_management::get_deployer_private_key;
     use super::prerequisites::check_required_addresses;
 
-    println!("    Deploying MockUSDFC token using Foundry project...");
+    println!("    Deploying Multicall3 contract...");
 
     // Get required addresses from context
-    let (mockusdfc_deployer, mockusdfc_deployer_eth) = check_required_addresses(context)?;
+    let (multicall3_deployer, multicall3_deployer_eth) = check_required_addresses(context)?;
 
     // Get deployer private key from the exported key file
-    let private_key = get_deployer_private_key(volumes_dir, &mockusdfc_deployer)?;
+    let private_key = get_deployer_private_key(volumes_dir, &multicall3_deployer)?;
 
-    println!("      Deployer ETH address: {}", mockusdfc_deployer_eth.cyan());
+    println!(
+        "      Deployer ETH address: {}",
+        multicall3_deployer_eth.cyan()
+    );
 
-    // Deploy MockUSDFC token using Foundry
+    // Deploy Multicall3 contract
     let lotus_rpc_url = format!("http://localhost:{}/rpc/v1", LOTUS_RPC_PORT);
-    let mock_usdfc_address = deploy_mock_usdfc_foundry(&private_key, &lotus_rpc_url)?;
+    let multicall3_address = deploy_multicall3(&private_key, &lotus_rpc_url)?;
 
     // Store in context
-    context.set("mock_usdfc_address", &mock_usdfc_address);
+    context.set("multicall3_address", &multicall3_address);
 
     // Save to contract addresses file
-    super::contract_storage::save_contract_address("MockUSDFC", &mock_usdfc_address)?;
+    super::contract_storage::save_contract_address("Multicall3", &multicall3_address)?;
 
     // Verify the deployment
-    super::verification::verify_mock_usdfc(&private_key, &mock_usdfc_address, &lotus_rpc_url)?;
+    super::verification::verify_multicall3(&private_key, &multicall3_address, &lotus_rpc_url)?;
 
     println!(
-        "\n    {} MockUSDFC token deployed successfully!",
+        "\n    {} Multicall3 contract deployed successfully!",
         "✓".green().bold()
     );
-    println!("      Token Address: {}", mock_usdfc_address.cyan().bold());
     println!(
-        "      Initial Supply: {} tokens",
-        super::usdfc_deploy_step::MOCK_USDFC_INITIAL_SUPPLY
+        "      Contract Address: {}",
+        multicall3_address.cyan().bold()
     );
-    println!("      Decimals: 18");
 
     Ok(())
 }

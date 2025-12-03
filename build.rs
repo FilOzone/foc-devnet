@@ -40,6 +40,18 @@ fn main() {
         println!("cargo:rustc-env=GIT_BRANCH=unknown");
     }
 
+    // Check if working directory is dirty (has uncommitted changes)
+    let is_dirty = if let Ok(output) = Command::new("git")
+        .args(&["status", "--porcelain"])
+        .output()
+    {
+        output.status.success() && !output.stdout.is_empty()
+    } else {
+        false
+    };
+    
+    println!("cargo:rustc-env=GIT_DIRTY={}", if is_dirty { "dirty" } else { "" });
+
     // Re-run if git info changes
     println!("cargo:rerun-if-changed=.git/HEAD");
     println!("cargo:rerun-if-changed=.git/refs/heads/");

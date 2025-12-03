@@ -50,6 +50,12 @@ pub enum Commands {
         /// Yugabyte download URL
         #[arg(long)]
         yugabyte_url: Option<String>,
+        /// Path to local Yugabyte archive file (.tar.gz) to use instead of downloading
+        #[arg(long)]
+        yugabyte_archive: Option<String>,
+        /// Path to local filecoin-proof-params directory to use instead of downloading
+        #[arg(long)]
+        proof_params_dir: Option<String>,
         /// Force regeneration of config file even if it exists
         #[arg(long)]
         force: bool,

@@ -1,4 +1,4 @@
-//! Private key management for MockUSDFC deployment.
+//! Private key management for Multicall3 deployment.
 //!
 //! This module handles the retrieval and processing of private keys
 //! needed for contract deployment.
@@ -10,12 +10,12 @@ use std::path::PathBuf;
 /// Get the private key for the deployer from the exported key file
 pub fn get_deployer_private_key(
     volumes_dir: &PathBuf,
-    _mockusdfc_deployer_address: &str,
+    _multicall3_deployer_address: &str,
 ) -> Result<String, Box<dyn Error>> {
     use base64::{engine::general_purpose, Engine as _};
 
-    // The key was exported by ETHAccFundingStep to volumes_dir/mockusdfc-deployer.key
-    let key_file = volumes_dir.join("mockusdfc-deployer.key");
+    // The key was exported by ETHAccFundingStep to volumes_dir/multicall3-deployer.key
+    let key_file = volumes_dir.join("multicall3-deployer.key");
 
     if !key_file.exists() {
         return Err(format!(

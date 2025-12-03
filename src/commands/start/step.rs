@@ -1,18 +1,34 @@
 use crossterm::style::Stylize;
 use std::collections::HashMap;
 use std::error::Error;
+use std::path::PathBuf;
 
 /// Context shared across all steps during execution
 #[derive(Debug, Default)]
 pub struct StepContext {
     /// Shared state that can be passed between steps
     pub state: HashMap<String, String>,
+    
+    /// Run ID for this execution (e.g., "251203-1246-thirsty-wolf")
+    pub run_id: Option<String>,
+    
+    /// Run-specific logs directory (e.g., ~/.foc-localnet/logs/251203-1246-thirsty-wolf)
+    pub logs_dir: Option<PathBuf>,
 }
 
 impl StepContext {
     /// Create a new StepContext
     pub fn new() -> Self {
         Self::default()
+    }
+    
+    /// Create a StepContext with run ID and logs directory
+    pub fn with_run_id(run_id: String, logs_dir: PathBuf) -> Self {
+        Self {
+            state: HashMap::new(),
+            run_id: Some(run_id),
+            logs_dir: Some(logs_dir),
+        }
     }
 
     /// Set a value in the shared state
@@ -23,6 +39,16 @@ impl StepContext {
     /// Get a value from the shared state
     pub fn get(&self, key: &str) -> Option<&String> {
         self.state.get(key)
+    }
+    
+    /// Get the run ID
+    pub fn run_id(&self) -> Option<&str> {
+        self.run_id.as_deref()
+    }
+    
+    /// Get the logs directory for this run
+    pub fn logs_dir(&self) -> Option<&PathBuf> {
+        self.logs_dir.as_ref()
     }
 }
 
@@ -89,8 +115,12 @@ pub trait Step {
 }
 
 /// Execute a sequence of steps
-pub fn execute_steps(steps: Vec<&dyn Step>) -> Result<(), Box<dyn Error>> {
-    let mut context = StepContext::new();
+pub fn execute_steps(
+    steps: Vec<&dyn Step>,
+    run_id: String,
+    logs_dir: PathBuf,
+) -> Result<(), Box<dyn Error>> {
+    let mut context = StepContext::with_run_id(run_id, logs_dir);
 
     for (index, step) in steps.iter().enumerate() {
         println!(

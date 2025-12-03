@@ -68,41 +68,8 @@ pub fn import_faucet_key(keyinfo_path: &PathBuf) -> Result<String, Box<dyn Error
     Ok(address)
 }
 
-/// Create a new f4 (delegated/Ethereum) address for FEVM operations
-pub fn create_fevm_address(name: &str) -> Result<String, Box<dyn Error>> {
-    println!("      Creating {} f4 address...", name);
-
-    let output = Command::new("docker")
-        .args([
-            "exec",
-            "foc-lotus",
-            "/usr/local/bin/lotus-bins/lotus",
-            "wallet",
-            "new",
-            "delegated",
-        ])
-        .output()?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to create {} f4 address: {}",
-            name,
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
-
-    let address = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    println!(
-        "      {} {} address created: {}",
-        "✓".green(),
-        name,
-        address
-    );
-    Ok(address)
-}
-
 /// Get the Ethereum address corresponding to an f4 address
+#[allow(dead_code)]
 pub fn get_eth_address(f4_address: &str) -> Result<String, Box<dyn Error>> {
     let output = Command::new("docker")
         .args([
@@ -135,6 +102,7 @@ pub fn get_eth_address(f4_address: &str) -> Result<String, Box<dyn Error>> {
 }
 
 /// Export private key for an f4 address to use with forge/cast
+#[allow(dead_code)]
 pub fn export_private_key(f4_address: &str, output_file: &PathBuf) -> Result<(), Box<dyn Error>> {
     println!("      Exporting private key for contract deployment...");
 

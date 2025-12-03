@@ -15,7 +15,7 @@ use crate::commands::start::eth_acc_funding::constants::TRANSACTION_CONFIRMATION
 pub fn transfer_fil(
     from: &str,
     to: &str,
-    amount: &str,
+    amount: u64,
     description: &str,
 ) -> Result<(), Box<dyn Error>> {
     println!("      Transferring {} FIL: {}...", amount, description);
@@ -29,7 +29,7 @@ pub fn transfer_fil(
             "--from",
             from,
             to,
-            amount,
+            amount.to_string().as_str(),
         ])
         .output()?;
 
@@ -41,7 +41,7 @@ pub fn transfer_fil(
         .into());
     }
 
-    println!("      {} Transfer successful", "✓".green());
+    println!("\r      Transferred {} FIL: {}...", amount, description.dark_green().bold());
 
     // Wait for transaction to be included in a block and address to be activated
     // F4 addresses need time to be activated on-chain

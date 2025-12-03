@@ -59,7 +59,7 @@ else
     echo "Warning: forge not available"
     echo "Skipping actual deployment - using placeholder address"
     echo "{"
-    echo "  \"deployedTo\": \"$DEPLOYER_ADDRESS\","
+    echo "  \"deployedTo\": \"0x0000000000000000000000000000000000000000\","
     echo "  \"transactionHash\": \"0x0000000000000000000000000000000000000000000000000000000000000000\""
     echo "}"
 fi

@@ -46,27 +46,3 @@ pub const SIGNERS_THRESHOLD: u32 = 2;
 /// These keys are used for the multisig wallet that controls network upgrades
 /// and other privileged operations. Each signer gets an equal vote in consensus.
 pub const NUM_SIGNER_KEYS: u32 = 2;
-
-/// The number of additional pre-funded accounts to create beyond the signers.
-///
-/// These accounts are created with BLS keys and pre-funded with FIL tokens,
-/// but do not have signing authority. They are useful for testing transactions
-/// and smart contracts without affecting the signer accounts.
-///
-/// IMPORTANT: prefunded-1 is designated as GLOBAL_FIL_FAUCET and is used for:
-/// - Transferring FIL to Ethereum addresses via f4 addresses
-/// - Funding FOC (Filecoin Onchain Contracts) deployment operations
-/// - General testing and development activities
-///
-/// To modify this value:
-/// 1. Change this constant (e.g., to 3)
-/// 2. Run `cargo run start` to regenerate the keys
-/// 3. The keys will be available in ~/.foc-localnet/artifacts/docker/volumes/lotus-keys/prefunded-{1,2,3}/
-/// 4. Import keys into lotus using: `lotus wallet import <keyinfo-file>`
-///
-/// Example: Set to 3 to create 3 additional pre-funded accounts.
-pub const NUM_PREFUNDED_KEYS: u32 = 1;
-const _: () = assert!(
-    NUM_PREFUNDED_KEYS >= 1,
-    "NUM_PREFUNDED_KEYS must be at least 1 for GLOBAL_FIL_FAUCET"
-);

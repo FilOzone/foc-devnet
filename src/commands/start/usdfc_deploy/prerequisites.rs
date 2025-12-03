@@ -31,15 +31,15 @@ pub fn check_lotus_running() -> Result<(), Box<dyn Error>> {
 
 /// Check if required addresses are available in context
 pub fn check_required_addresses(context: &StepContext) -> Result<(String, String), Box<dyn Error>> {
-    let foc_deployer = context.get("foc_deployer_address").ok_or(
-        "FOC_DEPLOYER address not found in context. Ensure ETHAccFunding step has been completed.",
+    let mockusdfc_deployer = context.get("mockusdfc_deployer_address").ok_or(
+        "MOCKUSDFC_DEPLOYER address not found in context. Ensure ETHAccFunding step has been completed.",
     )?;
 
-    let foc_deployer_eth = context
-        .get("foc_deployer_eth_address")
-        .ok_or("FOC_DEPLOYER Ethereum address not found in context. Ensure ETHAccFunding step has been completed.")?;
+    let mockusdfc_deployer_eth = context
+        .get("mockusdfc_deployer_eth_address")
+        .ok_or("MOCKUSDFC_DEPLOYER Ethereum address not found in context. Ensure ETHAccFunding step has been completed.")?;
 
-    Ok((foc_deployer.clone(), foc_deployer_eth.clone()))
+    Ok((mockusdfc_deployer.clone(), mockusdfc_deployer_eth.clone()))
 }
 
 /// Check if MockUSDFC has already been deployed

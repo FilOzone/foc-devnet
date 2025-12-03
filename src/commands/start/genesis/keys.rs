@@ -44,19 +44,14 @@ pub fn ensure_bls_keys() -> Result<(), Box<dyn std::error::Error>> {
         ensure_bls_key_from_info(&key_dir, key_info, i, "signer")?;
     }
 
-    // Generate additional pre-funded keys (prefunded-1)
-    for i in 1..=super::constants::NUM_PREFUNDED_KEYS {
-        let key_dir = keys_dir.join(format!("prefunded-{}", i));
-        let key_name = match i {
-            1 => "GLOBAL_FIL_FAUCET",
-            n => &format!("BLS_PREFUNDED_{}", n),
-        }; // First prefunded key is GLOBAL_FIL_FAUCET
-        let key_info = all_keys
-            .iter()
-            .find(|k| k.name == key_name)
-            .ok_or_else(|| format!("BLS key {} not found", key_name))?;
-        ensure_bls_key_from_info(&key_dir, key_info, i, "prefunded")?;
-    }
+    // Generate GLOBAL_FIL_FAUCET key (prefunded-1)
+    let key_dir = keys_dir.join("prefunded-1");
+    let key_name = "GLOBAL_FIL_FAUCET";
+    let key_info = all_keys
+        .iter()
+        .find(|k| k.name == key_name)
+        .ok_or_else(|| format!("BLS key {} not found", key_name))?;
+    ensure_bls_key_from_info(&key_dir, key_info, 1, "prefunded")?;
 
     Ok(())
 }

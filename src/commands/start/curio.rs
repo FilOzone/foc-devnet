@@ -6,7 +6,7 @@
 
 use super::step::{Step, StepContext};
 use crate::docker::{
-    container_exists, container_is_running, is_port_available, stop_and_remove_container,
+    container_exists, container_is_running, stop_and_remove_container,
     wait_for_port,
 };
 use crate::paths::foc_localnet_bin;
@@ -108,26 +108,113 @@ impl CurioStep {
         Ok(())
     }
 
+    /// Build the Docker run command for Curio
+    fn build_docker_command(&self, _context: &StepContext) -> Result<Vec<String>, Box<dyn Error>> {
+        // Build docker run command
+        let mut docker_args = vec![
+            "run".to_string(),
+            "-d".to_string(),
+            "--name".to_string(),
+            CONTAINER_NAME.to_string(),
+        ];
+
+        // When using host networking, we don't need port mappings
+        // The container will use the host's network directly
+        // docker_args.extend(port_args);
+
+        // Add volume mounts
+        let curio_data_dir = self.volumes_dir.join("curio-data");
+        let volume_mount = format!("{}:/home/foc-user/.curio", curio_data_dir.display());
+        docker_args.extend_from_slice(&["-v".to_string(), volume_mount]);
+
+        // Mount curio binary
+        let curio_bin = foc_localnet_bin().join("curio");
+        let bin_mount = format!("{}:/usr/local/bin/lotus-bins/curio", curio_bin.display());
+        docker_args.extend_from_slice(&["-v".to_string(), bin_mount]);
+
+        // Add environment variables for contract addresses
+        if let Ok(addresses) = crate::commands::start::contract_addresses::ContractAddresses::load() {
+            // MockUSDFC address
+            if !addresses.mock_usdfc.is_empty() {
+                docker_args.extend_from_slice(&["-e".to_string(), format!("USDFC_ADDRESS={}", addresses.mock_usdfc)]);
+            }
+
+            // FOC contracts - pass specific ones that Curio needs
+            if let Some(addr) = addresses.foc_contracts.get("FilecoinWarmStorageService Proxy") {
+                docker_args.extend_from_slice(&["-e".to_string(), format!("WARM_STORAGE_SERVICE_ADDRESS={}", addr)]);
+            }
+            if let Some(addr) = addresses.foc_contracts.get("ServiceProviderRegistry Proxy") {
+                docker_args.extend_from_slice(&["-e".to_string(), format!("SERVICE_REGISTRY_ADDRESS={}", addr)]);
+            }
+            if let Some(addr) = addresses.foc_contracts.get("PDPVerifier Proxy") {
+                docker_args.extend_from_slice(&["-e".to_string(), format!("PDP_VERIFIER_ADDRESS={}", addr)]);
+            }
+        }
+
+        // Add YugabyteDB connection environment variables
+        docker_args.extend_from_slice(&[
+            "-e".to_string(), "CURIO_DB_HOST=0.0.0.0".to_string(),
+            "-e".to_string(), "CURIO_DB_PORT=5433".to_string(),
+            "-e".to_string(), "CURIO_DB_USER=yugabyte".to_string(),
+            "-e".to_string(), "CURIO_DB_PASSWORD=yugabyte".to_string(),
+            "-e".to_string(), "CURIO_DB_NAME=yugabyte".to_string(),
+        ]);
+
+        // Add Lotus API endpoint
+        docker_args.extend_from_slice(&[
+            "-e".to_string(), "LOTUS_API=http://localhost:1234/rpc/v1".to_string(),
+            "-e".to_string(), "FULLNODE_API_INFO=http://localhost:1234/rpc/v1".to_string(),
+        ]);
+
+        // Add localnet-specific configuration
+        docker_args.extend_from_slice(&[
+            "-e".to_string(), "NETWORK_TYPE=localnet".to_string(),
+            "-e".to_string(), "CHAIN_ID=31415926".to_string(),
+        ]);
+
+        // Use host networking to access localhost services (Lotus, YugabyteDB)
+        docker_args.extend_from_slice(&["--network".to_string(), "host".to_string()]);
+
+        // Add image name and command
+        docker_args.push(IMAGE_NAME.to_string());
+        docker_args.extend_from_slice(&["/usr/local/bin/lotus-bins/curio".to_string(), "run".to_string()]);
+
+        Ok(docker_args)
+    }
+
+    /// Start the Curio container
+    fn start_container(
+        &self,
+        docker_args: Vec<String>,
+        context: &mut StepContext,
+    ) -> Result<(), Box<dyn Error>> {
+        println!("    Starting container '{}'...", CONTAINER_NAME);
+        let output = Command::new("docker").args(&docker_args).output()?;
+
+        if !output.status.success() {
+            return Err(format!(
+                "Failed to start Curio container: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .into());
+        }
+
+        let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        context.set("curio_container_id", container_id.clone());
+        println!(
+            "    {} Container started with ID: {}",
+            "✓".green(),
+            &container_id[..12]
+        );
+
+        Ok(())
+    }
+
     /// Check ports availability and verify requirements
     fn check_ports_and_requirements(&self) -> Result<(), Box<dyn Error>> {
-        // Check if all required ports are available
-        let mut unavailable_ports = Vec::new();
-        for &(port, description) in CURIO_PORTS {
-            if !is_port_available(port) {
-                unavailable_ports.push((port, description));
-            }
-        }
-
-        if !unavailable_ports.is_empty() {
-            let mut error_msg = String::from("The following required ports are not available:\n");
-            for (port, description) in unavailable_ports {
-                error_msg.push_str(&format!("  - Port {}: {}\n", port, description));
-            }
-            error_msg.push_str("\nPlease free these ports before starting Curio.");
-            return Err(error_msg.into());
-        }
-
-        println!("    {} All required ports are available", "✓".green());
+        // When using host networking, ports are directly accessible on host
+        // No need to check port availability since we're not mapping ports
+        println!("    {} Using host networking - ports will be accessible directly", "✓".green());
 
         // Verify Docker image exists
         if !crate::docker::core::image_exists(IMAGE_NAME).unwrap_or(true) {
@@ -151,6 +238,13 @@ impl CurioStep {
 
         Ok(())
     }
+
+    /// Create the Curio data directory
+    fn setup_data_directory(&self) -> Result<(), Box<dyn Error>> {
+        let curio_data_dir = self.volumes_dir.join("curio-data");
+        std::fs::create_dir_all(&curio_data_dir)?;
+        Ok(())
+    }
 }
 
 impl Step for CurioStep {
@@ -163,6 +257,9 @@ impl Step for CurioStep {
         self.check_dependencies(context)?;
         self.check_existing_container()?;
         self.check_ports_and_requirements()?;
+        self.setup_data_directory()?;
+        let docker_args = self.build_docker_command(context)?;
+        self.start_container(docker_args, context)?;
         Ok(())
     }
 

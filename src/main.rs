@@ -30,6 +30,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             lotus,
             filecoin_services,
             yugabyte_url,
+            yugabyte_archive,
+            proof_params_dir,
             force,
             rand,
         } => main_app::command_handlers::handle_init(
@@ -37,6 +39,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             lotus,
             filecoin_services,
             yugabyte_url,
+            yugabyte_archive,
+            proof_params_dir,
             force,
             rand,
         ),

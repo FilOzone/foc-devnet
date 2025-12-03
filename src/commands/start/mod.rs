@@ -6,6 +6,7 @@ mod foc_deployer;
 mod genesis;
 mod lotus;
 mod lotus_miner;
+mod multicall3_deploy;
 mod step;
 mod usdfc_deploy;
 mod yugabyte;
@@ -16,14 +17,18 @@ use foc_deploy::FOCDeployStep;
 pub use genesis::ensure_genesis_prerequisites;
 use lotus::LotusStep;
 use lotus_miner::LotusMinerStep;
+use multicall3_deploy::MultiCall3DeployStep;
 pub use step::{execute_steps, Step, StepContext};
 use usdfc_deploy::USDFCDeployStep;
 use yugabyte::YugabyteStep;
 
 use crate::docker::core::{container_is_running, remove_container, stop_container};
-use crate::paths::{foc_localnet_docker_volumes, foc_localnet_logs};
+use crate::paths::{foc_localnet_docker_volumes, foc_localnet_run_logs};
+use crate::run_id::generate_run_id;
+use crate::version_info::write_version_file;
 use crossterm::style::Stylize;
 use std::path::PathBuf;
+pub use eth_acc_funding::constants::FEVM_ACCOUNTS_PREFUNDED;
 
 /// Execute the start command.
 ///
@@ -34,6 +39,9 @@ pub fn start_cluster(
     regenesis: bool,
     reset: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Generate run ID for this execution
+    let run_id = generate_run_id();
+    
     // Determine volumes directory
     let volumes_dir = if let Some(dir) = volumes_dir {
         PathBuf::from(dir)
@@ -42,16 +50,20 @@ pub fn start_cluster(
         foc_localnet_docker_volumes()
     };
 
-    // Determine logs directory
+    // Determine logs directory - use run-specific directory
     let logs_dir = if let Some(dir) = logs_dir {
         PathBuf::from(dir)
     } else {
-        foc_localnet_logs()
+        foc_localnet_run_logs(&run_id)
     };
 
     // Create directories if they don't exist
     std::fs::create_dir_all(&volumes_dir)?;
     std::fs::create_dir_all(&logs_dir)?;
+    
+    // Write version information to the run directory
+    let version_info = crate::version_info::VersionInfo::from_env();
+    write_version_file(&logs_dir, &version_info)?;
 
     // Handle regenesis flag - delete genesis-related files and keys
     if regenesis {
@@ -159,6 +171,10 @@ pub fn start_cluster(
     println!("{}", "Starting local cluster...".green().bold());
     println!(
         "{}",
+        format!("Run ID: {}", run_id).cyan().bold()
+    );
+    println!(
+        "{}",
         format!("Volumes directory: {}", volumes_dir.display()).cyan()
     );
     println!(
@@ -176,16 +192,18 @@ pub fn start_cluster(
     // 2. Lotus-Miner (first gen miner) - builds tipsets
     // 3. ETHAccFunding - create and fund Ethereum accounts for FOC deployment
     // 4. USDFCDeploy - deploy MockUSDFC token for FOC contracts
-    // 5. FOCDeploy - deploy FOC service contracts (requires Lotus with FEVM)
-    // 6. YugabyteDB - database for Curio
-    // 7. Curio (second gen miner) - needs Lotus, FOC contracts, and YugabyteDB
+    // 5. MultiCall3Deploy - deploy Multicall3 contract for batched calls
+    // 6. FOCDeploy - deploy FOC service contracts (requires Lotus with FEVM)
+    // 7. YugabyteDB - database for Curio
+    // 8. Curio (second gen miner) - needs Lotus, FOC contracts, and YugabyteDB
     let lotus_step = LotusStep::new(volumes_dir.clone(), logs_dir.clone());
     let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), logs_dir.clone());
-    let eth_acc_funding_step = ETHAccFundingStep::new(volumes_dir.clone(), logs_dir.clone());
+    let eth_acc_funding_step = ETHAccFundingStep::new(logs_dir.clone());
     let usdfc_deploy_step = USDFCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
+    let multicall3_deploy_step = MultiCall3DeployStep::new(volumes_dir.clone(), logs_dir.clone());
     let foc_deploy_step = FOCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
     let yugabyte_step = YugabyteStep::new(volumes_dir.clone(), logs_dir.clone());
-    let _curio_step = CurioStep::new(volumes_dir.clone(), logs_dir.clone());
+    let curio_step = CurioStep::new(volumes_dir.clone(), logs_dir.clone());
 
     // Execute all steps
     let steps: Vec<&dyn Step> = vec![
@@ -193,10 +211,12 @@ pub fn start_cluster(
         &lotus_miner_step,
         &eth_acc_funding_step,
         &usdfc_deploy_step,
+        &multicall3_deploy_step,
         &foc_deploy_step,
         &yugabyte_step,
+        &curio_step,
     ];
-    execute_steps(steps)?;
+    execute_steps(steps, run_id, logs_dir)?;
 
     println!("\n{}", "Local cluster started successfully!".green().bold());
     Ok(())

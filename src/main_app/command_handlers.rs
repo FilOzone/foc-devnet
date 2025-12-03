@@ -40,11 +40,22 @@ pub fn handle_init(
     lotus: Option<String>,
     filecoin_services: Option<String>,
     yugabyte_url: Option<String>,
+    yugabyte_archive: Option<String>,
+    proof_params_dir: Option<String>,
     force: bool,
     rand: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     poison::create_poison("Init")?;
-    commands::init_environment(curio, lotus, filecoin_services, yugabyte_url, force, rand)
+    commands::init_environment(
+        curio,
+        lotus,
+        filecoin_services,
+        yugabyte_url,
+        yugabyte_archive,
+        proof_params_dir,
+        force,
+        rand,
+    )
 }
 
 /// Execute the build command

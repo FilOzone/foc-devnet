@@ -39,6 +39,9 @@ pub fn download_code_repositories() -> Result<(), Box<dyn std::error::Error>> {
     // Download filecoin-services repository if Git-based
     download_repository("filecoin-services", &config.filecoin_services)?;
 
+    // Download multicall3 repository if Git-based
+    download_repository("multicall3", &config.multicall3)?;
+
     println!("  {} Code repositories are now available.", "✓".green());
     Ok(())
 }

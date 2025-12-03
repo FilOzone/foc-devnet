@@ -12,6 +12,12 @@ pub fn foc_localnet_logs() -> PathBuf {
     foc_localnet_home().join("logs")
 }
 
+/// Returns the path to a run-specific logs directory
+/// e.g., ~/.foc-localnet/logs/251203-1246-thirsty-wolf
+pub fn foc_localnet_run_logs(run_id: &str) -> PathBuf {
+    foc_localnet_logs().join(run_id)
+}
+
 /// Returns the path to the foc-localnet bin directory, e.g., ~/.foc-localnet/bin
 pub fn foc_localnet_bin() -> PathBuf {
     foc_localnet_home().join("bin")
@@ -50,6 +56,11 @@ pub fn foc_localnet_curio_repo() -> PathBuf {
 /// Returns the path to the "filecoin-services" repository
 pub fn foc_localnet_filecoin_services_repo() -> PathBuf {
     foc_localnet_code().join("filecoin-services")
+}
+
+/// Returns the path to the "multicall3" repository
+pub fn foc_localnet_multicall3_repo() -> PathBuf {
+    foc_localnet_code().join("multicall3")
 }
 
 /// Returns the path to the foc-localnet temporary directory, e.g., ~/.foc-localnet/tmp

@@ -102,7 +102,10 @@ fn cleanup_previous_installation() -> Result<(), Box<dyn std::error::Error>> {
 /// * `lotus_location` - Optional override for Lotus repository location
 /// * `filecoin_services_location` - Optional override for Filecoin Services repository location
 /// * `yugabyte_url` - Optional override for Yugabyte download URL
+/// * `yugabyte_archive` - Optional path to local Yugabyte archive file
+/// * `proof_params_dir` - Optional path to local filecoin-proof-params directory
 /// * `force` - Whether to force regeneration of config file
+/// * `use_random_mnemonic` - Whether to use random mnemonic for key generation
 ///
 /// # Returns
 /// Returns `Ok(())` on successful initialization, or an error if any step fails.
@@ -111,6 +114,8 @@ pub fn init_environment(
     lotus_location: Option<String>,
     filecoin_services_location: Option<String>,
     yugabyte_url: Option<String>,
+    yugabyte_archive: Option<String>,
+    proof_params_dir: Option<String>,
     force: bool,
     use_random_mnemonic: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -142,8 +147,8 @@ pub fn init_environment(
     // Download code repositories
     repositories::download_code_repositories()?;
 
-    // Download required artifacts
-    artifacts::download_artifacts()?;
+    // Download required artifacts (or copy from local paths)
+    artifacts::download_artifacts(yugabyte_archive, proof_params_dir)?;
 
     // Build and cache Docker images
     crate::docker::build::build_and_cache_docker_images()?;

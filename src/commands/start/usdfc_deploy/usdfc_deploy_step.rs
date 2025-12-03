@@ -44,16 +44,16 @@ impl Step for USDFCDeployStep {
         println!("    {} Lotus is running", "✓".green());
 
         // Check if required addresses are available
-        let (foc_deployer, foc_deployer_eth) = check_required_addresses(context)?;
+        let (mockusdfc_deployer, mockusdfc_deployer_eth) = check_required_addresses(context)?;
         println!(
-            "    {} FOC_DEPLOYER address: {}",
+            "    {} MOCKUSDFC_DEPLOYER address: {}",
             "✓".green(),
-            foc_deployer.cyan()
+            mockusdfc_deployer.cyan()
         );
         println!(
-            "    {} FOC_DEPLOYER Ethereum address: {}",
+            "    {} MOCKUSDFC_DEPLOYER Ethereum address: {}",
             "✓".green(),
-            foc_deployer_eth.cyan()
+            mockusdfc_deployer_eth.cyan()
         );
 
         Ok(())

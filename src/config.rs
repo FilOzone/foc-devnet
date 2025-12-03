@@ -180,6 +180,13 @@ pub struct Config {
     /// See [`Location`] for available options.
     pub filecoin_services: Location,
 
+    /// Location specification for the multicall3 repository.
+    ///
+    /// Defines how to obtain the multicall3 code, which provides the
+    /// Multicall3 contract for batching multiple calls in a single transaction.
+    /// See [`Location`] for available options.
+    pub multicall3: Location,
+
     /// URL to download Yugabyte database tarball.
     ///
     /// This is the direct link to the Yugabyte tarball required for running curio.
@@ -212,6 +219,10 @@ impl Default for Config {
             filecoin_services: Location::GitTag {
                 url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
                 tag: "v1.0.0".to_string(),
+            },
+            multicall3: Location::GitBranch {
+                url: "https://github.com/mds1/multicall3.git".to_string(),
+                branch: "main".to_string(),
             },
             yugabyte_download_url: "https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz".to_string(),
         }
