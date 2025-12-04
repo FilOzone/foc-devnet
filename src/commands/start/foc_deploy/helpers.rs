@@ -60,12 +60,12 @@ pub fn check_required_addresses(
     context: &super::step::StepContext,
 ) -> Result<(String, String, String, String), Box<dyn Error>> {
     let foc_deployer = context
-        .get("foc_deployer_address")
-        .ok_or("FOC_DEPLOYER address not found in context. Ensure ETHAccFunding step has been completed.")?;
+        .get("deployer_foc_address")
+        .ok_or("DEPLOYER_FOC address not found in context. Ensure ETHAccFunding step has been completed.")?;
 
     let foc_deployer_eth = context
-        .get("foc_deployer_eth_address")
-        .ok_or("FOC_DEPLOYER Ethereum address not found in context. Ensure ETHAccFunding step has been completed.")?;
+        .get("deployer_foc_eth_address")
+        .ok_or("DEPLOYER_FOC Ethereum address not found in context. Ensure ETHAccFunding step has been completed.")?;
 
     let mock_usdfc = context.get("mock_usdfc_address").ok_or(
         "MockUSDFC address not found in context. Ensure USDFCDeploy step has been completed.",

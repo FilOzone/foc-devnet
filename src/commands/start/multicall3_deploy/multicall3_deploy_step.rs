@@ -37,18 +37,18 @@ impl Step for MultiCall3DeployStep {
 
     fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         // Check if Lotus is running
-        check_lotus_running()?;
+        check_lotus_running(context)?;
         println!("    {} Lotus is running", "✓".green());
 
         // Check if required addresses are available
         let (multicall3_deployer, multicall3_deployer_eth) = check_required_addresses(context)?;
         println!(
-            "    {} MULTICALL3_DEPLOYER address: {}",
+            "    {} DEPLOYER_MULTICALL3 address: {}",
             "✓".green(),
             multicall3_deployer.cyan()
         );
         println!(
-            "    {} MULTICALL3_DEPLOYER Ethereum address: {}",
+            "    {} DEPLOYER_MULTICALL3 Ethereum address: {}",
             "✓".green(),
             multicall3_deployer_eth.cyan()
         );

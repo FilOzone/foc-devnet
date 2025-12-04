@@ -71,7 +71,7 @@ impl Step for FOCDeployStep {
         let (_foc_deployer, foc_deployer_eth, mock_usdfc, _global_faucet) =
             check_required_addresses(context)?;
         println!(
-            "    {} FOC_DEPLOYER Ethereum address: {}",
+            "    {} DEPLOYER_FOC Ethereum address: {}",
             "✓".green(),
             foc_deployer_eth
         );

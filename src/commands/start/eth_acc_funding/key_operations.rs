@@ -57,14 +57,32 @@ pub fn import_faucet_key(
     // Clean up the temp file
     let _ = fs::remove_file(&temp_key_file);
 
+    // Check if import failed
     if !output.status.success() {
-        return Err(format!(
-            "Failed to import GLOBAL_FIL_FAUCET key: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        // If key already exists, that's fine - just get the existing address
+        if stderr.contains("key already exists") {
+            println!("      {} Key already exists in wallet", "ℹ".cyan());
+
+            // Extract the address from the error message
+            // Error format: "...checking key before put 'wallet-<address>': key already exists"
+            let address = stderr
+                .split("wallet-")
+                .nth(1)
+                .and_then(|s| s.split('\'').next())
+                .ok_or("Failed to extract existing address from error")?
+                .to_string();
+
+            println!("      {} Using existing key: {}", "✓".green(), address);
+            return Ok(address);
+        }
+
+        // For other errors, fail
+        return Err(format!("Failed to import GLOBAL_FIL_FAUCET key: {}", stderr).into());
     }
 
+    // Key was successfully imported
     let address = String::from_utf8_lossy(&output.stdout)
         .lines()
         .find(|line| line.starts_with("imported key"))

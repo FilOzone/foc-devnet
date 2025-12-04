@@ -68,11 +68,11 @@ impl FOCDeployStep {
     ) -> Result<(String, String, String, String), Box<dyn Error>> {
         let foc_deployer = context
             .get("foc_deployer_address")
-            .ok_or("FOC_DEPLOYER address not found in context. Ensure ETHAccFunding step has been completed.")?;
+            .ok_or("DEPLOYER_FOC address not found in context. Ensure ETHAccFunding step has been completed.")?;
 
         let foc_deployer_eth = context
             .get("foc_deployer_eth_address")
-            .ok_or("FOC_DEPLOYER Ethereum address not found in context. Ensure ETHAccFunding step has been completed.")?;
+            .ok_or("DEPLOYER_FOC Ethereum address not found in context. Ensure ETHAccFunding step has been completed.")?;
 
         let mock_usdfc = context.get("mock_usdfc_address").ok_or(
             "MockUSDFC address not found in context. Ensure USDFCDeploy step has been completed.",
@@ -205,7 +205,7 @@ impl Step for FOCDeployStep {
         let (_foc_deployer, foc_deployer_eth, mock_usdfc, _global_faucet) =
             self.check_required_addresses(context)?;
         println!(
-            "    {} FOC_DEPLOYER Ethereum address: {}",
+            "    {} DEPLOYER_FOC Ethereum address: {}",
             "✓".green(),
             foc_deployer_eth
         );

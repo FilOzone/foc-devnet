@@ -21,7 +21,12 @@ pub fn add_signers_to_genesis() -> Result<(), Box<dyn std::error::Error>> {
     let keys_dir = foc_localnet_lotus_keys();
 
     // Get signer BLS addresses
-    let addresses = get_bls_addresses("key", constants::NUM_SIGNER_KEYS)?;
+    let addresses = get_bls_addresses(
+        "BLS_SIGNER",
+        constants::NUM_SIGNER_KEYS
+            .try_into()
+            .expect("cannot cast NUM_SIGNER_KEYS into usize"),
+    )?;
 
     if addresses.len() != constants::NUM_SIGNER_KEYS as usize {
         return Err(format!(

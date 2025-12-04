@@ -14,8 +14,9 @@ pub fn get_deployer_private_key(
 ) -> Result<String, Box<dyn Error>> {
     use base64::{engine::general_purpose, Engine as _};
 
-    // The key was exported by ETHAccFundingStep to volumes_dir/multicall3-deployer.key
-    let key_file = volumes_dir.join("multicall3-deployer.key");
+    // The key was exported by ETHAccFundingStep as deployer-multicall3.key
+    // (from account name DEPLOYER_MULTICALL3 with underscores replaced by hyphens)
+    let key_file = volumes_dir.join("deployer-multicall3.key");
 
     if !key_file.exists() {
         return Err(format!(

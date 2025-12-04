@@ -88,10 +88,7 @@ pub fn start_cluster(
 
         // Files and directories to delete
         let paths_to_delete = vec![
-            base_volumes.join("lotus-keys").join("key-1"),
-            base_volumes.join("lotus-keys").join("key-2"),
-            base_volumes.join("lotus-keys").join("prefunded-1"),
-            base_volumes.join("lotus-keys").join("prefunded-2"),
+            base_volumes.join("lotus-keys"),
             base_volumes.join("genesis-sectors"),
             base_volumes.join("genesis").join("foc-localnet.json"),
             base_volumes.join("lotus-data"),

@@ -40,18 +40,18 @@ impl Step for USDFCDeployStep {
 
     fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         // Check if Lotus is running
-        check_lotus_running()?;
+        check_lotus_running(context)?;
         println!("    {} Lotus is running", "✓".green());
 
         // Check if required addresses are available
         let (mockusdfc_deployer, mockusdfc_deployer_eth) = check_required_addresses(context)?;
         println!(
-            "    {} MOCKUSDFC_DEPLOYER address: {}",
+            "    {} DEPLOYER_MOCKUSDFC address: {}",
             "✓".green(),
             mockusdfc_deployer.cyan()
         );
         println!(
-            "    {} MOCKUSDFC_DEPLOYER Ethereum address: {}",
+            "    {} DEPLOYER_MOCKUSDFC Ethereum address: {}",
             "✓".green(),
             mockusdfc_deployer_eth.cyan()
         );

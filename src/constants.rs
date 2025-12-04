@@ -33,8 +33,6 @@ pub const PORT_CHECK_TIMEOUT_MS: u64 = 5000;
 /// Service configuration
 pub const SERVICE_NAME: &str = "FOC LocalNet Warm Storage";
 pub const SERVICE_DESCRIPTION: &str = "Warm storage service for FOC local development network";
-pub const FEVM_FAUCET_TRANSFER_AMOUNT: &str = "10000000000000000000000"; // 10,000 FIL
-pub const FOC_DEPLOYER_TRANSFER_AMOUNT: &str = "5000000000000000000000"; // 5,000 FIL
 
 /// Token parameters
 pub const MOCK_USDFC_INITIAL_SUPPLY: &str = "1000000000000000000000000"; // 1,000,000 tokens

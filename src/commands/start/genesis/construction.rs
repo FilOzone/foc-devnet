@@ -41,7 +41,7 @@ pub fn construct_genesis() -> Result<(), Box<dyn std::error::Error>> {
     creation::create_genesis_file()?;
     signers::add_signers_to_genesis()?;
     miner::add_miner_to_genesis()?;
-    accounts::add_prefunded_accounts()?;
+    accounts::add_global_fil_faucet_account()?;
     accounts::add_foc_accounts()?;
 
     println!("{}", "✓ Genesis construction complete".green().bold());

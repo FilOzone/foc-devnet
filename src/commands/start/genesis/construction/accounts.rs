@@ -16,14 +16,14 @@ pub const PREFUNDED_ACCOUNTS_INIT_FIL: u64 = 10_000_000; // 10 million FIL
 ///
 /// Since lotus-seed doesn't have an `add-actor` command, we modify the genesis JSON
 /// directly to add the GLOBAL_FIL_FAUCET pre-funded account.
-pub fn add_prefunded_accounts() -> Result<(), Box<dyn std::error::Error>> {
+pub fn add_global_fil_faucet_account() -> Result<(), Box<dyn std::error::Error>> {
     println!("  {} Adding pre-funded accounts to genesis...", "💰".cyan());
 
     let genesis_dir = foc_localnet_genesis();
     let genesis_file_path = genesis_dir.join(constants::GENESIS_FILE);
 
-    // Get GLOBAL_FIL_FAUCET BLS address (prefunded-1)
-    let addresses = get_bls_addresses("prefunded", 1)?;
+    // Get GLOBAL_FIL_FAUCET BLS address
+    let addresses = get_bls_addresses("GLOBAL_FIL_FAUCET", 0)?;
     let global_fil_faucet_addr = &addresses[0];
 
     // Read the genesis file

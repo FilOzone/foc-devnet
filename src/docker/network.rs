@@ -1,8 +1,8 @@
 //! Docker network management for run-isolated clusters.
 //!
 //! This module handles creating and managing Docker user-defined networks
-//! for each cluster run. Networks are named with the run ID prefix to allow
-//! multiple concurrent runs.
+//! for each cluster run. Networks are named with the foc- prefix and run ID
+//! to allow multiple concurrent runs and easy identification.
 
 use super::core::docker_command;
 use crossterm::style::Stylize;
@@ -15,17 +15,17 @@ const PDP_MINER_NET_SUFFIX: &str = "pdp-miner-net";
 
 /// Get the Filecoin network name for a run ID
 pub fn filecoin_network_name(run_id: &str) -> String {
-    format!("{}-{}", run_id, FILECOIN_NET_SUFFIX)
+    format!("foc-{}-{}", run_id, FILECOIN_NET_SUFFIX)
 }
 
 /// Get the PoRep miner network name for a run ID
 pub fn porep_miner_network_name(run_id: &str) -> String {
-    format!("{}-{}", run_id, POREP_MINER_NET_SUFFIX)
+    format!("foc-{}-{}", run_id, POREP_MINER_NET_SUFFIX)
 }
 
 /// Get the PDP miner network name for a run ID
 pub fn pdp_miner_network_name(run_id: &str) -> String {
-    format!("{}-{}", run_id, PDP_MINER_NET_SUFFIX)
+    format!("foc-{}-{}", run_id, PDP_MINER_NET_SUFFIX)
 }
 
 /// Check if a Docker network exists
@@ -89,9 +89,9 @@ pub fn delete_network(network_name: &str) -> Result<(), Box<dyn Error>> {
 /// Create all networks for a cluster run
 ///
 /// Networks created:
-/// - `<RUN_ID>-filecoin-net`: For Lotus daemon containers
-/// - `<RUN_ID>-porep-miner-net`: For Lotus miner containers (also connected to filecoin-net)
-/// - `<RUN_ID>-pdp-miner-net`: For Curio and YugabyteDB containers (Curio also connects to filecoin-net)
+/// - `foc-<RUN_ID>-filecoin-net`: For Lotus daemon containers
+/// - `foc-<RUN_ID>-porep-miner-net`: For Lotus miner containers (also connected to filecoin-net)
+/// - `foc-<RUN_ID>-pdp-miner-net`: For Curio and YugabyteDB containers (Curio also connects to filecoin-net)
 ///
 /// # Arguments
 /// * `run_id` - The run ID for this cluster
