@@ -98,6 +98,26 @@ jobs:
     - name: Setup Rust toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
 
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y tar
+
+    - name: Generate build artifacts
+      run: |
+        # Ensure artifacts directory exists
+        mkdir -p artifacts
+
+        # Generate MockUSDFC.tar.gz if contracts directory exists
+        if [ -d "contracts/MockUSDFC" ]; then
+          tar -czf artifacts/MockUSDFC.tar.gz contracts/MockUSDFC
+          echo "✅ Generated MockUSDFC.tar.gz"
+          ls -la artifacts/
+        else
+          echo "❌ contracts/MockUSDFC directory not found"
+          exit 1
+        fi
+
     - name: Build
       run: cargo build
 
