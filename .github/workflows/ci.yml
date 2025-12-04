@@ -134,6 +134,16 @@ jobs:
         ./target/debug/foc-localnet init
       timeout-minutes: 10
 
+    - name: Build curio
+      run: |
+        ./target/debug/foc-localnet build curio
+      timeout-minutes: 10
+
+    - name: Build lotus
+      run: |
+        ./target/debug/foc-localnet build lotus
+      timeout-minutes: 10
+
     - name: Test start command with --reset --regenesis
       run: |
         ./target/debug/foc-localnet start --reset --regenesis
