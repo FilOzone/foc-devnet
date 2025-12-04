@@ -2,6 +2,7 @@ use crossterm::style::Stylize;
 use std::collections::HashMap;
 use std::error::Error;
 use std::path::PathBuf;
+use std::time::Instant;
 
 /// Context shared across all steps during execution
 #[derive(Debug, Default)]
@@ -89,6 +90,8 @@ pub trait Step {
 
     /// Run the complete step (pre, execute, post)
     fn run(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        let start_time = Instant::now();
+
         println!(
             "{}",
             format!("Starting step: {}", self.name()).blue().bold()
@@ -106,9 +109,16 @@ pub trait Step {
         self.post_execute(context)?;
         println!("{}", "  ✓ Post-execution verification passed".green());
 
+        let duration = start_time.elapsed();
         println!(
             "{}",
-            format!("Step completed: {}", self.name()).green().bold()
+            format!(
+                "Step completed: {} ({:.2}s)",
+                self.name(),
+                duration.as_secs_f64()
+            )
+            .green()
+            .bold()
         );
         Ok(())
     }

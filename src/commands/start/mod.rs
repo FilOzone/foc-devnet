@@ -24,7 +24,7 @@ use yugabyte::YugabyteStep;
 
 use crate::docker::core::{container_is_running, remove_container, stop_container};
 use crate::docker::{create_all_networks, start_portainer};
-use crate::paths::{foc_localnet_docker_volumes, foc_localnet_run_logs};
+use crate::paths::{contract_addresses_file, foc_localnet_docker_volumes, foc_localnet_run_logs};
 use crate::run_id::{generate_run_id, save_current_run_id};
 use crate::version_info::write_version_file;
 use crossterm::style::Stylize;
@@ -93,6 +93,7 @@ pub fn start_cluster(
             base_volumes.join("genesis").join("foc-localnet.json"),
             base_volumes.join("lotus-data"),
             base_volumes.join("lotus-miner-data"),
+            contract_addresses_file(),
         ];
 
         for path in paths_to_delete {
@@ -114,7 +115,7 @@ pub fn start_cluster(
     }
 
     // Handle reset flag - reset lotus and lotus-miner to block 0
-    if reset {
+    if reset && !regenesis {
         println!(
             "{}",
             "Resetting lotus and lotus-miner to block 0..."

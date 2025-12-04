@@ -5,50 +5,24 @@
 //! and output parsing.
 
 use crate::constants::*;
-use crate::docker::core::{docker_command, exec_in_container};
+use crate::docker::core::docker_command;
 use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes};
 use crossterm::style::Stylize;
 use std::error::Error;
 
 /// Get the private key for an f4 address in hex format (for use with cast/forge)
-pub fn get_private_key(f4_address: &str) -> Result<String, Box<dyn Error>> {
-    // Export the private key from lotus
-    let output = exec_in_container(
-        LOTUS_CONTAINER,
-        LOTUS_BINARY_PATH,
-        &["wallet", "export", f4_address],
-    )?;
+pub fn get_private_key(f4_address: &str, _lotus_container: &str) -> Result<String, Box<dyn Error>> {
+    // Load pre-generated keys
+    let keys = crate::commands::init::keys::load_keys()?;
 
-    // The output is hex-encoded JSON
-    let hex_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    // Find the key with matching Filecoin address
+    let key_info = keys
+        .iter()
+        .find(|k| k.filecoin_address.as_ref() == Some(&f4_address.to_string()))
+        .ok_or(format!("Private key not found for address: {}", f4_address))?;
 
-    // Decode from hex to get the JSON string
-    let json_bytes =
-        hex::decode(&hex_str).map_err(|e| format!("Failed to decode hex output: {}", e))?;
-
-    let keyinfo_str = String::from_utf8(json_bytes)
-        .map_err(|e| format!("Failed to convert bytes to string: {}", e))?;
-
-    // Parse the JSON to extract the private key
-    let keyinfo: serde_json::Value = serde_json::from_str(&keyinfo_str)
-        .map_err(|e| format!("Failed to parse keyinfo JSON: {}", e))?;
-
-    // The private key is in the "PrivateKey" field as a base64 string
-    let private_key_b64 = keyinfo
-        .get("PrivateKey")
-        .and_then(|v| v.as_str())
-        .ok_or("PrivateKey field not found in keyinfo")?;
-
-    // Decode from base64
-    use base64::{engine::general_purpose, Engine as _};
-    let private_key_bytes = general_purpose::STANDARD
-        .decode(private_key_b64)
-        .map_err(|e| format!("Failed to decode private key from base64: {}", e))?;
-
-    // Convert to hex string with 0x prefix
-    let private_key_hex = format!("0x{}", hex::encode(&private_key_bytes));
-
-    Ok(private_key_hex)
+    // Return the private key with 0x prefix
+    Ok(format!("0x{}", key_info.private_key))
 }
 
 /// Deploy FOC contracts using the deployment script
@@ -59,6 +33,7 @@ pub fn deploy_foc_contracts(
     deployer_eth_addr: &str,
     mock_usdfc_address: &str,
     services_repo_path: &std::path::Path,
+    lotus_container: &str,
 ) -> Result<std::collections::HashMap<String, String>, Box<dyn Error>> {
     println!("      Running deploy-all-warm-storage.sh...");
 
@@ -79,7 +54,7 @@ pub fn deploy_foc_contracts(
     let builder_volumes_dir = foc_localnet_docker_volumes().join("builder");
 
     // Get the private key from lotus for the deployer address
-    let private_key = get_private_key(foc_deployer)?;
+    let private_key = get_private_key(foc_deployer, lotus_container)?;
 
     let lotus_rpc_url = format!("http://localhost:{}/rpc/v1", LOTUS_RPC_PORT);
 

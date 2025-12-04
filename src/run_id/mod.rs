@@ -10,6 +10,22 @@ pub use persistence::{delete_current_run_id, load_current_run_id, save_current_r
 use chrono::Local;
 use names::{Generator, Name};
 
+/// Adjectives for random name generation.
+pub const ADJECTIVES: &[&str] = &[
+    "red", "blue", "pink", "gold", "teal", "lime", "navy", "cyan", "gray", "grey", "aqua", "plum",
+    "mint", "rose", "jade", "ruby", "tan", "snow", "coal", "rust", "sand", "clay", "mist", "fog",
+    "ice", "sky", "sea", "peach", "opal", "lava", "sage", "moss", "slate", "iris", "onyx",
+];
+
+/// Nouns for random name generation
+pub const NOUNS: &[&str] = &[
+    "cat", "dog", "fox", "owl", "bat", "rat", "pig", "cow", "hen", "bee", "ant", "fly", "bug",
+    "ape", "eel", "yak", "wolf", "lion", "mole", "vole", "hare", "frog", "toad", "mink", "seal",
+    "crab", "fish", "worm", "slug", "deer", "goat", "duck", "swan", "crow", "boar", "lynx", "shad",
+    "tern", "pika", "ibis", "gnat", "clam", "lamb", "puma", "orca", "skua", "tuna", "bass", "myna",
+    "gull", "newt", "fowl", "dove", "cusk", "cavy", "croc", "paca",
+];
+
 /// Generate a unique run ID for this execution.
 ///
 /// Returns a string like "251203-1246-thirsty-wolf" where:
@@ -26,7 +42,7 @@ pub fn generate_run_id() -> String {
     let now = Local::now();
     let timestamp = now.format("%y%m%d-%H%M");
 
-    let mut generator = Generator::with_naming(Name::Numbered);
+    let mut generator = Generator::new(ADJECTIVES, NOUNS, Name::Plain);
     let random_name = generator.next().unwrap_or_else(|| "unknown".to_string());
 
     format!("{}-{}", timestamp, random_name)

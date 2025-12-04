@@ -7,7 +7,7 @@ use super::contract_addresses::ContractAddresses;
 use super::foc_deployer::deploy_foc_contracts;
 use super::step::{Step, StepContext};
 use crate::config::{Config, Location};
-use crate::constants::*;
+use crate::docker::containers::lotus_container_name;
 use crate::docker::core::container_is_running;
 use crate::paths::{
     contract_addresses_file, foc_localnet_config, foc_localnet_filecoin_services_repo,
@@ -54,8 +54,10 @@ impl FOCDeployStep {
     }
 
     /// Check if Lotus is running and accessible
-    fn check_lotus_running() -> Result<(), Box<dyn Error>> {
-        if !container_is_running(LOTUS_CONTAINER)? {
+    fn check_lotus_running(context: &StepContext) -> Result<(), Box<dyn Error>> {
+        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let container_name = lotus_container_name(run_id);
+        if !container_is_running(&container_name)? {
             return Err("Lotus container is not running. FOC deployment requires Lotus to be running with FEVM enabled.".into());
         }
         Ok(())
@@ -67,11 +69,11 @@ impl FOCDeployStep {
         context: &StepContext,
     ) -> Result<(String, String, String, String), Box<dyn Error>> {
         let foc_deployer = context
-            .get("foc_deployer_address")
+            .get("deployer_foc_address")
             .ok_or("DEPLOYER_FOC address not found in context. Ensure ETHAccFunding step has been completed.")?;
 
         let foc_deployer_eth = context
-            .get("foc_deployer_eth_address")
+            .get("deployer_foc_eth_address")
             .ok_or("DEPLOYER_FOC Ethereum address not found in context. Ensure ETHAccFunding step has been completed.")?;
 
         let mock_usdfc = context.get("mock_usdfc_address").ok_or(
@@ -120,11 +122,14 @@ impl FOCDeployStep {
         let services_repo = Self::get_filecoin_services_repo_path()?;
 
         // Deploy FOC contracts using deployment script
+        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let lotus_container = crate::docker::containers::lotus_container_name(run_id);
         let contract_addresses = deploy_foc_contracts(
             &foc_deployer,
             &foc_deployer_eth,
             &mock_usdfc_address,
             &services_repo,
+            &lotus_container,
         )?;
 
         // Store contract addresses in context
@@ -173,7 +178,7 @@ impl Step for FOCDeployStep {
 
     fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         // Check if Lotus is running
-        Self::check_lotus_running()?;
+        Self::check_lotus_running(context)?;
         println!("    {} Lotus is running", "✓".green());
 
         // Check if filecoin-services repository exists

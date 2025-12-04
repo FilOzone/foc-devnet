@@ -41,6 +41,7 @@ pub fn deploy_multicall3(private_key: &str, lotus_rpc_url: &str) -> Result<Strin
          --private-key {} \
          --legacy \
          --gas-limit 1000000000 \
+         --broadcast \
          -vv",
         lotus_rpc_url, private_key
     );
