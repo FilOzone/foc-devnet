@@ -19,5 +19,5 @@ pub struct DerivedKey {
 }
 
 // Re-export functions for convenience
-pub use bls::{derive_bls_key, compute_bls_address};
-pub use ethereum::{derive_ethereum_key, compute_eth_address, compute_native_address};
+pub use bls::{compute_bls_address, derive_bls_key};
+pub use ethereum::{compute_eth_address, compute_native_address, derive_ethereum_key};

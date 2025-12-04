@@ -3,6 +3,8 @@
 //! This module contains functions that verify the Lotus daemon is properly
 //! started and all services are accessible.
 
+use super::super::step::StepContext;
+use crate::docker::containers::lotus_container_name;
 use crate::docker::wait_for_port;
 use crossterm::style::Stylize;
 use std::error::Error;
@@ -10,8 +12,6 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
-
-const CONTAINER_NAME: &str = "foc-lotus";
 
 // Lotus daemon ports
 const LOTUS_PORTS: &[(u16, &str)] = &[(1234, "Lotus API"), (1235, "Lotus P2P")];
@@ -22,13 +22,21 @@ const API_FILE_TIMEOUT_SECS: u64 = 180;
 const PORT_CHECK_INTERVAL_MS: u64 = 500;
 const DAEMON_INIT_WAIT_SECS: u64 = 5;
 
+/// Get the Lotus container name from context
+fn get_container_name(context: &StepContext) -> Result<String, Box<dyn Error>> {
+    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    Ok(lotus_container_name(run_id))
+}
+
 /// Check if lotus daemon is responsive via API
-pub fn check_lotus_api() -> Result<(), Box<dyn Error>> {
+pub fn check_lotus_api(context: &StepContext) -> Result<(), Box<dyn Error>> {
+    let container_name = get_container_name(context)?;
+
     // Try to execute a simple lotus command via docker exec
     let output = Command::new("docker")
         .args([
             "exec",
-            CONTAINER_NAME,
+            &container_name,
             "/usr/local/bin/lotus-bins/lotus",
             "version",
         ])
@@ -94,13 +102,15 @@ pub fn wait_for_api_file(volumes_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
 /// Check if Ethereum RPC is available via the Lotus API
 ///
 /// This verifies that FEVM is properly enabled by testing a basic eth_* RPC call.
-pub fn check_ethereum_rpc() -> Result<(), Box<dyn Error>> {
+pub fn check_ethereum_rpc(context: &StepContext) -> Result<(), Box<dyn Error>> {
+    let container_name = get_container_name(context)?;
+
     // Test eth_blockNumber via docker exec
     // This is a simple, safe RPC call that should work if FEVM is enabled
     let output = Command::new("docker")
         .args([
             "exec",
-            CONTAINER_NAME,
+            &container_name,
             "/bin/bash",
             "-c",
             "curl -s -X POST -H 'Content-Type: application/json' \
@@ -129,10 +139,10 @@ pub fn check_ethereum_rpc() -> Result<(), Box<dyn Error>> {
 }
 
 /// Verify Lotus API and Ethereum RPC connectivity
-pub fn verify_api_connectivity() -> Result<(), Box<dyn Error>> {
+pub fn verify_api_connectivity(context: &StepContext) -> Result<(), Box<dyn Error>> {
     // Verify Lotus API is responsive
     println!("    Verifying Lotus API connectivity...");
-    match check_lotus_api() {
+    match check_lotus_api(context) {
         Ok(_) => {
             println!(
                 "    {} Lotus daemon is ready and responding to API calls",
@@ -149,7 +159,7 @@ pub fn verify_api_connectivity() -> Result<(), Box<dyn Error>> {
 
     // Verify FEVM/Ethereum RPC is available
     println!("    Verifying FEVM Ethereum RPC...");
-    match check_ethereum_rpc() {
+    match check_ethereum_rpc(context) {
         Ok(_) => {
             println!(
                 "    {} Ethereum RPC is available and responding",

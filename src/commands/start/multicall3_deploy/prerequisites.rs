@@ -30,9 +30,7 @@ pub fn check_lotus_running() -> Result<(), Box<dyn Error>> {
 }
 
 /// Check if required addresses are available in context
-pub fn check_required_addresses(
-    context: &StepContext,
-) -> Result<(String, String), Box<dyn Error>> {
+pub fn check_required_addresses(context: &StepContext) -> Result<(String, String), Box<dyn Error>> {
     let multicall3_deployer = context.get("multicall3_deployer_address").ok_or(
         "MULTICALL3_DEPLOYER address not found in context. Ensure ETHAccFunding step has been completed.",
     )?;
@@ -41,10 +39,7 @@ pub fn check_required_addresses(
         .get("multicall3_deployer_eth_address")
         .ok_or("MULTICALL3_DEPLOYER Ethereum address not found in context. Ensure ETHAccFunding step has been completed.")?;
 
-    Ok((
-        multicall3_deployer.clone(),
-        multicall3_deployer_eth.clone(),
-    ))
+    Ok((multicall3_deployer.clone(), multicall3_deployer_eth.clone()))
 }
 
 /// Check if Multicall3 has already been deployed

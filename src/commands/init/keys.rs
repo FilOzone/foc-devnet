@@ -3,7 +3,10 @@
 //! This module handles generating deterministic addresses and private keys
 //! for various components of the foc-localnet system using HD wallet derivation.
 
-use crate::{commands::start::FEVM_ACCOUNTS_PREFUNDED, crypto::mnemonic::store_mnemonic, paths::foc_localnet_state};
+use crate::{
+    commands::start::FEVM_ACCOUNTS_PREFUNDED, crypto::mnemonic::store_mnemonic,
+    paths::foc_localnet_state,
+};
 use bip39::{Language, Mnemonic};
 use crossterm::style::Stylize;
 use serde::{Deserialize, Serialize};
@@ -37,18 +40,12 @@ impl fmt::Display for KeyInfo {
     }
 }
 
-pub const STATIC_MNEMONIC_ENTROPY: [u8; 32]= [
-                0x73, 0x75, 0x54, 0x32, 0x65, 0x8a, 0x20, 0x73,
-                0x11, 0x85, 0x6e, 0x04, 0x20, 0x6d, 0x61, 0x77,
-                0x6b, 0x20, 0x44, 0x1f, 0x4b, 0x65, 0x29, 0x56,
-                0x69, 0x62, 0x72, 0x31, 0x63, 0x34, 0x27, 0x53,
-            ];
+pub const STATIC_MNEMONIC_ENTROPY: [u8; 32] = [
+    0x73, 0x75, 0x54, 0x32, 0x65, 0x8a, 0x20, 0x73, 0x11, 0x85, 0x6e, 0x04, 0x20, 0x6d, 0x61, 0x77,
+    0x6b, 0x20, 0x44, 0x1f, 0x4b, 0x65, 0x29, 0x56, 0x69, 0x62, 0x72, 0x31, 0x63, 0x34, 0x27, 0x53,
+];
 
-pub const NATIVE_KEYS: [&str; 3] = [
-        "BLS_SIGNER_1",
-        "BLS_SIGNER_2",
-        "GLOBAL_FIL_FAUCET",
-    ];
+pub const NATIVE_KEYS: [&str; 3] = ["BLS_SIGNER_1", "BLS_SIGNER_2", "GLOBAL_FIL_FAUCET"];
 
 /// Generate all required keys for foc-localnet.
 ///
@@ -108,7 +105,12 @@ pub fn generate_keys(use_random: bool) -> Result<Vec<KeyInfo>, Box<dyn std::erro
     // Pretty print all generated keys
     println!("  {} Generated Keys:", "🔑".cyan());
     for key in &keys {
-        println!("    - {}: {} private key: ({})", key.name, key.filecoin_address.as_deref().unwrap_or("N/A"), key.private_key);
+        println!(
+            "    - {}: {} private key: ({})",
+            key.name,
+            key.filecoin_address.as_deref().unwrap_or("N/A"),
+            key.private_key
+        );
     }
 
     // Save keys to file

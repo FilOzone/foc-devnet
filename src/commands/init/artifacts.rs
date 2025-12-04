@@ -204,7 +204,7 @@ fn copy_yugabyte_from_local(
     artifacts_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let archive_path_buf = PathBuf::from(archive_path);
-    
+
     if !archive_path_buf.exists() {
         return Err(format!("Yugabyte archive not found at: {}", archive_path).into());
     }
@@ -232,7 +232,7 @@ fn copy_proof_params_from_local(params_path: &str) -> Result<(), Box<dyn std::er
     use crate::paths::foc_localnet_proof_parameters;
 
     let source_path = PathBuf::from(params_path);
-    
+
     if !source_path.exists() {
         return Err(format!("Proof parameters directory not found at: {}", params_path).into());
     }
@@ -242,7 +242,7 @@ fn copy_proof_params_from_local(params_path: &str) -> Result<(), Box<dyn std::er
     }
 
     let dest_path = foc_localnet_proof_parameters();
-    
+
     println!(
         "  {} Copying proof parameters from {}",
         "📦".cyan(),
@@ -264,11 +264,8 @@ fn copy_proof_params_from_local(params_path: &str) -> Result<(), Box<dyn std::er
     copy_dir_recursive(&source_path, &dest_path)?;
 
     pb.finish_with_message("✓ Proof parameters copied");
-    
-    println!(
-        "  {} Proof parameters copied successfully",
-        "✓".green()
-    );
+
+    println!("  {} Proof parameters copied successfully", "✓".green());
     Ok(())
 }
 

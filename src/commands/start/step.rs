@@ -8,10 +8,10 @@ use std::path::PathBuf;
 pub struct StepContext {
     /// Shared state that can be passed between steps
     pub state: HashMap<String, String>,
-    
+
     /// Run ID for this execution (e.g., "251203-1246-thirsty-wolf")
     pub run_id: Option<String>,
-    
+
     /// Run-specific logs directory (e.g., ~/.foc-localnet/logs/251203-1246-thirsty-wolf)
     pub logs_dir: Option<PathBuf>,
 }
@@ -21,7 +21,7 @@ impl StepContext {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Create a StepContext with run ID and logs directory
     pub fn with_run_id(run_id: String, logs_dir: PathBuf) -> Self {
         Self {
@@ -40,12 +40,12 @@ impl StepContext {
     pub fn get(&self, key: &str) -> Option<&String> {
         self.state.get(key)
     }
-    
+
     /// Get the run ID
     pub fn run_id(&self) -> Option<&str> {
         self.run_id.as_deref()
     }
-    
+
     /// Get the logs directory for this run
     pub fn logs_dir(&self) -> Option<&PathBuf> {
         self.logs_dir.as_ref()

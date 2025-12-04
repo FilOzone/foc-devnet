@@ -23,12 +23,13 @@ use usdfc_deploy::USDFCDeployStep;
 use yugabyte::YugabyteStep;
 
 use crate::docker::core::{container_is_running, remove_container, stop_container};
+use crate::docker::{create_all_networks, start_portainer};
 use crate::paths::{foc_localnet_docker_volumes, foc_localnet_run_logs};
-use crate::run_id::generate_run_id;
+use crate::run_id::{generate_run_id, save_current_run_id};
 use crate::version_info::write_version_file;
 use crossterm::style::Stylize;
-use std::path::PathBuf;
 pub use eth_acc_funding::constants::FEVM_ACCOUNTS_PREFUNDED;
+use std::path::PathBuf;
 
 /// Execute the start command.
 ///
@@ -41,7 +42,10 @@ pub fn start_cluster(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Generate run ID for this execution
     let run_id = generate_run_id();
-    
+
+    // Save run ID to persistent storage
+    save_current_run_id(&run_id)?;
+
     // Determine volumes directory
     let volumes_dir = if let Some(dir) = volumes_dir {
         PathBuf::from(dir)
@@ -60,7 +64,7 @@ pub fn start_cluster(
     // Create directories if they don't exist
     std::fs::create_dir_all(&volumes_dir)?;
     std::fs::create_dir_all(&logs_dir)?;
-    
+
     // Write version information to the run directory
     let version_info = crate::version_info::VersionInfo::from_env();
     write_version_file(&logs_dir, &version_info)?;
@@ -169,10 +173,7 @@ pub fn start_cluster(
     }
 
     println!("{}", "Starting local cluster...".green().bold());
-    println!(
-        "{}",
-        format!("Run ID: {}", run_id).cyan().bold()
-    );
+    println!("{}", format!("Run ID: {}", run_id).cyan().bold());
     println!(
         "{}",
         format!("Volumes directory: {}", volumes_dir.display()).cyan()
@@ -181,6 +182,14 @@ pub fn start_cluster(
         "{}",
         format!("Logs directory: {}", logs_dir.display()).cyan()
     );
+    println!();
+
+    // Step 0: Create Docker networks for this run
+    create_all_networks(&run_id)?;
+    println!();
+
+    // Step 0.5: Start Portainer for web UI management
+    start_portainer(&run_id)?;
     println!();
 
     // Ensure genesis prerequisites are ready (one-time setup)

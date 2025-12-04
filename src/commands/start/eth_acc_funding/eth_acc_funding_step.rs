@@ -30,9 +30,11 @@ impl ETHAccFundingStep {
     fn check_existing_funding(&self, context: &mut StepContext) -> Result<bool, Box<dyn Error>> {
         // Check if we have the required addresses in context
         let has_global_faucet = context.get("global_faucet_address").is_some();
-        let has_all_prefunded_accounts = FEVM_ACCOUNTS_PREFUNDED
-            .iter()
-            .all(|(name, _)| context.get(&format!("{}_address", name.to_lowercase())).is_some());
+        let has_all_prefunded_accounts = FEVM_ACCOUNTS_PREFUNDED.iter().all(|(name, _)| {
+            context
+                .get(&format!("{}_address", name.to_lowercase()))
+                .is_some()
+        });
 
         if has_global_faucet && has_all_prefunded_accounts {
             println!(
@@ -45,7 +47,7 @@ impl ETHAccFundingStep {
         Ok(false)
     }
 
-    fn import_global_faucet_key() -> Result<String, Box<dyn Error + 'static>> {
+    fn import_global_faucet_key(context: &StepContext) -> Result<String, Box<dyn Error + 'static>> {
         let keys_dir = crate::paths::foc_localnet_lotus_keys();
         let faucet_key_dir = keys_dir.join(GLOBAL_FIL_FAUCET_KEY);
         let keyinfo_files: Vec<_> = fs::read_dir(&faucet_key_dir)?
@@ -61,7 +63,7 @@ impl ETHAccFundingStep {
             return Err("No keyinfo file found for GLOBAL_FIL_FAUCET".into());
         }
         let keyinfo_path = keyinfo_files[0].path();
-        let global_faucet = import_faucet_key(&keyinfo_path)?;
+        let global_faucet = import_faucet_key(&keyinfo_path, context)?;
         Ok(global_faucet)
     }
 
@@ -107,7 +109,7 @@ impl ETHAccFundingStep {
         let keys = load_keys()?;
 
         // Import GLOBAL_FIL_FAUCET key (BLS key from genesis) - this is the ONLY key imported to Lotus
-        let global_faucet = Self::import_global_faucet_key()?;
+        let global_faucet = Self::import_global_faucet_key(context)?;
         context.set("global_faucet_address", &global_faucet);
 
         // Fund all FEVM accounts from keys.rs (using pre-calculated addresses, NOT importing to Lotus)
@@ -158,6 +160,7 @@ impl ETHAccFundingStep {
                 f4_address,
                 *amount,
                 &format!("GLOBAL_FIL_FAUCET → {}", account_name),
+                context,
             )?;
         }
 
@@ -171,9 +174,9 @@ impl Step for ETHAccFundingStep {
         "Fund Ethereum Accounts"
     }
 
-    fn pre_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         // Check if Lotus is running
-        check_lotus_running()?;
+        check_lotus_running(context)?;
         println!("    {} Lotus is running", "✓".green());
 
         // Check if GLOBAL_FIL_FAUCET key exists
@@ -186,7 +189,11 @@ impl Step for ETHAccFundingStep {
 
         // Check if keys.rs keys are available
         let keys = load_keys()?;
-        println!("    {} Loaded {} pre-generated keys", "✓".green(), keys.len());
+        println!(
+            "    {} Loaded {} pre-generated keys",
+            "✓".green(),
+            keys.len()
+        );
 
         Ok(())
     }

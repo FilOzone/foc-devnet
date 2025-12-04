@@ -2,7 +2,7 @@
 //!
 //! This module handles the verification of deployed MockUSDFC contracts.
 
-use crate::paths::project_root;
+use super::foundry_setup::get_mockusdfc_project_dir;
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::process::Command;
@@ -15,8 +15,8 @@ pub fn verify_mock_usdfc(
 ) -> Result<(), Box<dyn Error>> {
     println!("      Verifying MockUSDFC contract functions...");
 
-    let project_root = project_root()?;
-    let contract_dir = project_root.join("contracts/MockUSDFC");
+    // Get the contract directory from embedded assets
+    let contract_dir = get_mockusdfc_project_dir()?;
 
     // Wait a bit for transaction confirmation
     println!("        Waiting for transaction confirmation...");

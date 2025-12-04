@@ -5,7 +5,10 @@
 use std::error::Error;
 use std::path::PathBuf;
 
-use super::constants::{CONTAINER_NAME, IMAGE_NAME, LOTUS_API_WAIT_SLEEP_SECS};
+use super::constants::{IMAGE_NAME, LOTUS_API_WAIT_SLEEP_SECS};
+use crate::commands::start::step::StepContext;
+use crate::docker::containers::{lotus_container_name, lotus_miner_container_name};
+use crate::docker::network::porep_miner_network_name;
 use crate::paths::{
     foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_genesis_sectors,
     foc_localnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
@@ -15,8 +18,13 @@ use crate::paths::{
 pub fn build_miner_docker_command(
     volumes_dir: &PathBuf,
     preseal_files: &(String, String),
+    context: &StepContext,
 ) -> Result<Vec<String>, Box<dyn Error>> {
     let (preseal_file, preseal_key_file) = preseal_files;
+    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let container_name = lotus_miner_container_name(run_id);
+    let porep_network = porep_miner_network_name(run_id);
+    let lotus_name = lotus_container_name(run_id);
 
     // Get lotus daemon data directory (needed for API access)
     let lotus_data_dir = volumes_dir.join("lotus-data");
@@ -28,14 +36,14 @@ pub fn build_miner_docker_command(
     let params_dir = foc_localnet_proof_parameters();
 
     // Build docker run command
-    // Use the lotus container's network namespace to allow easy communication
+    // Use porep-miner-net as primary network
     let mut docker_args = vec![
         "run".to_string(),
         "-d".to_string(),
         "--name".to_string(),
-        CONTAINER_NAME.to_string(),
+        container_name,
         "--network".to_string(),
-        "container:foc-lotus".to_string(), // Share network namespace with lotus
+        porep_network, // Primary network for miner operations
     ];
 
     // Add volume mounts (paths updated for foc-user)
@@ -73,8 +81,10 @@ pub fn build_miner_docker_command(
     docker_args.push(IMAGE_NAME.to_string());
 
     // Add command: wait for lotus, import wallet key, init, then run
+    // Use container name for Lotus API access via filecoin-net
     let miner_cmd = format!(
         r#"echo "Waiting for Lotus daemon API to be ready..." && \
+           export LOTUS_API_URL="http://{}:1234" && \
            until /usr/local/bin/lotus-bins/lotus version >/dev/null 2>&1; do \
              echo "Lotus API not ready yet, waiting..." && sleep {}; \
            done && \
@@ -88,7 +98,7 @@ pub fn build_miner_docker_command(
            fi && \
            echo "Starting lotus-miner..." && \
            /usr/local/bin/lotus-bins/lotus-miner run --nosync"#,
-        LOTUS_API_WAIT_SLEEP_SECS, preseal_key_file, preseal_file
+        lotus_name, LOTUS_API_WAIT_SLEEP_SECS, preseal_key_file, preseal_file
     );
     docker_args.extend_from_slice(&["/bin/bash".to_string(), "-c".to_string(), miner_cmd]);
 

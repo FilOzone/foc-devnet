@@ -1,4 +1,6 @@
 use super::step::{Step, StepContext};
+use crate::docker::containers::yugabyte_container_name;
+use crate::docker::network::pdp_miner_network_name;
 use crate::docker::{
     container_exists, container_is_running, is_port_available, stop_and_remove_container,
     wait_for_port,
@@ -10,7 +12,6 @@ use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
-const CONTAINER_NAME: &str = "foc-yugabyte";
 const IMAGE_NAME: &str = "foc-yugabyte";
 
 // YugabyteDB ports
@@ -40,13 +41,21 @@ impl YugabyteStep {
         }
     }
 
+    /// Get the YugabyteDB container name from context
+    fn get_container_name(context: &StepContext) -> Result<String, Box<dyn Error>> {
+        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        Ok(yugabyte_container_name(run_id))
+    }
+
     /// Verify PostgreSQL connectivity on port 5433
-    fn verify_postgres_connection() -> Result<(), Box<dyn Error>> {
+    fn verify_postgres_connection(context: &StepContext) -> Result<(), Box<dyn Error>> {
+        let container_name = Self::get_container_name(context)?;
+
         // Try to connect to the database using docker exec
         let output = Command::new("docker")
             .args([
                 "exec",
-                CONTAINER_NAME,
+                &container_name,
                 "/yugabyte/bin/ysqlsh",
                 "-h",
                 "127.0.0.1",
@@ -76,13 +85,19 @@ impl YugabyteStep {
     }
 
     /// Build the Docker run command for YugabyteDB
-    fn build_docker_command(&self) -> Result<Vec<String>, Box<dyn Error>> {
+    fn build_docker_command(&self, context: &StepContext) -> Result<Vec<String>, Box<dyn Error>> {
+        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let container_name = yugabyte_container_name(run_id);
+        let network_name = pdp_miner_network_name(run_id);
+
         // Build docker run command
         let mut docker_args = vec![
             "run".to_string(),
             "-d".to_string(),
             "--name".to_string(),
-            CONTAINER_NAME.to_string(),
+            container_name,
+            "--network".to_string(),
+            network_name,
         ];
 
         // Add port mappings
@@ -110,7 +125,9 @@ impl YugabyteStep {
         docker_args: Vec<String>,
         context: &mut StepContext,
     ) -> Result<(), Box<dyn Error>> {
-        println!("    Starting container '{}'...", CONTAINER_NAME);
+        let container_name = Self::get_container_name(context)?;
+
+        println!("    Starting container '{}'...", container_name);
         let output = Command::new("docker").args(&docker_args).output()?;
 
         if !output.status.success() {
@@ -123,6 +140,7 @@ impl YugabyteStep {
 
         let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
         context.set("yugabyte_container_id", container_id.clone());
+        context.set("yugabyte_container_name", container_name);
         println!(
             "    {} Container started with ID: {}",
             "✓".green(),
@@ -138,23 +156,25 @@ impl Step for YugabyteStep {
         "Start YugabyteDB"
     }
 
-    fn pre_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        let container_name = Self::get_container_name(context)?;
+
         // Check if any existing yugabyte container is running
-        if container_exists(CONTAINER_NAME)? {
-            if container_is_running(CONTAINER_NAME)? {
+        if container_exists(&container_name)? {
+            if container_is_running(&container_name)? {
                 println!(
                     "    {} Container '{}' is already running",
                     "⚠".yellow(),
-                    CONTAINER_NAME
+                    container_name
                 );
-                stop_and_remove_container(CONTAINER_NAME)?;
+                stop_and_remove_container(&container_name)?;
             } else {
                 println!(
                     "    {} Container '{}' exists but is not running",
                     "⚠".yellow(),
-                    CONTAINER_NAME
+                    container_name
                 );
-                stop_and_remove_container(CONTAINER_NAME)?;
+                stop_and_remove_container(&container_name)?;
             }
         }
 
@@ -192,18 +212,20 @@ impl Step for YugabyteStep {
 
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         self.setup_data_directory()?;
-        let docker_args = self.build_docker_command()?;
+        let docker_args = self.build_docker_command(context)?;
         self.start_container(docker_args, context)?;
         Ok(())
     }
 
-    fn post_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        let container_name = Self::get_container_name(context)?;
+
         // Wait for container to be healthy
         println!("    Waiting for YugabyteDB to start...");
         thread::sleep(Duration::from_secs(5));
 
         // Verify container is running
-        if !container_is_running(CONTAINER_NAME)? {
+        if !container_is_running(&container_name)? {
             return Err("Container stopped unexpectedly".into());
         }
         println!("    {} Container is running", "✓".green());
@@ -224,7 +246,7 @@ impl Step for YugabyteStep {
         // Verify PostgreSQL connection
         println!("    Verifying PostgreSQL connectivity...");
         thread::sleep(Duration::from_secs(3)); // Give YugabyteDB a moment to fully initialize
-        match Self::verify_postgres_connection() {
+        match Self::verify_postgres_connection(context) {
             Ok(_) => {
                 println!(
                     "    {} PostgreSQL is ready and accepting queries",

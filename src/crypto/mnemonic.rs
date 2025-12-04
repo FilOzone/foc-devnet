@@ -1,6 +1,6 @@
-use std::fs;
-use bip39::{Language, Mnemonic};
 use crate::paths::foc_localnet_state;
+use bip39::{Language, Mnemonic};
+use std::fs;
 
 /// Save mnemonic to file.
 /// This is used to persist the generated mnemonic for future key derivation.

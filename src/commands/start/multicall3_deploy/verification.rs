@@ -19,10 +19,7 @@ pub fn verify_multicall3(
     std::thread::sleep(std::time::Duration::from_secs(6));
 
     // Verify that the contract exists at the address using cast
-    let verify_cmd = format!(
-        "cast code {} --rpc-url {}",
-        contract_address, lotus_rpc_url
-    );
+    let verify_cmd = format!("cast code {} --rpc-url {}", contract_address, lotus_rpc_url);
 
     let output = Command::new("docker")
         .args([

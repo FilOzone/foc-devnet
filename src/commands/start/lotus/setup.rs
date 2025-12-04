@@ -3,11 +3,13 @@
 //! This module contains functions that prepare the environment
 //! for starting the Lotus daemon container.
 
+use super::super::step::StepContext;
+use crate::docker::containers::lotus_container_name;
+use crate::docker::network::filecoin_network_name;
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
 
-const CONTAINER_NAME: &str = "foc-lotus";
 const IMAGE_NAME: &str = "foc-lotus";
 
 // Lotus daemon ports
@@ -58,13 +60,21 @@ pub fn setup_directories(volumes_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
 }
 
 /// Build the Docker run command for starting Lotus daemon
-pub fn build_docker_command(volumes_dir: &PathBuf) -> Result<Vec<String>, Box<dyn Error>> {
+pub fn build_docker_command(
+    volumes_dir: &PathBuf,
+    context: &StepContext,
+) -> Result<Vec<String>, Box<dyn Error>> {
     use super::super::genesis::constants::GENESIS_FILE;
     use crate::paths::{
         foc_localnet_bin, foc_localnet_genesis, foc_localnet_genesis_sectors,
         foc_localnet_lotus_keys, foc_localnet_proof_parameters,
         CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
     };
+
+    // Get run-specific container name and network
+    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let container_name = lotus_container_name(run_id);
+    let network_name = filecoin_network_name(run_id);
 
     // Get paths
     let bin_dir = foc_localnet_bin();
@@ -79,7 +89,9 @@ pub fn build_docker_command(volumes_dir: &PathBuf) -> Result<Vec<String>, Box<dy
         "run".to_string(),
         "-d".to_string(),
         "--name".to_string(),
-        CONTAINER_NAME.to_string(),
+        container_name,
+        "--network".to_string(),
+        network_name,
     ];
 
     // Add port mappings

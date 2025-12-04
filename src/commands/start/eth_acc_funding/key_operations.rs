@@ -9,10 +9,18 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
+use crate::commands::start::step::StepContext;
+use crate::docker::containers::lotus_container_name;
 use crate::paths::foc_localnet_lotus_keys;
 
 /// Import the GLOBAL_FIL_FAUCET key into Lotus wallet
-pub fn import_faucet_key(keyinfo_path: &PathBuf) -> Result<String, Box<dyn Error>> {
+pub fn import_faucet_key(
+    keyinfo_path: &PathBuf,
+    context: &StepContext,
+) -> Result<String, Box<dyn Error>> {
+    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let container_name = lotus_container_name(run_id);
+
     println!("      Importing GLOBAL_FIL_FAUCET key into Lotus wallet...");
 
     // Read the JSON content from the keyinfo file
@@ -38,7 +46,7 @@ pub fn import_faucet_key(keyinfo_path: &PathBuf) -> Result<String, Box<dyn Error
     let output = Command::new("docker")
         .args([
             "exec",
-            "foc-lotus",
+            &container_name,
             "/usr/local/bin/lotus-bins/lotus",
             "wallet",
             "import",
@@ -70,11 +78,14 @@ pub fn import_faucet_key(keyinfo_path: &PathBuf) -> Result<String, Box<dyn Error
 
 /// Get the Ethereum address corresponding to an f4 address
 #[allow(dead_code)]
-pub fn get_eth_address(f4_address: &str) -> Result<String, Box<dyn Error>> {
+pub fn get_eth_address(f4_address: &str, context: &StepContext) -> Result<String, Box<dyn Error>> {
+    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let container_name = lotus_container_name(run_id);
+
     let output = Command::new("docker")
         .args([
             "exec",
-            "foc-lotus",
+            &container_name,
             "/usr/local/bin/lotus-bins/lotus",
             "evm",
             "stat",
@@ -103,13 +114,20 @@ pub fn get_eth_address(f4_address: &str) -> Result<String, Box<dyn Error>> {
 
 /// Export private key for an f4 address to use with forge/cast
 #[allow(dead_code)]
-pub fn export_private_key(f4_address: &str, output_file: &PathBuf) -> Result<(), Box<dyn Error>> {
+pub fn export_private_key(
+    f4_address: &str,
+    output_file: &PathBuf,
+    context: &StepContext,
+) -> Result<(), Box<dyn Error>> {
+    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let container_name = lotus_container_name(run_id);
+
     println!("      Exporting private key for contract deployment...");
 
     let output = Command::new("docker")
         .args([
             "exec",
-            "foc-lotus",
+            &container_name,
             "/usr/local/bin/lotus-bins/lotus",
             "wallet",
             "export",

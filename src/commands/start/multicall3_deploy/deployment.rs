@@ -11,10 +11,7 @@ use std::process::Command;
 const LOTUS_RPC_PORT: u16 = 1234;
 
 /// Deploy Multicall3 using forge create
-pub fn deploy_multicall3(
-    private_key: &str,
-    lotus_rpc_url: &str,
-) -> Result<String, Box<dyn Error>> {
+pub fn deploy_multicall3(private_key: &str, lotus_rpc_url: &str) -> Result<String, Box<dyn Error>> {
     println!("      Deploying Multicall3 contract...");
 
     // Get the multicall3 repository path
@@ -31,11 +28,7 @@ pub fn deploy_multicall3(
     // Check if Multicall3.sol exists in the repo
     let contract_file = multicall3_repo.join("src/Multicall3.sol");
     if !contract_file.exists() {
-        return Err(format!(
-            "Multicall3.sol not found at: {}",
-            contract_file.display()
-        )
-        .into());
+        return Err(format!("Multicall3.sol not found at: {}", contract_file.display()).into());
     }
 
     println!("      Compiling and deploying contract...");

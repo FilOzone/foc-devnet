@@ -3,6 +3,10 @@
 //! This module handles generating unique run IDs for each cluster start.
 //! Format: YYMMDD-HHMM-random-name (e.g., 251203-1246-thirsty-wolf)
 
+mod persistence;
+
+pub use persistence::{delete_current_run_id, load_current_run_id, save_current_run_id};
+
 use chrono::Local;
 use names::{Generator, Name};
 
@@ -21,10 +25,10 @@ use names::{Generator, Name};
 pub fn generate_run_id() -> String {
     let now = Local::now();
     let timestamp = now.format("%y%m%d-%H%M");
-    
+
     let mut generator = Generator::with_naming(Name::Numbered);
     let random_name = generator.next().unwrap_or_else(|| "unknown".to_string());
-    
+
     format!("{}-{}", timestamp, random_name)
 }
 
@@ -36,10 +40,14 @@ mod tests {
     #[test]
     fn test_run_id_format() {
         let run_id = generate_run_id();
-        
+
         // Should match pattern: YYMMDD-HHMM-word-word (or word-word-number)
         let pattern = Regex::new(r"^\d{6}-\d{4}-.+$").unwrap();
-        assert!(pattern.is_match(&run_id), "Run ID should match format: {}", run_id);
+        assert!(
+            pattern.is_match(&run_id),
+            "Run ID should match format: {}",
+            run_id
+        );
     }
 
     #[test]
@@ -48,7 +56,7 @@ mod tests {
         // They should be different due to random names (time might be same)
         let id1 = generate_run_id();
         let id2 = generate_run_id();
-        
+
         // At least the random name part should differ
         assert_ne!(id1, id2, "Run IDs should be different");
     }

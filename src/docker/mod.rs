@@ -5,8 +5,11 @@
 //! modules with a clean modular design.
 
 pub mod build;
+pub mod containers;
 pub mod core;
 pub mod init;
+pub mod network;
+pub mod portainer;
 pub mod shell;
 pub mod status;
 
@@ -21,6 +24,15 @@ pub use core::{
 pub use build::{
     build_docker_image, build_image_from_embedded, build_image_with_args, build_yugabyte_image,
 };
+pub use containers::{
+    builder_container_name, curio_container_name, lotus_container_name, lotus_miner_container_name,
+    portainer_container_name, yugabyte_container_name,
+};
 pub use init::{create_volume_directories_for_images, set_volume_ownership};
+pub use network::{
+    connect_container_to_network, create_all_networks, delete_all_networks, filecoin_network_name,
+    pdp_miner_network_name, porep_miner_network_name,
+};
+pub use portainer::{start_portainer, stop_portainer};
 pub use shell::{cast_command, forge_command, lotus_command, lotus_wallet_command};
 pub use status::{get_container_uptime, get_running_foc_containers, get_system_start_time};

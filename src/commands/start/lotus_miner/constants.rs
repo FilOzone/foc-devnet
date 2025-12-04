@@ -2,7 +2,6 @@
 //!
 //! This module contains all configuration constants used in the Lotus-Miner startup process.
 
-pub const CONTAINER_NAME: &str = "foc-lotus-miner";
 pub const IMAGE_NAME: &str = "foc-lotus-miner";
 
 // Lotus-Miner ports

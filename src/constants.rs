@@ -3,17 +3,19 @@
 //! This module centralizes all magic numbers, container names, port numbers,
 //! and other constants to avoid scattering them throughout the codebase.
 
-/// Container names
+/// Container names (base - will be prefixed with foc-<RUN_ID>- in practice)
 pub const LOTUS_CONTAINER: &str = "foc-lotus";
 pub const LOTUS_MINER_CONTAINER: &str = "foc-lotus-miner";
 pub const BUILDER_CONTAINER: &str = "foc-builder";
 pub const YUGABYTE_CONTAINER: &str = "foc-yugabyte";
 pub const CURIO_CONTAINER: &str = "foc-curio";
+pub const PORTAINER_CONTAINER: &str = "foc-portainer";
 
 /// Port numbers
 pub const LOTUS_RPC_PORT: u16 = 1234;
 pub const LOTUS_MINER_API_PORT: u16 = 2345;
 pub const YUGABYTE_PORT: u16 = 5433;
+pub const PORTAINER_PORT: u16 = 9009;
 
 /// Sleep durations (in seconds)
 pub const CONTAINER_INIT_WAIT_SECS: u64 = 5;

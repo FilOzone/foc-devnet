@@ -54,13 +54,17 @@ impl VersionInfo {
 /// ```
 pub fn write_version_file(dir: &Path, version_info: &VersionInfo) -> Result<(), Box<dyn Error>> {
     let version_file = dir.join("version.txt");
-    
+
     let now = Utc::now().timestamp();
     let diff_seconds = now - version_info.build_timestamp;
 
     let relative_time = calculate_relative_time(diff_seconds);
-    let dirty_suffix = if version_info.dirty.is_empty() { "" } else { "-dirty" };
-    
+    let dirty_suffix = if version_info.dirty.is_empty() {
+        ""
+    } else {
+        "-dirty"
+    };
+
     let content = format!(
         "foc-localnet {}\n\
          Commit: {}{}\n\
@@ -75,9 +79,9 @@ pub fn write_version_file(dir: &Path, version_info: &VersionInfo) -> Result<(), 
         relative_time,
         version_info.build_time_local
     );
-    
+
     fs::write(&version_file, content)?;
-    
+
     Ok(())
 }
 

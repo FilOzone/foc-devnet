@@ -5,9 +5,13 @@
 //! does not build tipsets.
 
 use super::step::{Step, StepContext};
+use crate::docker::containers::{
+    curio_container_name, lotus_container_name, yugabyte_container_name,
+};
+use crate::docker::network::{filecoin_network_name, pdp_miner_network_name};
 use crate::docker::{
-    container_exists, container_is_running, stop_and_remove_container,
-    wait_for_port,
+    connect_container_to_network, container_exists, container_is_running,
+    stop_and_remove_container, wait_for_port,
 };
 use crate::paths::foc_localnet_bin;
 use crossterm::style::Stylize;
@@ -17,7 +21,6 @@ use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
-const CONTAINER_NAME: &str = "foc-curio";
 const IMAGE_NAME: &str = "foc-curio";
 
 // Curio ports
@@ -46,13 +49,21 @@ impl CurioStep {
         }
     }
 
+    /// Get the Curio container name from context
+    fn get_container_name(context: &StepContext) -> Result<String, Box<dyn Error>> {
+        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        Ok(curio_container_name(run_id))
+    }
+
     /// Check if curio is responsive
-    fn check_curio_api() -> Result<(), Box<dyn Error>> {
+    fn check_curio_api(context: &StepContext) -> Result<(), Box<dyn Error>> {
+        let container_name = Self::get_container_name(context)?;
+
         // Try to execute a simple curio command via docker exec
         let output = Command::new("docker")
             .args([
                 "exec",
-                CONTAINER_NAME,
+                &container_name,
                 "/usr/local/bin/lotus-bins/curio",
                 "version",
             ])
@@ -85,23 +96,25 @@ impl CurioStep {
     }
 
     /// Check and handle existing Curio container
-    fn check_existing_container(&self) -> Result<(), Box<dyn Error>> {
+    fn check_existing_container(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
+        let container_name = Self::get_container_name(context)?;
+
         // Check if any existing curio container is running
-        if container_exists(CONTAINER_NAME)? {
-            if container_is_running(CONTAINER_NAME)? {
+        if container_exists(&container_name)? {
+            if container_is_running(&container_name)? {
                 println!(
                     "    {} Container '{}' is already running",
                     "⚠".yellow(),
-                    CONTAINER_NAME
+                    container_name
                 );
-                stop_and_remove_container(CONTAINER_NAME)?;
+                stop_and_remove_container(&container_name)?;
             } else {
                 println!(
                     "    {} Container '{}' exists but is not running",
                     "⚠".yellow(),
-                    CONTAINER_NAME
+                    container_name
                 );
-                stop_and_remove_container(CONTAINER_NAME)?;
+                stop_and_remove_container(&container_name)?;
             }
         }
 
@@ -109,13 +122,21 @@ impl CurioStep {
     }
 
     /// Build the Docker run command for Curio
-    fn build_docker_command(&self, _context: &StepContext) -> Result<Vec<String>, Box<dyn Error>> {
+    fn build_docker_command(&self, context: &StepContext) -> Result<Vec<String>, Box<dyn Error>> {
+        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let container_name = curio_container_name(run_id);
+        let pdp_network = pdp_miner_network_name(run_id);
+        let yugabyte_name = yugabyte_container_name(run_id);
+        let lotus_name = lotus_container_name(run_id);
+
         // Build docker run command
         let mut docker_args = vec![
             "run".to_string(),
             "-d".to_string(),
             "--name".to_string(),
-            CONTAINER_NAME.to_string(),
+            container_name,
+            "--network".to_string(),
+            pdp_network, // Primary network for YugabyteDB access
         ];
 
         // When using host networking, we don't need port mappings
@@ -133,51 +154,78 @@ impl CurioStep {
         docker_args.extend_from_slice(&["-v".to_string(), bin_mount]);
 
         // Add environment variables for contract addresses
-        if let Ok(addresses) = crate::commands::start::contract_addresses::ContractAddresses::load() {
+        if let Ok(addresses) = crate::commands::start::contract_addresses::ContractAddresses::load()
+        {
             // MockUSDFC address
             if !addresses.mock_usdfc.is_empty() {
-                docker_args.extend_from_slice(&["-e".to_string(), format!("USDFC_ADDRESS={}", addresses.mock_usdfc)]);
+                docker_args.extend_from_slice(&[
+                    "-e".to_string(),
+                    format!("USDFC_ADDRESS={}", addresses.mock_usdfc),
+                ]);
             }
 
             // FOC contracts - pass specific ones that Curio needs
-            if let Some(addr) = addresses.foc_contracts.get("FilecoinWarmStorageService Proxy") {
-                docker_args.extend_from_slice(&["-e".to_string(), format!("WARM_STORAGE_SERVICE_ADDRESS={}", addr)]);
+            if let Some(addr) = addresses
+                .foc_contracts
+                .get("FilecoinWarmStorageService Proxy")
+            {
+                docker_args.extend_from_slice(&[
+                    "-e".to_string(),
+                    format!("WARM_STORAGE_SERVICE_ADDRESS={}", addr),
+                ]);
             }
             if let Some(addr) = addresses.foc_contracts.get("ServiceProviderRegistry Proxy") {
-                docker_args.extend_from_slice(&["-e".to_string(), format!("SERVICE_REGISTRY_ADDRESS={}", addr)]);
+                docker_args.extend_from_slice(&[
+                    "-e".to_string(),
+                    format!("SERVICE_REGISTRY_ADDRESS={}", addr),
+                ]);
             }
             if let Some(addr) = addresses.foc_contracts.get("PDPVerifier Proxy") {
-                docker_args.extend_from_slice(&["-e".to_string(), format!("PDP_VERIFIER_ADDRESS={}", addr)]);
+                docker_args.extend_from_slice(&[
+                    "-e".to_string(),
+                    format!("PDP_VERIFIER_ADDRESS={}", addr),
+                ]);
             }
         }
 
         // Add YugabyteDB connection environment variables
+        // Use container name instead of localhost since we're in custom network
         docker_args.extend_from_slice(&[
-            "-e".to_string(), "CURIO_DB_HOST=0.0.0.0".to_string(),
-            "-e".to_string(), "CURIO_DB_PORT=5433".to_string(),
-            "-e".to_string(), "CURIO_DB_USER=yugabyte".to_string(),
-            "-e".to_string(), "CURIO_DB_PASSWORD=yugabyte".to_string(),
-            "-e".to_string(), "CURIO_DB_NAME=yugabyte".to_string(),
+            "-e".to_string(),
+            format!("CURIO_DB_HOST={}", yugabyte_name),
+            "-e".to_string(),
+            "CURIO_DB_PORT=5433".to_string(),
+            "-e".to_string(),
+            "CURIO_DB_USER=yugabyte".to_string(),
+            "-e".to_string(),
+            "CURIO_DB_PASSWORD=yugabyte".to_string(),
+            "-e".to_string(),
+            "CURIO_DB_NAME=yugabyte".to_string(),
         ]);
 
-        // Add Lotus API endpoint
+        // Add Lotus API endpoint - use container name for network access
+        let lotus_api = format!("http://{}:1234/rpc/v1", lotus_name);
         docker_args.extend_from_slice(&[
-            "-e".to_string(), "LOTUS_API=http://localhost:1234/rpc/v1".to_string(),
-            "-e".to_string(), "FULLNODE_API_INFO=http://localhost:1234/rpc/v1".to_string(),
+            "-e".to_string(),
+            format!("LOTUS_API={}", lotus_api),
+            "-e".to_string(),
+            format!("FULLNODE_API_INFO={}", lotus_api),
         ]);
 
         // Add localnet-specific configuration
         docker_args.extend_from_slice(&[
-            "-e".to_string(), "NETWORK_TYPE=localnet".to_string(),
-            "-e".to_string(), "CHAIN_ID=31415926".to_string(),
+            "-e".to_string(),
+            "NETWORK_TYPE=localnet".to_string(),
+            "-e".to_string(),
+            "CHAIN_ID=31415926".to_string(),
         ]);
-
-        // Use host networking to access localhost services (Lotus, YugabyteDB)
-        docker_args.extend_from_slice(&["--network".to_string(), "host".to_string()]);
 
         // Add image name and command
         docker_args.push(IMAGE_NAME.to_string());
-        docker_args.extend_from_slice(&["/usr/local/bin/lotus-bins/curio".to_string(), "run".to_string()]);
+        docker_args.extend_from_slice(&[
+            "/usr/local/bin/lotus-bins/curio".to_string(),
+            "run".to_string(),
+        ]);
 
         Ok(docker_args)
     }
@@ -188,7 +236,11 @@ impl CurioStep {
         docker_args: Vec<String>,
         context: &mut StepContext,
     ) -> Result<(), Box<dyn Error>> {
-        println!("    Starting container '{}'...", CONTAINER_NAME);
+        let container_name = Self::get_container_name(context)?;
+        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let filecoin_network = filecoin_network_name(run_id);
+
+        println!("    Starting container '{}'...", container_name);
         let output = Command::new("docker").args(&docker_args).output()?;
 
         if !output.status.success() {
@@ -201,20 +253,28 @@ impl CurioStep {
 
         let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
         context.set("curio_container_id", container_id.clone());
+        context.set("curio_container_name", container_name.clone());
         println!(
             "    {} Container started with ID: {}",
             "✓".green(),
             &container_id[..12]
         );
 
+        // Connect to filecoin network for Lotus FEVM access
+        println!("    Connecting to filecoin network for Lotus access...");
+        connect_container_to_network(&container_name, &filecoin_network)?;
+        println!("    {} Connected to filecoin network", "✓".green());
+
         Ok(())
     }
 
     /// Check ports availability and verify requirements
     fn check_ports_and_requirements(&self) -> Result<(), Box<dyn Error>> {
-        // When using host networking, ports are directly accessible on host
-        // No need to check port availability since we're not mapping ports
-        println!("    {} Using host networking - ports will be accessible directly", "✓".green());
+        // Ports will be accessible on host via -p mappings
+        println!(
+            "    {} Using custom networks - ports exposed to host",
+            "✓".green()
+        );
 
         // Verify Docker image exists
         if !crate::docker::core::image_exists(IMAGE_NAME).unwrap_or(true) {
@@ -255,7 +315,7 @@ impl Step for CurioStep {
 
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         self.check_dependencies(context)?;
-        self.check_existing_container()?;
+        self.check_existing_container(context)?;
         self.check_ports_and_requirements()?;
         self.setup_data_directory()?;
         let docker_args = self.build_docker_command(context)?;
@@ -264,17 +324,19 @@ impl Step for CurioStep {
     }
 
     /// Perform post-execution verification for Curio startup
-    fn post_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        let container_name = Self::get_container_name(context)?;
+
         // Wait for container to initialize
         println!("    Waiting for Curio to start...");
         thread::sleep(Duration::from_secs(CURIO_START_WAIT_SECS));
 
         // Verify container is running
-        if !container_is_running(CONTAINER_NAME)? {
+        if !container_is_running(&container_name)? {
             // Check logs for errors
             let tail_arg = format!("--tail {}", LOG_TAIL_LINES);
             let logs_output = Command::new("docker")
-                .args(["logs", &tail_arg, CONTAINER_NAME])
+                .args(["logs", &tail_arg, &container_name])
                 .output()?;
 
             return Err(format!(
@@ -304,7 +366,7 @@ impl Step for CurioStep {
         // Verify Curio API is responsive
         println!("    Verifying Curio API connectivity...");
         thread::sleep(Duration::from_secs(API_CHECK_DELAY_SECS));
-        match Self::check_curio_api() {
+        match Self::check_curio_api(context) {
             Ok(_) => {
                 println!(
                     "    {} Curio is ready and responding to API calls",

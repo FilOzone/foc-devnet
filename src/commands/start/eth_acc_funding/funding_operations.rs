@@ -10,6 +10,8 @@ use std::thread;
 use std::time::Duration;
 
 use crate::commands::start::eth_acc_funding::constants::TRANSACTION_CONFIRMATION_WAIT_SECS;
+use crate::commands::start::step::StepContext;
+use crate::docker::containers::lotus_container_name;
 
 /// Transfer FIL from one address to another
 pub fn transfer_fil(
@@ -17,13 +19,17 @@ pub fn transfer_fil(
     to: &str,
     amount: u64,
     description: &str,
+    context: &StepContext,
 ) -> Result<(), Box<dyn Error>> {
+    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let container_name = lotus_container_name(run_id);
+
     println!("      Transferring {} FIL: {}...", amount, description);
 
     let output = Command::new("docker")
         .args([
             "exec",
-            "foc-lotus",
+            &container_name,
             "/usr/local/bin/lotus-bins/lotus",
             "send",
             "--from",
@@ -41,7 +47,11 @@ pub fn transfer_fil(
         .into());
     }
 
-    println!("\r      Transferred {} FIL: {}...", amount, description.dark_green().bold());
+    println!(
+        "\r      Transferred {} FIL: {}...",
+        amount,
+        description.dark_green().bold()
+    );
 
     // Wait for transaction to be included in a block and address to be activated
     // F4 addresses need time to be activated on-chain

@@ -8,9 +8,9 @@ use sha3::{Digest, Keccak256};
 
 use crate::crypto::DerivedKey;
 
-/// Derive a deterministic Filecoin BLS key from seed 
+/// Derive a deterministic Filecoin BLS key from seed
 /// using HD wallet derivation.
-/// 
+///
 /// The derivation path is:
 /// `m/44'/461'/0'/0/<acc_str_hash>`
 pub fn derive_bls_key(
