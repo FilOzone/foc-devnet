@@ -6,7 +6,6 @@
 
 pub mod constants;
 pub mod eth_acc_funding_step;
-pub mod funding_operations;
 pub mod key_operations;
 pub mod lotus_checks;
 
