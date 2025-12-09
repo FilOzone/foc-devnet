@@ -264,7 +264,12 @@ pub fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>>
 
     for image_name in &images {
         println!("  {} Building image: foc-{}", "🔨".bold(), image_name);
-        build_image_from_embedded(image_name)?;
+        // Yugabyte requires special handling with artifacts directory as build context
+        if image_name == &"yugabyte" {
+            build_yugabyte_image(image_name)?;
+        } else {
+            build_image_from_embedded(image_name)?;
+        }
     }
 
     println!("{}", "✓ All Docker images built and cached".green());
