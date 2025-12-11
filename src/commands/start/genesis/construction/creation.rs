@@ -2,6 +2,7 @@
 //!
 //! This module handles creating the initial genesis file using lotus-seed.
 
+use crate::commands::start::env_vars::build_network_env_vars;
 use crate::commands::start::genesis::constants;
 use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_genesis};
 use crossterm::style::Stylize;
@@ -33,25 +34,30 @@ pub fn create_genesis_file() -> Result<(), Box<dyn std::error::Error>> {
     let bin_dir = foc_localnet_bin();
     let builder_volumes_dir = foc_localnet_docker_volumes().join("builder");
 
-    let output = Command::new("docker")
-        .args([
-            "run",
-            "--rm",
-            "-v",
-            &format!("{}:/opt/bin", bin_dir.display()),
-            "-v",
-            &format!("{}:/home/foc-user/.cargo", builder_volumes_dir.join("cargo").display()),
-            "-v",
-            &format!("{}:/genesis", genesis_dir.display()),
-            "foc-builder",
-            "/bin/bash",
-            "-c",
-            &format!(
-                "/opt/bin/lotus-seed genesis new --network-name {} --timestamp {} /genesis/{} && chmod 666 /genesis/{}",
-                constants::NETWORK_NAME, timestamp, constants::GENESIS_FILE, constants::GENESIS_FILE
-            ),
-        ])
-        .output()?;
+    // Build docker args with network environment variables
+    let mut docker_args = vec!["run".to_string(), "--rm".to_string()];
+
+    // Add network environment variables (required for lotus-seed built with -tags=localnet)
+    docker_args.extend(build_network_env_vars());
+
+    // Add volume mounts and command
+    docker_args.extend(vec![
+        "-v".to_string(),
+        format!("{}:/opt/bin", bin_dir.display()),
+        "-v".to_string(),
+        format!("{}:/home/foc-user/.cargo", builder_volumes_dir.join("cargo").display()),
+        "-v".to_string(),
+        format!("{}:/genesis", genesis_dir.display()),
+        "foc-builder".to_string(),
+        "/bin/bash".to_string(),
+        "-c".to_string(),
+        format!(
+            "/opt/bin/lotus-seed genesis new --network-name {} --timestamp {} /genesis/{} && chmod 666 /genesis/{}",
+            constants::NETWORK_NAME, timestamp, constants::GENESIS_FILE, constants::GENESIS_FILE
+        ),
+    ]);
+
+    let output = Command::new("docker").args(&docker_args).output()?;
 
     if !output.status.success() {
         return Err(format!(

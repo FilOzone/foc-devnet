@@ -6,11 +6,13 @@ use std::error::Error;
 use std::path::PathBuf;
 
 use super::constants::{IMAGE_NAME, LOTUS_API_WAIT_SLEEP_SECS};
+use crate::commands::start::env_vars::build_network_env_vars;
+use crate::commands::start::lotus_utils::{build_fullnode_api_info, read_lotus_token};
 use crate::commands::start::step::StepContext;
 use crate::docker::containers::{lotus_container_name, lotus_miner_container_name};
-use crate::docker::network::filecoin_network_name;
+use crate::docker::network::lotus_network_name;
 use crate::paths::{
-    foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_genesis_sectors,
+    foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_genesis_sectors_lotus_miner,
     foc_localnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
 };
 
@@ -23,15 +25,19 @@ pub fn build_miner_docker_command(
     let (preseal_file, preseal_key_file) = preseal_files;
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let container_name = lotus_miner_container_name(run_id);
-    let filecoin_network = filecoin_network_name(run_id);
+    let filecoin_network = lotus_network_name(run_id);
     let lotus_name = lotus_container_name(run_id);
 
     // Get lotus daemon data directory (needed for API access)
     let lotus_data_dir = volumes_dir.join("lotus-data");
 
+    // Read Lotus API token from host
+    let lotus_token = read_lotus_token()?;
+    let fullnode_api_info = build_fullnode_api_info(&lotus_token, &lotus_name);
+
     // Get paths
     let bin_dir = foc_localnet_bin();
-    let sectors_dir = foc_localnet_genesis_sectors();
+    let sectors_dir = foc_localnet_genesis_sectors_lotus_miner();
     let builder_volumes_dir = foc_localnet_docker_volumes().join("foc-builder");
     let params_dir = foc_localnet_proof_parameters();
 
@@ -72,6 +78,16 @@ pub fn build_miner_docker_command(
         docker_args.extend_from_slice(&["-v".to_string(), mount.clone()]);
     }
 
+    // Add network parameter environment variables
+    let network_env_vars = build_network_env_vars();
+    docker_args.extend(network_env_vars);
+
+    // Add FULLNODE_API_INFO with token read from host
+    docker_args.extend_from_slice(&[
+        "-e".to_string(),
+        format!("FULLNODE_API_INFO={}", fullnode_api_info),
+    ]);
+
     // Set working directory to LOTUS_MINER_PATH
     docker_args.extend_from_slice(&[
         "-w".to_string(),
@@ -82,10 +98,8 @@ pub fn build_miner_docker_command(
     docker_args.push(IMAGE_NAME.to_string());
 
     // Add command: wait for lotus, import wallet key, init, then run
-    // Set FULLNODE_API_INFO with token from mounted Lotus directory and /dns4/ for hostname
     let miner_cmd = format!(
         r#"echo "Waiting for Lotus daemon API to be ready..." && \
-           export FULLNODE_API_INFO="$(cat /home/foc-user/.lotus-local-net/token):/dns4/{}/tcp/1234/http" && \
            until /usr/local/bin/lotus-bins/lotus version >/dev/null 2>&1; do \
              echo "Lotus API not ready yet, waiting..." && sleep {}; \
            done && \
@@ -99,7 +113,7 @@ pub fn build_miner_docker_command(
            fi && \
            echo "Starting lotus-miner..." && \
            /usr/local/bin/lotus-bins/lotus-miner run --nosync"#,
-        lotus_name, LOTUS_API_WAIT_SLEEP_SECS, preseal_key_file, preseal_file
+        LOTUS_API_WAIT_SLEEP_SECS, preseal_key_file, preseal_file
     );
     docker_args.extend_from_slice(&["/bin/bash".to_string(), "-c".to_string(), miner_cmd]);
 

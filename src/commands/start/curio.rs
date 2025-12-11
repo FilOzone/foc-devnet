@@ -4,16 +4,22 @@
 //! generation miner node that performs PDP (Proof of Data Possession) but
 //! does not build tipsets.
 
+use super::env_vars::{build_curio_contract_env_vars, build_network_env_vars};
+use super::genesis::constants::CURIO_MINER_ID;
+use super::lotus_utils::{build_fullnode_api_info, read_lotus_token};
 use super::step::{Step, StepContext};
 use crate::docker::containers::{
     curio_container_name, lotus_container_name, yugabyte_container_name,
 };
-use crate::docker::network::{filecoin_network_name, pdp_miner_network_name};
+use crate::docker::network::{curio_miner_network_name, lotus_network_name};
 use crate::docker::{
     connect_container_to_network, container_exists, container_is_running,
     stop_and_remove_container, wait_for_port,
 };
-use crate::paths::foc_localnet_bin;
+use crate::paths::{
+    foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_genesis_sectors_curio_miner,
+    foc_localnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
+};
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::path::PathBuf;
@@ -125,9 +131,13 @@ impl CurioStep {
     fn build_docker_command(&self, context: &StepContext) -> Result<Vec<String>, Box<dyn Error>> {
         let run_id = context.run_id().ok_or("Run ID not found in context")?;
         let container_name = curio_container_name(run_id);
-        let pdp_network = pdp_miner_network_name(run_id);
+        let pdp_network = curio_miner_network_name(run_id);
         let yugabyte_name = yugabyte_container_name(run_id);
         let lotus_name = lotus_container_name(run_id);
+
+        // Read Lotus API token from host
+        let lotus_token = read_lotus_token()?;
+        let fullnode_api_info = build_fullnode_api_info(&lotus_token, &lotus_name);
 
         // Build docker run command
         let mut docker_args = vec![
@@ -153,38 +163,48 @@ impl CurioStep {
         let bin_mount = format!("{}:/usr/local/bin/lotus-bins/curio", curio_bin.display());
         docker_args.extend_from_slice(&["-v".to_string(), bin_mount]);
 
-        // Add environment variables for contract addresses
-        if let Ok(addresses) = crate::commands::start::contract_addresses::ContractAddresses::load()
-        {
-            // MockUSDFC address
-            if !addresses.mock_usdfc.is_empty() {
-                docker_args.extend_from_slice(&[
-                    "-e".to_string(),
-                    format!("USDFC_ADDRESS={}", addresses.mock_usdfc),
-                ]);
-            }
+        // Add volume mounts (similar to lotus-miner)
+        let bin_dir = foc_localnet_bin();
+        let lotus_data_dir = self.volumes_dir.join("lotus-data");
+        let sectors_dir = foc_localnet_genesis_sectors_curio_miner();
+        let builder_volumes_dir = foc_localnet_docker_volumes().join("foc-builder");
+        let params_dir = foc_localnet_proof_parameters();
 
-            // FOC contracts - pass specific ones that Curio needs
-            if let Some(addr) = addresses
-                .foc_contracts
-                .get("FilecoinWarmStorageService Proxy")
-            {
-                docker_args.extend_from_slice(&[
-                    "-e".to_string(),
-                    format!("WARM_STORAGE_SERVICE_ADDRESS={}", addr),
-                ]);
+        let volume_mounts = vec![
+            format!("{}:/usr/local/bin/lotus-bins", bin_dir.display()),
+            format!(
+                "{}:/home/foc-user/.lotus-local-net",
+                lotus_data_dir.display()
+            ),
+            format!("{}:/sectors", sectors_dir.display()),
+            format!(
+                "{}:{}",
+                params_dir.display(),
+                CONTAINER_FILECOIN_PROOF_PARAMS_PATH
+            ),
+            format!("{}:/cargo", builder_volumes_dir.join("cargo").display()),
+        ];
+
+        for mount in &volume_mounts {
+            docker_args.extend_from_slice(&["-v".to_string(), mount.clone()]);
+        }
+
+        // Add network parameter environment variables (required for all nodes)
+        let network_env_vars = build_network_env_vars();
+        docker_args.extend(network_env_vars);
+
+        // Add contract address environment variables (Curio-specific)
+        match build_curio_contract_env_vars() {
+            Ok(contract_env_vars) => {
+                docker_args.extend(contract_env_vars);
             }
-            if let Some(addr) = addresses.foc_contracts.get("ServiceProviderRegistry Proxy") {
-                docker_args.extend_from_slice(&[
-                    "-e".to_string(),
-                    format!("SERVICE_REGISTRY_ADDRESS={}", addr),
-                ]);
-            }
-            if let Some(addr) = addresses.foc_contracts.get("PDPVerifier Proxy") {
-                docker_args.extend_from_slice(&[
-                    "-e".to_string(),
-                    format!("PDP_VERIFIER_ADDRESS={}", addr),
-                ]);
+            Err(e) => {
+                println!(
+                    "    {} Warning: Could not load contract addresses: {}",
+                    "⚠".yellow(),
+                    e
+                );
+                println!("    Curio will start without contract addresses.");
             }
         }
 
@@ -201,6 +221,8 @@ impl CurioStep {
             "CURIO_DB_PASSWORD=yugabyte".to_string(),
             "-e".to_string(),
             "CURIO_DB_NAME=yugabyte".to_string(),
+            "-e".to_string(),
+            "CURIO_DB_LOAD_BALANCE=false".to_string(),
         ]);
 
         // Add Lotus API endpoint - use container name for network access
@@ -209,23 +231,21 @@ impl CurioStep {
             "-e".to_string(),
             format!("LOTUS_API={}", lotus_api),
             "-e".to_string(),
-            format!("FULLNODE_API_INFO={}", lotus_api),
-        ]);
-
-        // Add localnet-specific configuration
-        docker_args.extend_from_slice(&[
+            format!("FULLNODE_API_INFO={}", fullnode_api_info),
             "-e".to_string(),
-            "NETWORK_TYPE=localnet".to_string(),
-            "-e".to_string(),
-            "CHAIN_ID=31415926".to_string(),
+            "LOTUS_PATH=/home/foc-user/.lotus-local-net".to_string(),
         ]);
 
         // Add image name and command
         docker_args.push(IMAGE_NAME.to_string());
-        docker_args.extend_from_slice(&[
-            "/usr/local/bin/lotus-bins/curio".to_string(),
-            "run".to_string(),
-        ]);
+
+        let curio_cmd = format!(
+            r#"/usr/local/bin/lotus-bins/curio config new-cluster {} && \
+               /usr/local/bin/lotus-bins/curio run --layers=gui,pdp"#,
+            CURIO_MINER_ID
+        );
+
+        docker_args.extend_from_slice(&["/bin/bash".to_string(), "-c".to_string(), curio_cmd]);
 
         Ok(docker_args)
     }
@@ -238,7 +258,7 @@ impl CurioStep {
     ) -> Result<(), Box<dyn Error>> {
         let container_name = Self::get_container_name(context)?;
         let run_id = context.run_id().ok_or("Run ID not found in context")?;
-        let filecoin_network = filecoin_network_name(run_id);
+        let filecoin_network = lotus_network_name(run_id);
 
         println!("    Starting container '{}'...", container_name);
         let output = Command::new("docker").args(&docker_args).output()?;
@@ -305,6 +325,35 @@ impl CurioStep {
         std::fs::create_dir_all(&curio_data_dir)?;
         Ok(())
     }
+
+    /// Start the Curio daemon after cluster configuration
+    fn start_curio_daemon(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
+        let container_name = Self::get_container_name(context)?;
+
+        println!("    Starting Curio daemon...");
+
+        // Start curio run in the background using docker exec -d
+        let output = Command::new("docker")
+            .args([
+                "exec",
+                "-d",
+                &container_name,
+                "/usr/local/bin/lotus-bins/curio",
+                "run",
+            ])
+            .output()?;
+
+        if !output.status.success() {
+            return Err(format!(
+                "Failed to start Curio daemon: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .into());
+        }
+
+        println!("    {} Curio daemon started", "✓".green());
+        Ok(())
+    }
 }
 
 impl Step for CurioStep {
@@ -328,10 +377,20 @@ impl Step for CurioStep {
         let container_name = Self::get_container_name(context)?;
 
         // Wait for container to initialize
-        println!("    Waiting for Curio to start...");
-        thread::sleep(Duration::from_secs(CURIO_START_WAIT_SECS));
+        println!("    Waiting for container to initialize...");
+        thread::sleep(Duration::from_secs(3));
 
         // Verify container is running
+        if !container_is_running(&container_name)? {
+            return Err("Container stopped unexpectedly during initialization".into());
+        }
+        println!("    {} Container is running", "✓".green());
+
+        // Wait for daemon to start
+        println!("    Waiting for Curio daemon to initialize...");
+        thread::sleep(Duration::from_secs(CURIO_START_WAIT_SECS));
+
+        // Verify container is still running
         if !container_is_running(&container_name)? {
             // Check logs for errors
             let tail_arg = format!("--tail {}", LOG_TAIL_LINES);
@@ -340,12 +399,11 @@ impl Step for CurioStep {
                 .output()?;
 
             return Err(format!(
-                "Container stopped unexpectedly. Logs:\n{}",
+                "Curio daemon stopped unexpectedly. Logs:\n{}",
                 String::from_utf8_lossy(&logs_output.stdout)
             )
             .into());
         }
-        println!("    {} Container is running", "✓".green());
 
         // Check all ports are accessible
         println!("    Verifying port accessibility...");

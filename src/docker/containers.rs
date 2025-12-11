@@ -30,7 +30,7 @@ pub fn curio_container_name(run_id: &str) -> String {
 
 /// Generate the Portainer container name for a run ID
 pub fn portainer_container_name(run_id: &str) -> String {
-    format!("foc-{}-portainer", run_id)
+    format!("portainer-{}", run_id)
 }
 
 #[cfg(test)]

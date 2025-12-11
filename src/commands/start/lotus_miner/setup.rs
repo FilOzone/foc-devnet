@@ -6,7 +6,7 @@ use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
 
-use crate::paths::foc_localnet_genesis_sectors;
+use crate::paths::foc_localnet_genesis_sectors_lotus_miner;
 
 /// Set up necessary directories for Lotus-Miner
 pub fn setup_miner_directories(volumes_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
@@ -16,35 +16,31 @@ pub fn setup_miner_directories(volumes_dir: &PathBuf) -> Result<(), Box<dyn Erro
     Ok(())
 }
 
-/// Find the pre-seal metadata and key files
+/// Find the pre-seal metadata and key files for the Lotus miner (t01000)
 pub fn find_preseal_files() -> Result<(String, String), Box<dyn Error>> {
-    let sectors_dir = foc_localnet_genesis_sectors();
+    let sectors_dir = foc_localnet_genesis_sectors_lotus_miner();
 
-    let mut preseal_file = None;
-    let mut preseal_key_file = None;
-    for entry in fs::read_dir(&sectors_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        let filename = path.file_name().unwrap().to_string_lossy().to_string();
+    let preseal_file = "pre-seal-t01000.json";
+    let preseal_key_file = "pre-seal-t01000.key";
 
-        if path.is_file() {
-            if path.extension().map_or(false, |ext| ext == "json")
-                && filename.starts_with("pre-seal-")
-            {
-                preseal_file = Some(filename.clone());
-            }
-            if path.extension().map_or(false, |ext| ext == "key")
-                && filename.starts_with("pre-seal-")
-            {
-                preseal_key_file = Some(filename);
-            }
-        }
+    let preseal_path = sectors_dir.join(preseal_file);
+    let preseal_key_path = sectors_dir.join(&preseal_key_file);
+
+    if !preseal_path.exists() {
+        return Err(format!(
+            "Pre-seal metadata file not found: {}",
+            preseal_path.display()
+        )
+        .into());
     }
 
-    let preseal_file =
-        preseal_file.ok_or("Pre-seal metadata file not found in sectors directory")?;
-    let preseal_key_file =
-        preseal_key_file.ok_or("Pre-seal key file not found in sectors directory")?;
+    if !preseal_key_path.exists() {
+        return Err(format!(
+            "Pre-seal key file not found: {}",
+            preseal_key_path.display()
+        )
+        .into());
+    }
 
-    Ok((preseal_file, preseal_key_file))
+    Ok((preseal_file.to_string(), preseal_key_file.to_string()))
 }

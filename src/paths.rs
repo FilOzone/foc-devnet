@@ -101,6 +101,18 @@ pub fn foc_localnet_genesis_sectors() -> PathBuf {
     foc_localnet_docker_volumes().join("genesis-sectors")
 }
 
+/// Returns the path to the pre-sealed sectors for miner 1 (t01000)
+/// e.g., ~/.foc-localnet/artifacts/docker/volumes/genesis-sectors/lotus-miner
+pub fn foc_localnet_genesis_sectors_lotus_miner() -> PathBuf {
+    foc_localnet_genesis_sectors().join("lotus-miner")
+}
+
+/// Returns the path to the pre-sealed sectors for miner 2 (t01001)
+/// e.g., ~/.foc-localnet/artifacts/docker/volumes/genesis-sectors/curio-miner
+pub fn foc_localnet_genesis_sectors_curio_miner() -> PathBuf {
+    foc_localnet_genesis_sectors().join("curio-miner")
+}
+
 /// Returns the path to the genesis template
 /// e.g., ~/.foc-localnet/artifacts/docker/volumes/genesis
 pub fn foc_localnet_genesis() -> PathBuf {

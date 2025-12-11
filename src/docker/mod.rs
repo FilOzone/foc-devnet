@@ -30,8 +30,8 @@ pub use containers::{
 };
 pub use init::{create_volume_directories_for_images, set_volume_ownership};
 pub use network::{
-    connect_container_to_network, create_all_networks, delete_all_networks, filecoin_network_name,
-    pdp_miner_network_name, porep_miner_network_name,
+    connect_container_to_network, create_all_networks, curio_miner_network_name,
+    delete_all_networks, lotus_miner_network_name, lotus_network_name,
 };
 pub use portainer::{start_portainer, stop_portainer};
 pub use shell::{cast_command, forge_command, lotus_command, lotus_wallet_command};

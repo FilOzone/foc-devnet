@@ -16,7 +16,7 @@ use crossterm::style::Stylize;
 /// This combines the genesis construction steps:
 /// 1. Create initial genesis file
 /// 2. Add signers
-/// 3. Add miner
+/// 3. Add miners
 /// 4. Add pre-funded accounts (if any)
 ///
 /// If the genesis file already exists, all construction steps are skipped

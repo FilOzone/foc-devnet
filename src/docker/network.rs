@@ -9,23 +9,23 @@ use crossterm::style::Stylize;
 use std::error::Error;
 
 /// Network names (suffixes)
-const FILECOIN_NET_SUFFIX: &str = "filecoin-net";
-const POREP_MINER_NET_SUFFIX: &str = "porep-miner-net";
-const PDP_MINER_NET_SUFFIX: &str = "pdp-miner-net";
+const LOTUS_NET_SUFFIX: &str = "lot-net";
+const LOTUS_MINER_NET_SUFFIX: &str = "lot-m-net";
+const CURIO_MINER_NET_SUFFIX: &str = "cur-m-net";
 
-/// Get the Filecoin network name for a run ID
-pub fn filecoin_network_name(run_id: &str) -> String {
-    format!("foc-{}-{}", run_id, FILECOIN_NET_SUFFIX)
+/// Get the Lotus network name for a run ID
+pub fn lotus_network_name(run_id: &str) -> String {
+    format!("foc-{}-{}", run_id, LOTUS_NET_SUFFIX)
 }
 
-/// Get the PoRep miner network name for a run ID
-pub fn porep_miner_network_name(run_id: &str) -> String {
-    format!("foc-{}-{}", run_id, POREP_MINER_NET_SUFFIX)
+/// Get the Lotus miner network name for a run ID
+pub fn lotus_miner_network_name(run_id: &str) -> String {
+    format!("foc-{}-{}", run_id, LOTUS_MINER_NET_SUFFIX)
 }
 
-/// Get the PDP miner network name for a run ID
-pub fn pdp_miner_network_name(run_id: &str) -> String {
-    format!("foc-{}-{}", run_id, PDP_MINER_NET_SUFFIX)
+/// Get the Curio miner network name for a run ID
+pub fn curio_miner_network_name(run_id: &str) -> String {
+    format!("foc-{}-{}", run_id, CURIO_MINER_NET_SUFFIX)
 }
 
 /// Check if a Docker network exists
@@ -101,9 +101,9 @@ pub fn delete_network(network_name: &str) -> Result<(), Box<dyn Error>> {
 pub fn create_all_networks(run_id: &str) -> Result<(), Box<dyn Error>> {
     println!("{}", "Creating Docker networks...".blue().bold());
 
-    create_network(&filecoin_network_name(run_id))?;
-    create_network(&porep_miner_network_name(run_id))?;
-    create_network(&pdp_miner_network_name(run_id))?;
+    create_network(&lotus_network_name(run_id))?;
+    create_network(&lotus_miner_network_name(run_id))?;
+    create_network(&curio_miner_network_name(run_id))?;
 
     println!("{}", "  All networks created successfully".green());
     Ok(())
@@ -120,9 +120,9 @@ pub fn delete_all_networks(run_id: &str) -> Result<(), Box<dyn Error>> {
     println!("{}", "Removing Docker networks...".blue().bold());
 
     // Delete in reverse order of creation
-    delete_network(&pdp_miner_network_name(run_id))?;
-    delete_network(&porep_miner_network_name(run_id))?;
-    delete_network(&filecoin_network_name(run_id))?;
+    delete_network(&curio_miner_network_name(run_id))?;
+    delete_network(&lotus_miner_network_name(run_id))?;
+    delete_network(&lotus_network_name(run_id))?;
 
     println!("{}", "  All networks removed successfully".green());
     Ok(())

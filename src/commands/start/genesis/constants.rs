@@ -3,16 +3,16 @@
 //! This module centralizes all configuration values related to genesis setup,
 //! including sector parameters, network settings, and key configurations.
 
-/// The size of sectors to pre-seal for the genesis miner.
+/// The size of sectors to pre-seal for the genesis miners.
 ///
 /// This determines the storage capacity of the pre-sealed sectors that will be
 /// included in the genesis block. Smaller sectors are used for testing and
 /// development networks to reduce resource requirements.
 pub const SECTOR_SIZE: &str = "2KiB";
 
-/// The number of sectors to pre-seal for the genesis miner.
+/// The number of sectors to pre-seal for the genesis miners.
 ///
-/// Multiple sectors allow the genesis miner to have initial storage capacity.
+/// Multiple sectors allow each genesis miner to have initial storage capacity.
 /// This value should match the expected number of pre-seal files generated
 /// by lotus-seed.
 pub const NUM_SECTORS: u32 = 2;
@@ -26,8 +26,7 @@ pub const PROOF_PARAMS_SECTOR_SIZE: &str = "2048";
 /// The name of the local Filecoin network being created.
 ///
 /// This name is embedded in the genesis file and used to identify the network.
-/// It should be unique to avoid conflicts with other networks.
-pub const NETWORK_NAME: &str = "foc-localnet";
+pub const NETWORK_NAME: &str = "2k";
 
 /// The filename of the genesis JSON file.
 ///
@@ -46,3 +45,15 @@ pub const SIGNERS_THRESHOLD: u32 = 2;
 /// These keys are used for the multisig wallet that controls network upgrades
 /// and other privileged operations. Each signer gets an equal vote in consensus.
 pub const NUM_SIGNER_KEYS: u32 = 2;
+
+/// The miner ID for the first genesis miner (Lotus miner).
+///
+/// This is the actor ID that will be used for the first miner in the genesis block.
+/// The "t0" prefix indicates a testnet actor ID.
+pub const LOTUS_MINER_ID: &str = "t01000";
+
+/// The miner ID for the second genesis miner (Curio miner).
+///
+/// This is the actor ID that will be used for the second miner in the genesis block.
+/// The "t0" prefix indicates a testnet actor ID.
+pub const CURIO_MINER_ID: &str = "t01001";

@@ -287,7 +287,7 @@ pub fn build_docker_image(
     docker_command(&[
         "build",
         "--progress",
-        "tty",
+        "plain",
         "-f",
         dockerfile_path,
         "-t",

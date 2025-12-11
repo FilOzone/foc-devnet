@@ -9,7 +9,7 @@ use std::process::Command;
 use super::constants::CONTAINER_ID_DISPLAY_LENGTH;
 use crate::commands::start::step::StepContext;
 use crate::docker::containers::lotus_miner_container_name;
-use crate::docker::network::{connect_container_to_network, porep_miner_network_name};
+use crate::docker::network::{connect_container_to_network, lotus_miner_network_name};
 
 /// Get the Lotus-Miner container name from context
 pub fn get_container_name(context: &StepContext) -> Result<String, Box<dyn Error>> {
@@ -24,7 +24,7 @@ pub fn start_miner_container(
 ) -> Result<(), Box<dyn Error>> {
     let container_name = get_container_name(context)?;
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
-    let porep_network = porep_miner_network_name(run_id);
+    let porep_network = lotus_miner_network_name(run_id);
 
     println!("    Starting Lotus-Miner container '{}'...", container_name);
     let output = Command::new("docker").args(&docker_args).output()?;

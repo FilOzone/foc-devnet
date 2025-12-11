@@ -3,9 +3,10 @@
 //! This module contains functions that prepare the environment
 //! for starting the Lotus daemon container.
 
+use super::super::env_vars::build_network_env_vars;
 use super::super::step::StepContext;
 use crate::docker::containers::lotus_container_name;
-use crate::docker::network::filecoin_network_name;
+use crate::docker::network::lotus_network_name;
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
@@ -74,7 +75,7 @@ pub fn build_docker_command(
     // Get run-specific container name and network
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let container_name = lotus_container_name(run_id);
-    let network_name = filecoin_network_name(run_id);
+    let network_name = lotus_network_name(run_id);
 
     // Get paths
     let bin_dir = foc_localnet_bin();
@@ -125,6 +126,10 @@ pub fn build_docker_command(
     for mount in &volume_mounts {
         docker_args.extend_from_slice(&["-v".to_string(), mount.clone()]);
     }
+
+    // Add network parameter environment variables
+    let network_env_vars = build_network_env_vars();
+    docker_args.extend(network_env_vars);
 
     // Set working directory
     docker_args.extend_from_slice(&["-w".to_string(), "/data".to_string()]);

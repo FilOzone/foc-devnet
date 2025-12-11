@@ -1,11 +1,13 @@
 mod contract_addresses;
 mod curio;
+mod env_vars;
 mod eth_acc_funding;
 mod foc_deploy;
 mod foc_deployer;
 mod genesis;
 mod lotus;
 mod lotus_miner;
+mod lotus_utils;
 mod multicall3_deploy;
 mod step;
 mod usdfc_deploy;

@@ -45,10 +45,3 @@ USER foc-user
 # 9042  - YCQL (Cassandra-compatible API)
 # 15433 - YugabyteDB Web UI
 EXPOSE 7000 9000 7100 9100 5433 9042 15433
-
-# Set the default command to start yugabyted
-CMD ["/yugabyte/bin/yugabyted", "start", \
-     "--advertise_address=0.0.0.0", \
-     "--master_flags=rpc_bind_addresses=0.0.0.0", \
-     "--tserver_flags=rpc_bind_addresses=0.0.0.0,pgsql_proxy_bind_address=0.0.0.0:5433", \
-     "--daemon=false"]

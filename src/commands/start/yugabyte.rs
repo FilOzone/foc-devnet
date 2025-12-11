@@ -1,6 +1,6 @@
 use super::step::{Step, StepContext};
 use crate::docker::containers::yugabyte_container_name;
-use crate::docker::network::pdp_miner_network_name;
+use crate::docker::network::curio_miner_network_name;
 use crate::docker::{
     container_exists, container_is_running, is_port_available, stop_and_remove_container,
     wait_for_port,
@@ -77,6 +77,47 @@ impl YugabyteStep {
         Ok(())
     }
 
+    /// Verify YugabyteDB is accessible from the Curio miner network
+    fn verify_network_connectivity(context: &StepContext) -> Result<(), Box<dyn Error>> {
+        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let yugabyte_name = yugabyte_container_name(run_id);
+        let pdp_network = curio_miner_network_name(run_id);
+
+        // Retry up to 10 times with 2 second delays
+        for attempt in 1..=10 {
+            let test_command = format!(
+                "psql 'postgresql://yugabyte:yugabyte@{}:5433/yugabyte?sslmode=disable' -c 'SELECT 1;'",
+                yugabyte_name
+            );
+
+            let output = Command::new("docker")
+                .args([
+                    "run",
+                    "--rm",
+                    "--network",
+                    &pdp_network,
+                    "alpine",
+                    "sh",
+                    "-c",
+                    &format!(
+                        "apk add --no-cache postgresql-client >/dev/null 2>&1 && {}",
+                        test_command
+                    ),
+                ])
+                .output()?;
+
+            if output.status.success() {
+                return Ok(());
+            }
+
+            if attempt < 10 {
+                thread::sleep(Duration::from_secs(2));
+            }
+        }
+
+        Err("YugabyteDB is not accessible from the Curio miner network after 10 attempts".into())
+    }
+
     /// Create the YugabyteDB data directory
     fn setup_data_directory(&self) -> Result<(), Box<dyn Error>> {
         let yugabyte_data_dir = self.volumes_dir.join("yugabyte-data");
@@ -88,7 +129,7 @@ impl YugabyteStep {
     fn build_docker_command(&self, context: &StepContext) -> Result<Vec<String>, Box<dyn Error>> {
         let run_id = context.run_id().ok_or("Run ID not found in context")?;
         let container_name = yugabyte_container_name(run_id);
-        let network_name = pdp_miner_network_name(run_id);
+        let network_name = curio_miner_network_name(run_id);
 
         // Build docker run command
         let mut docker_args = vec![
@@ -115,6 +156,18 @@ impl YugabyteStep {
 
         // Add image name
         docker_args.push(IMAGE_NAME.to_string());
+
+        // Add the command to start yugabyted
+        docker_args.extend_from_slice(&[
+            "/yugabyte/bin/yugabyted".to_string(),
+            "start".to_string(),
+            "--ui=true".to_string(),
+            "--callhome=false".to_string(),
+            "--advertise_address=0.0.0.0".to_string(),
+            "--master_flags=rpc_bind_addresses=0.0.0.0".to_string(),
+            "--tserver_flags=rpc_bind_addresses=0.0.0.0,pgsql_proxy_bind_address=0.0.0.0:5433,cql_proxy_bind_address=0.0.0.0:9042".to_string(),
+            "--daemon=false".to_string(),
+        ]);
 
         Ok(docker_args)
     }
@@ -258,6 +311,20 @@ impl Step for YugabyteStep {
                 println!(
                     "    Note: YugabyteDB may still be initializing. This is usually not a critical error."
                 );
+            }
+        }
+
+        // Verify network connectivity from Curio miner network
+        println!("    Verifying network connectivity from Curio network...");
+        match Self::verify_network_connectivity(context) {
+            Ok(_) => {
+                println!(
+                    "    {} YugabyteDB is accessible from Curio network",
+                    "✓".green()
+                );
+            }
+            Err(e) => {
+                return Err(format!("YugabyteDB network connectivity check failed: {}", e).into());
             }
         }
 

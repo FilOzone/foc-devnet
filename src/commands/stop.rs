@@ -1,5 +1,5 @@
 use crate::docker::core::{container_exists, container_is_running, docker_command};
-use crate::docker::{delete_all_networks, stop_portainer};
+use crate::docker::delete_all_networks;
 use crate::run_id::{delete_current_run_id, load_current_run_id};
 use crossterm::style::Stylize;
 use std::error::Error;
@@ -21,7 +21,7 @@ const CONTAINERS: &[(&str, &str)] = &[
 /// - Verifies containers are stopped
 /// - Removes containers to ensure clean state
 /// - Tears down Docker networks
-/// - Stops Portainer
+/// - Note: Portainer is not stopped to allow persistent access across runs
 /// - Force-kills any remaining foc-* containers
 /// - Deletes the run ID file
 pub fn stop_cluster() -> Result<(), Box<dyn Error>> {
@@ -58,11 +58,11 @@ pub fn stop_cluster() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    // Stop Portainer
-    if !run_id.is_empty() {
-        stop_portainer(&run_id)?;
-        println!();
-    }
+    // Note: Portainer is not stopped to allow persistent access across runs
+    println!(
+        "  {} Portainer will remain running for persistent access",
+        "ℹ".cyan()
+    );
 
     // Delete Docker networks
     if !run_id.is_empty() {
@@ -72,6 +72,11 @@ pub fn stop_cluster() -> Result<(), Box<dyn Error>> {
 
     // Force kill any remaining foc-* containers
     force_kill_foc_containers()?;
+
+    // Force delete any remaining foc-* networks (use run_id if available)
+    if !run_id.is_empty() {
+        delete_all_networks(&run_id)?;
+    }
 
     // Delete the run ID file
     delete_current_run_id()?;
