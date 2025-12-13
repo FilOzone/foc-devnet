@@ -15,12 +15,13 @@ use crate::paths::foc_localnet_config;
 /// configuration directory. If the file already exists and `force` is false,
 /// it skips generation. If `force` is true, it overwrites the existing file.
 ///
-/// Location overrides can be provided for Curio, Lotus, Filecoin Services, and Yugabyte URL.
+/// Location overrides can be provided for Curio, Lotus, Filecoin Services, Synapse SDK, and Yugabyte URL.
 ///
 /// # Arguments
 /// * `curio_location` - Optional override for Curio repository location
 /// * `lotus_location` - Optional override for Lotus repository location
 /// * `filecoin_services_location` - Optional override for Filecoin Services repository location
+/// * `synapse_sdk_location` - Optional override for Synapse SDK repository location
 /// * `yugabyte_url` - Optional override for Yugabyte download URL
 /// * `force` - Whether to force regeneration of config file
 ///
@@ -30,6 +31,7 @@ pub fn generate_default_config(
     curio_location: Option<String>,
     lotus_location: Option<String>,
     filecoin_services_location: Option<String>,
+    synapse_sdk_location: Option<String>,
     yugabyte_url: Option<String>,
     force: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -76,6 +78,11 @@ pub fn generate_default_config(
         &mut config.filecoin_services,
         filecoin_services_location,
         "https://github.com/FilOzone/filecoin-services.git",
+    )?;
+    apply_location_override(
+        &mut config.synapse_sdk,
+        synapse_sdk_location,
+        "git@github.com:FilOzone/synapse-sdk.git",
     )?;
 
     // Override yugabyte URL if provided

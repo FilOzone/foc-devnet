@@ -113,6 +113,7 @@ pub fn init_environment(
     curio_location: Option<String>,
     lotus_location: Option<String>,
     filecoin_services_location: Option<String>,
+    synapse_sdk_location: Option<String>,
     yugabyte_url: Option<String>,
     yugabyte_archive: Option<String>,
     proof_params_dir: Option<String>,
@@ -134,6 +135,7 @@ pub fn init_environment(
         curio_location.clone(),
         lotus_location.clone(),
         filecoin_services_location.clone(),
+        synapse_sdk_location.clone(),
         yugabyte_url.clone(),
         force,
     )?;

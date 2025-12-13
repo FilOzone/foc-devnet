@@ -51,14 +51,14 @@ pub fn build_curio_contract_env_vars() -> Result<Vec<String>, Box<dyn Error>> {
     // FilecoinWarmStorageService (FWSS) address
     if let Some(addr) = addresses
         .foc_contracts
-        .get("FilecoinWarmStorageService Proxy")
+        .get("filecoin_warm_storage_service_proxy")
     {
         env_vars.push("-e".to_string());
         env_vars.push(format!("{}={}", ENV_FOC_LOCALNET_CONTRACT_FWSS, addr));
     }
 
     // Multicall3 address
-    if let Some(addr) = addresses.foc_contracts.get("Multicall3") {
+    if let Some(addr) = addresses.foc_contracts.get("multicall3") {
         env_vars.push("-e".to_string());
         env_vars.push(format!("{}={}", ENV_FOC_LOCALNET_CONTRACT_MULTICALL, addr));
     }
@@ -73,7 +73,10 @@ pub fn build_curio_contract_env_vars() -> Result<Vec<String>, Box<dyn Error>> {
     // FilecoinPay address (if exists - map from ServiceProviderRegistry or similar)
     // Note: Based on existing code, we might need to adjust this mapping
     // For now, using ServiceProviderRegistry as the "pay" contract
-    if let Some(addr) = addresses.foc_contracts.get("ServiceProviderRegistry Proxy") {
+    if let Some(addr) = addresses
+        .foc_contracts
+        .get("service_provider_registry_proxy")
+    {
         env_vars.push("-e".to_string());
         env_vars.push(format!("{}={}", ENV_FOC_LOCALNET_CONTRACT_PAY, addr));
     }

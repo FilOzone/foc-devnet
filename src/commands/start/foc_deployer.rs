@@ -153,7 +153,9 @@ pub fn parse_deployment_output(
                 let name = parts[0].trim();
                 let addr = parts[1].trim();
                 if addr.starts_with("0x") {
-                    addresses.insert(name.to_string(), addr.to_string());
+                    // Convert name to snake_case for consistency
+                    let snake_case_name = to_snake_case(name);
+                    addresses.insert(snake_case_name, addr.to_string());
                 }
             }
         }
@@ -179,4 +181,22 @@ pub fn parse_deployment_output(
     }
 
     Ok(addresses)
+}
+
+/// Convert a contract name to snake_case
+/// Examples:
+/// - "FilecoinWarmStorageService Implementation" -> "filecoin_warm_storage_service_implementation"
+/// - "ServiceProviderRegistry Proxy" -> "service_provider_registry_proxy"
+/// - "FilecoinPayV1 Contract" -> "filecoin_pay_v1_contract"
+fn to_snake_case(name: &str) -> String {
+    name.chars()
+        .enumerate()
+        .fold(String::new(), |mut acc, (i, c)| {
+            if c.is_uppercase() && i > 0 {
+                acc.push('_');
+            }
+            acc.push(c.to_lowercase().next().unwrap());
+            acc
+        })
+        .replace(" ", "_")
 }

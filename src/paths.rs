@@ -63,6 +63,11 @@ pub fn foc_localnet_multicall3_repo() -> PathBuf {
     foc_localnet_code().join("multicall3")
 }
 
+/// Returns the path to the "synapse-sdk" repository
+pub fn foc_localnet_synapse_sdk_repo() -> PathBuf {
+    foc_localnet_code().join("synapse-sdk")
+}
+
 /// Returns the path to the foc-localnet temporary directory, e.g., ~/.foc-localnet/tmp
 pub fn foc_localnet_tmp() -> PathBuf {
     foc_localnet_home().join("tmp")

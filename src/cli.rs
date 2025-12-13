@@ -47,6 +47,9 @@ pub enum Commands {
         /// Filecoin Services source location (e.g., 'gittag:v1.0.0', 'gittag:url:tag', 'gitcommit:abc123', 'gitcommit:url:commit', 'gitbranch:main', 'gitbranch:url:main', 'local:/path/to/filecoin-services')
         #[arg(long)]
         filecoin_services: Option<String>,
+        /// Synapse SDK source location (e.g., 'gittag:synapse-sdk-v0.36.1', 'gittag:url:tag', 'gitcommit:abc123', 'gitcommit:url:commit', 'gitbranch:main', 'gitbranch:url:branch', 'local:/path/to/synapse-sdk')
+        #[arg(long)]
+        synapse_sdk: Option<String>,
         /// Yugabyte download URL
         #[arg(long)]
         yugabyte_url: Option<String>,

@@ -105,6 +105,7 @@ pub fn perform_deployment(
     volumes_dir: &std::path::PathBuf,
     context: &mut super::super::step::StepContext,
 ) -> Result<(), Box<dyn Error>> {
+    use super::super::contract_addresses::ContractAddresses;
     use super::key_management::get_deployer_private_key;
     use super::prerequisites::check_required_addresses;
 
@@ -128,8 +129,27 @@ pub fn perform_deployment(
     // Store in context
     context.set("multicall3_address", &multicall3_address);
 
-    // Save to contract addresses file
-    super::contract_storage::save_contract_address("Multicall3", &multicall3_address)?;
+    // Load existing contract addresses and add multicall3
+    let mut addresses_struct = ContractAddresses::load().unwrap_or_else(|_| {
+        // If no existing addresses, create a minimal struct
+        // This shouldn't happen as multicall3 runs after other deployments
+        ContractAddresses {
+            global_fil_faucet: String::new(),
+            fevm_faucet: String::new(),
+            foc_deployer: String::new(),
+            foc_deployer_eth: String::new(),
+            mock_usdfc: String::new(),
+            foc_contracts: std::collections::HashMap::new(),
+        }
+    });
+
+    // Add multicall3 to foc_contracts
+    addresses_struct
+        .foc_contracts
+        .insert("multicall3".to_string(), multicall3_address.clone());
+
+    // Save updated addresses
+    addresses_struct.save()?;
 
     // Verify the deployment
     super::verification::verify_multicall3(&private_key, &multicall3_address, &lotus_rpc_url)?;
