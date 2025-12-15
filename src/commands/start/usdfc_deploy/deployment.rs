@@ -2,8 +2,7 @@
 //!
 //! This module contains the core deployment functionality for the MockUSDFC token.
 
-use super::foundry_setup::setup_foundry_project;
-use crate::paths::project_root;
+use super::foundry_setup::{get_mockusdfc_project_dir, setup_foundry_project};
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::process::Command;
@@ -18,17 +17,8 @@ pub fn deploy_mock_usdfc_foundry(
 ) -> Result<String, Box<dyn Error>> {
     println!("      Deploying MockUSDFC using Foundry project...");
 
-    // Get the contract directory
-    let project_root = project_root()?;
-    let contract_dir = project_root.join("contracts/MockUSDFC");
-
-    if !contract_dir.exists() {
-        return Err(format!(
-            "MockUSDFC Foundry project not found at: {}",
-            contract_dir.display()
-        )
-        .into());
-    }
+    // Get the contract directory from embedded assets
+    let contract_dir = get_mockusdfc_project_dir()?;
 
     // Setup the Foundry project (install deps, build)
     setup_foundry_project(&contract_dir)?;
@@ -113,12 +103,15 @@ pub fn perform_token_deployment(
     println!("    Deploying MockUSDFC token using Foundry project...");
 
     // Get required addresses from context
-    let (foc_deployer, foc_deployer_eth) = check_required_addresses(context)?;
+    let (mockusdfc_deployer, mockusdfc_deployer_eth) = check_required_addresses(context)?;
 
     // Get deployer private key from the exported key file
-    let private_key = get_deployer_private_key(volumes_dir, &foc_deployer)?;
+    let private_key = get_deployer_private_key(volumes_dir, &mockusdfc_deployer)?;
 
-    println!("      Deployer ETH address: {}", foc_deployer_eth.cyan());
+    println!(
+        "      Deployer ETH address: {}",
+        mockusdfc_deployer_eth.cyan()
+    );
 
     // Deploy MockUSDFC token using Foundry
     let lotus_rpc_url = format!("http://localhost:{}/rpc/v1", LOTUS_RPC_PORT);
@@ -128,7 +121,7 @@ pub fn perform_token_deployment(
     context.set("mock_usdfc_address", &mock_usdfc_address);
 
     // Save to contract addresses file
-    super::contract_storage::save_contract_address("MockUSDFC", &mock_usdfc_address)?;
+    super::contract_storage::save_contract_address("usdfc", &mock_usdfc_address)?;
 
     // Verify the deployment
     super::verification::verify_mock_usdfc(&private_key, &mock_usdfc_address, &lotus_rpc_url)?;

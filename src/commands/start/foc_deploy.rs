@@ -7,7 +7,7 @@ use super::contract_addresses::ContractAddresses;
 use super::foc_deployer::deploy_foc_contracts;
 use super::step::{Step, StepContext};
 use crate::config::{Config, Location};
-use crate::constants::*;
+use crate::docker::containers::lotus_container_name;
 use crate::docker::core::container_is_running;
 use crate::paths::{
     contract_addresses_file, foc_localnet_config, foc_localnet_filecoin_services_repo,
@@ -54,8 +54,10 @@ impl FOCDeployStep {
     }
 
     /// Check if Lotus is running and accessible
-    fn check_lotus_running() -> Result<(), Box<dyn Error>> {
-        if !container_is_running(LOTUS_CONTAINER)? {
+    fn check_lotus_running(context: &StepContext) -> Result<(), Box<dyn Error>> {
+        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let container_name = lotus_container_name(run_id);
+        if !container_is_running(&container_name)? {
             return Err("Lotus container is not running. FOC deployment requires Lotus to be running with FEVM enabled.".into());
         }
         Ok(())
@@ -67,12 +69,12 @@ impl FOCDeployStep {
         context: &StepContext,
     ) -> Result<(String, String, String, String), Box<dyn Error>> {
         let foc_deployer = context
-            .get("foc_deployer_address")
-            .ok_or("FOC_DEPLOYER address not found in context. Ensure ETHAccFunding step has been completed.")?;
+            .get("deployer_foc_address")
+            .ok_or("DEPLOYER_FOC address not found in context. Ensure ETHAccFunding step has been completed.")?;
 
         let foc_deployer_eth = context
-            .get("foc_deployer_eth_address")
-            .ok_or("FOC_DEPLOYER Ethereum address not found in context. Ensure ETHAccFunding step has been completed.")?;
+            .get("deployer_foc_eth_address")
+            .ok_or("DEPLOYER_FOC Ethereum address not found in context. Ensure ETHAccFunding step has been completed.")?;
 
         let mock_usdfc = context.get("mock_usdfc_address").ok_or(
             "MockUSDFC address not found in context. Ensure USDFCDeploy step has been completed.",
@@ -93,13 +95,19 @@ impl FOCDeployStep {
     /// Check if FOC contracts are already deployed
     fn check_existing_deployment(&self, context: &mut StepContext) -> Result<bool, Box<dyn Error>> {
         if let Ok(existing_addresses) = ContractAddresses::load() {
-            if !existing_addresses.foc_contracts.is_empty() {
+            // Check if there are FOC contracts deployed (excluding multicall3 which is deployed separately)
+            let has_foc_contracts = existing_addresses
+                .foc_contracts
+                .iter()
+                .any(|(name, _)| name != "multicall3");
+
+            if has_foc_contracts {
                 println!(
                     "    {} FOC contracts already deployed, skipping deployment...",
                     "✓".green()
                 );
 
-                // Store contract addresses in context
+                // Store contract addresses in context (including multicall3)
                 for (name, addr) in &existing_addresses.foc_contracts {
                     context.set(&format!("foc_contract_{}", name.replace(' ', "_")), addr);
                 }
@@ -114,17 +122,20 @@ impl FOCDeployStep {
         println!("    Deploying FOC service contracts...");
 
         // Get required addresses from context
-        let (foc_deployer, foc_deployer_eth, mock_usdfc_address, global_faucet) =
+        let (foc_deployer, foc_deployer_eth, mock_usdfc_address, _global_faucet) =
             self.check_required_addresses(context)?;
 
         let services_repo = Self::get_filecoin_services_repo_path()?;
 
         // Deploy FOC contracts using deployment script
+        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let lotus_container = crate::docker::containers::lotus_container_name(run_id);
         let contract_addresses = deploy_foc_contracts(
             &foc_deployer,
             &foc_deployer_eth,
             &mock_usdfc_address,
             &services_repo,
+            &lotus_container,
         )?;
 
         // Store contract addresses in context
@@ -135,18 +146,28 @@ impl FOCDeployStep {
         // Load existing addresses and update with FOC contracts
         let mut addresses_struct =
             ContractAddresses::load().unwrap_or_else(|_| ContractAddresses {
-                global_fil_faucet: global_faucet,
-                fevm_faucet: context
-                    .get("fevm_faucet_address")
-                    .unwrap_or(&String::new())
-                    .clone(),
-                foc_deployer: foc_deployer,
-                foc_deployer_eth: foc_deployer_eth,
-                mock_usdfc: mock_usdfc_address,
+                contracts: std::collections::HashMap::new(),
                 foc_contracts: std::collections::HashMap::new(),
             });
 
-        addresses_struct.foc_contracts = contract_addresses.clone();
+        // Merge FOC contracts with existing contracts
+        let deployed_count = contract_addresses.len();
+        println!(
+            "      Merging {} FOC contracts into existing addresses",
+            deployed_count
+        );
+        for (name, addr) in &contract_addresses {
+            // Fix naming: remove double underscores
+            let fixed_name = name.replace("__", "_");
+            println!("        Adding FOC contract: {} -> {}", fixed_name, addr);
+            addresses_struct
+                .foc_contracts
+                .insert(fixed_name, addr.clone());
+        }
+        println!(
+            "      Total contracts in foc_contracts: {}",
+            addresses_struct.foc_contracts.len()
+        );
 
         addresses_struct.save()?;
         println!(
@@ -159,7 +180,7 @@ impl FOCDeployStep {
             "\n    {} FOC service contracts deployed successfully!",
             "✓".green().bold()
         );
-        println!("      Deployed {} contracts", contract_addresses.len());
+        println!("      Deployed {} contracts", deployed_count);
 
         Ok(())
     }
@@ -173,7 +194,7 @@ impl Step for FOCDeployStep {
 
     fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         // Check if Lotus is running
-        Self::check_lotus_running()?;
+        Self::check_lotus_running(context)?;
         println!("    {} Lotus is running", "✓".green());
 
         // Check if filecoin-services repository exists
@@ -205,7 +226,7 @@ impl Step for FOCDeployStep {
         let (_foc_deployer, foc_deployer_eth, mock_usdfc, _global_faucet) =
             self.check_required_addresses(context)?;
         println!(
-            "    {} FOC_DEPLOYER Ethereum address: {}",
+            "    {} DEPLOYER_FOC Ethereum address: {}",
             "✓".green(),
             foc_deployer_eth
         );

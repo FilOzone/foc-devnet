@@ -11,17 +11,9 @@ use std::fs;
 /// Contract addresses and deployment information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContractAddresses {
-    /// Global FIL faucet address (BLS/f3)
-    pub global_fil_faucet: String,
-    /// FEVM faucet address (f4/delegated)
-    pub fevm_faucet: String,
-    /// FOC deployer address (f4/delegated)
-    pub foc_deployer: String,
-    /// FOC deployer Ethereum address (0x)
-    pub foc_deployer_eth: String,
-    /// MockUSDFC token contract address
-    pub mock_usdfc: String,
-    /// Other deployed FOC contracts
+    /// Standard contracts (multicall, USDFC, etc.)
+    pub contracts: std::collections::HashMap<String, String>,
+    /// FOC service contracts
     pub foc_contracts: std::collections::HashMap<String, String>,
 }
 
@@ -53,11 +45,7 @@ impl ContractAddresses {
 impl Default for ContractAddresses {
     fn default() -> Self {
         Self {
-            global_fil_faucet: String::new(),
-            fevm_faucet: String::new(),
-            foc_deployer: String::new(),
-            foc_deployer_eth: String::new(),
-            mock_usdfc: String::new(),
+            contracts: std::collections::HashMap::new(),
             foc_contracts: std::collections::HashMap::new(),
         }
     }

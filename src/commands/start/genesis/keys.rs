@@ -11,8 +11,6 @@ use std::path::Path;
 /// Ensure BLS keys are generated for lotus.
 ///
 /// Generates signer keys and additional pre-funded keys using pre-generated keys from init.
-/// - Signer keys (key-1, key-2, ...): Used for multisig signers
-/// - Pre-funded keys (prefunded-1, prefunded-2, ...): Additional accounts with balance
 pub fn ensure_bls_keys() -> Result<(), Box<dyn std::error::Error>> {
     use crate::commands::init::keys::load_keys;
 
@@ -35,28 +33,23 @@ pub fn ensure_bls_keys() -> Result<(), Box<dyn std::error::Error>> {
 
     // Generate signer keys (key-1, key-2)
     for i in 1..=super::constants::NUM_SIGNER_KEYS {
-        let key_dir = keys_dir.join(format!("key-{}", i));
+        let key_dir = keys_dir.join(format!("BLS_SIGNER_{}", i));
         let key_name = format!("BLS_SIGNER_{}", i);
         let key_info = bls_keys
             .iter()
             .find(|k| k.name == key_name)
             .ok_or_else(|| format!("BLS key {} not found", key_name))?;
-        ensure_bls_key_from_info(&key_dir, key_info, i, "signer")?;
+        ensure_bls_key_from_info(&key_dir, key_info, i, "BLS_SIGNER")?;
     }
 
-    // Generate additional pre-funded keys (prefunded-1)
-    for i in 1..=super::constants::NUM_PREFUNDED_KEYS {
-        let key_dir = keys_dir.join(format!("prefunded-{}", i));
-        let key_name = match i {
-            1 => "GLOBAL_FIL_FAUCET",
-            n => &format!("BLS_PREFUNDED_{}", n),
-        }; // First prefunded key is GLOBAL_FIL_FAUCET
-        let key_info = all_keys
-            .iter()
-            .find(|k| k.name == key_name)
-            .ok_or_else(|| format!("BLS key {} not found", key_name))?;
-        ensure_bls_key_from_info(&key_dir, key_info, i, "prefunded")?;
-    }
+    // Generate GLOBAL_FIL_FAUCET key
+    let key_dir = keys_dir.join("GLOBAL_FIL_FAUCET");
+    let key_name = "GLOBAL_FIL_FAUCET";
+    let key_info = all_keys
+        .iter()
+        .find(|k| k.name == key_name)
+        .ok_or_else(|| format!("BLS key {} not found", key_name))?;
+    ensure_bls_key_from_info(&key_dir, key_info, 1, "GLOBAL_FIL_FAUCET")?;
 
     Ok(())
 }
@@ -135,21 +128,30 @@ fn ensure_bls_key_from_info(
 /// This function reads the lotus-keys directory and extracts the addresses.
 ///
 /// # Arguments
-/// * `key_prefix` - The prefix for key directories (e.g., "key" for signers, "prefunded" for pre-funded)
+/// * `key_prefix` - The prefix for key directories
 /// * `count` - Number of keys to extract
 ///
 /// # Returns
 /// Returns a vector of BLS addresses (e.g., "f3abc...xyz")
 pub fn get_bls_addresses(
     key_prefix: &str,
-    count: u32,
+    count: usize,
 ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     let keys_dir = foc_localnet_lotus_keys();
-    let mut addresses = Vec::new();
+    let mut keys_subdirs = Vec::with_capacity(count);
+    let mut addresses = Vec::with_capacity(count);
 
-    for i in 1..=count {
-        let key_dir = keys_dir.join(format!("{}-{}", key_prefix, i));
+    // No suffix if count is 0
+    if count == 0 {
+        keys_subdirs.push(keys_dir.join(key_prefix));
+    } else {
+        for i in 1..=count {
+            keys_subdirs.push(keys_dir.join(format!("{}_{}", key_prefix, i)));
+        }
+    }
 
+    // Iterate over each key directory
+    for key_dir in &keys_subdirs {
         if !key_dir.exists() {
             return Err(format!("BLS key directory {} does not exist", key_dir.display()).into());
         }

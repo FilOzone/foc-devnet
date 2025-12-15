@@ -64,14 +64,7 @@ pub fn perform_deployment(context: &mut super::step::StepContext) -> Result<(), 
     // Load existing addresses and update with FOC contracts
     let mut addresses_struct =
         ContractAddresses::load().unwrap_or_else(|_| ContractAddresses {
-            global_fil_faucet: global_faucet,
-            fevm_faucet: context
-                .get("fevm_faucet_address")
-                .unwrap_or(&String::new())
-                .clone(),
-            foc_deployer: foc_deployer,
-            foc_deployer_eth: foc_deployer_eth,
-            mock_usdfc: mock_usdfc_address,
+            contracts: std::collections::HashMap::new(),
             foc_contracts: std::collections::HashMap::new(),
         });
 

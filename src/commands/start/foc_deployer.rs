@@ -5,50 +5,24 @@
 //! and output parsing.
 
 use crate::constants::*;
-use crate::docker::core::{docker_command, exec_in_container};
+use crate::docker::core::docker_command;
 use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes};
 use crossterm::style::Stylize;
 use std::error::Error;
 
 /// Get the private key for an f4 address in hex format (for use with cast/forge)
-pub fn get_private_key(f4_address: &str) -> Result<String, Box<dyn Error>> {
-    // Export the private key from lotus
-    let output = exec_in_container(
-        LOTUS_CONTAINER,
-        LOTUS_BINARY_PATH,
-        &["wallet", "export", f4_address],
-    )?;
+pub fn get_private_key(f4_address: &str, _lotus_container: &str) -> Result<String, Box<dyn Error>> {
+    // Load pre-generated keys
+    let keys = crate::commands::init::keys::load_keys()?;
 
-    // The output is hex-encoded JSON
-    let hex_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    // Find the key with matching Filecoin address
+    let key_info = keys
+        .iter()
+        .find(|k| k.filecoin_address.as_ref() == Some(&f4_address.to_string()))
+        .ok_or(format!("Private key not found for address: {}", f4_address))?;
 
-    // Decode from hex to get the JSON string
-    let json_bytes =
-        hex::decode(&hex_str).map_err(|e| format!("Failed to decode hex output: {}", e))?;
-
-    let keyinfo_str = String::from_utf8(json_bytes)
-        .map_err(|e| format!("Failed to convert bytes to string: {}", e))?;
-
-    // Parse the JSON to extract the private key
-    let keyinfo: serde_json::Value = serde_json::from_str(&keyinfo_str)
-        .map_err(|e| format!("Failed to parse keyinfo JSON: {}", e))?;
-
-    // The private key is in the "PrivateKey" field as a base64 string
-    let private_key_b64 = keyinfo
-        .get("PrivateKey")
-        .and_then(|v| v.as_str())
-        .ok_or("PrivateKey field not found in keyinfo")?;
-
-    // Decode from base64
-    use base64::{engine::general_purpose, Engine as _};
-    let private_key_bytes = general_purpose::STANDARD
-        .decode(private_key_b64)
-        .map_err(|e| format!("Failed to decode private key from base64: {}", e))?;
-
-    // Convert to hex string with 0x prefix
-    let private_key_hex = format!("0x{}", hex::encode(&private_key_bytes));
-
-    Ok(private_key_hex)
+    // Return the private key with 0x prefix
+    Ok(format!("0x{}", key_info.private_key))
 }
 
 /// Deploy FOC contracts using the deployment script
@@ -59,6 +33,7 @@ pub fn deploy_foc_contracts(
     deployer_eth_addr: &str,
     mock_usdfc_address: &str,
     services_repo_path: &std::path::Path,
+    lotus_container: &str,
 ) -> Result<std::collections::HashMap<String, String>, Box<dyn Error>> {
     println!("      Running deploy-all-warm-storage.sh...");
 
@@ -79,7 +54,7 @@ pub fn deploy_foc_contracts(
     let builder_volumes_dir = foc_localnet_docker_volumes().join("builder");
 
     // Get the private key from lotus for the deployer address
-    let private_key = get_private_key(foc_deployer)?;
+    let private_key = get_private_key(foc_deployer, lotus_container)?;
 
     let lotus_rpc_url = format!("http://localhost:{}/rpc/v1", LOTUS_RPC_PORT);
 
@@ -163,11 +138,16 @@ pub fn parse_deployment_output(
     // Look for "DEPLOYMENT SUMMARY" section
     let mut addresses = std::collections::HashMap::new();
 
+    println!("        Parsing deployment output for contract addresses...");
+
     // Look for "DEPLOYMENT SUMMARY" section
     let mut in_summary = false;
     for line in output_str.lines() {
+        println!("        Line: {}", line); // Debug: print each line
+
         if line.contains("DEPLOYMENT SUMMARY") {
             in_summary = true;
+            println!("        Found DEPLOYMENT SUMMARY section");
             continue;
         }
 
@@ -177,14 +157,25 @@ pub fn parse_deployment_output(
             if parts.len() == 2 {
                 let name = parts[0].trim();
                 let addr = parts[1].trim();
-                if addr.starts_with("0x") {
-                    addresses.insert(name.to_string(), addr.to_string());
+                if addr.starts_with("0x") && !addr.is_empty() {
+                    // Convert name to snake_case for consistency
+                    let snake_case_name = to_snake_case(name);
+                    println!("        Found contract: {} -> {}", snake_case_name, addr);
+                    addresses.insert(snake_case_name, addr.to_string());
+                } else {
+                    println!("        Skipping line with invalid address: {}", addr);
                 }
+            } else {
+                println!(
+                    "        Skipping line that doesn't split into exactly 2 parts: {}",
+                    line
+                );
             }
         }
 
         // Stop parsing after configuration section
         if in_summary && line.contains("Network Configuration") {
+            println!("        Found Network Configuration section, stopping parsing");
             break;
         }
     }
@@ -194,14 +185,36 @@ pub fn parse_deployment_output(
             "        {} No contract addresses found in output",
             "⚠".yellow()
         );
+        println!("        Full output:");
+        for line in output_str.lines() {
+            println!("          {}", line);
+        }
         println!("        Deployment may have failed or output format changed");
     } else {
         println!(
-            "        {} Successfully deployed {} contracts",
+            "        {} Successfully parsed {} contracts from output",
             "✓".green(),
             addresses.len()
         );
     }
 
     Ok(addresses)
+}
+
+/// Convert a contract name to snake_case
+/// Examples:
+/// - "FilecoinWarmStorageService Implementation" -> "filecoin_warm_storage_service_implementation"
+/// - "ServiceProviderRegistry Proxy" -> "service_provider_registry_proxy"
+/// - "FilecoinPayV1 Contract" -> "filecoin_pay_v1_contract"
+fn to_snake_case(name: &str) -> String {
+    name.chars()
+        .enumerate()
+        .fold(String::new(), |mut acc, (i, c)| {
+            if c.is_uppercase() && i > 0 {
+                acc.push('_');
+            }
+            acc.push(c.to_lowercase().next().unwrap());
+            acc
+        })
+        .replace(" ", "_")
 }

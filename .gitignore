@@ -1,3 +1,4 @@
 target/
 contracts/MockUSDFC/lib/
 contracts/MockUSDFC/broadcast/
+artifacts/

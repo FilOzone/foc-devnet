@@ -10,12 +10,13 @@ use std::path::PathBuf;
 /// Get the private key for the deployer from the exported key file
 pub fn get_deployer_private_key(
     volumes_dir: &PathBuf,
-    _foc_deployer_address: &str,
+    _mockusdfc_deployer_address: &str,
 ) -> Result<String, Box<dyn Error>> {
     use base64::{engine::general_purpose, Engine as _};
 
-    // The key was exported by ETHAccFundingStep to volumes_dir/foc-deployer.key
-    let key_file = volumes_dir.join("foc-deployer.key");
+    // The key was exported by ETHAccFundingStep as deployer-mockusdfc.key
+    // (from account name DEPLOYER_MOCKUSDFC with underscores replaced by hyphens)
+    let key_file = volumes_dir.join("deployer-mockusdfc.key");
 
     if !key_file.exists() {
         return Err(format!(

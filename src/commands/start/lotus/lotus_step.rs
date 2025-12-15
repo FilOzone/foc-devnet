@@ -43,8 +43,8 @@ impl Step for LotusStep {
     /// This includes checking for existing containers, verifying port availability,
     /// ensuring required Docker images and binaries exist, and validating
     /// genesis and proof parameter files.
-    fn pre_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        check_existing_container()?;
+    fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        check_existing_container(context)?;
         check_ports_availability()?;
         check_image_and_binary()?;
         check_genesis_and_params()?;
@@ -57,7 +57,7 @@ impl Step for LotusStep {
     /// appropriate volume mounts and port mappings, and starts the container.
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         setup_directories(&self.volumes_dir)?;
-        let docker_args = build_docker_command(&self.volumes_dir)?;
+        let docker_args = build_docker_command(&self.volumes_dir, context)?;
         start_container(docker_args, context)?;
         Ok(())
     }
@@ -67,11 +67,11 @@ impl Step for LotusStep {
     /// This waits for the container to initialize, verifies port accessibility,
     /// waits for the Lotus API file to be created, and checks API connectivity
     /// including FEVM/Ethereum RPC availability.
-    fn post_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        wait_for_container_init()?;
+    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        wait_for_container_init(context)?;
         verify_ports()?;
         wait_for_api_file(&self.volumes_dir)?;
-        verify_api_connectivity()?;
+        verify_api_connectivity(context)?;
         Ok(())
     }
 }

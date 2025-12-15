@@ -3,6 +3,12 @@
 //! This module contains all external files embedded into the binary
 //! using include_bytes! to make the binary self-contained.
 
+use flate2::read::GzDecoder;
+use std::error::Error;
+use std::fs;
+use std::path::PathBuf;
+use tar::Archive;
+
 // Dockerfiles
 pub static DOCKERFILE_BUILDER: &[u8] = include_bytes!("../docker/Dockerfile.builder");
 pub static DOCKERFILE_CURIO: &[u8] = include_bytes!("../docker/Dockerfile.curio");
@@ -18,10 +24,42 @@ pub static LOTUS_MINER_VOLUMES_MAP: &[u8] =
 pub static LOTUS_VOLUMES_MAP: &[u8] = include_bytes!("../docker/lotus.volumes_map.toml");
 pub static YUGABYTE_VOLUMES_MAP: &[u8] = include_bytes!("../docker/yugabyte.volumes_map.toml");
 
-// Contracts
-// Note: MockUSDFC.sol is now part of the Foundry project in contracts/MockUSDFC/
-// The old standalone contract file is kept for backward compatibility but not embedded
-// pub static MOCK_USDFC_CONTRACT: &[u8] = include_bytes!("../contracts/MockUSDFC.sol");
+// MockUSDFC Foundry Project (as tar.gz archive)
+pub static MOCKUSDFC_ARCHIVE: &[u8] = include_bytes!("../artifacts/MockUSDFC.tar.gz");
+
+/// Extract the embedded MockUSDFC Foundry project to a target directory
+///
+/// This function extracts the embedded MockUSDFC tar.gz archive to the specified
+/// target directory, creating the proper directory structure.
+///
+/// # Arguments
+///
+/// * `target_dir` - The directory where the MockUSDFC project should be extracted
+///
+/// # Returns
+///
+/// Returns `Ok(())` if extraction succeeds, or an error if extraction fails
+///
+/// # Example
+///
+/// ```no_run
+/// use std::path::PathBuf;
+/// let temp_dir = PathBuf::from("/tmp/mockusdfc");
+/// extract_mockusdfc_project(&temp_dir)?;
+/// ```
+pub fn extract_mockusdfc_project(target_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
+    // Create target directory if it doesn't exist
+    fs::create_dir_all(target_dir)?;
+
+    // Decompress and extract the tar.gz archive
+    let tar_gz = GzDecoder::new(MOCKUSDFC_ARCHIVE);
+    let mut archive = Archive::new(tar_gz);
+
+    // Extract all files to the target directory
+    archive.unpack(target_dir)?;
+
+    Ok(())
+}
 
 /// Get a Dockerfile by name
 pub fn get_dockerfile(name: &str) -> Option<&'static [u8]> {

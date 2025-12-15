@@ -16,26 +16,41 @@ use crate::paths::{foc_localnet_artifacts, foc_localnet_config};
 /// Download required artifacts for foc-localnet.
 ///
 /// This function downloads Yugabyte database and extracts it to the
-/// artifacts directory. It reads the download URL from the configuration.
+/// artifacts directory, or copies from local paths if provided.
+///
+/// # Arguments
+/// * `yugabyte_archive` - Optional path to local Yugabyte archive file
+/// * `proof_params_dir` - Optional path to local filecoin-proof-params directory
 ///
 /// # Returns
 /// Returns `Ok(())` if artifacts are downloaded successfully, or an error if download fails.
-pub fn download_artifacts() -> Result<(), Box<dyn std::error::Error>> {
+pub fn download_artifacts(
+    yugabyte_archive: Option<String>,
+    proof_params_dir: Option<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "Downloading artifacts...".bold());
-
-    // Load configuration
-    let config_path = foc_localnet_config();
-    let config_content = fs::read_to_string(&config_path)
-        .map_err(|e| format!("Failed to read config file at {:?}: {}", config_path, e))?;
-    let config: Config = toml::from_str(&config_content)
-        .map_err(|e| format!("Failed to parse config file: {}", e))?;
 
     // Ensure artifacts directory exists
     let artifacts_dir = foc_localnet_artifacts();
     fs::create_dir_all(&artifacts_dir)?;
 
-    // Download Yugabyte
-    download_yugabyte(&config.yugabyte_download_url, &artifacts_dir)?;
+    // Handle Yugabyte
+    if let Some(archive_path) = yugabyte_archive {
+        copy_yugabyte_from_local(&archive_path, &artifacts_dir)?;
+    } else {
+        // Load configuration to get download URL
+        let config_path = foc_localnet_config();
+        let config_content = fs::read_to_string(&config_path)
+            .map_err(|e| format!("Failed to read config file at {:?}: {}", config_path, e))?;
+        let config: Config = toml::from_str(&config_content)
+            .map_err(|e| format!("Failed to parse config file: {}", e))?;
+        download_yugabyte(&config.yugabyte_download_url, &artifacts_dir)?;
+    }
+
+    // Handle proof parameters
+    if let Some(params_path) = proof_params_dir {
+        copy_proof_params_from_local(&params_path)?;
+    }
 
     println!("  {} Artifacts downloaded successfully.", "✓".green());
     Ok(())
@@ -171,5 +186,114 @@ fn extract_yugabyte_tarball(
         "  {} Yugabyte downloaded and installed successfully.",
         "✓".green()
     );
+    Ok(())
+}
+
+/// Copy Yugabyte from a local archive file.
+///
+/// This function extracts a local Yugabyte tarball instead of downloading it.
+///
+/// # Arguments
+/// * `archive_path` - Path to the local Yugabyte tarball
+/// * `artifacts_dir` - Directory to extract Yugabyte into
+///
+/// # Returns
+/// Returns `Ok(())` if copy and extraction succeed, or an error if they fail.
+fn copy_yugabyte_from_local(
+    archive_path: &str,
+    artifacts_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let archive_path_buf = PathBuf::from(archive_path);
+
+    if !archive_path_buf.exists() {
+        return Err(format!("Yugabyte archive not found at: {}", archive_path).into());
+    }
+
+    println!(
+        "  {} Using local Yugabyte archive from {}",
+        "📦".cyan(),
+        archive_path
+    );
+
+    extract_yugabyte_tarball(&archive_path_buf, artifacts_dir)?;
+    Ok(())
+}
+
+/// Copy filecoin-proof-params from a local directory.
+///
+/// This function copies proof parameters from a local directory instead of downloading them.
+///
+/// # Arguments
+/// * `params_path` - Path to the local proof parameters directory
+///
+/// # Returns
+/// Returns `Ok(())` if copy succeeds, or an error if it fails.
+fn copy_proof_params_from_local(params_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    use crate::paths::foc_localnet_proof_parameters;
+
+    let source_path = PathBuf::from(params_path);
+
+    if !source_path.exists() {
+        return Err(format!("Proof parameters directory not found at: {}", params_path).into());
+    }
+
+    if !source_path.is_dir() {
+        return Err(format!("Path is not a directory: {}", params_path).into());
+    }
+
+    let dest_path = foc_localnet_proof_parameters();
+
+    println!(
+        "  {} Copying proof parameters from {}",
+        "📦".cyan(),
+        params_path
+    );
+
+    // Create destination directory
+    fs::create_dir_all(&dest_path)?;
+
+    // Copy all files from source to destination
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap(),
+    );
+    pb.set_message("Copying proof parameters...");
+
+    copy_dir_recursive(&source_path, &dest_path)?;
+
+    pb.finish_with_message("✓ Proof parameters copied");
+
+    println!("  {} Proof parameters copied successfully", "✓".green());
+    Ok(())
+}
+
+/// Recursively copy a directory.
+///
+/// # Arguments
+/// * `src` - Source directory path
+/// * `dst` - Destination directory path
+///
+/// # Returns
+/// Returns `Ok(())` if copy succeeds, or an error if it fails.
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    if !dst.exists() {
+        fs::create_dir_all(dst)?;
+    }
+
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let path = entry.path();
+        let file_name = entry.file_name();
+        let dest_path = dst.join(&file_name);
+
+        if path.is_dir() {
+            copy_dir_recursive(&path, &dest_path)?;
+        } else {
+            fs::copy(&path, &dest_path)?;
+        }
+    }
+
     Ok(())
 }

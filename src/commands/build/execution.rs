@@ -5,6 +5,7 @@
 use super::docker;
 use super::logging;
 use super::Project;
+use crate::docker::core::{get_current_gid, get_current_uid};
 use crossterm::style::Stylize;
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Write};
@@ -22,6 +23,13 @@ pub fn run_build_in_container(
 
     // Create log file for this build
     let log_path = logging::create_build_log_path()?;
+    fix_directory_ownership(
+        log_path
+            .parent()
+            .unwrap()
+            .to_str()
+            .ok_or("Invalid log path")?,
+    )?;
     println!(
         "{} Logs will be saved to: {}",
         "📝".bold(),
@@ -31,7 +39,8 @@ pub fn run_build_in_container(
     let container_source_dir = "/workspace/source";
     let container_output_dir = "/workspace/output";
 
-    let docker_run_args = docker::setup_docker_run_args(source_dir, output_dir, image_tag)?;
+    let docker_run_args =
+        docker::setup_docker_run_args(source_dir, output_dir, image_tag, project)?;
     let build_script =
         docker::setup_build_script(project, container_source_dir, container_output_dir);
 
@@ -117,6 +126,25 @@ pub fn execute_build_process(
             log_path.display()
         )
         .into());
+    }
+
+    Ok(())
+}
+
+/// Fix ownership of a directory to the current user.
+///
+/// This ensures the Docker container (running as current user) can access the directory.
+fn fix_directory_ownership(dir: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let uid = get_current_uid()?;
+    let gid = get_current_gid()?;
+
+    let output = Command::new("sudo")
+        .args(&["chown", "-R", &format!("{}:{}", uid, gid), dir])
+        .output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Failed to fix ownership of {}: {}", dir, stderr).into());
     }
 
     Ok(())

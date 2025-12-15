@@ -37,13 +37,13 @@ impl Step for LotusMinerStep {
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         setup_miner_directories(&self.volumes_dir)?;
         let preseal_files = find_preseal_files()?;
-        let docker_args = build_miner_docker_command(&self.volumes_dir, &preseal_files)?;
+        let docker_args = build_miner_docker_command(&self.volumes_dir, &preseal_files, context)?;
         start_miner_container(docker_args, context)?;
         Ok(())
     }
 
     /// Perform post-execution verification for Lotus-Miner startup
-    fn post_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        perform_post_execution_verification()
+    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        perform_post_execution_verification(context)
     }
 }

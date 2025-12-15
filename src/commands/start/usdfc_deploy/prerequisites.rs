@@ -4,26 +4,21 @@
 //! before deploying the MockUSDFC token.
 
 use super::super::step::StepContext;
+use crate::docker::containers::lotus_container_name;
+use crate::docker::core::container_is_running;
 use std::error::Error;
-use std::process::Command;
 
 /// Check if Lotus is running and accessible
-pub fn check_lotus_running() -> Result<(), Box<dyn Error>> {
-    let output = Command::new("docker")
-        .args([
-            "ps",
-            "--filter",
-            "name=^foc-lotus$",
-            "--format",
-            "{{.Names}}",
-        ])
-        .output()?;
+pub fn check_lotus_running(context: &StepContext) -> Result<(), Box<dyn Error>> {
+    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let lotus_name = lotus_container_name(run_id);
 
-    if !String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .contains("foc-lotus")
-    {
-        return Err("Lotus container is not running. MockUSDFC deployment requires Lotus to be running with FEVM enabled.".into());
+    if !container_is_running(&lotus_name)? {
+        return Err(format!(
+            "Lotus container '{}' is not running. MockUSDFC deployment requires Lotus to be running with FEVM enabled.",
+            lotus_name
+        )
+        .into());
     }
 
     Ok(())
@@ -31,15 +26,15 @@ pub fn check_lotus_running() -> Result<(), Box<dyn Error>> {
 
 /// Check if required addresses are available in context
 pub fn check_required_addresses(context: &StepContext) -> Result<(String, String), Box<dyn Error>> {
-    let foc_deployer = context.get("foc_deployer_address").ok_or(
-        "FOC_DEPLOYER address not found in context. Ensure ETHAccFunding step has been completed.",
+    let mockusdfc_deployer = context.get("deployer_mockusdfc_address").ok_or(
+        "DEPLOYER_MOCKUSDFC address not found in context. Ensure ETHAccFunding step has been completed.",
     )?;
 
-    let foc_deployer_eth = context
-        .get("foc_deployer_eth_address")
-        .ok_or("FOC_DEPLOYER Ethereum address not found in context. Ensure ETHAccFunding step has been completed.")?;
+    let mockusdfc_deployer_eth = context
+        .get("deployer_mockusdfc_eth_address")
+        .ok_or("DEPLOYER_MOCKUSDFC Ethereum address not found in context. Ensure ETHAccFunding step has been completed.")?;
 
-    Ok((foc_deployer.clone(), foc_deployer_eth.clone()))
+    Ok((mockusdfc_deployer.clone(), mockusdfc_deployer_eth.clone()))
 }
 
 /// Check if MockUSDFC has already been deployed

@@ -9,10 +9,18 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
+use crate::commands::start::step::StepContext;
+use crate::docker::containers::lotus_container_name;
 use crate::paths::foc_localnet_lotus_keys;
 
 /// Import the GLOBAL_FIL_FAUCET key into Lotus wallet
-pub fn import_faucet_key(keyinfo_path: &PathBuf) -> Result<String, Box<dyn Error>> {
+pub fn import_faucet_key(
+    keyinfo_path: &PathBuf,
+    context: &StepContext,
+) -> Result<String, Box<dyn Error>> {
+    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let container_name = lotus_container_name(run_id);
+
     println!("      Importing GLOBAL_FIL_FAUCET key into Lotus wallet...");
 
     // Read the JSON content from the keyinfo file
@@ -38,7 +46,7 @@ pub fn import_faucet_key(keyinfo_path: &PathBuf) -> Result<String, Box<dyn Error
     let output = Command::new("docker")
         .args([
             "exec",
-            "foc-lotus",
+            &container_name,
             "/usr/local/bin/lotus-bins/lotus",
             "wallet",
             "import",
@@ -49,14 +57,32 @@ pub fn import_faucet_key(keyinfo_path: &PathBuf) -> Result<String, Box<dyn Error
     // Clean up the temp file
     let _ = fs::remove_file(&temp_key_file);
 
+    // Check if import failed
     if !output.status.success() {
-        return Err(format!(
-            "Failed to import GLOBAL_FIL_FAUCET key: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        // If key already exists, that's fine - just get the existing address
+        if stderr.contains("key already exists") {
+            println!("      {} Key already exists in wallet", "ℹ".cyan());
+
+            // Extract the address from the error message
+            // Error format: "...checking key before put 'wallet-<address>': key already exists"
+            let address = stderr
+                .split("wallet-")
+                .nth(1)
+                .and_then(|s| s.split('\'').next())
+                .ok_or("Failed to extract existing address from error")?
+                .to_string();
+
+            println!("      {} Using existing key: {}", "✓".green(), address);
+            return Ok(address);
+        }
+
+        // For other errors, fail
+        return Err(format!("Failed to import GLOBAL_FIL_FAUCET key: {}", stderr).into());
     }
 
+    // Key was successfully imported
     let address = String::from_utf8_lossy(&output.stdout)
         .lines()
         .find(|line| line.starts_with("imported key"))
@@ -68,46 +94,16 @@ pub fn import_faucet_key(keyinfo_path: &PathBuf) -> Result<String, Box<dyn Error
     Ok(address)
 }
 
-/// Create a new f4 (delegated/Ethereum) address for FEVM operations
-pub fn create_fevm_address(name: &str) -> Result<String, Box<dyn Error>> {
-    println!("      Creating {} f4 address...", name);
-
-    let output = Command::new("docker")
-        .args([
-            "exec",
-            "foc-lotus",
-            "/usr/local/bin/lotus-bins/lotus",
-            "wallet",
-            "new",
-            "delegated",
-        ])
-        .output()?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to create {} f4 address: {}",
-            name,
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
-
-    let address = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    println!(
-        "      {} {} address created: {}",
-        "✓".green(),
-        name,
-        address
-    );
-    Ok(address)
-}
-
 /// Get the Ethereum address corresponding to an f4 address
-pub fn get_eth_address(f4_address: &str) -> Result<String, Box<dyn Error>> {
+#[allow(dead_code)]
+pub fn get_eth_address(f4_address: &str, context: &StepContext) -> Result<String, Box<dyn Error>> {
+    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let container_name = lotus_container_name(run_id);
+
     let output = Command::new("docker")
         .args([
             "exec",
-            "foc-lotus",
+            &container_name,
             "/usr/local/bin/lotus-bins/lotus",
             "evm",
             "stat",
@@ -135,13 +131,21 @@ pub fn get_eth_address(f4_address: &str) -> Result<String, Box<dyn Error>> {
 }
 
 /// Export private key for an f4 address to use with forge/cast
-pub fn export_private_key(f4_address: &str, output_file: &PathBuf) -> Result<(), Box<dyn Error>> {
+#[allow(dead_code)]
+pub fn export_private_key(
+    f4_address: &str,
+    output_file: &PathBuf,
+    context: &StepContext,
+) -> Result<(), Box<dyn Error>> {
+    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let container_name = lotus_container_name(run_id);
+
     println!("      Exporting private key for contract deployment...");
 
     let output = Command::new("docker")
         .args([
             "exec",
-            "foc-lotus",
+            &container_name,
             "/usr/local/bin/lotus-bins/lotus",
             "wallet",
             "export",

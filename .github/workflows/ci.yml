@@ -87,3 +87,107 @@ jobs:
     - name: Run Curio build integration tests
       run: |
         RUST_BACKTRACE=full cargo test --test build_curio_test -- --nocapture
+
+  integration-start-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y tar
+
+    - name: Generate build artifacts
+      run: |
+        # Ensure artifacts directory exists
+        mkdir -p artifacts
+
+        # Generate MockUSDFC.tar.gz if contracts directory exists
+        if [ -d "contracts/MockUSDFC" ]; then
+          tar -czf artifacts/MockUSDFC.tar.gz contracts/MockUSDFC
+          echo "✅ Generated MockUSDFC.tar.gz"
+          ls -la artifacts/
+        else
+          echo "❌ contracts/MockUSDFC directory not found"
+          exit 1
+        fi
+
+    - name: Build
+      run: cargo build
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Enable Docker experimental features
+      run: |
+        echo '{"experimental": true}' | sudo tee /etc/docker/daemon.json
+        sudo systemctl restart docker
+
+    - name: Initialize foc-localnet environment
+      run: |
+        ./target/debug/foc-localnet init
+      timeout-minutes: 10
+
+    - name: Build curio
+      run: |
+        ./target/debug/foc-localnet build curio
+      timeout-minutes: 10
+
+    - name: Build lotus
+      run: |
+        ./target/debug/foc-localnet build lotus
+      timeout-minutes: 10
+
+    - name: Test start command with --reset --regenesis
+      run: |
+        ./target/debug/foc-localnet start --reset --regenesis
+      timeout-minutes: 15
+
+    - name: Verify cluster is running
+      run: |
+        # Check that containers are running
+        running_containers=$(docker ps --filter "name=foc-" --format "{{.Names}}")
+        echo "Running containers: $running_containers"
+
+        # Should have at least lotus and lotus-miner running
+        if ! echo "$running_containers" | grep -q "foc-lotus"; then
+          echo "ERROR: foc-lotus container is not running"
+          exit 1
+        fi
+
+        if ! echo "$running_containers" | grep -q "foc-lotus-miner"; then
+          echo "ERROR: foc-lotus-miner container is not running"
+          exit 1
+        fi
+
+        echo "✅ Cluster containers are running"
+
+    - name: Check contract deployment
+      run: |
+        # Wait a bit for contracts to be deployed
+        sleep 10
+
+        # Check if contract addresses file exists
+        if [ -f ~/.foc-localnet/artifacts/docker/volumes/foc-contract-addresses.json ]; then
+          echo "✅ Contract addresses file exists"
+          cat ~/.foc-localnet/artifacts/docker/volumes/foc-contract-addresses.json
+        else
+          echo "❌ Contract addresses file not found"
+          exit 1
+        fi
+
+    - name: Cleanup - Stop cluster
+      run: |
+        ./target/debug/foc-localnet stop
+      if: always()
+
+    - name: Cleanup - Remove containers and volumes
+      run: |
+        docker system prune -f --volumes
+      if: always()

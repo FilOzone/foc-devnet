@@ -82,6 +82,17 @@ pub fn print_code_version() -> Result<(), Box<dyn std::error::Error>> {
         &filecoin_services_repo_path,
     );
 
+    // Get git information for Synapse SDK
+    let synapse_sdk_repo_path = get_repo_path_from_config(&config.synapse_sdk, "synapse-sdk");
+    let synapse_sdk_git_info = get_git_info(&synapse_sdk_repo_path)?;
+
+    let (synapse_sdk_source_type, synapse_sdk_version, synapse_sdk_commit, synapse_sdk_status) =
+        format_location_info(
+            &config.synapse_sdk,
+            &synapse_sdk_git_info,
+            &synapse_sdk_repo_path,
+        );
+
     // Create tabular output with proper column widths
     let mut table = Table::new("{:<}  {:<}  {:<}  {:<}  {:<}  {:<}");
     table.add_row(
@@ -123,6 +134,16 @@ pub fn print_code_version() -> Result<(), Box<dyn std::error::Error>> {
             .with_ansi_cell(&filecoin_services_commit)
             .with_ansi_cell(&filecoin_services_status)
             .with_ansi_cell(filecoin_services_repo_path.display().to_string().dim()),
+    );
+
+    table.add_row(
+        Row::new()
+            .with_ansi_cell("Synapse SDK".green())
+            .with_ansi_cell(&synapse_sdk_source_type)
+            .with_ansi_cell(&synapse_sdk_version)
+            .with_ansi_cell(&synapse_sdk_commit)
+            .with_ansi_cell(&synapse_sdk_status)
+            .with_ansi_cell(synapse_sdk_repo_path.display().to_string().dim()),
     );
 
     print!("{}", table);

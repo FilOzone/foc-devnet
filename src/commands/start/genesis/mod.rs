@@ -21,7 +21,7 @@ pub mod sectors;
 /// This function checks and prepares:
 /// 1. Filecoin proof parameters
 /// 2. BLS keys (2x)
-/// 3. Pre-sealed sectors
+/// 3. Pre-sealed sectors for 2 miners
 /// 4. Genesis file construction
 /// 5. Pre-fund accounts (non-miner)
 ///

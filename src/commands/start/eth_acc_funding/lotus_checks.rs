@@ -7,15 +7,20 @@ use std::fs;
 use std::process::Command;
 
 use crate::commands::start::eth_acc_funding::constants::GLOBAL_FIL_FAUCET_KEY;
+use crate::commands::start::step::StepContext;
+use crate::docker::containers::lotus_container_name;
 use crate::paths::foc_localnet_lotus_keys;
 
 /// Check if Lotus is running and accessible
-pub fn check_lotus_running() -> Result<(), Box<dyn Error>> {
+pub fn check_lotus_running(context: &StepContext) -> Result<(), Box<dyn Error>> {
+    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let container_name = lotus_container_name(run_id);
+
     let output = Command::new("docker")
         .args([
             "ps",
             "--filter",
-            "name=^foc-lotus$",
+            &format!("name=^{}$", container_name),
             "--format",
             "{{.Names}}",
         ])
@@ -23,9 +28,12 @@ pub fn check_lotus_running() -> Result<(), Box<dyn Error>> {
 
     if !String::from_utf8_lossy(&output.stdout)
         .trim()
-        .contains("foc-lotus")
+        .contains(&container_name)
     {
-        return Err("Lotus container is not running. ETH account funding requires Lotus to be running with FEVM enabled.".into());
+        return Err(format!(
+            "Lotus container '{}' is not running. ETH account funding requires Lotus to be running with FEVM enabled.",
+            container_name
+        ).into());
     }
 
     Ok(())

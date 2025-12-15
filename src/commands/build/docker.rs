@@ -78,15 +78,19 @@ pub fn setup_docker_run_args(
     source_dir: &str,
     output_dir: &str,
     image_tag: &str,
+    project: &Project,
 ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     let container_source_dir = "/workspace/source";
     let container_output_dir = "/workspace/output";
+
+    // Give each project a unique container name so they can build simultaneously
+    let container_name = format!("foc-builder-{}", project);
 
     let mut docker_run_args = vec![
         "run".to_string(),
         "--rm".to_string(),
         "--name".to_string(),
-        "foc-builder".to_string(),
+        container_name,
         "-v".to_string(),
         format!("{}:{}", source_dir, container_source_dir),
         "-v".to_string(),
@@ -132,16 +136,14 @@ pub fn setup_build_script(
         Project::Lotus => format!(
             r#"git config --global --add safe.directory {} && \
                 cd {} && \
-                make clean && \
-                make 2k && \
-                make lotus-shed && \
+                make clean 2k && \
                 cp lotus lotus-miner lotus-shed lotus-seed {}"#,
             container_source_dir, container_source_dir, container_output_dir
         ),
         Project::Curio => format!(
             r#"git config --global --add safe.directory {} && \
                 cd {} && \
-                make clean all && \
+                make clean 2k && \
                 cp curio {}"#,
             container_source_dir, container_source_dir, container_output_dir
         ),
