@@ -121,7 +121,7 @@ pub fn perform_token_deployment(
     context.set("mock_usdfc_address", &mock_usdfc_address);
 
     // Save to contract addresses file
-    super::contract_storage::save_contract_address("MockUSDFC", &mock_usdfc_address)?;
+    super::contract_storage::save_contract_address("usdfc", &mock_usdfc_address)?;
 
     // Verify the deployment
     super::verification::verify_mock_usdfc(&private_key, &mock_usdfc_address, &lotus_rpc_url)?;

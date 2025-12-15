@@ -40,12 +40,9 @@ pub fn build_curio_contract_env_vars() -> Result<Vec<String>, Box<dyn Error>> {
     let mut env_vars = Vec::new();
 
     // USDFC token address
-    if !addresses.mock_usdfc.is_empty() {
+    if let Some(addr) = addresses.contracts.get("usdfc") {
         env_vars.push("-e".to_string());
-        env_vars.push(format!(
-            "{}={}",
-            ENV_FOC_LOCALNET_CONTRACT_USDFC, addresses.mock_usdfc
-        ));
+        env_vars.push(format!("{}={}", ENV_FOC_LOCALNET_CONTRACT_USDFC, addr));
     }
 
     // FilecoinWarmStorageService (FWSS) address
@@ -58,7 +55,7 @@ pub fn build_curio_contract_env_vars() -> Result<Vec<String>, Box<dyn Error>> {
     }
 
     // Multicall3 address
-    if let Some(addr) = addresses.foc_contracts.get("multicall3") {
+    if let Some(addr) = addresses.contracts.get("multicall") {
         env_vars.push("-e".to_string());
         env_vars.push(format!("{}={}", ENV_FOC_LOCALNET_CONTRACT_MULTICALL, addr));
     }

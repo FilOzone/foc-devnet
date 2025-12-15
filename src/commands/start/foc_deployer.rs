@@ -138,11 +138,16 @@ pub fn parse_deployment_output(
     // Look for "DEPLOYMENT SUMMARY" section
     let mut addresses = std::collections::HashMap::new();
 
+    println!("        Parsing deployment output for contract addresses...");
+
     // Look for "DEPLOYMENT SUMMARY" section
     let mut in_summary = false;
     for line in output_str.lines() {
+        println!("        Line: {}", line); // Debug: print each line
+
         if line.contains("DEPLOYMENT SUMMARY") {
             in_summary = true;
+            println!("        Found DEPLOYMENT SUMMARY section");
             continue;
         }
 
@@ -152,16 +157,25 @@ pub fn parse_deployment_output(
             if parts.len() == 2 {
                 let name = parts[0].trim();
                 let addr = parts[1].trim();
-                if addr.starts_with("0x") {
+                if addr.starts_with("0x") && !addr.is_empty() {
                     // Convert name to snake_case for consistency
                     let snake_case_name = to_snake_case(name);
+                    println!("        Found contract: {} -> {}", snake_case_name, addr);
                     addresses.insert(snake_case_name, addr.to_string());
+                } else {
+                    println!("        Skipping line with invalid address: {}", addr);
                 }
+            } else {
+                println!(
+                    "        Skipping line that doesn't split into exactly 2 parts: {}",
+                    line
+                );
             }
         }
 
         // Stop parsing after configuration section
         if in_summary && line.contains("Network Configuration") {
+            println!("        Found Network Configuration section, stopping parsing");
             break;
         }
     }
@@ -171,10 +185,14 @@ pub fn parse_deployment_output(
             "        {} No contract addresses found in output",
             "⚠".yellow()
         );
+        println!("        Full output:");
+        for line in output_str.lines() {
+            println!("          {}", line);
+        }
         println!("        Deployment may have failed or output format changed");
     } else {
         println!(
-            "        {} Successfully deployed {} contracts",
+            "        {} Successfully parsed {} contracts from output",
             "✓".green(),
             addresses.len()
         );

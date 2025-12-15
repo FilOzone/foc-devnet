@@ -95,13 +95,19 @@ impl FOCDeployStep {
     /// Check if FOC contracts are already deployed
     fn check_existing_deployment(&self, context: &mut StepContext) -> Result<bool, Box<dyn Error>> {
         if let Ok(existing_addresses) = ContractAddresses::load() {
-            if !existing_addresses.foc_contracts.is_empty() {
+            // Check if there are FOC contracts deployed (excluding multicall3 which is deployed separately)
+            let has_foc_contracts = existing_addresses
+                .foc_contracts
+                .iter()
+                .any(|(name, _)| name != "multicall3");
+
+            if has_foc_contracts {
                 println!(
                     "    {} FOC contracts already deployed, skipping deployment...",
                     "✓".green()
                 );
 
-                // Store contract addresses in context
+                // Store contract addresses in context (including multicall3)
                 for (name, addr) in &existing_addresses.foc_contracts {
                     context.set(&format!("foc_contract_{}", name.replace(' ', "_")), addr);
                 }
@@ -116,7 +122,7 @@ impl FOCDeployStep {
         println!("    Deploying FOC service contracts...");
 
         // Get required addresses from context
-        let (foc_deployer, foc_deployer_eth, mock_usdfc_address, global_faucet) =
+        let (foc_deployer, foc_deployer_eth, mock_usdfc_address, _global_faucet) =
             self.check_required_addresses(context)?;
 
         let services_repo = Self::get_filecoin_services_repo_path()?;
@@ -140,18 +146,28 @@ impl FOCDeployStep {
         // Load existing addresses and update with FOC contracts
         let mut addresses_struct =
             ContractAddresses::load().unwrap_or_else(|_| ContractAddresses {
-                global_fil_faucet: global_faucet,
-                fevm_faucet: context
-                    .get("fevm_faucet_address")
-                    .unwrap_or(&String::new())
-                    .clone(),
-                foc_deployer: foc_deployer,
-                foc_deployer_eth: foc_deployer_eth,
-                mock_usdfc: mock_usdfc_address,
+                contracts: std::collections::HashMap::new(),
                 foc_contracts: std::collections::HashMap::new(),
             });
 
-        addresses_struct.foc_contracts = contract_addresses.clone();
+        // Merge FOC contracts with existing contracts
+        let deployed_count = contract_addresses.len();
+        println!(
+            "      Merging {} FOC contracts into existing addresses",
+            deployed_count
+        );
+        for (name, addr) in &contract_addresses {
+            // Fix naming: remove double underscores
+            let fixed_name = name.replace("__", "_");
+            println!("        Adding FOC contract: {} -> {}", fixed_name, addr);
+            addresses_struct
+                .foc_contracts
+                .insert(fixed_name, addr.clone());
+        }
+        println!(
+            "      Total contracts in foc_contracts: {}",
+            addresses_struct.foc_contracts.len()
+        );
 
         addresses_struct.save()?;
         println!(
@@ -164,7 +180,7 @@ impl FOCDeployStep {
             "\n    {} FOC service contracts deployed successfully!",
             "✓".green().bold()
         );
-        println!("      Deployed {} contracts", contract_addresses.len());
+        println!("      Deployed {} contracts", deployed_count);
 
         Ok(())
     }

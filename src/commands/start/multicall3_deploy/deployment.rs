@@ -134,19 +134,15 @@ pub fn perform_deployment(
         // If no existing addresses, create a minimal struct
         // This shouldn't happen as multicall3 runs after other deployments
         ContractAddresses {
-            global_fil_faucet: String::new(),
-            fevm_faucet: String::new(),
-            foc_deployer: String::new(),
-            foc_deployer_eth: String::new(),
-            mock_usdfc: String::new(),
+            contracts: std::collections::HashMap::new(),
             foc_contracts: std::collections::HashMap::new(),
         }
     });
 
-    // Add multicall3 to foc_contracts
+    // Add multicall3 to contracts
     addresses_struct
-        .foc_contracts
-        .insert("multicall3".to_string(), multicall3_address.clone());
+        .contracts
+        .insert("multicall".to_string(), multicall3_address.clone());
 
     // Save updated addresses
     addresses_struct.save()?;
