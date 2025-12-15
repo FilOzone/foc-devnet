@@ -143,7 +143,7 @@ pub fn parse_deployment_output(
     // Look for "DEPLOYMENT SUMMARY" section
     let mut in_summary = false;
     for line in output_str.lines() {
-        println!("        Line: {}", line); // Debug: print each line
+        // println!("        Line: {}", line); // Debug: print each line
 
         if line.contains("DEPLOYMENT SUMMARY") {
             in_summary = true;

@@ -204,10 +204,25 @@ pub fn execute_steps(
     let overall_duration = overall_start.elapsed();
 
     // Print timing summary
-    println!("\n{}", "╔═══════════════════════════════════════════════════════════════╗".cyan().bold());
-    println!("{}", "║                      EXECUTION SUMMARY                        ║".cyan().bold());
-    println!("{}", "╠═══════════════════════════════════════════════════════════════╣".cyan().bold());
-    
+    println!(
+        "\n{}",
+        "╔═══════════════════════════════════════════════════════════════╗"
+            .cyan()
+            .bold()
+    );
+    println!(
+        "{}",
+        "║                      EXECUTION SUMMARY                        ║"
+            .cyan()
+            .bold()
+    );
+    println!(
+        "{}",
+        "╠═══════════════════════════════════════════════════════════════╣"
+            .cyan()
+            .bold()
+    );
+
     for (step_name, duration) in &step_timings {
         let percentage = (duration.as_secs_f64() / overall_duration.as_secs_f64()) * 100.0;
         println!(
@@ -221,8 +236,13 @@ pub fn execute_steps(
             .cyan()
         );
     }
-    
-    println!("{}", "╠═══════════════════════════════════════════════════════════════╣".cyan().bold());
+
+    println!(
+        "{}",
+        "╠═══════════════════════════════════════════════════════════════╣"
+            .cyan()
+            .bold()
+    );
     println!(
         "{}",
         format!(
@@ -233,7 +253,12 @@ pub fn execute_steps(
         .green()
         .bold()
     );
-    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".cyan().bold());
+    println!(
+        "{}",
+        "╚═══════════════════════════════════════════════════════════════╝"
+            .cyan()
+            .bold()
+    );
 
     println!("\n{}", "All steps completed successfully!".green().bold());
     Ok(())

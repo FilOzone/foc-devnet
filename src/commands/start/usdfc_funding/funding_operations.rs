@@ -44,7 +44,12 @@ pub fn transfer_mock_usdfc(
             "--network",
             "host", // Use host network to access localhost:1234
             "-v",
-            &format!("{}:/workspace", crate::paths::project_root()?.join("contracts/MockUSDFC").display()),
+            &format!(
+                "{}:/workspace",
+                crate::paths::project_root()?
+                    .join("contracts/MockUSDFC")
+                    .display()
+            ),
             "foc-builder",
             "bash",
             "-c",
@@ -86,7 +91,12 @@ pub fn check_mock_usdfc_balance(
             "--network",
             "host",
             "-v",
-            &format!("{}:/workspace", crate::paths::project_root()?.join("contracts/MockUSDFC").display()),
+            &format!(
+                "{}:/workspace",
+                crate::paths::project_root()?
+                    .join("contracts/MockUSDFC")
+                    .display()
+            ),
             "foc-builder",
             "bash",
             "-c",
