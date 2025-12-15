@@ -32,26 +32,6 @@ pub fn get_user_eth_address(user_name: &str) -> Result<String, Box<dyn Error>> {
         .clone())
 }
 
-/// Get the Ethereum address for PDP_SP_0
-pub fn get_pdp_sp_eth_address() -> Result<String, Box<dyn Error>> {
-    get_user_eth_address("PDP_SP_0")
-}
-
-/// Get the Ethereum address for USER_0
-pub fn get_user_0_eth_address() -> Result<String, Box<dyn Error>> {
-    get_user_eth_address("USER_0")
-}
-
-/// Get the Ethereum address for USER_1
-pub fn get_user_1_eth_address() -> Result<String, Box<dyn Error>> {
-    get_user_eth_address("USER_1")
-}
-
-/// Get the Ethereum address for USER_2
-pub fn get_user_2_eth_address() -> Result<String, Box<dyn Error>> {
-    get_user_eth_address("USER_2")
-}
-
 /// Get the private key for a user by name from state addresses
 pub fn get_user_private_key(user_name: &str) -> Result<String, Box<dyn Error>> {
     let addresses = load_state_addresses()?;

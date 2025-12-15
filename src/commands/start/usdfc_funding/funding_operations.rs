@@ -4,6 +4,8 @@
 
 use super::constants::TRANSACTION_CONFIRMATION_WAIT_SECS;
 use crossterm::style::Stylize;
+use ethers_core::types::U256;
+use hex;
 use std::error::Error;
 use std::process::Command;
 use std::thread;
@@ -17,8 +19,23 @@ pub fn transfer_mock_usdfc(
     amount: &str,
     token_address: &str,
     description: &str,
+    nonce: Option<u64>,
 ) -> Result<(), Box<dyn Error>> {
-    println!("      Transferring {} MockUSDFC tokens: {}...", amount, description);
+    println!("      Transferring MockUSDFC tokens: {}...", description);
+
+    let mut cast_cmd = format!(
+        "cd /workspace && cast send {} \
+         --private-key {} \
+         --rpc-url http://localhost:1234/rpc/v1 \
+         'transfer(address,uint256)' {} {} \
+         --gas-limit 10000000",
+        token_address, from_private_key, to_eth_address, amount
+    );
+
+    // Add nonce if provided
+    if let Some(nonce_val) = nonce {
+        cast_cmd.push_str(&format!(" --nonce {}", nonce_val));
+    }
 
     let output = Command::new("docker")
         .args([
@@ -31,17 +48,9 @@ pub fn transfer_mock_usdfc(
             "foc-builder",
             "bash",
             "-c",
-            &format!(
-                "cd /workspace && cast send {} \
-                 --private-key {} \
-                 --rpc-url http://localhost:1234/rpc/v1 \
-                 'transfer(address,uint256)' {} {} \
-                 --gas-limit 10000000",
-                token_address, from_private_key, to_eth_address, amount
-            ),
+            &cast_cmd,
         ])
         .output()?;
-
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
@@ -99,6 +108,26 @@ pub fn check_mock_usdfc_balance(
         .into());
     }
 
-    let balance = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    Ok(balance)
+    let balance_hex = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+    if balance_hex.is_empty() || balance_hex == "0x" {
+        return Ok("0".to_string());
+    }
+
+    // Remove "0x" prefix if it exists
+    let hex_str = balance_hex.strip_prefix("0x").unwrap_or(&balance_hex);
+
+    // Decode hex to bytes
+    let bytes = match hex::decode(hex_str) {
+        Ok(bytes) => bytes,
+        Err(e) => return Err(format!("Failed to decode hex string: {}: {}", hex_str, e).into()),
+    };
+
+    // Convert bytes to U256
+    let balance_u256 = U256::from_big_endian(&bytes);
+
+    // Convert U256 to decimal string
+    let balance_dec = balance_u256.to_string();
+
+    Ok(balance_dec)
 }

@@ -2,11 +2,20 @@
 //!
 //! This module defines constants used in the MockUSDFC funding process.
 
-/// Amount of MockUSDFC tokens to distribute to each user (100,000 tokens)
-pub const USER_TOKEN_AMOUNT: &str = "100000000000000000000000"; // 100,000 * 10^18
+/// List of accounts to be funded with MockUSDFC tokens and their respective amounts (in tokens)
+pub const USDFC_ACCOUNTS_FUNDED: [(&str, u64); 4] = [
+    // User accounts for testing
+    ("USER_0", 100_000),
+    ("USER_1", 100_000),
+    ("USER_2", 100_000),
+    // PDP service provider account
+    ("PDP_SP_0", 200_000),
+];
 
-/// Amount of MockUSDFC tokens to distribute to PDP_SP_0 (200,000 tokens)
-pub const PDP_SP_TOKEN_AMOUNT: &str = "200000000000000000000000"; // 200,000 * 10^18
+/// Convert token amount to wei (multiply by 10^18)
+pub fn token_amount_to_wei(tokens: u64) -> String {
+    format!("{}000000000000000000", tokens) // tokens * 10^18
+}
 
 /// Transaction confirmation wait time in seconds
 pub const TRANSACTION_CONFIRMATION_WAIT_SECS: u64 = 5;

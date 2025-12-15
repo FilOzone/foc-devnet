@@ -3,13 +3,11 @@
 //! This module contains the main Step implementation for distributing MockUSDFC tokens
 //! to user and service provider addresses.
 
-use super::constants::{PDP_SP_TOKEN_AMOUNT, USER_TOKEN_AMOUNT};
+use super::constants::{token_amount_to_wei, TRANSACTION_CONFIRMATION_WAIT_SECS, USDFC_ACCOUNTS_FUNDED};
 use super::funding_operations::{check_mock_usdfc_balance, transfer_mock_usdfc};
-use super::key_operations::{
-    get_pdp_sp_eth_address, get_user_0_eth_address, get_user_1_eth_address,
-    get_user_2_eth_address, get_user_private_key,
-};
+use super::key_operations::get_user_private_key;
 use crate::commands::start::step::{Step, StepContext};
+use crate::commands::start::usdfc_funding::key_operations::get_user_eth_address;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::core::container_is_running;
 use crossterm::style::Stylize;
@@ -33,7 +31,7 @@ impl USDFCFundingStep {
         println!("    Distributing MockUSDFC tokens...");
 
         // Get MockUSDFC contract address from context
-        let mock_usdfc_address = context
+        let mockusdfc_address = context
             .get("mock_usdfc_address")
             .ok_or("MockUSDFC contract address not found in context")?
             .to_string();
@@ -47,68 +45,118 @@ impl USDFCFundingStep {
         // Get DEPLOYER_MOCKUSDFC private key from addresses.json
         let deployer_private_key = get_user_private_key("DEPLOYER_MOCKUSDFC")?;
 
-        // Get USER and PDP_SP Ethereum addresses from addresses.json
-        let user_0_eth = get_user_0_eth_address()?;
-        let user_1_eth = get_user_1_eth_address()?;
-        let user_2_eth = get_user_2_eth_address()?;
-        let pdp_sp_0_eth = get_pdp_sp_eth_address()?;
+        // Set the number of recipients in context
+        context.set("usdfc_tfr_recepient_count", &USDFC_ACCOUNTS_FUNDED.len().to_string());
+        let mut token_transfers = Vec::with_capacity(USDFC_ACCOUNTS_FUNDED.len());
+        
+        for (account_name, amount_tokens) in USDFC_ACCOUNTS_FUNDED.iter() {
+            let recepient = get_user_eth_address(&account_name)?;
 
-        // Store addresses in context
-        context.set("user_0_eth_address", &user_0_eth);
-        context.set("user_1_eth_address", &user_1_eth);
-        context.set("user_2_eth_address", &user_2_eth);
-        context.set("pdp_sp_0_eth_address", &pdp_sp_0_eth);
+            token_transfers.push((
+                account_name.to_string(),
+                recepient.to_string(),
+                token_amount_to_wei(*amount_tokens),
+                *amount_tokens,
+            ));
+        }
 
-        // Transfer tokens to users
-        transfer_mock_usdfc(
+        // Execute all USDFC transfers in parallel
+        self.parallel_transfer_usdfc(
             &deployer_private_key,
             &deployer_mockusdfc_eth,
-            &user_0_eth,
-            USER_TOKEN_AMOUNT,
-            &mock_usdfc_address,
-            "DEPLOYER_MOCKUSDFC → USER_0",
+            &mockusdfc_address,
+            token_transfers,
+            context,
         )?;
-        context.set("user_0_distributed", "true");
 
-        transfer_mock_usdfc(
-            &deployer_private_key,
-            &deployer_mockusdfc_eth,
-            &user_1_eth,
-            USER_TOKEN_AMOUNT,
-            &mock_usdfc_address,
-            "DEPLOYER_MOCKUSDFC → USER_1",
-        )?;
-        context.set("user_1_distributed", "true");
+        Ok(())
+    }
 
-        transfer_mock_usdfc(
-            &deployer_private_key,
-            &deployer_mockusdfc_eth,
-            &user_2_eth,
-            USER_TOKEN_AMOUNT,
-            &mock_usdfc_address,
-            "DEPLOYER_MOCKUSDFC → USER_2",
-        )?;
-        context.set("user_2_distributed", "true");
+    /// Execute multiple USDFC transfers in parallel
+    ///
+    /// This function spawns a thread for each transfer to execute them concurrently.
+    /// If any transfer fails, the entire operation fails after all threads complete.
+    fn parallel_transfer_usdfc(
+        &self,
+        from_private_key: &str,
+        from_eth_address: &str,
+        token_address: &str,
+        transfers: Vec<(String, String, String, u64)>,
+        _context: &mut StepContext,
+    ) -> Result<(), Box<dyn Error>> {
+        use std::sync::{Arc, Mutex};
+        use std::thread;
 
-        // Transfer tokens to PDP_SP_0
-        transfer_mock_usdfc(
-            &deployer_private_key,
-            &deployer_mockusdfc_eth,
-            &pdp_sp_0_eth,
-            PDP_SP_TOKEN_AMOUNT,
-            &mock_usdfc_address,
-            "DEPLOYER_MOCKUSDFC → PDP_SP_0",
-        )?;
-        context.set("pdp_sp_distributed", "true");
+        let num_transfers = transfers.len();
+        println!(
+            "      Executing {} USDFC transfers in parallel...",
+            num_transfers
+        );
+
+        // Shared error collection
+        let errors: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let mut handles = vec![];
+
+        for (tfr_idx, (account_name, to_addr, amount_wei, amount_tokens)) in transfers.into_iter().enumerate() {
+            let from_key = from_private_key.to_string();
+            let from_addr = from_eth_address.to_string();
+            let token_addr = token_address.to_string();
+            let errors_clone = Arc::clone(&errors);
+
+            let handle = thread::spawn(move || {
+                let description = format!("DEPLOYER_MOCKUSDFC → {}", account_name);
+                println!("      Transferring {} tokens: {}...", amount_tokens, description);
+
+                match transfer_mock_usdfc(
+                    &from_key,
+                    &from_addr,
+                    &to_addr,
+                    &amount_wei,
+                    &token_addr,
+                    &description,
+                    Some((tfr_idx+1).try_into().unwrap()),
+                ) {
+                    Ok(_) => {
+                        println!(
+                            "      ✓ Transferred {} tokens: {}",
+                            amount_tokens,
+                            description.dark_green().bold()
+                        );
+                    }
+                    Err(e) => {
+                        let error_msg = format!("Failed to transfer {} tokens to {}: {}", amount_tokens, account_name, e);
+                        eprintln!("      ✗ {}", error_msg.clone().red());
+                        errors_clone.lock().unwrap().push(error_msg);
+                    }
+                }
+            });
+
+            handles.push(handle);
+        }
+
+        // Wait for all transfers to complete
+        for handle in handles {
+            handle
+                .join()
+                .map_err(|_| "Thread panicked during USDFC transfer")?;
+        }
+
+        // Wait for transaction confirmation and address activation
+        println!("      Waiting for transaction confirmations...");
+        thread::sleep(std::time::Duration::from_secs(TRANSACTION_CONFIRMATION_WAIT_SECS * 2));
+
+        // Check if any errors occurred
+        let errors_vec = errors.lock().unwrap();
+        if !errors_vec.is_empty() {
+            let combined_error = errors_vec.join("\n");
+            return Err(format!("One or more USDFC transfers failed:\n{}", combined_error).into());
+        }
 
         println!(
-            "\n    {} MockUSDFC tokens distributed successfully!",
-            "✓".green().bold()
+            "      {} All {} transfers completed successfully!",
+            "✓".green().bold(),
+            num_transfers
         );
-        println!("      USER_0: {} tokens ({})", USER_TOKEN_AMOUNT, user_0_eth);
-        println!("      USER_1: {} tokens ({})", USER_TOKEN_AMOUNT, user_1_eth);
-        println!("      USER_2: {} tokens ({})", USER_TOKEN_AMOUNT, user_2_eth);
-        println!("      PDP_SP_0: {} tokens ({})", PDP_SP_TOKEN_AMOUNT, pdp_sp_0_eth);
 
         Ok(())
     }
@@ -165,39 +213,22 @@ impl Step for USDFCFundingStep {
     fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         println!("    Verifying MockUSDFC distribution...");
 
-        // Check if all distribution flags are set
-        let required_flags = vec![
-            "user_0_distributed",
-            "user_1_distributed",
-            "user_2_distributed",
-            "pdp_sp_distributed",
-        ];
+        // verify all accounts for distribution have MockUSDFC tokens as expected
+        for (account_name, amount_tokens) in USDFC_ACCOUNTS_FUNDED.iter() {
+            let eth_address = get_user_eth_address(&account_name)?;
 
-        for flag in required_flags {
-            if let Some(value) = context.get(flag) {
-                println!("      {} {}: {}", "✓".green(), flag, value);
-            } else {
-                println!("      {} {} not found in context", "✗".red(), flag);
-                return Err(format!("Missing distribution flag: {}", flag).into());
-            }
-        }
-
-        // Verify token balances (optional - can be expensive)
-        let mock_usdfc_address = context
-            .get("mock_usdfc_address")
-            .ok_or("MockUSDFC address not found in context")?;
-
-        let user_0_eth = context
-            .get("user_0_eth_address")
-            .ok_or("USER_0 ETH address not found in context")?;
-
-        // Check one balance as a sanity check
-        match check_mock_usdfc_balance(user_0_eth, mock_usdfc_address) {
-            Ok(balance) => {
-                println!("      {} USER_0 balance check: {} wei", "✓".green(), balance);
-            }
-            Err(e) => {
-                println!("      {} Balance check failed (non-critical): {}", "⚠".yellow(), e);
+            match check_mock_usdfc_balance(&eth_address, context.get("mock_usdfc_address").ok_or("MockUSDFC address not found in context")?) {
+                Ok(balance) => {
+                    let expected_wei = token_amount_to_wei(*amount_tokens);
+                    if balance == expected_wei {
+                        println!("      {} {} balance correct: {} wei", "✓".green(), account_name, balance);
+                    } else {
+                        return Err(format!("{} balance incorrect: expected {} wei, found {} wei", account_name, expected_wei, balance).into());
+                    }
+                }
+                Err(e) => {
+                    return Err(format!("Failed to check {} balance: {}", account_name, e).into());
+                }
             }
         }
 
