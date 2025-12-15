@@ -145,9 +145,7 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
 }
 
 /// Parse deployment output to extract contract addresses and network metadata
-pub fn parse_deployment_output(
-    output_str: &str,
-) -> Result<DeploymentResult, Box<dyn Error>> {
+pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box<dyn Error>> {
     // Look for "DEPLOYMENT SUMMARY" section
     let mut addresses = std::collections::HashMap::new();
     let mut filbeam_controller = None;
@@ -164,7 +162,7 @@ pub fn parse_deployment_output(
     // Look for "DEPLOYMENT SUMMARY" section
     let mut in_summary = false;
     let mut in_network_config = false;
-    
+
     for line in output_str.lines() {
         // println!("        Line: {}", line); // Debug: print each line
 
@@ -201,7 +199,7 @@ pub fn parse_deployment_output(
             in_network_config = true;
             in_summary = false;
             println!("        Found Network Configuration section");
-            
+
             // Extract network name from "Network Configuration (localnet):"
             if let Some(start) = line.find('(') {
                 if let Some(end) = line.find(')') {
@@ -217,7 +215,7 @@ pub fn parse_deployment_output(
             if parts.len() >= 2 {
                 let key = parts[0].trim();
                 let value = parts[1..].join(":").trim().to_string();
-                
+
                 match key {
                     "Challenge finality" => {
                         challenge_finality = value.replace(" epochs", "").trim().to_string();

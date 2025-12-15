@@ -14,6 +14,7 @@ mod pdp_service_provider;
 mod step;
 mod usdfc_deploy;
 mod usdfc_funding;
+mod user_deposit_permit;
 mod yugabyte;
 
 use curio::CurioStep;
@@ -26,6 +27,7 @@ use multicall3_deploy::MultiCall3DeployStep;
 use pdp_service_provider::PdpSpRegistrationStep;
 pub use step::{execute_steps, Step, StepContext};
 use usdfc_deploy::USDFCDeployStep;
+use user_deposit_permit::UserDepositPermitStep;
 use yugabyte::YugabyteStep;
 
 use crate::commands::start::usdfc_funding::USDFCFundingStep;
@@ -214,6 +216,8 @@ pub fn start_cluster(
     let multicall3_deploy_step = MultiCall3DeployStep::new(volumes_dir.clone(), logs_dir.clone());
     let foc_deploy_step = FOCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
     let pdp_sp_reg_step = PdpSpRegistrationStep::new(volumes_dir.clone(), logs_dir.clone());
+    let user_deposit_permit_step =
+        UserDepositPermitStep::new(volumes_dir.clone(), logs_dir.clone());
     let yugabyte_step = YugabyteStep::new(volumes_dir.clone(), logs_dir.clone());
     let curio_step = CurioStep::new(volumes_dir.clone(), logs_dir.clone());
 
@@ -227,6 +231,7 @@ pub fn start_cluster(
         &multicall3_deploy_step,
         &foc_deploy_step,
         &pdp_sp_reg_step,
+        &user_deposit_permit_step,
         &yugabyte_step,
         &curio_step,
     ];

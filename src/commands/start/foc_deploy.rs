@@ -162,11 +162,11 @@ impl FOCDeployStep {
                 .foc_contracts
                 .insert(fixed_name, addr.clone());
         }
-        
+
         // Store FilBeam addresses
         addresses_struct.filbeam_controller = deployment_result.filbeam_controller.clone();
         addresses_struct.filbeam_beneficiary = deployment_result.filbeam_beneficiary.clone();
-        
+
         println!(
             "      Total contracts in foc_contracts: {}",
             addresses_struct.foc_contracts.len()
