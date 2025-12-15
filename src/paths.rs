@@ -124,12 +124,6 @@ pub fn foc_localnet_genesis() -> PathBuf {
     foc_localnet_docker_volumes().join("genesis")
 }
 
-/// Returns the path to store generated keys
-/// e.g., ~/.foc-localnet/keys
-pub fn foc_localnet_keys() -> PathBuf {
-    foc_localnet_home().join("keys")
-}
-
 /// Returns the path to the project root directory
 /// This is determined by finding the directory containing Cargo.toml
 pub fn project_root() -> Result<PathBuf, std::io::Error> {

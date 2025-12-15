@@ -11,6 +11,7 @@ mod lotus_utils;
 mod multicall3_deploy;
 mod step;
 mod usdfc_deploy;
+mod usdfc_funding;
 mod yugabyte;
 
 use curio::CurioStep;
@@ -24,6 +25,7 @@ pub use step::{execute_steps, Step, StepContext};
 use usdfc_deploy::USDFCDeployStep;
 use yugabyte::YugabyteStep;
 
+use crate::commands::start::usdfc_funding::USDFCFundingStep;
 use crate::docker::core::{container_is_running, remove_container, stop_container};
 use crate::docker::{create_all_networks, start_portainer};
 use crate::paths::{contract_addresses_file, foc_localnet_docker_volumes, foc_localnet_run_logs};
@@ -196,19 +198,12 @@ pub fn start_cluster(
     ensure_genesis_prerequisites()?;
     println!();
 
-    // Create steps in the order they need to be started:
-    // 1. Lotus (execution node) - needed by others
-    // 2. Lotus-Miner (first gen miner) - builds tipsets
-    // 3. ETHAccFunding - create and fund Ethereum accounts for FOC deployment
-    // 4. USDFCDeploy - deploy MockUSDFC token for FOC contracts
-    // 5. MultiCall3Deploy - deploy Multicall3 contract for batched calls
-    // 6. FOCDeploy - deploy FOC service contracts (requires Lotus with FEVM)
-    // 7. YugabyteDB - database for Curio
-    // 8. Curio (second gen miner) - needs Lotus, FOC contracts, and YugabyteDB
+    // Create steps in the order they need to be started
     let lotus_step = LotusStep::new(volumes_dir.clone(), logs_dir.clone());
     let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), logs_dir.clone());
     let eth_acc_funding_step = ETHAccFundingStep::new(logs_dir.clone());
     let usdfc_deploy_step = USDFCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
+    let usdfc_funding_step = USDFCFundingStep::new(volumes_dir.clone(), logs_dir.clone());
     let multicall3_deploy_step = MultiCall3DeployStep::new(volumes_dir.clone(), logs_dir.clone());
     let foc_deploy_step = FOCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
     let yugabyte_step = YugabyteStep::new(volumes_dir.clone(), logs_dir.clone());
@@ -220,6 +215,7 @@ pub fn start_cluster(
         &lotus_miner_step,
         &eth_acc_funding_step,
         &usdfc_deploy_step,
+        &usdfc_funding_step,
         &multicall3_deploy_step,
         &foc_deploy_step,
         &yugabyte_step,

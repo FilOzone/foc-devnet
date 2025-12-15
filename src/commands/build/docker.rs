@@ -144,7 +144,7 @@ pub fn setup_build_script(
             r#"git config --global --add safe.directory {} && \
                 cd {} && \
                 make clean 2k && \
-                cp curio {}"#,
+                cp curio sptool {}"#,
             container_source_dir, container_source_dir, container_output_dir
         ),
     }

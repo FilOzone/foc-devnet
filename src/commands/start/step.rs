@@ -2,9 +2,56 @@ use crossterm::style::Stylize;
 use std::collections::HashMap;
 use std::error::Error;
 use std::path::PathBuf;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-/// Context shared across all steps during execution
+/// Context shared across all steps during execution.
+///
+/// A single `StepContext` instance is created at the start of the step execution sequence
+/// and passed as a mutable reference to each step in order. This allows steps to:
+/// - Share state by writing key-value pairs that later steps can read
+/// - Access common metadata like the run ID and logs directory
+///
+/// # Shared State Pattern
+///
+/// Steps should use the context to communicate important information to downstream steps:
+/// - **Early steps** write values using `context.set(key, value)`
+/// - **Later steps** read values using `context.get(key)`
+///
+/// # Example
+///
+/// ```rust
+/// // Step 1: ETHAccFundingStep creates an address and stores it
+/// fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+///     let deployer_address = create_deployer_address()?;
+///     context.set("deployer_mockusdfc_eth_address", &deployer_address);
+///     Ok(())
+/// }
+///
+/// // Step 2: USDFCDeployStep reads the address and uses it
+/// fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+///     let deployer_address = context
+///         .get("deployer_mockusdfc_eth_address")
+///         .ok_or("Deployer address not found")?;
+///     
+///     let contract_address = deploy_contract(deployer_address)?;
+///     context.set("mock_usdfc_address", &contract_address);
+///     Ok(())
+/// }
+///
+/// // Step 3: USDFCFundingStep reads both values
+/// fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+///     let deployer = context.get("deployer_mockusdfc_eth_address").unwrap();
+///     let contract = context.get("mock_usdfc_address").unwrap();
+///     
+///     fund_users(deployer, contract)?;
+///     Ok(())
+/// }
+/// ```
+///
+/// # Context Lifetime
+///
+/// The context lives for the entire duration of `execute_steps()` and is destroyed
+/// once all steps complete. State is not persisted between different runs of the CLI.
 #[derive(Debug, Default)]
 pub struct StepContext {
     /// Shared state that can be passed between steps
@@ -89,7 +136,9 @@ pub trait Step {
     }
 
     /// Run the complete step (pre, execute, post)
-    fn run(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    ///
+    /// Returns the duration of the step execution.
+    fn run(&self, context: &mut StepContext) -> Result<Duration, Box<dyn Error>> {
         let start_time = Instant::now();
 
         println!(
@@ -120,17 +169,21 @@ pub trait Step {
             .green()
             .bold()
         );
-        Ok(())
+        Ok(duration)
     }
 }
 
 /// Execute a sequence of steps
+///
+/// Tracks and displays timing information for each step and overall execution.
 pub fn execute_steps(
     steps: Vec<&dyn Step>,
     run_id: String,
     logs_dir: PathBuf,
 ) -> Result<(), Box<dyn Error>> {
+    let overall_start = Instant::now();
     let mut context = StepContext::with_run_id(run_id, logs_dir);
+    let mut step_timings: Vec<(String, Duration)> = Vec::new();
 
     for (index, step) in steps.iter().enumerate() {
         println!(
@@ -144,8 +197,43 @@ pub fn execute_steps(
             .blue()
             .bold()
         );
-        step.run(&mut context)?;
+        let duration = step.run(&mut context)?;
+        step_timings.push((step.name().to_string(), duration));
     }
+
+    let overall_duration = overall_start.elapsed();
+
+    // Print timing summary
+    println!("\n{}", "╔═══════════════════════════════════════════════════════════════╗".cyan().bold());
+    println!("{}", "║                      EXECUTION SUMMARY                        ║".cyan().bold());
+    println!("{}", "╠═══════════════════════════════════════════════════════════════╣".cyan().bold());
+    
+    for (step_name, duration) in &step_timings {
+        let percentage = (duration.as_secs_f64() / overall_duration.as_secs_f64()) * 100.0;
+        println!(
+            "{}",
+            format!(
+                "║ {:45} {:6.2}s ({:5.1}%) ║",
+                step_name,
+                duration.as_secs_f64(),
+                percentage
+            )
+            .cyan()
+        );
+    }
+    
+    println!("{}", "╠═══════════════════════════════════════════════════════════════╣".cyan().bold());
+    println!(
+        "{}",
+        format!(
+            "║ {:45} {:6.2}s         ║",
+            "TOTAL TIME",
+            overall_duration.as_secs_f64()
+        )
+        .green()
+        .bold()
+    );
+    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".cyan().bold());
 
     println!("\n{}", "All steps completed successfully!".green().bold());
     Ok(())
