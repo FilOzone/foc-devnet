@@ -38,6 +38,11 @@ pub fn contract_addresses_file() -> PathBuf {
     foc_localnet_state().join("contract_addresses.json")
 }
 
+/// Returns the path to the FOC metadata file, e.g., ~/.foc-localnet/state/foc_metadata.json
+pub fn foc_metadata_file() -> PathBuf {
+    foc_localnet_state().join("foc_metadata.json")
+}
+
 /// Returns the path to the PDP_SP_0 provider ID file, e.g., ~/.foc-localnet/state/pdp_sp_0.provider_id.json
 pub fn pdp_sp_0_provider_id_file() -> PathBuf {
     foc_localnet_state().join("pdp_sp_0.provider_id.json")

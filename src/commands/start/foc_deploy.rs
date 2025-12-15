@@ -11,6 +11,7 @@ use crate::docker::containers::lotus_container_name;
 use crate::docker::core::container_is_running;
 use crate::paths::{
     contract_addresses_file, foc_localnet_config, foc_localnet_filecoin_services_repo,
+    foc_metadata_file,
 };
 use crossterm::style::Stylize;
 use std::error::Error;
@@ -130,7 +131,7 @@ impl FOCDeployStep {
         // Deploy FOC contracts using deployment script
         let run_id = context.run_id().ok_or("Run ID not found in context")?;
         let lotus_container = crate::docker::containers::lotus_container_name(run_id);
-        let contract_addresses = deploy_foc_contracts(
+        let deployment_result = deploy_foc_contracts(
             &foc_deployer,
             &foc_deployer_eth,
             &mock_usdfc_address,
@@ -139,24 +140,21 @@ impl FOCDeployStep {
         )?;
 
         // Store contract addresses in context
-        for (name, addr) in &contract_addresses {
+        for (name, addr) in &deployment_result.addresses {
             context.set(&format!("foc_contract_{}", name.replace(' ', "_")), addr);
         }
 
         // Load existing addresses and update with FOC contracts
         let mut addresses_struct =
-            ContractAddresses::load().unwrap_or_else(|_| ContractAddresses {
-                contracts: std::collections::HashMap::new(),
-                foc_contracts: std::collections::HashMap::new(),
-            });
+            ContractAddresses::load().unwrap_or_else(|_| ContractAddresses::default());
 
         // Merge FOC contracts with existing contracts
-        let deployed_count = contract_addresses.len();
+        let deployed_count = deployment_result.addresses.len();
         println!(
             "      Merging {} FOC contracts into existing addresses",
             deployed_count
         );
-        for (name, addr) in &contract_addresses {
+        for (name, addr) in &deployment_result.addresses {
             // Fix naming: remove double underscores
             let fixed_name = name.replace("__", "_");
             println!("        Adding FOC contract: {} -> {}", fixed_name, addr);
@@ -164,6 +162,11 @@ impl FOCDeployStep {
                 .foc_contracts
                 .insert(fixed_name, addr.clone());
         }
+        
+        // Store FilBeam addresses
+        addresses_struct.filbeam_controller = deployment_result.filbeam_controller.clone();
+        addresses_struct.filbeam_beneficiary = deployment_result.filbeam_beneficiary.clone();
+        
         println!(
             "      Total contracts in foc_contracts: {}",
             addresses_struct.foc_contracts.len()
@@ -174,6 +177,14 @@ impl FOCDeployStep {
             "      {} Contract addresses saved to {}",
             "✓".green(),
             contract_addresses_file().display()
+        );
+
+        // Save network metadata
+        deployment_result.metadata.save()?;
+        println!(
+            "      {} Network metadata saved to {}",
+            "✓".green(),
+            foc_metadata_file().display()
         );
 
         println!(

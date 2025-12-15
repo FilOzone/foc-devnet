@@ -133,10 +133,7 @@ pub fn perform_deployment(
     let mut addresses_struct = ContractAddresses::load().unwrap_or_else(|_| {
         // If no existing addresses, create a minimal struct
         // This shouldn't happen as multicall3 runs after other deployments
-        ContractAddresses {
-            contracts: std::collections::HashMap::new(),
-            foc_contracts: std::collections::HashMap::new(),
-        }
+        ContractAddresses::default()
     });
 
     // Add multicall3 to contracts

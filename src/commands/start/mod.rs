@@ -4,6 +4,7 @@ mod env_vars;
 mod eth_acc_funding;
 mod foc_deploy;
 mod foc_deployer;
+mod foc_metadata;
 mod genesis;
 mod lotus;
 mod lotus_miner;
@@ -147,6 +148,7 @@ pub fn start_cluster(
             base_volumes.join("lotus-data"),
             base_volumes.join("lotus-miner-data"),
             contract_addresses_file(),
+            crate::paths::foc_metadata_file(),
             crate::paths::pdp_sp_0_provider_id_file(),
         ];
 
