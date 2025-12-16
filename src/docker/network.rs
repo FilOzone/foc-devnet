@@ -15,17 +15,17 @@ const CURIO_MINER_NET_SUFFIX: &str = "cur-m-net";
 
 /// Get the Lotus network name for a run ID
 pub fn lotus_network_name(run_id: &str) -> String {
-    format!("foc-{}-{}", run_id, LOTUS_NET_SUFFIX)
+    format!("foc_{}_{}", run_id, LOTUS_NET_SUFFIX)
 }
 
 /// Get the Lotus miner network name for a run ID
 pub fn lotus_miner_network_name(run_id: &str) -> String {
-    format!("foc-{}-{}", run_id, LOTUS_MINER_NET_SUFFIX)
+    format!("foc_{}_{}", run_id, LOTUS_MINER_NET_SUFFIX)
 }
 
 /// Get the Curio miner network name for a run ID
 pub fn curio_miner_network_name(run_id: &str) -> String {
-    format!("foc-{}-{}", run_id, CURIO_MINER_NET_SUFFIX)
+    format!("foc_{}_{}", run_id, CURIO_MINER_NET_SUFFIX)
 }
 
 /// Check if a Docker network exists

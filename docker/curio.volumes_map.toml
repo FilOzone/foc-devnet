@@ -4,4 +4,8 @@
 
 [volumes]
 # Curio repository data
-data = "/home/foc-user/.curio"
+".curio" = "/home/foc-user/.curio"
+# Fast storage for sealing operations
+"fast-storage" = "/home/foc-user/curio/fast-storage"
+# Long-term storage for sealed sectors
+"long-term-storage" = "/home/foc-user/curio/long-term-storage"

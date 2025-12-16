@@ -26,7 +26,8 @@ pub fn get_user_eth_address(user_name: &str) -> Result<String, Box<dyn Error>> {
         .find(|k| k.name == user_name)
         .ok_or(format!("{} not found in state addresses", user_name))?;
 
-    Ok(user.eth_address
+    Ok(user
+        .eth_address
         .as_ref()
         .ok_or(format!("{} does not have an Ethereum address", user_name))?
         .clone())

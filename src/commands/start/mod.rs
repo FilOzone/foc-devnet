@@ -4,14 +4,17 @@ mod env_vars;
 mod eth_acc_funding;
 mod foc_deploy;
 mod foc_deployer;
+mod foc_metadata;
 mod genesis;
 mod lotus;
 mod lotus_miner;
 mod lotus_utils;
 mod multicall3_deploy;
+mod pdp_service_provider;
 mod step;
 mod usdfc_deploy;
 mod usdfc_funding;
+mod user_deposit_permit;
 mod yugabyte;
 
 use curio::CurioStep;
@@ -21,8 +24,10 @@ pub use genesis::ensure_genesis_prerequisites;
 use lotus::LotusStep;
 use lotus_miner::LotusMinerStep;
 use multicall3_deploy::MultiCall3DeployStep;
+use pdp_service_provider::PdpSpRegistrationStep;
 pub use step::{execute_steps, Step, StepContext};
 use usdfc_deploy::USDFCDeployStep;
+use user_deposit_permit::UserDepositPermitStep;
 use yugabyte::YugabyteStep;
 
 use crate::commands::start::usdfc_funding::USDFCFundingStep;
@@ -44,6 +49,21 @@ pub fn start_cluster(
     regenesis: bool,
     reset: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Stop any existing cluster before starting a new one
+    println!(
+        "{}",
+        "Ensuring clean state by stopping any existing cluster...".yellow()
+    );
+    if let Err(e) = crate::commands::stop::stop_cluster() {
+        println!(
+            "  {} Warning: Failed to stop existing cluster: {}",
+            "⚠".yellow(),
+            e
+        );
+        println!("  Continuing with startup...");
+    }
+    println!();
+
     // Generate run ID for this execution
     let run_id = generate_run_id();
 
@@ -98,6 +118,7 @@ pub fn start_cluster(
             base_volumes.join("lotus-data"),
             base_volumes.join("lotus-miner-data"),
             contract_addresses_file(),
+            crate::paths::pdp_sp_0_provider_id_file(),
         ];
 
         for path in paths_to_delete {
@@ -143,6 +164,9 @@ pub fn start_cluster(
         let paths_to_delete = vec![
             base_volumes.join("lotus-data"),
             base_volumes.join("lotus-miner-data"),
+            contract_addresses_file(),
+            crate::paths::foc_metadata_file(),
+            crate::paths::pdp_sp_0_provider_id_file(),
         ];
 
         for path in paths_to_delete {
@@ -206,6 +230,9 @@ pub fn start_cluster(
     let usdfc_funding_step = USDFCFundingStep::new(volumes_dir.clone(), logs_dir.clone());
     let multicall3_deploy_step = MultiCall3DeployStep::new(volumes_dir.clone(), logs_dir.clone());
     let foc_deploy_step = FOCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
+    let pdp_sp_reg_step = PdpSpRegistrationStep::new(volumes_dir.clone(), logs_dir.clone());
+    let user_deposit_permit_step =
+        UserDepositPermitStep::new(volumes_dir.clone(), logs_dir.clone());
     let yugabyte_step = YugabyteStep::new(volumes_dir.clone(), logs_dir.clone());
     let curio_step = CurioStep::new(volumes_dir.clone(), logs_dir.clone());
 
@@ -218,6 +245,8 @@ pub fn start_cluster(
         &usdfc_funding_step,
         &multicall3_deploy_step,
         &foc_deploy_step,
+        &pdp_sp_reg_step,
+        &user_deposit_permit_step,
         &yugabyte_step,
         &curio_step,
     ];

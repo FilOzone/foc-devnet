@@ -4,11 +4,24 @@
 //! including private key extraction, deployment script execution,
 //! and output parsing.
 
+use super::foc_metadata::FOCMetadata;
 use crate::constants::*;
 use crate::docker::core::docker_command;
 use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes};
 use crossterm::style::Stylize;
 use std::error::Error;
+
+/// Deployment result containing contract addresses and network metadata
+pub struct DeploymentResult {
+    /// Map of contract names to addresses
+    pub addresses: std::collections::HashMap<String, String>,
+    /// FilBeam controller address
+    pub filbeam_controller: Option<String>,
+    /// FilBeam beneficiary address
+    pub filbeam_beneficiary: Option<String>,
+    /// Network configuration metadata
+    pub metadata: FOCMetadata,
+}
 
 /// Get the private key for an f4 address in hex format (for use with cast/forge)
 pub fn get_private_key(f4_address: &str, _lotus_container: &str) -> Result<String, Box<dyn Error>> {
@@ -27,14 +40,14 @@ pub fn get_private_key(f4_address: &str, _lotus_container: &str) -> Result<Strin
 
 /// Deploy FOC contracts using the deployment script
 ///
-/// Returns a map of contract names to addresses
+/// Returns deployment result with contract addresses and network metadata
 pub fn deploy_foc_contracts(
     foc_deployer: &str,
     deployer_eth_addr: &str,
     mock_usdfc_address: &str,
     services_repo_path: &std::path::Path,
     lotus_container: &str,
-) -> Result<std::collections::HashMap<String, String>, Box<dyn Error>> {
+) -> Result<DeploymentResult, Box<dyn Error>> {
     println!("      Running deploy-all-warm-storage.sh...");
 
     // Resolve symlinks to get the real path for Docker mounting
@@ -125,25 +138,33 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
         return Err("FOC contract deployment failed".into());
     }
 
-    // Parse the deployment output to extract contract addresses
-    let addresses = parse_deployment_output(&output_str)?;
+    // Parse the deployment output to extract contract addresses and metadata
+    let deployment_result = parse_deployment_output(&output_str)?;
 
-    Ok(addresses)
+    Ok(deployment_result)
 }
 
-/// Parse deployment output to extract contract addresses
-pub fn parse_deployment_output(
-    output_str: &str,
-) -> Result<std::collections::HashMap<String, String>, Box<dyn Error>> {
+/// Parse deployment output to extract contract addresses and network metadata
+pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box<dyn Error>> {
     // Look for "DEPLOYMENT SUMMARY" section
     let mut addresses = std::collections::HashMap::new();
+    let mut filbeam_controller = None;
+    let mut filbeam_beneficiary = None;
+    let mut network_name = String::from("localnet");
+    let mut challenge_finality = String::new();
+    let mut max_proving_period = String::new();
+    let mut challenge_window_size = String::new();
+    let mut service_name = String::new();
+    let mut service_description = String::new();
 
     println!("        Parsing deployment output for contract addresses...");
 
     // Look for "DEPLOYMENT SUMMARY" section
     let mut in_summary = false;
+    let mut in_network_config = false;
+
     for line in output_str.lines() {
-        println!("        Line: {}", line); // Debug: print each line
+        // println!("        Line: {}", line); // Debug: print each line
 
         if line.contains("DEPLOYMENT SUMMARY") {
             in_summary = true;
@@ -173,10 +194,64 @@ pub fn parse_deployment_output(
             }
         }
 
-        // Stop parsing after configuration section
-        if in_summary && line.contains("Network Configuration") {
-            println!("        Found Network Configuration section, stopping parsing");
-            break;
+        // Check for Network Configuration section
+        if line.contains("Network Configuration") {
+            in_network_config = true;
+            in_summary = false;
+            println!("        Found Network Configuration section");
+
+            // Extract network name from "Network Configuration (localnet):"
+            if let Some(start) = line.find('(') {
+                if let Some(end) = line.find(')') {
+                    network_name = line[start + 1..end].to_string();
+                    println!("        Network name: {}", network_name);
+                }
+            }
+            continue;
+        }
+
+        if in_network_config && line.contains(":") {
+            let parts: Vec<&str> = line.split(':').collect();
+            if parts.len() >= 2 {
+                let key = parts[0].trim();
+                let value = parts[1..].join(":").trim().to_string();
+
+                match key {
+                    "Challenge finality" => {
+                        challenge_finality = value.replace(" epochs", "").trim().to_string();
+                        println!("        Challenge finality: {}", challenge_finality);
+                    }
+                    "Max proving period" => {
+                        max_proving_period = value.replace(" epochs", "").trim().to_string();
+                        println!("        Max proving period: {}", max_proving_period);
+                    }
+                    "Challenge window size" => {
+                        challenge_window_size = value.replace(" epochs", "").trim().to_string();
+                        println!("        Challenge window size: {}", challenge_window_size);
+                    }
+                    "USDFC token address" => {
+                        // Already captured in addresses
+                        println!("        USDFC token address: {}", value);
+                    }
+                    "FilBeam controller address" => {
+                        filbeam_controller = Some(value.clone());
+                        println!("        FilBeam controller: {}", value);
+                    }
+                    "FilBeam beneficiary address" => {
+                        filbeam_beneficiary = Some(value.clone());
+                        println!("        FilBeam beneficiary: {}", value);
+                    }
+                    "Service name" => {
+                        service_name = value.clone();
+                        println!("        Service name: {}", value);
+                    }
+                    "Service description" => {
+                        service_description = value.clone();
+                        println!("        Service description: {}", value);
+                    }
+                    _ => {}
+                }
+            }
         }
     }
 
@@ -198,7 +273,21 @@ pub fn parse_deployment_output(
         );
     }
 
-    Ok(addresses)
+    let metadata = FOCMetadata {
+        network_name,
+        challenge_finality,
+        max_proving_period,
+        challenge_window_size,
+        service_name,
+        service_description,
+    };
+
+    Ok(DeploymentResult {
+        addresses,
+        filbeam_controller,
+        filbeam_beneficiary,
+        metadata,
+    })
 }
 
 /// Convert a contract name to snake_case

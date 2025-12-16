@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
+use tabular::{Row, Table};
 
 /// Context shared across all steps during execution.
 ///
@@ -204,37 +205,94 @@ pub fn execute_steps(
     let overall_duration = overall_start.elapsed();
 
     // Print timing summary
-    println!("\n{}", "╔═══════════════════════════════════════════════════════════════╗".cyan().bold());
-    println!("{}", "║                      EXECUTION SUMMARY                        ║".cyan().bold());
-    println!("{}", "╠═══════════════════════════════════════════════════════════════╣".cyan().bold());
-    
-    for (step_name, duration) in &step_timings {
-        let percentage = (duration.as_secs_f64() / overall_duration.as_secs_f64()) * 100.0;
-        println!(
-            "{}",
-            format!(
-                "║ {:45} {:6.2}s ({:5.1}%) ║",
-                step_name,
-                duration.as_secs_f64(),
-                percentage
-            )
+    println!(
+        "\n{}",
+        "╔══════════════════════════════════════════════════════════════════════╗"
             .cyan()
-        );
-    }
-    
-    println!("{}", "╠═══════════════════════════════════════════════════════════════╣".cyan().bold());
+            .bold()
+    );
     println!(
         "{}",
-        format!(
-            "║ {:45} {:6.2}s         ║",
-            "TOTAL TIME",
-            overall_duration.as_secs_f64()
-        )
-        .green()
-        .bold()
+        "║                         EXECUTION SUMMARY                            ║"
+            .cyan()
+            .bold()
     );
-    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".cyan().bold());
+    println!(
+        "{}",
+        "╠══════════════════════════════════════════════════════════════════════╣"
+            .cyan()
+            .bold()
+    );
+    println!();
 
+    // Step timing table
+    println!("{}", "Step Execution Times:".cyan().bold());
+    let mut timing_table = Table::new("{:<}  {:>}  {:>}");
+    timing_table.add_row(
+        Row::new()
+            .with_ansi_cell("Step".bold().dark_grey())
+            .with_ansi_cell("Duration".bold().dark_grey())
+            .with_ansi_cell("% of Total".bold().dark_grey()),
+    );
+
+    for (step_name, duration) in &step_timings {
+        let percentage = (duration.as_secs_f64() / overall_duration.as_secs_f64()) * 100.0;
+        timing_table.add_row(
+            Row::new()
+                .with_ansi_cell(step_name.clone())
+                .with_ansi_cell(format!("{:.2}s", duration.as_secs_f64()).green())
+                .with_ansi_cell(format!("{:.1}%", percentage).cyan()),
+        );
+    }
+
+    // Add total row
+    timing_table.add_row(
+        Row::new()
+            .with_ansi_cell("TOTAL TIME".bold())
+            .with_ansi_cell(
+                format!("{:.2}s", overall_duration.as_secs_f64())
+                    .green()
+                    .bold(),
+            )
+            .with_ansi_cell("100.0%".cyan()),
+    );
+
+    print!("{}", timing_table);
+    println!();
+
+    // Print StepContext state variables
+    if !context.state.is_empty() {
+        println!("{}", "Step Context Variables:".cyan().bold());
+        let mut context_table = Table::new("{:<}  {:<}");
+        context_table.add_row(
+            Row::new()
+                .with_ansi_cell("Key".bold().dark_grey())
+                .with_ansi_cell("Value".bold().dark_grey()),
+        );
+
+        // Sort keys alphabetically
+        let mut keys: Vec<&String> = context.state.keys().collect();
+        keys.sort();
+
+        for key in keys {
+            let value = context.state.get(key).unwrap();
+            context_table.add_row(
+                Row::new()
+                    .with_ansi_cell(key.clone().yellow())
+                    .with_ansi_cell(value.clone().dim()),
+            );
+        }
+
+        print!("{}", context_table);
+        println!();
+    }
+
+    println!(
+        "{}",
+        "╚══════════════════════════════════════════════════════════════════════╝"
+            .cyan()
+            .bold()
+    );
     println!("\n{}", "All steps completed successfully!".green().bold());
     Ok(())
 }

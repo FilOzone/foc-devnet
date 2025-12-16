@@ -28,24 +28,26 @@ pub const NOUNS: &[&str] = &[
 
 /// Generate a unique run ID for this execution.
 ///
-/// Returns a string like "251203-1246-thirsty-wolf" where:
-/// - 251203 is the date (YYMMDD)
-/// - 1246 is the time (HHMM)
-/// - thirsty-wolf is a randomly generated name
+/// Returns a string like "foc_25dec15-2206_blue_ibis_lotus" where:
+/// - foc_ is the prefix
+/// - 25dec15 is the date (YYmmmDD where mmm is the lowercase abbreviated month name)
+/// - 2206 is the time (HHMM)
+/// - blue_ibis_lotus is the modified random name with underscores and suffix
 ///
 /// # Example
 /// ```no_run
 /// let run_id = generate_run_id();
-/// println!("{}", run_id); // e.g., "251203-1246-thirsty-wolf"
+/// println!("{}", run_id); // e.g., "25dec15-2206_blue_ibis_lotus"
 /// ```
 pub fn generate_run_id() -> String {
     let now = Local::now();
-    let timestamp = now.format("%y%m%d-%H%M");
+    let date = now.format("%y%b%d").to_string().to_lowercase();
+    let time = now.format("%H%M");
 
     let mut generator = Generator::new(ADJECTIVES, NOUNS, Name::Plain);
     let random_name = generator.next().unwrap_or_else(|| "unknown".to_string());
 
-    format!("{}-{}", timestamp, random_name)
+    format!("{}-{}_{}", date, time, random_name)
 }
 
 #[cfg(test)]
@@ -57,8 +59,8 @@ mod tests {
     fn test_run_id_format() {
         let run_id = generate_run_id();
 
-        // Should match pattern: YYMMDD-HHMM-word-word (or word-word-number)
-        let pattern = Regex::new(r"^\d{6}-\d{4}-.+$").unwrap();
+        // Should match pattern: foc_YYmmmDD-HHMM_word_word_lotus
+        let pattern = Regex::new(r"^foc_\d{2}[a-z]{3}\d{2}-\d{4}_.+$").unwrap();
         assert!(
             pattern.is_match(&run_id),
             "Run ID should match format: {}",

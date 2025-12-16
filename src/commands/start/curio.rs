@@ -38,6 +38,19 @@ const LOG_TAIL_LINES: usize = 50;
 const PORT_WAIT_TIMEOUT_SECS: u64 = 30;
 const API_CHECK_DELAY_SECS: u64 = 3;
 
+// PDP configuration for Curio
+const PDP_CONFIG: &str = r#"[HTTP]
+DelegateTLS = true
+DomainName = "pdp-sp-0.foc-localnet.internal"
+Enable = true
+ListenAddress = "0.0.0.0:4702"
+
+[Subsystems]
+EnableCommP = true
+EnableMoveStorage = true
+EnablePDP = true
+EnableParkPiece = true"#;
+
 /// Step for starting the Curio node
 pub struct CurioStep {
     #[allow(dead_code)]
@@ -154,9 +167,19 @@ impl CurioStep {
         // docker_args.extend(port_args);
 
         // Add volume mounts
-        let curio_data_dir = self.volumes_dir.join("curio-data");
-        let volume_mount = format!("{}:/home/foc-user/.curio", curio_data_dir.display());
-        docker_args.extend_from_slice(&["-v".to_string(), volume_mount]);
+        let curio_data_dir = self.volumes_dir.join("curio").join(".curio");
+        let curio_fast_storage = self.volumes_dir.join("curio").join("fast-storage");
+        let curio_long_term_storage = self.volumes_dir.join("curio").join("long-term-storage");
+        
+        let curio_volume_mounts = vec![
+            format!("{}:/home/foc-user/.curio", curio_data_dir.display()),
+            format!("{}:/home/foc-user/curio/fast-storage", curio_fast_storage.display()),
+            format!("{}:/home/foc-user/curio/long-term-storage", curio_long_term_storage.display()),
+        ];
+        
+        for mount in &curio_volume_mounts {
+            docker_args.extend_from_slice(&["-v".to_string(), mount.clone()]);
+        }
 
         // Mount curio binary
         let curio_bin = foc_localnet_bin().join("curio");
@@ -240,9 +263,15 @@ impl CurioStep {
         docker_args.push(IMAGE_NAME.to_string());
 
         let curio_cmd = format!(
-            r#"/usr/local/bin/lotus-bins/curio config new-cluster {} && \
+            r#"
+               /usr/local/bin/lotus-bins/curio cli storage attach --init --seal /home/foc-user/curio/fast-storage;
+               /usr/local/bin/lotus-bins/curio cli storage attach --init --store /home/foc-user/curio/long-term-storage;
+               /usr/local/bin/lotus-bins/curio config new-cluster {};
+               /usr/local/bin/lotus-bins/curio config set --title pdp << 'EOF'
+{}
+EOF
                /usr/local/bin/lotus-bins/curio run --layers=gui,pdp"#,
-            CURIO_MINER_ID
+            CURIO_MINER_ID, PDP_CONFIG
         );
 
         docker_args.extend_from_slice(&["/bin/bash".to_string(), "-c".to_string(), curio_cmd]);
@@ -319,10 +348,17 @@ impl CurioStep {
         Ok(())
     }
 
-    /// Create the Curio data directory
+    /// Create the Curio data directories
     fn setup_data_directory(&self) -> Result<(), Box<dyn Error>> {
-        let curio_data_dir = self.volumes_dir.join("curio-data");
+        let curio_base_dir = self.volumes_dir.join("curio");
+        let curio_data_dir = curio_base_dir.join(".curio");
+        let curio_fast_storage = curio_base_dir.join("fast-storage");
+        let curio_long_term_storage = curio_base_dir.join("long-term-storage");
+        
         std::fs::create_dir_all(&curio_data_dir)?;
+        std::fs::create_dir_all(&curio_fast_storage)?;
+        std::fs::create_dir_all(&curio_long_term_storage)?;
+        
         Ok(())
     }
 
@@ -441,7 +477,9 @@ impl Step for CurioStep {
 
         println!("\n    {} Curio is ready!", "✓".green().bold());
         println!("      API endpoint: http://localhost:12300");
-        println!("      RPC endpoint: http://localhost:12301");
+        println!("      GUI: http://localhost:4701");
+        println!("      PDP HTTP: http://localhost:4702");
+        println!("      HTTP RPC: http://localhost:12310");
 
         Ok(())
     }
