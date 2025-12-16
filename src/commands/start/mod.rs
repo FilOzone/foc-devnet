@@ -49,6 +49,21 @@ pub fn start_cluster(
     regenesis: bool,
     reset: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Stop any existing cluster before starting a new one
+    println!(
+        "{}",
+        "Ensuring clean state by stopping any existing cluster...".yellow()
+    );
+    if let Err(e) = crate::commands::stop::stop_cluster() {
+        println!(
+            "  {} Warning: Failed to stop existing cluster: {}",
+            "⚠".yellow(),
+            e
+        );
+        println!("  Continuing with startup...");
+    }
+    println!();
+
     // Generate run ID for this execution
     let run_id = generate_run_id();
 

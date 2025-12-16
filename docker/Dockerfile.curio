@@ -36,8 +36,10 @@ USER foc-user
 
 # Expose curio ports
 # 12300 - Curio API
-# 12301 - Curio RPC
-EXPOSE 12300 12301
+# 4701  - GUI
+# 4702  - HTTP Subsystem for PDP
+# 12310 - HTTP RPC
+EXPOSE 12300 4701 4702 12310
 
 # Set environment variables
 ENV CURIO_REPO_PATH=/home/foc-user/.curio

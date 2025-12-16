@@ -38,6 +38,19 @@ const LOG_TAIL_LINES: usize = 50;
 const PORT_WAIT_TIMEOUT_SECS: u64 = 30;
 const API_CHECK_DELAY_SECS: u64 = 3;
 
+// PDP configuration for Curio
+const PDP_CONFIG: &str = r#"[HTTP]
+DelegateTLS = true
+DomainName = "pdp-sp-0.foc-localnet.internal"
+Enable = true
+ListenAddress = "0.0.0.0:4702"
+
+[Subsystems]
+EnableCommP = true
+EnableMoveStorage = true
+EnablePDP = true
+EnableParkPiece = true"#;
+
 /// Step for starting the Curio node
 pub struct CurioStep {
     #[allow(dead_code)]
@@ -240,9 +253,12 @@ impl CurioStep {
         docker_args.push(IMAGE_NAME.to_string());
 
         let curio_cmd = format!(
-            r#"/usr/local/bin/lotus-bins/curio config new-cluster {} && \
+            r#"/usr/local/bin/lotus-bins/curio config new-cluster {};
+               /usr/local/bin/lotus-bins/curio config set --title pdp << 'EOF'
+{}
+EOF
                /usr/local/bin/lotus-bins/curio run --layers=gui,pdp"#,
-            CURIO_MINER_ID
+            CURIO_MINER_ID, PDP_CONFIG
         );
 
         docker_args.extend_from_slice(&["/bin/bash".to_string(), "-c".to_string(), curio_cmd]);
