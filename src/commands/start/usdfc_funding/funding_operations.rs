@@ -20,16 +20,17 @@ pub fn transfer_mock_usdfc(
     token_address: &str,
     description: &str,
     nonce: Option<u64>,
+    lotus_rpc_url: &str,
 ) -> Result<(), Box<dyn Error>> {
     println!("      Transferring MockUSDFC tokens: {}...", description);
 
     let mut cast_cmd = format!(
         "cd /workspace && cast send {} \
          --private-key {} \
-         --rpc-url http://localhost:1234/rpc/v1 \
+         --rpc-url {} \
          'transfer(address,uint256)' {} {} \
          --gas-limit 10000000",
-        token_address, from_private_key, to_eth_address, amount
+        token_address, from_private_key, lotus_rpc_url, to_eth_address, amount
     );
 
     // Add nonce if provided
@@ -83,6 +84,7 @@ pub fn transfer_mock_usdfc(
 pub fn check_mock_usdfc_balance(
     eth_address: &str,
     token_address: &str,
+    lotus_rpc_url: &str,
 ) -> Result<String, Box<dyn Error>> {
     let output = Command::new("docker")
         .args([
@@ -102,9 +104,9 @@ pub fn check_mock_usdfc_balance(
             "-c",
             &format!(
                 "cd /workspace && cast call {} \
-                 --rpc-url http://localhost:1234/rpc/v1 \
+                 --rpc-url {} \
                  'balanceOf(address)' {}",
-                token_address, eth_address
+                token_address, lotus_rpc_url, eth_address
             ),
         ])
         .output()?;

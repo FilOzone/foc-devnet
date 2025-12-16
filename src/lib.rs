@@ -13,5 +13,6 @@ pub mod docker;
 pub mod embedded_assets;
 pub mod paths;
 pub mod poison;
+pub mod port_allocator;
 pub mod run_id;
 pub mod version_info;

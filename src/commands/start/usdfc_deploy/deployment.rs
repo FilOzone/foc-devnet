@@ -7,9 +7,6 @@ use crossterm::style::Stylize;
 use std::error::Error;
 use std::process::Command;
 
-// Network configuration
-const LOTUS_RPC_PORT: u16 = 1234;
-
 /// Deploy MockUSDFC using the Foundry project
 pub fn deploy_mock_usdfc_foundry(
     private_key: &str,
@@ -43,7 +40,7 @@ pub fn deploy_mock_usdfc_foundry(
             "run",
             "--rm",
             "--network",
-            "host", // Use host network to access localhost:1234
+            "host", // Use host network to access Lotus RPC on dynamic port
             "-v",
             &format!("{}:/workspace", contract_dir.display()),
             "foc-builder",
@@ -97,6 +94,7 @@ pub fn perform_token_deployment(
     volumes_dir: &std::path::PathBuf,
     context: &mut super::super::step::StepContext,
 ) -> Result<(), Box<dyn Error>> {
+    use super::super::lotus_utils::get_lotus_rpc_url;
     use super::key_management::get_deployer_private_key;
     use super::prerequisites::check_required_addresses;
 
@@ -114,7 +112,7 @@ pub fn perform_token_deployment(
     );
 
     // Deploy MockUSDFC token using Foundry
-    let lotus_rpc_url = format!("http://localhost:{}/rpc/v1", LOTUS_RPC_PORT);
+    let lotus_rpc_url = get_lotus_rpc_url(context)?;
     let mock_usdfc_address = deploy_mock_usdfc_foundry(&private_key, &lotus_rpc_url)?;
 
     // Store in context

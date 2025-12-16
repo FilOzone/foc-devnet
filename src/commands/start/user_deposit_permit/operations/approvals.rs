@@ -17,6 +17,7 @@ use std::process::Command;
 /// * `filecoin_pay_address` - Address of FilecoinPay contract (spender)
 /// * `user_private_key` - Private key of USER_0
 /// * `amount_wei` - Amount to approve in wei
+/// * `lotus_rpc_url` - Lotus RPC URL with dynamic port
 ///
 /// # Returns
 /// Ok(()) if successful, Error otherwise
@@ -25,6 +26,7 @@ pub fn approve_usdfc_for_filecoin_pay(
     filecoin_pay_address: &str,
     user_private_key: &str,
     amount_wei: &str,
+    lotus_rpc_url: &str,
 ) -> Result<(), Box<dyn Error>> {
     println!("  Approving FilecoinPay to spend USDFC tokens...");
     println!("    Amount: {} USDFC tokens", DEPOSIT_AMOUNT_TOKENS);
@@ -43,10 +45,10 @@ pub fn approve_usdfc_for_filecoin_pay(
                 "approve(address,uint256)" \
                 {} \
                 {} \
-                --rpc-url http://localhost:1234/rpc/v1 \
+                --rpc-url {} \
                 --private-key {} \
                 --gas-limit 10000000000"#,
-                usdfc_address, filecoin_pay_address, amount_wei, user_private_key
+                usdfc_address, filecoin_pay_address, amount_wei, lotus_rpc_url, user_private_key
             ),
         ])
         .output()?;
@@ -84,6 +86,7 @@ pub fn approve_usdfc_for_filecoin_pay(
 /// * `usdfc_address` - Address of USDFC token contract
 /// * `user_eth_address` - Ethereum address of USER_0 (owner)
 /// * `filecoin_pay_address` - Address of FilecoinPay contract (spender)
+/// * `lotus_rpc_url` - Lotus RPC URL with dynamic port
 ///
 /// # Returns
 /// Allowance in wei as a string, or error
@@ -91,6 +94,7 @@ pub fn query_usdfc_allowance(
     usdfc_address: &str,
     user_eth_address: &str,
     filecoin_pay_address: &str,
+    lotus_rpc_url: &str,
 ) -> Result<String, Box<dyn Error>> {
     let output = Command::new("docker")
         .args([
@@ -102,8 +106,8 @@ pub fn query_usdfc_allowance(
             "bash",
             "-c",
             &format!(
-                r#"cast call {} "allowance(address,address)" {} {} --rpc-url http://localhost:1234/rpc/v1"#,
-                usdfc_address, user_eth_address, filecoin_pay_address
+                r#"cast call {} "allowance(address,address)" {} {} --rpc-url {}"#,
+                usdfc_address, user_eth_address, filecoin_pay_address, lotus_rpc_url
             ),
         ])
         .output()?;

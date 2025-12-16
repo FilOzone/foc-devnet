@@ -41,6 +41,12 @@ pub fn build_miner_docker_command(
     let builder_volumes_dir = foc_localnet_docker_volumes().join("foc-builder");
     let params_dir = foc_localnet_proof_parameters();
 
+    // Get allocated miner API port from context
+    let miner_api_port: u16 = context
+        .get("lotus_miner_api_port")
+        .ok_or("Lotus-Miner API port not found in context")?
+        .parse()?;
+
     // Build docker run command
     // Start on filecoin network for immediate Lotus access
     // Will be connected to porep-miner-net after start
@@ -52,6 +58,13 @@ pub fn build_miner_docker_command(
         "--network".to_string(),
         filecoin_network, // Start on filecoin network for Lotus daemon access
     ];
+
+    // Add port mapping: map dynamic host port to fixed container port
+    // Container internal port: 2345 (Miner API)
+    docker_args.extend_from_slice(&[
+        "-p".to_string(),
+        format!("{}:2345", miner_api_port), // host:container
+    ]);
 
     // Add volume mounts (paths updated for foc-user)
     let miner_data_dir = volumes_dir.join("lotus-miner-data");

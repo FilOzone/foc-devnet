@@ -30,7 +30,12 @@ impl USDFCFundingStep {
 
     /// Perform the token distribution process
     fn perform_token_distribution(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        use super::super::lotus_utils::get_lotus_rpc_url;
+
         println!("    Distributing MockUSDFC tokens...");
+
+        // Get Lotus RPC URL with dynamic port
+        let lotus_rpc_url = get_lotus_rpc_url(context)?;
 
         // Get MockUSDFC contract address from context
         let mockusdfc_address = context
@@ -71,6 +76,7 @@ impl USDFCFundingStep {
             &deployer_mockusdfc_eth,
             &mockusdfc_address,
             token_transfers,
+            &lotus_rpc_url,
             context,
         )?;
 
@@ -87,6 +93,7 @@ impl USDFCFundingStep {
         from_eth_address: &str,
         token_address: &str,
         transfers: Vec<(String, String, String, u64)>,
+        lotus_rpc_url: &str,
         _context: &mut StepContext,
     ) -> Result<(), Box<dyn Error>> {
         use std::sync::{Arc, Mutex};
@@ -108,6 +115,7 @@ impl USDFCFundingStep {
             let from_key = from_private_key.to_string();
             let from_addr = from_eth_address.to_string();
             let token_addr = token_address.to_string();
+            let rpc_url = lotus_rpc_url.to_string();
             let errors_clone = Arc::clone(&errors);
 
             let handle = thread::spawn(move || {
@@ -125,6 +133,7 @@ impl USDFCFundingStep {
                     &token_addr,
                     &description,
                     Some((tfr_idx + 1).try_into().unwrap()),
+                    &rpc_url,
                 ) {
                     Ok(_) => {
                         println!(
@@ -226,7 +235,12 @@ impl Step for USDFCFundingStep {
 
     /// Perform post-execution verification for token distribution
     fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        use super::super::lotus_utils::get_lotus_rpc_url;
+
         println!("    Verifying MockUSDFC distribution...");
+
+        // Get Lotus RPC URL with dynamic port
+        let lotus_rpc_url = get_lotus_rpc_url(context)?;
 
         // verify all accounts for distribution have MockUSDFC tokens as expected
         for (account_name, amount_tokens) in USDFC_ACCOUNTS_FUNDED.iter() {
@@ -237,6 +251,7 @@ impl Step for USDFCFundingStep {
                 context
                     .get("mock_usdfc_address")
                     .ok_or("MockUSDFC address not found in context")?,
+                &lotus_rpc_url,
             ) {
                 Ok(balance) => {
                     let expected_wei = token_amount_to_wei(*amount_tokens);

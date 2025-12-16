@@ -134,6 +134,8 @@ impl Step for PdpSpRegistrationStep {
     }
 
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        use super::super::lotus_utils::get_lotus_rpc_url;
+
         println!(
             "{} {}",
             "Executing".green().bold(),
@@ -151,6 +153,9 @@ impl Step for PdpSpRegistrationStep {
 
         // Get run ID
         let run_id = context.run_id().ok_or("Run ID not found in context")?;
+
+        // Get Lotus RPC URL with dynamic port
+        let lotus_rpc_url = get_lotus_rpc_url(context)?;
 
         // Get required addresses
         let (
@@ -187,6 +192,7 @@ impl Step for PdpSpRegistrationStep {
             &pdp_sp_0_address,
             &pdp_sp_0_eth_address,
             &mock_usdfc_address,
+            &lotus_rpc_url,
         )?;
 
         // Add to approved list
@@ -196,6 +202,7 @@ impl Step for PdpSpRegistrationStep {
             provider_id,
             &deployer_foc_address,
             &deployer_foc_eth_address,
+            &lotus_rpc_url,
         )?;
 
         // Save provider ID to state
@@ -219,6 +226,8 @@ impl Step for PdpSpRegistrationStep {
     }
 
     fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        use super::super::lotus_utils::get_lotus_rpc_url;
+
         println!(
             "{} {}",
             "Post-checking".cyan().bold(),
@@ -227,6 +236,9 @@ impl Step for PdpSpRegistrationStep {
 
         // Get run ID
         let run_id = context.run_id().ok_or("Run ID not found in context")?;
+
+        // Get Lotus RPC URL with dynamic port
+        let lotus_rpc_url = get_lotus_rpc_url(context)?;
 
         // Verify provider ID file exists and is valid
         let info = ProviderIdInfo::load()?;
@@ -251,7 +263,8 @@ impl Step for PdpSpRegistrationStep {
             .clone();
 
         // Verify there's exactly one provider on-chain
-        let provider_count = registration::verify_provider_count(run_id, &registry_address)?;
+        let provider_count =
+            registration::verify_provider_count(run_id, &registry_address, &lotus_rpc_url)?;
         if provider_count != 1 {
             return Err(format!(
                 "Expected exactly 1 provider on-chain, found {}",
@@ -270,6 +283,7 @@ impl Step for PdpSpRegistrationStep {
             run_id,
             &registry_address,
             &info.provider_address,
+            &lotus_rpc_url,
         )?;
         if onchain_provider_id != info.provider_id {
             return Err(format!(
@@ -285,8 +299,12 @@ impl Step for PdpSpRegistrationStep {
         );
 
         // Try to verify provider is in approved list (optional - may not be supported by all contract versions)
-        match registration::verify_approved_provider(run_id, &state_view_address, info.provider_id)
-        {
+        match registration::verify_approved_provider(
+            run_id,
+            &state_view_address,
+            info.provider_id,
+            &lotus_rpc_url,
+        ) {
             Ok(true) => {
                 println!(
                     "  {} Provider {} is in approved list",

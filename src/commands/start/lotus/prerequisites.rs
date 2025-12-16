@@ -4,7 +4,6 @@
 //! before starting the Lotus daemon container.
 
 use super::super::genesis::constants::GENESIS_FILE;
-use crate::docker::is_port_available;
 use crate::paths::{
     foc_localnet_bin, foc_localnet_genesis, foc_localnet_genesis_sectors,
     foc_localnet_proof_parameters,
@@ -13,9 +12,6 @@ use crossterm::style::Stylize;
 use std::error::Error;
 
 const IMAGE_NAME: &str = "foc-lotus";
-
-// Lotus daemon ports
-const LOTUS_PORTS: &[(u16, &str)] = &[(1234, "Lotus API"), (1235, "Lotus P2P")];
 
 /// Verify that the genesis block file exists
 pub fn verify_genesis_file() -> Result<std::path::PathBuf, Box<dyn Error>> {
@@ -30,29 +26,6 @@ pub fn verify_genesis_file() -> Result<std::path::PathBuf, Box<dyn Error>> {
     }
 
     Ok(genesis_file)
-}
-
-/// Check that all required ports are available
-pub fn check_ports_availability() -> Result<(), Box<dyn Error>> {
-    // Check if all required ports are available
-    let mut unavailable_ports = Vec::new();
-    for &(port, description) in LOTUS_PORTS {
-        if !is_port_available(port) {
-            unavailable_ports.push((port, description));
-        }
-    }
-
-    if !unavailable_ports.is_empty() {
-        let mut error_msg = String::from("The following required ports are not available:\n");
-        for (port, description) in unavailable_ports {
-            error_msg.push_str(&format!("  - Port {}: {}\n", port, description));
-        }
-        error_msg.push_str("\nPlease free these ports before starting Lotus.");
-        return Err(error_msg.into());
-    }
-
-    println!("    {} All required ports are available", "✓".green());
-    Ok(())
 }
 
 /// Check that required Docker image and Lotus binary exist

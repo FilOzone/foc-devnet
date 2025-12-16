@@ -31,9 +31,13 @@ use user_deposit_permit::UserDepositPermitStep;
 use yugabyte::YugabyteStep;
 
 use crate::commands::start::usdfc_funding::USDFCFundingStep;
+use crate::config::Config;
 use crate::docker::core::{container_is_running, remove_container, stop_container};
 use crate::docker::{create_all_networks, start_portainer};
-use crate::paths::{contract_addresses_file, foc_localnet_docker_volumes, foc_localnet_run_logs};
+use crate::paths::{
+    contract_addresses_file, foc_localnet_config, foc_localnet_docker_volumes,
+    foc_localnet_run_logs,
+};
 use crate::run_id::{generate_run_id, save_current_run_id};
 use crate::version_info::write_version_file;
 use crossterm::style::Stylize;
@@ -222,6 +226,28 @@ pub fn start_cluster(
     ensure_genesis_prerequisites()?;
     println!();
 
+    // Load config to get port range settings
+    let config_path = foc_localnet_config();
+    let config_content = std::fs::read_to_string(&config_path).map_err(|e| {
+        format!(
+            "Failed to read config file at {:?}: {}. Run 'foc-localnet init' first.",
+            config_path, e
+        )
+    })?;
+    let config: Config = toml::from_str(&config_content)
+        .map_err(|e| format!("Failed to parse config file: {}", e))?;
+
+    println!(
+        "{}",
+        format!(
+            "Port allocation: {}-{} ({} ports total)",
+            config.port_range_start,
+            config.port_range_start + config.port_range_count - 1,
+            config.port_range_count
+        )
+        .cyan()
+    );
+
     // Create steps in the order they need to be started
     let lotus_step = LotusStep::new(volumes_dir.clone(), logs_dir.clone());
     let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), logs_dir.clone());
@@ -250,7 +276,13 @@ pub fn start_cluster(
         &yugabyte_step,
         &curio_step,
     ];
-    execute_steps(steps, run_id, logs_dir)?;
+    execute_steps(
+        steps,
+        run_id,
+        logs_dir,
+        config.port_range_start,
+        config.port_range_count,
+    )?;
 
     println!("\n{}", "Local cluster started successfully!".green().bold());
     Ok(())

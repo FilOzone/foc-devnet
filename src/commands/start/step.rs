@@ -5,6 +5,8 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tabular::{Row, Table};
 
+use crate::port_allocator::PortAllocator;
+
 /// Context shared across all steps during execution.
 ///
 /// A single `StepContext` instance is created at the start of the step execution sequence
@@ -53,7 +55,7 @@ use tabular::{Row, Table};
 ///
 /// The context lives for the entire duration of `execute_steps()` and is destroyed
 /// once all steps complete. State is not persisted between different runs of the CLI.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct StepContext {
     /// Shared state that can be passed between steps
     pub state: HashMap<String, String>,
@@ -63,6 +65,22 @@ pub struct StepContext {
 
     /// Run-specific logs directory (e.g., ~/.foc-localnet/logs/251203-1246-thirsty-wolf)
     pub logs_dir: Option<PathBuf>,
+
+    /// Port allocator for dynamic port assignment
+    pub port_allocator: PortAllocator,
+}
+
+impl Default for StepContext {
+    fn default() -> Self {
+        // Default to a safe port range (will be overridden by actual config)
+        Self {
+            state: HashMap::new(),
+            run_id: None,
+            logs_dir: None,
+            port_allocator: PortAllocator::new(5700, 300)
+                .expect("Failed to create default port allocator"),
+        }
+    }
 }
 
 impl StepContext {
@@ -71,12 +89,28 @@ impl StepContext {
         Self::default()
     }
 
-    /// Create a StepContext with run ID and logs directory
+    /// Create a StepContext with run ID, logs directory, and port allocator
+    pub fn with_run_id_and_ports(
+        run_id: String,
+        logs_dir: PathBuf,
+        port_allocator: PortAllocator,
+    ) -> Self {
+        Self {
+            state: HashMap::new(),
+            run_id: Some(run_id),
+            logs_dir: Some(logs_dir),
+            port_allocator,
+        }
+    }
+
+    /// Create a StepContext with run ID and logs directory (using default port allocator)
     pub fn with_run_id(run_id: String, logs_dir: PathBuf) -> Self {
         Self {
             state: HashMap::new(),
             run_id: Some(run_id),
             logs_dir: Some(logs_dir),
+            port_allocator: PortAllocator::new(5700, 300)
+                .expect("Failed to create default port allocator"),
         }
     }
 
@@ -177,13 +211,41 @@ pub trait Step {
 /// Execute a sequence of steps
 ///
 /// Tracks and displays timing information for each step and overall execution.
+///
+/// # Arguments
+///
+/// * `steps` - Vector of steps to execute
+/// * `run_id` - Unique identifier for this run
+/// * `logs_dir` - Directory for storing logs
+/// * `port_start` - Starting port for the contiguous port range
+/// * `port_count` - Number of ports in the range
 pub fn execute_steps(
     steps: Vec<&dyn Step>,
     run_id: String,
     logs_dir: PathBuf,
+    port_start: u16,
+    port_count: u16,
 ) -> Result<(), Box<dyn Error>> {
+    // Create port allocator and verify all ports are available
+    let port_allocator = PortAllocator::new(port_start, port_count)?;
+
+    println!(
+        "{}",
+        format!(
+            "Port range check: {}-{} ({} ports)",
+            port_start,
+            port_start + port_count - 1,
+            port_count
+        )
+        .cyan()
+    );
+
+    port_allocator.verify_all_ports_available()?;
+    println!("{}", "  ✓ All ports in range are available".green());
+    println!();
+
     let overall_start = Instant::now();
-    let mut context = StepContext::with_run_id(run_id, logs_dir);
+    let mut context = StepContext::with_run_id_and_ports(run_id, logs_dir, port_allocator);
     let mut step_timings: Vec<(String, Duration)> = Vec::new();
 
     for (index, step) in steps.iter().enumerate() {

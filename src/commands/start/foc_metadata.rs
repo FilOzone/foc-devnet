@@ -27,6 +27,7 @@ pub struct FOCMetadata {
 
 impl FOCMetadata {
     /// Load FOC metadata from the state file
+    #[allow(dead_code)]
     pub fn load() -> Result<Self, Box<dyn Error>> {
         let path = foc_metadata_file();
         if !path.exists() {

@@ -35,6 +35,10 @@ impl Step for LotusMinerStep {
     }
 
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        // Allocate port for Lotus-Miner API
+        let miner_api_port = context.port_allocator.allocate()?;
+        context.set("lotus_miner_api_port", miner_api_port.to_string());
+
         setup_miner_directories(&self.volumes_dir)?;
         let preseal_files = find_preseal_files()?;
         let docker_args = build_miner_docker_command(&self.volumes_dir, &preseal_files, context)?;

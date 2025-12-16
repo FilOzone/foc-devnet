@@ -47,6 +47,7 @@ pub fn deploy_foc_contracts(
     mock_usdfc_address: &str,
     services_repo_path: &std::path::Path,
     lotus_container: &str,
+    lotus_rpc_url: &str,
 ) -> Result<DeploymentResult, Box<dyn Error>> {
     println!("      Running deploy-all-warm-storage.sh...");
 
@@ -68,8 +69,6 @@ pub fn deploy_foc_contracts(
 
     // Get the private key from lotus for the deployer address
     let private_key = get_private_key(foc_deployer, lotus_container)?;
-
-    let lotus_rpc_url = format!("http://localhost:{}/rpc/v1", LOTUS_RPC_PORT);
 
     // Prepare environment variables for the deployment script
     let env_vars = format!(

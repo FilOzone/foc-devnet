@@ -4,9 +4,6 @@
 
 pub const IMAGE_NAME: &str = "foc-lotus-miner";
 
-// Lotus-Miner ports
-pub const LOTUS_MINER_PORTS: &[(u16, &str)] = &[(2345, "Lotus-Miner API")];
-
 // Timing constants
 pub const LOTUS_API_WAIT_SLEEP_SECS: u64 = 2;
 pub const MINER_API_CHECK_DELAY_SECS: u64 = 5;

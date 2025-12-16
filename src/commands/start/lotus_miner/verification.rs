@@ -8,7 +8,7 @@ use std::thread;
 use std::time::Duration;
 
 use super::constants::{
-    LOTUS_MINER_PORTS, MINER_API_CHECK_DELAY_SECS, PORT_WAIT_TIMEOUT_SECS, TIPSET_CHECK_DELAY_SECS,
+    MINER_API_CHECK_DELAY_SECS, PORT_WAIT_TIMEOUT_SECS, TIPSET_CHECK_DELAY_SECS,
 };
 use crate::commands::start::step::StepContext;
 use crate::docker::containers::{lotus_container_name, lotus_miner_container_name};
@@ -156,19 +156,25 @@ pub fn perform_post_execution_verification(context: &StepContext) -> Result<(), 
     }
     println!("    {} Container is running", "✓".green());
 
-    // Check all ports are accessible
+    // Check miner API port is accessible
     println!("    Verifying port accessibility...");
-    for &(port, description) in LOTUS_MINER_PORTS {
-        print!("      Checking port {} ({})... ", port, description);
-        match wait_for_port(port, PORT_WAIT_TIMEOUT_SECS) {
-            Ok(_) => println!("{}", "✓".green()),
-            Err(e) => {
-                println!("{}", "⚠".yellow());
-                println!(
-                    "      Note: Port {} may not be immediately available: {}",
-                    port, e
-                );
-            }
+    let miner_api_port: u16 = context
+        .get("lotus_miner_api_port")
+        .ok_or("Lotus-Miner API port not found in context")?
+        .parse()?;
+
+    print!(
+        "      Checking port {} (Lotus-Miner API)... ",
+        miner_api_port
+    );
+    match wait_for_port(miner_api_port, PORT_WAIT_TIMEOUT_SECS) {
+        Ok(_) => println!("{}", "✓".green()),
+        Err(e) => {
+            println!("{}", "⚠".yellow());
+            println!(
+                "      Note: Port {} may not be immediately available: {}",
+                miner_api_port, e
+            );
         }
     }
 
@@ -210,7 +216,13 @@ pub fn perform_post_execution_verification(context: &StepContext) -> Result<(), 
     }
 
     println!("\n    {} Lotus-Miner is ready!", "✓".green().bold());
-    println!("      API endpoint: http://localhost:2345");
+
+    let miner_api_port: u16 = context
+        .get("lotus_miner_api_port")
+        .ok_or("Lotus-Miner API port not found in context")?
+        .parse()?;
+    println!("      API endpoint: http://localhost:{}", miner_api_port);
+
     println!(
         "\n    {} The local Filecoin network is now running and producing tipsets!",
         "🎉".bold()

@@ -27,6 +27,7 @@ pub fn deposit_usdfc_to_filecoin_pay(
     user_eth_address: &str,
     user_private_key: &str,
     deposit_amount_wei: &str,
+    lotus_rpc_url: &str,
 ) -> Result<(), Box<dyn Error>> {
     println!("  Depositing USDFC into FilecoinPay...");
     println!("    Amount: {} USDFC tokens", DEPOSIT_AMOUNT_TOKENS);
@@ -47,13 +48,14 @@ pub fn deposit_usdfc_to_filecoin_pay(
                 {} \
                 {} \
                 {} \
-                --rpc-url http://localhost:1234/rpc/v1 \
+                --rpc-url {} \
                 --private-key {} \
                 --gas-limit 10000000000"#,
                 filecoin_pay_address,
                 usdfc_address,
                 user_eth_address,
                 deposit_amount_wei,
+                lotus_rpc_url,
                 user_private_key
             ),
         ])
@@ -99,6 +101,7 @@ pub fn query_filecoin_pay_balance(
     filecoin_pay_address: &str,
     usdfc_address: &str,
     user_eth_address: &str,
+    lotus_rpc_url: &str,
 ) -> Result<String, Box<dyn Error>> {
     let output = Command::new("docker")
         .args([
@@ -110,8 +113,8 @@ pub fn query_filecoin_pay_balance(
             "bash",
             "-c",
             &format!(
-                r#"cast call {} "getAccountInfoIfSettled(address,address)" {} {} --rpc-url http://localhost:1234/rpc/v1"#,
-                filecoin_pay_address, usdfc_address, user_eth_address
+                r#"cast call {} "getAccountInfoIfSettled(address,address)" {} {} --rpc-url {}"#,
+                filecoin_pay_address, usdfc_address, user_eth_address, lotus_rpc_url
             ),
         ])
         .output()?;

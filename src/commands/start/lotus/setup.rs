@@ -13,9 +13,6 @@ use std::path::PathBuf;
 
 const IMAGE_NAME: &str = "foc-lotus";
 
-// Lotus daemon ports
-const LOTUS_PORTS: &[(u16, &str)] = &[(1234, "Lotus API"), (1235, "Lotus P2P")];
-
 /// Enable FEVM in the Lotus config.toml
 ///
 /// This modifies the Lotus config to enable Ethereum RPC support, which is
@@ -26,6 +23,7 @@ pub fn create_fevm_config(lotus_data_dir: &PathBuf) -> Result<(), Box<dyn Error>
     let config_path = lotus_data_dir.join("config.toml");
 
     // Create a minimal config with FEVM enabled
+    // The API always listens on the container's internal port 1234
     let config_content = r#"[API]
   ListenAddress = "/ip4/0.0.0.0/tcp/1234/http"
   Timeout = "30s"
@@ -72,6 +70,16 @@ pub fn build_docker_command(
         CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
     };
 
+    // Read allocated ports from context
+    let lotus_api_port: u16 = context
+        .get("lotus_api_port")
+        .ok_or("Lotus API port not found in context")?
+        .parse()?;
+    let lotus_p2p_port: u16 = context
+        .get("lotus_p2p_port")
+        .ok_or("Lotus P2P port not found in context")?
+        .parse()?;
+
     // Get run-specific container name and network
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let container_name = lotus_container_name(run_id);
@@ -95,15 +103,14 @@ pub fn build_docker_command(
         network_name,
     ];
 
-    // Add port mappings
-    let port_args: Vec<String> = LOTUS_PORTS
-        .iter()
-        .flat_map(|&(port, _)| vec!["-p".to_string(), format!("{}:{}", port, port)])
-        .collect();
-
-    for arg in port_args {
-        docker_args.push(arg);
-    }
+    // Add port mappings: map dynamic host ports to fixed container ports
+    // Container internal ports: 1234 (API), 1946 (P2P)
+    docker_args.extend_from_slice(&[
+        "-p".to_string(),
+        format!("{}:1234", lotus_api_port), // host:container
+        "-p".to_string(),
+        format!("{}:1946", lotus_p2p_port), // host:container
+    ]);
 
     // Add volume mounts (paths updated for foc-user)
     let volume_mounts = vec![

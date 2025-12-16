@@ -5,6 +5,7 @@
 
 use super::contract_addresses::ContractAddresses;
 use super::foc_deployer::deploy_foc_contracts;
+use super::lotus_utils::get_lotus_rpc_url;
 use super::step::{Step, StepContext};
 use crate::config::{Config, Location};
 use crate::docker::containers::lotus_container_name;
@@ -131,12 +132,15 @@ impl FOCDeployStep {
         // Deploy FOC contracts using deployment script
         let run_id = context.run_id().ok_or("Run ID not found in context")?;
         let lotus_container = crate::docker::containers::lotus_container_name(run_id);
+        let lotus_rpc_url = get_lotus_rpc_url(context)?;
+
         let deployment_result = deploy_foc_contracts(
             &foc_deployer,
             &foc_deployer_eth,
             &mock_usdfc_address,
             &services_repo,
             &lotus_container,
+            &lotus_rpc_url,
         )?;
 
         // Store contract addresses in context

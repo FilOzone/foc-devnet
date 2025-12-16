@@ -15,6 +15,7 @@ pub fn register_provider(
     pdp_sp_0_address: &str,
     pdp_sp_0_eth_address: &str,
     mock_usdfc_address: &str,
+    lotus_rpc_url: &str,
 ) -> Result<u64, Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
@@ -54,7 +55,7 @@ pub fn register_provider(
                 {} \
                 {} \
                 --value {} \
-                --rpc-url http://localhost:1234/rpc/v1 \
+                --rpc-url {} \
                 --private-key {} \
                 --gas-limit 10000000000"#,
                 registry_address,
@@ -64,6 +65,7 @@ pub fn register_provider(
                 cap_keys,
                 cap_values,
                 registration_fee_wei,
+                lotus_rpc_url,
                 pdp_sp_0_private_key
             ),
         ])
@@ -87,7 +89,7 @@ pub fn register_provider(
     wait_for_confirmation();
 
     // Query provider ID
-    let provider_id = query_provider_id(registry_address, pdp_sp_0_eth_address)?;
+    let provider_id = query_provider_id(registry_address, pdp_sp_0_eth_address, lotus_rpc_url)?;
 
     println!("  {} Provider ID: {}", "✓".green(), provider_id);
     Ok(provider_id)
@@ -100,6 +102,7 @@ pub fn add_to_approved_list(
     provider_id: u64,
     deployer_foc_address: &str,
     _deployer_foc_eth_address: &str,
+    lotus_rpc_url: &str,
 ) -> Result<(), Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
@@ -126,7 +129,7 @@ pub fn add_to_approved_list(
             "addApprovedProvider(uint256)",
             &provider_id.to_string(),
             "--rpc-url",
-            "http://localhost:1234/rpc/v1",
+            lotus_rpc_url,
             "--private-key",
             &deployer_foc_private_key,
             "--gas-limit",
@@ -214,6 +217,7 @@ fn encode_uint_minimal(value: u64) -> String {
 fn query_provider_id(
     registry_address: &str,
     pdp_sp_0_eth_address: &str,
+    lotus_rpc_url: &str,
 ) -> Result<u64, Box<dyn Error>> {
     let output = Command::new("docker")
         .args([
@@ -228,7 +232,7 @@ fn query_provider_id(
             "getProviderIdByAddress(address)(uint256)",
             pdp_sp_0_eth_address,
             "--rpc-url",
-            "http://localhost:1234/rpc/v1",
+            lotus_rpc_url,
         ])
         .output()?;
 
@@ -261,7 +265,11 @@ fn wait_for_confirmation() {
 /// Verify provider count on-chain
 ///
 /// Returns the total number of registered providers.
-pub fn verify_provider_count(run_id: &str, registry_address: &str) -> Result<u64, Box<dyn Error>> {
+pub fn verify_provider_count(
+    run_id: &str,
+    registry_address: &str,
+    lotus_rpc_url: &str,
+) -> Result<u64, Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
     let output = Command::new("docker")
@@ -276,7 +284,7 @@ pub fn verify_provider_count(run_id: &str, registry_address: &str) -> Result<u64
             registry_address,
             "getProviderCount()(uint256)",
             "--rpc-url",
-            "http://localhost:1234/rpc/v1",
+            lotus_rpc_url,
         ])
         .output()?;
 
@@ -298,6 +306,7 @@ pub fn verify_provider_id_by_address(
     run_id: &str,
     registry_address: &str,
     provider_address: &str,
+    lotus_rpc_url: &str,
 ) -> Result<u64, Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
@@ -314,7 +323,7 @@ pub fn verify_provider_id_by_address(
             "getProviderIdByAddress(address)(uint256)",
             provider_address,
             "--rpc-url",
-            "http://localhost:1234/rpc/v1",
+            lotus_rpc_url,
         ])
         .output()?;
 
@@ -337,6 +346,7 @@ pub fn verify_approved_provider(
     run_id: &str,
     state_view_address: &str,
     provider_id: u64,
+    lotus_rpc_url: &str,
 ) -> Result<bool, Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
@@ -354,7 +364,7 @@ pub fn verify_approved_provider(
             "isProviderApproved(uint256)(bool)",
             &provider_id.to_string(),
             "--rpc-url",
-            "http://localhost:1234/rpc/v1",
+            lotus_rpc_url,
         ])
         .output()?;
 

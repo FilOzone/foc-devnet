@@ -7,9 +7,7 @@ use super::super::step::{Step, StepContext};
 use super::container_management::{
     check_existing_container, start_container, wait_for_container_init,
 };
-use super::prerequisites::{
-    check_genesis_and_params, check_image_and_binary, check_ports_availability,
-};
+use super::prerequisites::{check_genesis_and_params, check_image_and_binary};
 use super::setup::{build_docker_command, setup_directories};
 use super::verification::{verify_api_connectivity, verify_ports, wait_for_api_file};
 use std::error::Error;
@@ -45,7 +43,6 @@ impl Step for LotusStep {
     /// genesis and proof parameter files.
     fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         check_existing_container(context)?;
-        check_ports_availability()?;
         check_image_and_binary()?;
         check_genesis_and_params()?;
         Ok(())
@@ -53,11 +50,23 @@ impl Step for LotusStep {
 
     /// Executes the main logic to start the Lotus daemon container
     ///
-    /// This creates necessary directories, builds the Docker run command with
+    /// This allocates ports, creates necessary directories, builds the Docker run command with
     /// appropriate volume mounts and port mappings, and starts the container.
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        // Allocate ports first
+        let lotus_api_port = context.port_allocator.allocate()?;
+        let lotus_p2p_port = context.port_allocator.allocate()?;
+
+        // Store ports in context for later steps to use
+        context.set("lotus_api_port", lotus_api_port.to_string());
+        context.set("lotus_p2p_port", lotus_p2p_port.to_string());
+
+        // Setup directories (creates config.toml with fixed internal port 1234)
         setup_directories(&self.volumes_dir)?;
+
+        // Build docker command (it will read ports from context)
         let docker_args = build_docker_command(&self.volumes_dir, context)?;
+
         start_container(docker_args, context)?;
         Ok(())
     }
@@ -69,7 +78,7 @@ impl Step for LotusStep {
     /// including FEVM/Ethereum RPC availability.
     fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         wait_for_container_init(context)?;
-        verify_ports()?;
+        verify_ports(context)?;
         wait_for_api_file(&self.volumes_dir)?;
         verify_api_connectivity(context)?;
         Ok(())

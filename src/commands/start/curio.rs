@@ -29,8 +29,9 @@ use std::time::Duration;
 
 const IMAGE_NAME: &str = "foc-curio";
 
-// Curio ports
-const CURIO_PORTS: &[(u16, &str)] = &[(12300, "Curio API"), (12301, "Curio RPC")];
+// Fixed container ports (what Curio listens on internally)
+const CURIO_API_PORT: u16 = 12300;
+const CURIO_RPC_PORT: u16 = 12301;
 
 // Timing constants
 const CURIO_START_WAIT_SECS: u64 = 10;
@@ -148,6 +149,16 @@ impl CurioStep {
         let yugabyte_name = yugabyte_container_name(run_id);
         let lotus_name = lotus_container_name(run_id);
 
+        // Get allocated ports from context
+        let curio_api_port: u16 = context
+            .get("curio_api_port")
+            .ok_or("curio_api_port not found in context")?
+            .parse()?;
+        let curio_rpc_port: u16 = context
+            .get("curio_rpc_port")
+            .ok_or("curio_rpc_port not found in context")?
+            .parse()?;
+
         // Read Lotus API token from host
         let lotus_token = read_lotus_token()?;
         let fullnode_api_info = build_fullnode_api_info(&lotus_token, &lotus_name);
@@ -162,9 +173,13 @@ impl CurioStep {
             pdp_network, // Primary network for YugabyteDB access
         ];
 
-        // When using host networking, we don't need port mappings
-        // The container will use the host's network directly
-        // docker_args.extend(port_args);
+        // Add port mappings (host:container)
+        docker_args.extend_from_slice(&[
+            "-p".to_string(),
+            format!("{}:{}", curio_api_port, CURIO_API_PORT),
+            "-p".to_string(),
+            format!("{}:{}", curio_rpc_port, CURIO_RPC_PORT),
+        ]);
 
         // Add volume mounts
         let curio_data_dir = self.volumes_dir.join("curio").join(".curio");
@@ -369,6 +384,7 @@ EOF
     }
 
     /// Start the Curio daemon after cluster configuration
+    #[allow(dead_code)]
     fn start_curio_daemon(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         let container_name = Self::get_container_name(context)?;
 
@@ -407,6 +423,15 @@ impl Step for CurioStep {
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         self.check_dependencies(context)?;
         self.check_existing_container(context)?;
+
+        // Allocate ports for Curio
+        let curio_api_port = context.port_allocator.allocate()?;
+        let curio_rpc_port = context.port_allocator.allocate()?;
+
+        // Store ports in context
+        context.set("curio_api_port".to_string(), curio_api_port.to_string());
+        context.set("curio_rpc_port".to_string(), curio_rpc_port.to_string());
+
         self.check_ports_and_requirements()?;
         self.setup_data_directory()?;
         let docker_args = self.build_docker_command(context)?;
@@ -449,17 +474,40 @@ impl Step for CurioStep {
 
         // Check all ports are accessible
         println!("    Verifying port accessibility...");
-        for &(port, description) in CURIO_PORTS {
-            print!("      Checking port {} ({})... ", port, description);
-            match wait_for_port(port, PORT_WAIT_TIMEOUT_SECS) {
-                Ok(_) => println!("{}", "✓".green()),
-                Err(e) => {
-                    println!("{}", "⚠".yellow());
-                    println!(
-                        "      Note: Port {} may not be immediately available: {}",
-                        port, e
-                    );
-                }
+
+        // Get allocated ports from context
+        let curio_api_port: u16 = context
+            .get("curio_api_port")
+            .ok_or("curio_api_port not found in context")?
+            .parse()?;
+        let curio_rpc_port: u16 = context
+            .get("curio_rpc_port")
+            .ok_or("curio_rpc_port not found in context")?
+            .parse()?;
+
+        // Check API port
+        print!("      Checking port {} (Curio API)... ", curio_api_port);
+        match wait_for_port(curio_api_port, PORT_WAIT_TIMEOUT_SECS) {
+            Ok(_) => println!("{}", "✓".green()),
+            Err(e) => {
+                println!("{}", "⚠".yellow());
+                println!(
+                    "      Note: Port {} may not be immediately available: {}",
+                    curio_api_port, e
+                );
+            }
+        }
+
+        // Check RPC port
+        print!("      Checking port {} (Curio RPC)... ", curio_rpc_port);
+        match wait_for_port(curio_rpc_port, PORT_WAIT_TIMEOUT_SECS) {
+            Ok(_) => println!("{}", "✓".green()),
+            Err(e) => {
+                println!("{}", "⚠".yellow());
+                println!(
+                    "      Note: Port {} may not be immediately available: {}",
+                    curio_rpc_port, e
+                );
             }
         }
 
@@ -482,7 +530,7 @@ impl Step for CurioStep {
         }
 
         println!("\n    {} Curio is ready!", "✓".green().bold());
-        println!("      API endpoint: http://localhost:12300");
+        println!("      API endpoint: http://localhost:{}", curio_api_port);
         println!("      GUI: http://localhost:4701");
         println!("      PDP HTTP: http://localhost:4702");
         println!("      HTTP RPC: http://localhost:12310");

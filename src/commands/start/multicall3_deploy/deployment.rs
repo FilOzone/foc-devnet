@@ -7,9 +7,6 @@ use crossterm::style::Stylize;
 use std::error::Error;
 use std::process::Command;
 
-// Network configuration
-const LOTUS_RPC_PORT: u16 = 1234;
-
 /// Deploy Multicall3 using forge create
 pub fn deploy_multicall3(private_key: &str, lotus_rpc_url: &str) -> Result<String, Box<dyn Error>> {
     println!("      Deploying Multicall3 contract...");
@@ -51,7 +48,7 @@ pub fn deploy_multicall3(private_key: &str, lotus_rpc_url: &str) -> Result<Strin
             "run",
             "--rm",
             "--network",
-            "host", // Use host network to access localhost:1234
+            "host", // Use host network to access Lotus RPC on dynamic port
             "-v",
             &format!("{}:/workspace", multicall3_repo.display()),
             "foc-builder",
@@ -106,6 +103,7 @@ pub fn perform_deployment(
     context: &mut super::super::step::StepContext,
 ) -> Result<(), Box<dyn Error>> {
     use super::super::contract_addresses::ContractAddresses;
+    use super::super::lotus_utils::get_lotus_rpc_url;
     use super::key_management::get_deployer_private_key;
     use super::prerequisites::check_required_addresses;
 
@@ -123,7 +121,7 @@ pub fn perform_deployment(
     );
 
     // Deploy Multicall3 contract
-    let lotus_rpc_url = format!("http://localhost:{}/rpc/v1", LOTUS_RPC_PORT);
+    let lotus_rpc_url = get_lotus_rpc_url(context)?;
     let multicall3_address = deploy_multicall3(&private_key, &lotus_rpc_url)?;
 
     // Store in context

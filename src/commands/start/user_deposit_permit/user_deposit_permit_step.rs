@@ -115,11 +115,16 @@ impl Step for UserDepositPermitStep {
     }
 
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        use super::super::lotus_utils::get_lotus_rpc_url;
+
         println!(
             "{} {}",
             "Executing".green().bold(),
             self.name().green().bold()
         );
+
+        // Get Lotus RPC URL with dynamic port
+        let lotus_rpc_url = get_lotus_rpc_url(context)?;
 
         // Load contract addresses
         let contract_addresses = Self::load_contract_addresses()?;
@@ -141,11 +146,16 @@ impl Step for UserDepositPermitStep {
             &filecoin_pay_address,
             &user_private_key,
             &deposit_amount_wei,
+            &lotus_rpc_url,
         )?;
 
         // Verify the approval was set correctly
-        let allowance =
-            query_usdfc_allowance(&usdfc_address, &user_eth_address, &filecoin_pay_address)?;
+        let allowance = query_usdfc_allowance(
+            &usdfc_address,
+            &user_eth_address,
+            &filecoin_pay_address,
+            &lotus_rpc_url,
+        )?;
         let allowance_u128 = allowance
             .parse::<u128>()
             .map_err(|e| format!("Failed to parse allowance: {}", e))?;
@@ -173,6 +183,7 @@ impl Step for UserDepositPermitStep {
             &user_eth_address,
             &user_private_key,
             &deposit_amount_wei,
+            &lotus_rpc_url,
         )?;
 
         // Step 3: Approve WarmStorage as operator
@@ -181,6 +192,7 @@ impl Step for UserDepositPermitStep {
             &usdfc_address,
             &warm_storage_address,
             &user_private_key,
+            &lotus_rpc_url,
         )?;
 
         println!(
@@ -194,12 +206,17 @@ impl Step for UserDepositPermitStep {
         Ok(())
     }
 
-    fn post_execute(&self, _context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        use super::super::lotus_utils::get_lotus_rpc_url;
+
         println!(
             "{} {}",
             "Post-checking".cyan().bold(),
             self.name().cyan().bold()
         );
+
+        // Get Lotus RPC URL with dynamic port
+        let lotus_rpc_url = get_lotus_rpc_url(context)?;
 
         // Load contract addresses
         let contract_addresses = Self::load_contract_addresses()?;
@@ -210,8 +227,12 @@ impl Step for UserDepositPermitStep {
         let user_eth_address = get_user_eth_address(USER_ACCOUNT)?;
 
         // Verify FilecoinPay balance
-        let balance =
-            query_filecoin_pay_balance(&filecoin_pay_address, &usdfc_address, &user_eth_address)?;
+        let balance = query_filecoin_pay_balance(
+            &filecoin_pay_address,
+            &usdfc_address,
+            &user_eth_address,
+            &lotus_rpc_url,
+        )?;
         let expected_balance = token_amount_to_wei(DEPOSIT_AMOUNT_TOKENS);
 
         // Convert to u128 for comparison
@@ -243,6 +264,7 @@ impl Step for UserDepositPermitStep {
             &usdfc_address,
             &user_eth_address,
             &warm_storage_address,
+            &lotus_rpc_url,
         )?;
 
         // Verify values - they might be hex strings, so convert for comparison

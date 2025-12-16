@@ -2,8 +2,7 @@ use super::step::{Step, StepContext};
 use crate::docker::containers::yugabyte_container_name;
 use crate::docker::network::curio_miner_network_name;
 use crate::docker::{
-    container_exists, container_is_running, is_port_available, stop_and_remove_container,
-    wait_for_port,
+    container_exists, container_is_running, stop_and_remove_container, wait_for_port,
 };
 use crossterm::style::Stylize;
 use std::error::Error;
@@ -13,17 +12,6 @@ use std::thread;
 use std::time::Duration;
 
 const IMAGE_NAME: &str = "foc-yugabyte";
-
-// YugabyteDB ports
-const YUGABYTE_PORTS: &[(u16, &str)] = &[
-    (5433, "YSQL (PostgreSQL API)"),
-    (9042, "YCQL (Cassandra API)"),
-    (7000, "YB-Master RPC"),
-    (9000, "YB-Master Admin UI"),
-    (7100, "YB-TServer RPC"),
-    (9100, "YB-TServer Admin UI"),
-    (15433, "YugabyteDB Web UI"),
-];
 
 /// Step for starting YugabyteDB
 pub struct YugabyteStep {
@@ -47,9 +35,13 @@ impl YugabyteStep {
         Ok(yugabyte_container_name(run_id))
     }
 
-    /// Verify PostgreSQL connectivity on port 5433
+    /// Verify PostgreSQL connectivity
     fn verify_postgres_connection(context: &StepContext) -> Result<(), Box<dyn Error>> {
         let container_name = Self::get_container_name(context)?;
+
+        // When connecting from inside the container with docker exec,
+        // we use the fixed container port (5433), not the dynamic host port
+        const YUGABYTE_YSQL_CONTAINER_PORT: &str = "5433";
 
         // Try to connect to the database using docker exec
         let output = Command::new("docker")
@@ -58,11 +50,11 @@ impl YugabyteStep {
                 &container_name,
                 "/yugabyte/bin/ysqlsh",
                 "-h",
-                "127.0.0.1",
+                "localhost",
                 "-p",
-                "5433",
+                YUGABYTE_YSQL_CONTAINER_PORT,
                 "-c",
-                "SELECT version();",
+                "SELECT 1;",
             ])
             .output()?;
 
@@ -83,11 +75,15 @@ impl YugabyteStep {
         let yugabyte_name = yugabyte_container_name(run_id);
         let pdp_network = curio_miner_network_name(run_id);
 
+        // When connecting from another container on the same Docker network,
+        // we use the fixed container port (5433), not the dynamic host port
+        const YUGABYTE_YSQL_CONTAINER_PORT: &str = "5433";
+
         // Retry up to 10 times with 2 second delays
         for attempt in 1..=10 {
             let test_command = format!(
-                "psql 'postgresql://yugabyte:yugabyte@{}:5433/yugabyte?sslmode=disable' -c 'SELECT 1;'",
-                yugabyte_name
+                "psql 'postgresql://yugabyte:yugabyte@{}:{}/yugabyte?sslmode=disable' -c 'SELECT 1;'",
+                yugabyte_name, YUGABYTE_YSQL_CONTAINER_PORT
             );
 
             let output = Command::new("docker")
@@ -131,6 +127,15 @@ impl YugabyteStep {
         let container_name = yugabyte_container_name(run_id);
         let network_name = curio_miner_network_name(run_id);
 
+        // Read allocated ports from context
+        let ysql_port: u16 = context.get("yugabyte_ysql_port").unwrap().parse()?;
+        let ycql_port: u16 = context.get("yugabyte_ycql_port").unwrap().parse()?;
+        let master_rpc_port: u16 = context.get("yugabyte_master_rpc_port").unwrap().parse()?;
+        let master_ui_port: u16 = context.get("yugabyte_master_ui_port").unwrap().parse()?;
+        let tserver_rpc_port: u16 = context.get("yugabyte_tserver_rpc_port").unwrap().parse()?;
+        let tserver_ui_port: u16 = context.get("yugabyte_tserver_ui_port").unwrap().parse()?;
+        let web_ui_port: u16 = context.get("yugabyte_web_ui_port").unwrap().parse()?;
+
         // Build docker run command
         let mut docker_args = vec![
             "run".to_string(),
@@ -141,13 +146,25 @@ impl YugabyteStep {
             network_name,
         ];
 
-        // Add port mappings
-        let port_args: Vec<String> = YUGABYTE_PORTS
-            .iter()
-            .flat_map(|&(port, _)| vec!["-p".to_string(), format!("{}:{}", port, port)])
-            .collect();
-
-        docker_args.extend(port_args);
+        // Add port mappings: map dynamic host ports to fixed container ports
+        // Container internal ports: 5433 (YSQL), 9042 (YCQL), 7100 (Master RPC),
+        // 7000 (Master UI), 9100 (TServer RPC), 9000 (TServer UI), 15433 (Web UI)
+        docker_args.extend_from_slice(&[
+            "-p".to_string(),
+            format!("{}:5433", ysql_port), // host:container
+            "-p".to_string(),
+            format!("{}:9042", ycql_port), // host:container
+            "-p".to_string(),
+            format!("{}:7100", master_rpc_port), // host:container
+            "-p".to_string(),
+            format!("{}:7000", master_ui_port), // host:container
+            "-p".to_string(),
+            format!("{}:9100", tserver_rpc_port), // host:container
+            "-p".to_string(),
+            format!("{}:9000", tserver_ui_port), // host:container
+            "-p".to_string(),
+            format!("{}:15433", web_ui_port), // host:container
+        ]);
 
         // Add volume mount
         let yugabyte_data_dir = self.volumes_dir.join("yugabyte-data");
@@ -158,6 +175,7 @@ impl YugabyteStep {
         docker_args.push(IMAGE_NAME.to_string());
 
         // Add the command to start yugabyted
+        // These flags configure the internal container ports (fixed)
         docker_args.extend_from_slice(&[
             "/yugabyte/bin/yugabyted".to_string(),
             "start".to_string(),
@@ -231,25 +249,6 @@ impl Step for YugabyteStep {
             }
         }
 
-        // Check if all required ports are available
-        let mut unavailable_ports = Vec::new();
-        for &(port, description) in YUGABYTE_PORTS {
-            if !is_port_available(port) {
-                unavailable_ports.push((port, description));
-            }
-        }
-
-        if !unavailable_ports.is_empty() {
-            let mut error_msg = String::from("The following required ports are not available:\n");
-            for (port, description) in unavailable_ports {
-                error_msg.push_str(&format!("  - Port {}: {}\n", port, description));
-            }
-            error_msg.push_str("\nPlease free these ports before starting YugabyteDB.");
-            return Err(error_msg.into());
-        }
-
-        println!("    {} All required ports are available", "✓".green());
-
         // Verify Docker image exists
         if !crate::docker::core::image_exists(IMAGE_NAME).unwrap_or(true) {
             return Err(format!(
@@ -264,6 +263,18 @@ impl Step for YugabyteStep {
     }
 
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+        // Allocate 7 ports for Yugabyte services
+        let yugabyte_ports = context.port_allocator.allocate_multiple(7)?;
+
+        // Store ports in context with descriptive names
+        context.set("yugabyte_ysql_port", yugabyte_ports[0].to_string());
+        context.set("yugabyte_ycql_port", yugabyte_ports[1].to_string());
+        context.set("yugabyte_master_rpc_port", yugabyte_ports[2].to_string());
+        context.set("yugabyte_master_ui_port", yugabyte_ports[3].to_string());
+        context.set("yugabyte_tserver_rpc_port", yugabyte_ports[4].to_string());
+        context.set("yugabyte_tserver_ui_port", yugabyte_ports[5].to_string());
+        context.set("yugabyte_web_ui_port", yugabyte_ports[6].to_string());
+
         self.setup_data_directory()?;
         let docker_args = self.build_docker_command(context)?;
         self.start_container(docker_args, context)?;
@@ -285,7 +296,20 @@ impl Step for YugabyteStep {
 
         // Check all ports are accessible
         println!("    Verifying port accessibility...");
-        for &(port, description) in YUGABYTE_PORTS {
+
+        // Read allocated ports from context
+        let port_names = [
+            ("yugabyte_ysql_port", "YSQL (PostgreSQL API)"),
+            ("yugabyte_ycql_port", "YCQL (Cassandra API)"),
+            ("yugabyte_master_rpc_port", "YB-Master RPC"),
+            ("yugabyte_master_ui_port", "YB-Master Admin UI"),
+            ("yugabyte_tserver_rpc_port", "YB-TServer RPC"),
+            ("yugabyte_tserver_ui_port", "YB-TServer Admin UI"),
+            ("yugabyte_web_ui_port", "YugabyteDB Web UI"),
+        ];
+
+        for (port_key, description) in port_names {
+            let port: u16 = context.get(port_key).unwrap().parse()?;
             print!("      Checking port {} ({})... ", port, description);
             match wait_for_port(port, 30) {
                 Ok(_) => println!("{}", "✓".green()),
@@ -329,8 +353,12 @@ impl Step for YugabyteStep {
         }
 
         println!("\n    {} YugabyteDB is ready!", "✓".green().bold());
-        println!("      Web UI: http://localhost:15433");
-        println!("      PostgreSQL: localhost:5433");
+
+        let web_ui_port: u16 = context.get("yugabyte_web_ui_port").unwrap().parse()?;
+        let ysql_port: u16 = context.get("yugabyte_ysql_port").unwrap().parse()?;
+
+        println!("      Web UI: http://localhost:{}", web_ui_port);
+        println!("      YSQL endpoint: localhost:{}", ysql_port);
 
         Ok(())
     }

@@ -25,6 +25,7 @@ pub fn set_operator_approval(
     usdfc_address: &str,
     warm_storage_address: &str,
     user_private_key: &str,
+    lotus_rpc_url: &str,
 ) -> Result<(), Box<dyn Error>> {
     println!("  Setting WarmStorage as approved operator...");
     println!("    Rate allowance: {} (max uint256)", RATE_ALLOWANCE);
@@ -52,7 +53,7 @@ pub fn set_operator_approval(
                 {} \
                 {} \
                 {} \
-                --rpc-url http://localhost:1234/rpc/v1 \
+                --rpc-url {} \
                 --private-key {} \
                 --gas-limit 10000000000"#,
                 filecoin_pay_address,
@@ -61,6 +62,7 @@ pub fn set_operator_approval(
                 RATE_ALLOWANCE,
                 LOCKUP_ALLOWANCE_SECONDS,
                 MAX_ALLOWANCE,
+                lotus_rpc_url,
                 user_private_key
             ),
         ])
@@ -111,6 +113,7 @@ pub fn query_operator_allowance(
     usdfc_address: &str,
     user_eth_address: &str,
     warm_storage_address: &str,
+    lotus_rpc_url: &str,
 ) -> Result<(String, String, String), Box<dyn Error>> {
     let output = Command::new("docker")
         .args([
@@ -122,8 +125,8 @@ pub fn query_operator_allowance(
             "bash",
             "-c",
             &format!(
-                r#"cast call {} "operatorApprovals(address,address,address)" {} {} {} --rpc-url http://localhost:1234/rpc/v1"#,
-                filecoin_pay_address, usdfc_address, user_eth_address, warm_storage_address
+                r#"cast call {} "operatorApprovals(address,address,address)" {} {} {} --rpc-url {}"#,
+                filecoin_pay_address, usdfc_address, user_eth_address, warm_storage_address, lotus_rpc_url
             ),
         ])
         .output()?;
