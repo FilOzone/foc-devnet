@@ -303,14 +303,18 @@ pub fn set_operator_approval(
 
 /// Query USER_0's USDFC balance in FilecoinPay
 ///
+/// Uses getAccountInfoIfSettled which returns (fundedUntilEpoch, currentFunds, availableFunds, currentLockupRate)
+///
 /// # Arguments
 /// * `filecoin_pay_address` - Address of FilecoinPay contract
+/// * `usdfc_address` - Address of USDFC token
 /// * `user_eth_address` - Ethereum address of USER_0
 ///
 /// # Returns
-/// Balance in wei as a string, or error
+/// Balance (currentFunds) in wei as a string, or error
 pub fn query_filecoin_pay_balance(
     filecoin_pay_address: &str,
+    usdfc_address: &str,
     user_eth_address: &str,
 ) -> Result<String, Box<dyn Error>> {
     let output = Command::new("docker")
@@ -323,41 +327,87 @@ pub fn query_filecoin_pay_balance(
             "bash",
             "-c",
             &format!(
-                r#"cast call {} "balanceOf(address)" {} --rpc-url http://localhost:1234/rpc/v1"#,
-                filecoin_pay_address, user_eth_address
+                r#"cast call {} "getAccountInfoIfSettled(address,address)" {} {} --rpc-url http://localhost:1234/rpc/v1"#,
+                filecoin_pay_address, usdfc_address, user_eth_address
             ),
         ])
         .output()?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Failed to query FilecoinPay balance: {}", stderr).into());
+        return Err(format!("Failed to query FilecoinPay account info: {}", stderr).into());
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let balance_hex = stdout.trim();
+    let output_trim = stdout.trim();
 
-    // Convert hex to decimal string
-    let balance_decimal = u128::from_str_radix(balance_hex.trim_start_matches("0x"), 16)
-        .map_err(|e| format!("Failed to parse balance hex: {}", e))?;
+    // Cast returns hex values - for tuples, it may return as:
+    // 1. Comma-separated (0x..., 0x..., ...)
+    // 2. Multi-line (0x...\n0x...\n...)
+    // 3. Single hex blob (0x[padded 32 bytes][padded 32 bytes][...])
 
-    Ok(balance_decimal.to_string())
+    if output_trim.contains(',') {
+        // Format: 0x..., 0x..., 0x..., 0x...
+        let parts: Vec<&str> = output_trim.split(',').map(|s| s.trim()).collect();
+        if parts.len() < 2 {
+            return Err(format!(
+                "Unexpected tuple format. Expected at least 2 values, got {}",
+                parts.len()
+            )
+            .into());
+        }
+        // Get currentFunds (second value in tuple)
+        let current_funds_hex = parts[1].trim();
+        let balance_decimal = u128::from_str_radix(current_funds_hex.trim_start_matches("0x"), 16)
+            .map_err(|e| format!("Failed to parse currentFunds hex: {}", e))?;
+        return Ok(balance_decimal.to_string());
+    }
+
+    let lines: Vec<&str> = output_trim.lines().collect();
+    if lines.len() >= 2 {
+        // Get currentFunds (second line)
+        let current_funds_hex = lines[1].trim();
+        let balance_decimal = u128::from_str_radix(current_funds_hex.trim_start_matches("0x"), 16)
+            .map_err(|e| format!("Failed to parse currentFunds hex: {}", e))?;
+        return Ok(balance_decimal.to_string());
+    }
+
+    // Handle single hex blob (0x[padded 32 bytes][padded 32 bytes][...])
+    if output_trim.starts_with("0x") && output_trim.len() == 2 + 64 * 4 {
+        // getAccountInfoIfSettled returns 4 fields, each 32 bytes (64 hex chars)
+        // currentFunds is the second field (index 1)
+        let hex = &output_trim[2..];
+        let current_funds_hex = &hex[64..128];
+        let balance_decimal = u128::from_str_radix(current_funds_hex, 16)
+            .map_err(|e| format!("Failed to parse currentFunds hex from blob: {}", e))?;
+        return Ok(balance_decimal.to_string());
+    }
+
+    Err(format!(
+        "Could not parse getAccountInfoIfSettled output: {}",
+        output_trim
+    )
+    .into())
 }
 
 /// Query operator allowance for WarmStorage on USER_0's account
 ///
-/// This calls the operatorAllowance(address owner, address operator) function
-/// which returns (uint256 rateAllowance, uint256 lockupAllowance, uint256 maxAllowance)
+/// This calls the auto-generated getter for the public mapping:
+/// mapping(IERC20 token => mapping(address client => mapping(address operator => OperatorApproval)))
+///
+/// OperatorApproval struct returns: (isApproved, rateAllowance, lockupAllowance, rateUsage, lockupUsage, maxLockupPeriod)
 ///
 /// # Arguments
 /// * `filecoin_pay_address` - Address of FilecoinPay contract
-/// * `user_eth_address` - Ethereum address of USER_0 (owner)
+/// * `usdfc_address` - Address of USDFC token
+/// * `user_eth_address` - Ethereum address of USER_0 (client/owner)
 /// * `warm_storage_address` - Address of WarmStorage contract (operator)
 ///
 /// # Returns
-/// Tuple of (rateAllowance, lockupAllowance, maxAllowance) as strings in wei, or error
+/// Tuple of (rateAllowance, lockupAllowance, maxLockupPeriod) as strings in wei, or error
 pub fn query_operator_allowance(
     filecoin_pay_address: &str,
+    usdfc_address: &str,
     user_eth_address: &str,
     warm_storage_address: &str,
 ) -> Result<(String, String, String), Box<dyn Error>> {
@@ -371,42 +421,85 @@ pub fn query_operator_allowance(
             "bash",
             "-c",
             &format!(
-                r#"cast call {} "operatorAllowance(address,address)" {} {} --rpc-url http://localhost:1234/rpc/v1"#,
-                filecoin_pay_address, user_eth_address, warm_storage_address
+                r#"cast call {} "operatorApprovals(address,address,address)" {} {} {} --rpc-url http://localhost:1234/rpc/v1"#,
+                filecoin_pay_address, usdfc_address, user_eth_address, warm_storage_address
             ),
         ])
         .output()?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Failed to query operator allowance: {}", stderr).into());
+        return Err(format!("Failed to query operator approval: {}", stderr).into());
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let output_trim = stdout.trim();
 
-    // Parse the output - cast returns tuple values on separate lines
-    let lines: Vec<&str> = stdout.trim().lines().collect();
+    // Parse the output - cast may return struct fields as:
+    // 1. Comma-separated (0x..., 0x..., ...)
+    // 2. Multi-line (0x...\n0x...\n...)
+    // 3. Single hex blob (0x[padded 32 bytes][padded 32 bytes][...])
 
-    if lines.len() < 3 {
-        return Err(format!(
-            "Unexpected output format from operatorAllowance query. Expected 3 lines, got {}",
-            lines.len()
-        )
-        .into());
+    if output_trim.contains(',') {
+        let parts: Vec<&str> = output_trim.split(',').map(|s| s.trim()).collect();
+        if parts.len() < 6 {
+            return Err(format!(
+                "Unexpected tuple format from operatorApprovals. Expected 6 values, got {}",
+                parts.len()
+            )
+            .into());
+        }
+        // Get rateAllowance (index 1), lockupAllowance (index 2), maxLockupPeriod (index 5)
+        let rate_allowance = u128::from_str_radix(parts[1].trim_start_matches("0x"), 16)
+            .map_err(|e| format!("Failed to parse rate allowance: {}", e))?
+            .to_string();
+        let lockup_allowance = u128::from_str_radix(parts[2].trim_start_matches("0x"), 16)
+            .map_err(|e| format!("Failed to parse lockup allowance: {}", e))?
+            .to_string();
+        let max_lockup_period = u128::from_str_radix(parts[5].trim_start_matches("0x"), 16)
+            .map_err(|e| format!("Failed to parse max lockup period: {}", e))?
+            .to_string();
+        return Ok((rate_allowance, lockup_allowance, max_lockup_period));
     }
 
-    // Convert each hex value to decimal
-    let rate_allowance = u128::from_str_radix(lines[0].trim_start_matches("0x"), 16)
-        .map_err(|e| format!("Failed to parse rate allowance: {}", e))?
-        .to_string();
+    let lines: Vec<&str> = output_trim.lines().collect();
+    if lines.len() >= 6 {
+        // Get rateAllowance (index 1), lockupAllowance (index 2), maxLockupPeriod (index 5)
+        let rate_allowance = u128::from_str_radix(lines[1].trim_start_matches("0x"), 16)
+            .map_err(|e| format!("Failed to parse rate allowance: {}", e))?
+            .to_string();
+        let lockup_allowance = u128::from_str_radix(lines[2].trim_start_matches("0x"), 16)
+            .map_err(|e| format!("Failed to parse lockup allowance: {}", e))?
+            .to_string();
+        let max_lockup_period = u128::from_str_radix(lines[5].trim_start_matches("0x"), 16)
+            .map_err(|e| format!("Failed to parse max lockup period: {}", e))?
+            .to_string();
+        return Ok((rate_allowance, lockup_allowance, max_lockup_period));
+    }
 
-    let lockup_allowance = u128::from_str_radix(lines[1].trim_start_matches("0x"), 16)
-        .map_err(|e| format!("Failed to parse lockup allowance: {}", e))?
-        .to_string();
+    // Handle single hex blob (0x[padded 32 bytes][padded 32 bytes][...])
+    if output_trim.starts_with("0x") && output_trim.len() == 2 + 64 * 6 {
+        // operatorApprovals returns 6 fields, each 32 bytes (64 hex chars)
+        // rateAllowance: index 1, lockupAllowance: index 2, maxLockupPeriod: index 5
+        let hex = &output_trim[2..];
 
-    let max_allowance = u128::from_str_radix(lines[2].trim_start_matches("0x"), 16)
-        .map_err(|e| format!("Failed to parse max allowance: {}", e))?
-        .to_string();
+        // Extract the hex values (without parsing to decimal to avoid overflow)
+        let rate_allowance_hex = &hex[64..128];
+        let lockup_allowance_hex = &hex[128..192];
+        let max_lockup_period_hex = &hex[320..384];
 
-    Ok((rate_allowance, lockup_allowance, max_allowance))
+        // Just return the hex strings with "0x" prefix for verification
+        // The verification will check these match expected values
+        return Ok((
+            format!("0x{}", rate_allowance_hex),
+            format!("0x{}", lockup_allowance_hex),
+            format!("0x{}", max_lockup_period_hex),
+        ));
+    }
+
+    Err(format!(
+        "Could not parse operatorApprovals output. Expected 6 values but got: {}",
+        output_trim
+    )
+    .into())
 }

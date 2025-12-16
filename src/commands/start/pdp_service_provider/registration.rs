@@ -329,46 +329,18 @@ pub fn verify_provider_id_by_address(
     Ok(provider_id)
 }
 
-/// Verify provider is in approved list
+/// Verify provider is in approved list using StateView contract
 ///
+/// Uses FilecoinWarmStorageServiceStateView for read-only queries.
 /// Returns true if the provider is approved.
 pub fn verify_approved_provider(
     run_id: &str,
-    warm_storage_address: &str,
+    state_view_address: &str,
     provider_id: u64,
 ) -> Result<bool, Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
-    // First get the count of approved providers
-    let count_output = Command::new("docker")
-        .args([
-            "run",
-            "--rm",
-            "--network",
-            "host",
-            BUILDER_CONTAINER,
-            "cast",
-            "call",
-            warm_storage_address,
-            "getApprovedProvidersLength()(uint256)",
-            "--rpc-url",
-            "http://localhost:1234/rpc/v1",
-        ])
-        .output()?;
-
-    if !count_output.status.success() {
-        let stderr = String::from_utf8_lossy(&count_output.stderr);
-        return Err(format!("Failed to query approved providers length: {}", stderr).into());
-    }
-
-    let count_str = String::from_utf8_lossy(&count_output.stdout);
-    let count: u64 = count_str.trim().parse().unwrap_or(0);
-
-    if count == 0 {
-        return Ok(false);
-    }
-
-    // Query approved providers list using getApprovedProviders
+    // Use isProviderApproved function on StateView contract
     let output = Command::new("docker")
         .args([
             "run",
@@ -378,10 +350,9 @@ pub fn verify_approved_provider(
             BUILDER_CONTAINER,
             "cast",
             "call",
-            warm_storage_address,
-            "getApprovedProviders(uint256,uint256)(uint256[])",
-            "0",                // offset
-            &count.to_string(), // limit (get all)
+            state_view_address,
+            "isProviderApproved(uint256)(bool)",
+            &provider_id.to_string(),
             "--rpc-url",
             "http://localhost:1234/rpc/v1",
         ])
@@ -389,13 +360,11 @@ pub fn verify_approved_provider(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Failed to query approved providers: {}", stderr).into());
+        return Err(format!("Failed to query if provider is approved: {}", stderr).into());
     }
 
     let result = String::from_utf8_lossy(&output.stdout);
-
-    // Parse the array output - cast returns array elements on separate lines or as [1,2,3]
-    let is_approved = result.contains(&provider_id.to_string());
+    let is_approved = result.trim() == "true";
 
     Ok(is_approved)
 }

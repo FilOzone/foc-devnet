@@ -244,10 +244,10 @@ impl Step for PdpSpRegistrationStep {
             .ok_or("service_provider_registry_proxy address not found")?
             .clone();
 
-        let warm_storage_address = contract_addresses
+        let state_view_address = contract_addresses
             .foc_contracts
-            .get("filecoin_warm_storage_service_proxy")
-            .ok_or("filecoin_warm_storage_service_proxy address not found")?
+            .get("filecoin_warm_storage_service_state_view")
+            .ok_or("filecoin_warm_storage_service_state_view address not found")?
             .clone();
 
         // Verify there's exactly one provider on-chain
@@ -285,11 +285,8 @@ impl Step for PdpSpRegistrationStep {
         );
 
         // Try to verify provider is in approved list (optional - may not be supported by all contract versions)
-        match registration::verify_approved_provider(
-            run_id,
-            &warm_storage_address,
-            info.provider_id,
-        ) {
+        match registration::verify_approved_provider(run_id, &state_view_address, info.provider_id)
+        {
             Ok(true) => {
                 println!(
                     "  {} Provider {} is in approved list",

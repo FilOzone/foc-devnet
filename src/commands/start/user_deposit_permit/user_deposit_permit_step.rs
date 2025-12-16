@@ -203,14 +203,15 @@ impl Step for UserDepositPermitStep {
 
         // Load contract addresses
         let contract_addresses = Self::load_contract_addresses()?;
-        let (filecoin_pay_address, warm_storage_address, _usdfc_address) =
+        let (filecoin_pay_address, warm_storage_address, usdfc_address) =
             Self::get_contract_addresses(&contract_addresses)?;
 
         // Get USER_0 address
         let user_eth_address = get_user_eth_address(USER_ACCOUNT)?;
 
         // Verify FilecoinPay balance
-        let balance = query_filecoin_pay_balance(&filecoin_pay_address, &user_eth_address)?;
+        let balance =
+            query_filecoin_pay_balance(&filecoin_pay_address, &usdfc_address, &user_eth_address)?;
         let expected_balance = token_amount_to_wei(DEPOSIT_AMOUNT_TOKENS);
 
         // Convert to u128 for comparison
@@ -237,29 +238,59 @@ impl Step for UserDepositPermitStep {
         );
 
         // Verify operator allowance
-        let (rate_allowance, lockup_allowance, max_allowance) = query_operator_allowance(
+        let (rate_allowance, lockup_allowance, max_lockup_period) = query_operator_allowance(
             &filecoin_pay_address,
+            &usdfc_address,
             &user_eth_address,
             &warm_storage_address,
         )?;
 
-        println!("  {} Operator allowances for WarmStorage:", "✓".green());
-        println!("      Rate allowance: {}", rate_allowance);
-        println!("      Lockup allowance: {} seconds", lockup_allowance);
-        println!("      Max allowance: {}", max_allowance);
+        // Verify values - they might be hex strings, so convert for comparison
+        let lockup_value = if lockup_allowance.starts_with("0x") {
+            u128::from_str_radix(lockup_allowance.trim_start_matches("0x"), 16)
+                .map_err(|e| format!("Failed to parse lockup hex: {}", e))?
+        } else {
+            lockup_allowance
+                .parse::<u128>()
+                .map_err(|e| format!("Failed to parse lockup allowance: {}", e))?
+        };
 
-        // Verify lockup allowance is at least 30 days
-        let lockup_u128 = lockup_allowance
-            .parse::<u128>()
-            .map_err(|e| format!("Failed to parse lockup allowance: {}", e))?;
-
-        if lockup_u128 < LOCKUP_ALLOWANCE_SECONDS as u128 {
+        if lockup_value < LOCKUP_ALLOWANCE_SECONDS as u128 {
             return Err(format!(
                 "Lockup allowance {} is less than required {} seconds (30 days)",
-                lockup_u128, LOCKUP_ALLOWANCE_SECONDS
+                lockup_value, LOCKUP_ALLOWANCE_SECONDS
             )
             .into());
         }
+
+        // For max values (rate_allowance and max_lockup_period), just verify they're set
+        // We expect max uint256 which would overflow, so we check the hex representation
+        let expected_max_hex = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+
+        let rate_is_max = if rate_allowance.starts_with("0x") {
+            rate_allowance.trim_start_matches("0x").to_lowercase() == expected_max_hex
+        } else {
+            rate_allowance == RATE_ALLOWANCE
+        };
+
+        let max_lockup_is_max = if max_lockup_period.starts_with("0x") {
+            max_lockup_period.trim_start_matches("0x").to_lowercase() == expected_max_hex
+        } else {
+            max_lockup_period == MAX_ALLOWANCE
+        };
+
+        if !rate_is_max || !max_lockup_is_max {
+            return Err(format!(
+                "Rate allowance or max lockup period not set to max uint256. Rate: {}, Max: {}",
+                rate_allowance, max_lockup_period
+            )
+            .into());
+        }
+
+        println!(
+            "  {} Operator allowances for WarmStorage verified",
+            "✓".green()
+        );
 
         println!("  {} All verifications passed", "✓".green().bold());
 
