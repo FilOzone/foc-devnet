@@ -170,13 +170,19 @@ impl CurioStep {
         let curio_data_dir = self.volumes_dir.join("curio").join(".curio");
         let curio_fast_storage = self.volumes_dir.join("curio").join("fast-storage");
         let curio_long_term_storage = self.volumes_dir.join("curio").join("long-term-storage");
-        
+
         let curio_volume_mounts = vec![
             format!("{}:/home/foc-user/.curio", curio_data_dir.display()),
-            format!("{}:/home/foc-user/curio/fast-storage", curio_fast_storage.display()),
-            format!("{}:/home/foc-user/curio/long-term-storage", curio_long_term_storage.display()),
+            format!(
+                "{}:/home/foc-user/curio/fast-storage",
+                curio_fast_storage.display()
+            ),
+            format!(
+                "{}:/home/foc-user/curio/long-term-storage",
+                curio_long_term_storage.display()
+            ),
         ];
-        
+
         for mount in &curio_volume_mounts {
             docker_args.extend_from_slice(&["-v".to_string(), mount.clone()]);
         }
@@ -354,11 +360,11 @@ EOF
         let curio_data_dir = curio_base_dir.join(".curio");
         let curio_fast_storage = curio_base_dir.join("fast-storage");
         let curio_long_term_storage = curio_base_dir.join("long-term-storage");
-        
+
         std::fs::create_dir_all(&curio_data_dir)?;
         std::fs::create_dir_all(&curio_fast_storage)?;
         std::fs::create_dir_all(&curio_long_term_storage)?;
-        
+
         Ok(())
     }
 

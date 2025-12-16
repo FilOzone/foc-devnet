@@ -38,7 +38,7 @@ pub fn build_image_from_dockerfile(
     dockerfile_dir: &str,
     image_tag: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let dockerfile_path = "docker/Dockerfile.builder";
+    let dockerfile_path = "docker/builder/Dockerfile";
     let output = build_docker_image(dockerfile_path, image_tag, dockerfile_dir)?;
 
     if !output.status.success() {

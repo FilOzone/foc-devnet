@@ -10,7 +10,7 @@ The YugabyteDB Docker image is automatically built during the `foc-localnet init
 
 ### Build Process
 
-1. The Dockerfile (`Dockerfile.yugabyte`) uses Ubuntu 24.04 as the base image
+1. The Dockerfile (`docker/yugabyte/Dockerfile`) uses Ubuntu 24.04 as the base image
 2. Installs required dependencies (wget, ca-certificates, locales, python3)
 3. Configures locales to prevent startup errors (`en_US.UTF-8`)
 4. Copies the YugabyteDB binary from the `~/.foc-localnet/artifacts/yugabyte` directory
