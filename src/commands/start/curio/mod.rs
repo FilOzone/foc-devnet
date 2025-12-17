@@ -4,12 +4,12 @@
 //! It supports multiple isolated Curio instances, each with their own database and storage.
 
 pub mod constants;
-pub mod db_setup;
 pub mod daemon;
-pub mod pdp;
-pub mod pre_execute;
+pub mod db_setup;
 pub mod execute;
+pub mod pdp;
 pub mod post_execute;
+pub mod pre_execute;
 pub mod storage;
 pub mod verification;
 
@@ -39,10 +39,7 @@ pub struct CurioStep {
 
 impl CurioStep {
     /// Create a new CurioStep
-    pub fn new(volumes_dir: PathBuf, logs_dir: PathBuf) -> Self {
-        // TODO: Read from config.toml
-        let active_sp_count = crate::commands::start::genesis::constants::ACTIVE_PDP_SP_COUNT;
-        
+    pub fn new(volumes_dir: PathBuf, logs_dir: PathBuf, active_sp_count: usize) -> Self {
         Self {
             volumes_dir,
             logs_dir,
@@ -62,7 +59,10 @@ impl Step for CurioStep {
     }
 
     fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        println!("{}", format!("Pre-checks for {}", self.name()).blue().bold());
+        println!(
+            "{}",
+            format!("Pre-checks for {}", self.name()).blue().bold()
+        );
         pre_execute::verify_prerequisites(context, self.active_sp_count)?;
         Ok(())
     }
@@ -84,7 +84,12 @@ impl Step for CurioStep {
         self.pre_execute(context)?;
         self.execute(context)?;
         self.post_execute(context)?;
-        println!("{}", format!("✓ {} completed successfully", self.name()).green().bold());
+        println!(
+            "{}",
+            format!("✓ {} completed successfully", self.name())
+                .green()
+                .bold()
+        );
         Ok(start.elapsed())
     }
 }

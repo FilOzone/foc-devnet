@@ -21,11 +21,7 @@ pub fn verify_all_curio_sps(context: &StepContext, sp_count: usize) -> Result<()
     );
 
     for sp_index in 1..=sp_count {
-        println!(
-            "    {} Verifying PDP SP {}...",
-            "🔍".cyan(),
-            sp_index
-        );
+        println!("    {} Verifying PDP SP {}...", "🔍".cyan(), sp_index);
 
         verification::verify_single_curio_sp(context, sp_index)?;
 

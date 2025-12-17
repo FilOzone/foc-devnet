@@ -4,8 +4,8 @@
 
 use super::super::env_vars::build_network_env_vars;
 use super::super::step::StepContext;
-use super::CurioStep;
 use super::constants::{CURIO_LAYERS, CURIO_WEB_RPC_PORT, DAEMON_STARTUP_WAIT_SECS};
+use super::CurioStep;
 use crate::commands::start::genesis::constants::PDP_SP_MINER_ID_START;
 use crate::constants::CURIO_CONTAINER;
 use crate::docker::network::{curio_miner_network_name, lotus_network_name};
@@ -46,9 +46,12 @@ pub fn start_curio_daemon(
     // Calculate PDP port (will be stored in context for registration)
     let base_gui_port = 4700 + ((sp_index - 1) * 10) as u16;
     let pdp_port = base_gui_port + 2;
-    
+
     // Store PDP port in context for registration step
-    context.set(&format!("curio_sp_{}_pdp_port", sp_index), pdp_port.to_string());
+    context.set(
+        &format!("curio_sp_{}_pdp_port", sp_index),
+        pdp_port.to_string(),
+    );
 
     // Clean up existing container if any
     if container_exists(&container_name)? {
@@ -153,14 +156,14 @@ fn build_docker_run_args(
 ) -> Result<Vec<String>, Box<dyn Error>> {
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let pdp_network = curio_miner_network_name(run_id);
-    
+
     // Yugabyte container naming: foc-yugabyte-{run_id}-{sp_index}
     let yugabyte_name = if crate::commands::start::genesis::constants::ACTIVE_PDP_SP_COUNT == 1 {
         format!("foc-yugabyte-{}", run_id)
     } else {
         format!("foc-yugabyte-{}-{}", run_id, sp_index)
     };
-    
+
     let lotus_name = format!("foc-lotus-{}", run_id);
 
     let volumes_dir = foc_localnet_docker_volumes();
@@ -195,7 +198,10 @@ fn build_docker_run_args(
 
     // Volume mounts
     let volume_mounts = vec![
-        format!("{}:/home/foc-user/.curio", curio_sp_dir.join(".curio").display()),
+        format!(
+            "{}:/home/foc-user/.curio",
+            curio_sp_dir.join(".curio").display()
+        ),
         format!(
             "{}:/home/foc-user/curio/fast-storage",
             curio_sp_dir.join("fast-storage").display()
@@ -205,7 +211,10 @@ fn build_docker_run_args(
             curio_sp_dir.join("long-term-storage").display()
         ),
         format!("{}:/usr/local/bin/lotus-bins", bin_dir.display()),
-        format!("{}:/home/foc-user/.lotus-local-net", lotus_data_dir.display()),
+        format!(
+            "{}:/home/foc-user/.lotus-local-net",
+            lotus_data_dir.display()
+        ),
         format!("{}:/sectors", sectors_dir.display()),
     ];
 

@@ -1,4 +1,4 @@
-//! Contract interaction operations for USER_0 deposit and permit.
+//! Contract interaction operations for USER_1 deposit and permit.
 
 mod approvals;
 mod deposits;

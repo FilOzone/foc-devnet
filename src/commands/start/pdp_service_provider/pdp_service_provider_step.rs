@@ -4,10 +4,8 @@ use super::super::contract_addresses::ContractAddresses;
 use super::super::step::{Step, StepContext};
 use super::provider_id::ProviderIdInfo;
 use super::registration;
-use crate::commands::start::genesis::constants::ACTIVE_PDP_SP_COUNT;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::core::container_is_running;
-use crate::paths::pdp_sp_0_provider_id_file;
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::path::PathBuf;
@@ -18,12 +16,25 @@ use std::thread;
 pub struct PdpSpRegistrationStep {
     #[allow(dead_code)]
     logs_dir: PathBuf,
+    /// Number of PDP SPs to activate (1-5)
+    active_sp_count: usize,
+    /// Number of PDP SPs to approve in registry
+    approved_sp_count: usize,
 }
 
 impl PdpSpRegistrationStep {
     /// Create a new PDPServiceProviderStep
-    pub fn new(_volumes_dir: PathBuf, logs_dir: PathBuf) -> Self {
-        Self { logs_dir }
+    pub fn new(
+        _volumes_dir: PathBuf,
+        logs_dir: PathBuf,
+        active_sp_count: usize,
+        approved_sp_count: usize,
+    ) -> Self {
+        Self {
+            logs_dir,
+            active_sp_count,
+            approved_sp_count,
+        }
     }
 
     /// Check if Lotus is running
@@ -146,8 +157,8 @@ impl Step for PdpSpRegistrationStep {
         );
 
         // Determine how many SPs to register
-        let num_sps = ACTIVE_PDP_SP_COUNT;
-        
+        let num_sps = self.active_sp_count;
+
         println!(
             "  {} Registering {} PDP Service Provider(s) in parallel...",
             "⚡".cyan(),
@@ -195,15 +206,29 @@ impl Step for PdpSpRegistrationStep {
             let eth_key = format!("pdp_sp_{}_eth_address", sp_index - 1);
             let port_key = format!("curio_sp_{}_pdp_port", sp_index);
 
-            let sp_address = context.get(&pdp_key)
+            let sp_address = context
+                .get(&pdp_key)
                 .ok_or(format!("{} not found in context", pdp_key))?;
-            let sp_eth_address = context.get(&eth_key)
+            let sp_eth_address = context
+                .get(&eth_key)
                 .ok_or(format!("{} not found in context", eth_key))?;
-            let pdp_port: u16 = context.get(&port_key)
-                .ok_or(format!("{} not found in context - Curio must be started first", port_key))?
+            let pdp_port: u16 = context
+                .get(&port_key)
+                .ok_or(format!(
+                    "{} not found in context - Curio must be started first",
+                    port_key
+                ))?
                 .parse()?;
 
-            sp_data.push((sp_index, sp_address, sp_eth_address, pdp_port));
+            // Determine if this SP should be approved (only first N SPs)
+            let should_approve = sp_index <= self.approved_sp_count;
+            sp_data.push((
+                sp_index,
+                sp_address.clone(),
+                sp_eth_address.clone(),
+                pdp_port,
+                should_approve,
+            ));
         }
 
         // Register all SPs in parallel
@@ -211,11 +236,9 @@ impl Step for PdpSpRegistrationStep {
         let provider_ids: Arc<Mutex<Vec<(usize, u64)>>> = Arc::new(Mutex::new(Vec::new()));
         let mut handles = Vec::new();
 
-        for (sp_index, sp_address, sp_eth_address, pdp_port) in sp_data {
+        for (sp_index, sp_address, sp_eth_address, pdp_port, should_approve) in sp_data {
             let run_id = run_id.to_string();
             let registry_address = registry_address.clone();
-            let sp_address = sp_address.clone();
-            let sp_eth_address = sp_eth_address.clone();
             let mock_usdfc_address = mock_usdfc_address.clone();
             let lotus_rpc_url = lotus_rpc_url.clone();
             let warm_storage_address = warm_storage_address.clone();
@@ -226,7 +249,7 @@ impl Step for PdpSpRegistrationStep {
 
             let handle = thread::spawn(move || {
                 let service_url = format!("http://localhost:{}", pdp_port);
-                
+
                 match registration::register_single_provider(
                     &run_id,
                     &registry_address,
@@ -238,23 +261,42 @@ impl Step for PdpSpRegistrationStep {
                     sp_index,
                 ) {
                     Ok(provider_id) => {
-                        // Add to approved list
-                        if let Err(e) = registration::add_to_approved_list(
-                            &run_id,
-                            &warm_storage_address,
-                            provider_id,
-                            &deployer_foc_address,
-                            &deployer_foc_eth_address,
-                            &lotus_rpc_url,
-                        ) {
-                            errors_clone.lock().unwrap().push(
-                                format!("SP {} approval failed: {}", sp_index, e)
-                            );
+                        // Only approve if within approved count
+                        if should_approve {
+                            if let Err(e) = registration::add_to_approved_list(
+                                &run_id,
+                                &warm_storage_address,
+                                provider_id,
+                                &deployer_foc_address,
+                                &deployer_foc_eth_address,
+                                &lotus_rpc_url,
+                            ) {
+                                errors_clone
+                                    .lock()
+                                    .unwrap()
+                                    .push(format!("SP {} approval failed: {}", sp_index, e));
+                            } else {
+                                provider_ids_clone
+                                    .lock()
+                                    .unwrap()
+                                    .push((sp_index, provider_id));
+                                println!(
+                                    "  {} PDP SP {} registered and approved (Provider ID: {}, URL: {})",
+                                    "✓".green(),
+                                    sp_index,
+                                    provider_id,
+                                    service_url
+                                );
+                            }
                         } else {
-                            provider_ids_clone.lock().unwrap().push((sp_index, provider_id));
+                            // Registered but not approved
+                            provider_ids_clone
+                                .lock()
+                                .unwrap()
+                                .push((sp_index, provider_id));
                             println!(
-                                "  {} PDP SP {} registered (Provider ID: {}, URL: {})",
-                                "✓".green(),
+                                "  {} PDP SP {} registered (not approved, Provider ID: {}, URL: {})",
+                                "⚠".yellow(),
                                 sp_index,
                                 provider_id,
                                 service_url
@@ -262,9 +304,10 @@ impl Step for PdpSpRegistrationStep {
                         }
                     }
                     Err(e) => {
-                        errors_clone.lock().unwrap().push(
-                            format!("SP {} registration failed: {}", sp_index, e)
-                        );
+                        errors_clone
+                            .lock()
+                            .unwrap()
+                            .push(format!("SP {} registration failed: {}", sp_index, e));
                     }
                 }
             });
@@ -283,18 +326,18 @@ impl Step for PdpSpRegistrationStep {
             return Err(format!(
                 "Failed to register some providers:\n{}",
                 error_list.join("\n")
-            ).into());
+            )
+            .into());
         }
 
         // Store first provider ID (for backward compatibility)
         let provider_ids_list = provider_ids.lock().unwrap();
         if let Some((sp_index, first_provider_id)) = provider_ids_list.first() {
             let sp_key_prefix = format!("pdp_sp_{}", sp_index - 1); // 0-indexed keys
-            let sp_address = context.get(&format!("{}_address", sp_key_prefix))
-                .ok_or("SP address not found")?;
-            let sp_eth_address = context.get(&format!("{}_eth_address", sp_key_prefix))
+            let sp_eth_address = context
+                .get(&format!("{}_eth_address", sp_key_prefix))
                 .ok_or("SP eth address not found")?;
-            
+
             let info = ProviderIdInfo {
                 provider_id: *first_provider_id,
                 provider_address: sp_eth_address.clone(),

@@ -3,11 +3,11 @@
 //! Orchestrates the setup of all Curio PDP Service Providers.
 
 use super::super::step::StepContext;
-use super::CurioStep;
-use super::db_setup;
 use super::daemon;
+use super::db_setup;
 use super::pdp;
 use super::storage;
+use super::CurioStep;
 use crossterm::style::Stylize;
 use std::error::Error;
 
@@ -18,21 +18,16 @@ use std::error::Error;
 /// 2. Start Curio daemon
 /// 3. Attach storage locations
 /// 4. Import PDP private key
-pub fn setup_all_curio_sps(context: &mut StepContext, step: &CurioStep) -> Result<(), Box<dyn Error>> {
+pub fn setup_all_curio_sps(
+    context: &mut StepContext,
+    step: &CurioStep,
+) -> Result<(), Box<dyn Error>> {
     for sp_index in 1..=step.active_sp_count() {
-        println!(
-            "  {} Setting up Curio PDP SP {}...",
-            "🚀".cyan(),
-            sp_index
-        );
+        println!("  {} Setting up Curio PDP SP {}...", "🚀".cyan(), sp_index);
 
         setup_single_curio_sp(context, step, sp_index)?;
 
-        println!(
-            "  {} Curio PDP SP {} setup complete",
-            "✓".green(),
-            sp_index
-        );
+        println!("  {} Curio PDP SP {} setup complete", "✓".green(), sp_index);
     }
 
     println!(

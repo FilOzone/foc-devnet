@@ -1,6 +1,6 @@
-//! USER_0 deposit and operator approval step.
+//! USER_1 deposit and operator approval step.
 //!
-//! This module handles setting up USER_0 for deal making by:
+//! This module handles setting up USER_1 for deal making by:
 //! 1. Depositing USDFC tokens into FilecoinPay contract
 //! 2. Approving WarmStorage as an operator with rate and lockup limits
 

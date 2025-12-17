@@ -18,7 +18,10 @@ use std::time::Duration;
 /// Attaches:
 /// 1. Fast storage (seal)
 /// 2. Long-term storage (store)
-pub fn attach_storage_locations(context: &StepContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
+pub fn attach_storage_locations(
+    context: &StepContext,
+    sp_index: usize,
+) -> Result<(), Box<dyn Error>> {
     println!(
         "    {} Attaching storage locations for PDP SP {}...",
         "💿".cyan(),
@@ -45,10 +48,7 @@ pub fn attach_storage_locations(context: &StepContext, sp_index: usize) -> Resul
 
 /// Attach fast storage for sealing operations.
 fn attach_fast_storage(container_name: &str) -> Result<(), Box<dyn Error>> {
-    println!(
-        "      {} Attaching fast storage...",
-        "⚙".cyan()
-    );
+    println!("      {} Attaching fast storage...", "⚙".cyan());
 
     let output = Command::new("docker")
         .args([
@@ -81,10 +81,7 @@ fn attach_fast_storage(container_name: &str) -> Result<(), Box<dyn Error>> {
 
 /// Attach long-term storage for storing sealed sectors.
 fn attach_long_term_storage(container_name: &str) -> Result<(), Box<dyn Error>> {
-    println!(
-        "      {} Attaching long-term storage...",
-        "⚙".cyan()
-    );
+    println!("      {} Attaching long-term storage...", "⚙".cyan());
 
     let output = Command::new("docker")
         .args([

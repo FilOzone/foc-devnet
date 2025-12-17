@@ -6,29 +6,6 @@ use crossterm::style::Stylize;
 use std::error::Error;
 use std::process::Command;
 
-/// Register provider in ServiceProviderRegistry contract
-///
-/// Returns the provider ID assigned by the registry.
-pub fn register_provider(
-    run_id: &str,
-    registry_address: &str,
-    pdp_sp_0_address: &str,
-    pdp_sp_0_eth_address: &str,
-    mock_usdfc_address: &str,
-    lotus_rpc_url: &str,
-) -> Result<u64, Box<dyn Error>> {
-    register_single_provider(
-        run_id,
-        registry_address,
-        pdp_sp_0_address,
-        pdp_sp_0_eth_address,
-        mock_usdfc_address,
-        lotus_rpc_url,
-        DEFAULT_SERVICE_URL,
-        0, // Legacy: SP index 0
-    )
-}
-
 /// Register a single provider in ServiceProviderRegistry contract
 ///
 /// Returns the provider ID assigned by the registry.
@@ -49,7 +26,7 @@ pub fn register_single_provider(
     } else {
         format!("PDP_SP_{}", sp_index)
     };
-    
+
     println!("  Registering {} in ServiceProviderRegistry...", label);
 
     // Get private key for this PDP SP
@@ -193,13 +170,11 @@ fn build_capability_keys() -> String {
     "[serviceURL,minPieceSizeInBytes,maxPieceSizeInBytes,storagePricePerTibPerDay,minProvingPeriodInEpochs,location,paymentTokenAddress]".to_string()
 }
 
-/// Build capability values array with properly ABI-encoded bytes values (no quotes, bracket format)
-fn build_capability_values(mock_usdfc_address: &str) -> Result<String, Box<dyn Error>> {
-    build_capability_values_with_url(mock_usdfc_address, DEFAULT_SERVICE_URL)
-}
-
 /// Build capability values array with custom service URL
-fn build_capability_values_with_url(mock_usdfc_address: &str, service_url: &str) -> Result<String, Box<dyn Error>> {
+fn build_capability_values_with_url(
+    mock_usdfc_address: &str,
+    service_url: &str,
+) -> Result<String, Box<dyn Error>> {
     // For the bytes[] parameter in Solidity, we need to pass raw bytes for each value
     // Cast expects array format: [0x...,0x...,0x...] (no quotes, no spaces)
 

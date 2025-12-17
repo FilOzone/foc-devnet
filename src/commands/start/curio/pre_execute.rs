@@ -5,7 +5,7 @@
 
 use super::super::step::StepContext;
 use crate::constants::{LOTUS_CONTAINER, LOTUS_MINER_CONTAINER};
-use crate::docker::{container_is_running, container_exists};
+use crate::docker::{container_exists, container_is_running};
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::process::Command;
@@ -19,7 +19,10 @@ use std::time::Duration;
 /// 2. Lotus-Miner container is running
 /// 3. Chain is progressing (blocks are being generated)
 pub fn verify_prerequisites(context: &StepContext, sp_count: usize) -> Result<(), Box<dyn Error>> {
-    println!("  {} Verifying Lotus is running and producing blocks...", "🔍".cyan());
+    println!(
+        "  {} Verifying Lotus is running and producing blocks...",
+        "🔍".cyan()
+    );
 
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let lotus_container = format!("{}-{}", LOTUS_CONTAINER, run_id);
@@ -81,9 +84,12 @@ fn verify_chain_progressing(lotus_container: &str) -> Result<(), Box<dyn Error>>
 
     // Get initial block height
     let height1 = get_chain_head_height(lotus_container)?;
-    
+
     // Wait 6 seconds (should be enough for at least 1 block with 4s block time)
-    println!("    {} Waiting 6 seconds to verify block production...", "⏳".cyan());
+    println!(
+        "    {} Waiting 6 seconds to verify block production...",
+        "⏳".cyan()
+    );
     thread::sleep(Duration::from_secs(6));
 
     // Get new block height

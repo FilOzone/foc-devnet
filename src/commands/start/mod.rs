@@ -224,10 +224,6 @@ pub fn start_cluster(
     start_portainer(&run_id)?;
     println!();
 
-    // Ensure genesis prerequisites are ready (one-time setup)
-    ensure_genesis_prerequisites()?;
-    println!();
-
     // Load config to get port range settings
     let config_path = foc_localnet_config();
     let config_content = std::fs::read_to_string(&config_path).map_err(|e| {
@@ -237,7 +233,25 @@ pub fn start_cluster(
         )
     })?;
     let config: Config = toml::from_str(&config_content)
-        .map_err(|e| format!("Failed to parse config file: {}", e))?;
+        .map_err(|e| format!("Failed to parse config file at {:?}: {}", config_path, e))?;
+
+    // Validate config
+    config.validate()?;
+
+    // Display PDP SP configuration
+    println!("{}", "PDP Service Provider Configuration:".cyan().bold());
+    println!("  • Active PDP SPs: {}", config.active_pdp_sp_count);
+    println!("  • Approved PDP SPs: {}", config.approved_pdp_sp_count);
+    println!();
+
+    // Ensure genesis prerequisites are ready (one-time setup, needs config for sector count)
+    ensure_genesis_prerequisites(config.active_pdp_sp_count)?;
+    println!();
+
+    // Validate configuration
+    config
+        .validate()
+        .map_err(|e| format!("Configuration validation failed: {}", e))?;
 
     println!(
         "{}",
@@ -250,6 +264,15 @@ pub fn start_cluster(
         .cyan()
     );
 
+    println!(
+        "{}",
+        format!(
+            "PDP SPs: {} active ({} approved)",
+            config.active_pdp_sp_count, config.approved_pdp_sp_count
+        )
+        .cyan()
+    );
+
     // Create steps in the order they need to be started
     let lotus_step = LotusStep::new(volumes_dir.clone(), logs_dir.clone());
     let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), logs_dir.clone());
@@ -258,11 +281,24 @@ pub fn start_cluster(
     let usdfc_funding_step = USDFCFundingStep::new(volumes_dir.clone(), logs_dir.clone());
     let multicall3_deploy_step = MultiCall3DeployStep::new(volumes_dir.clone(), logs_dir.clone());
     let foc_deploy_step = FOCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
-    let pdp_sp_reg_step = PdpSpRegistrationStep::new(volumes_dir.clone(), logs_dir.clone());
+    let pdp_sp_reg_step = PdpSpRegistrationStep::new(
+        volumes_dir.clone(),
+        logs_dir.clone(),
+        config.active_pdp_sp_count,
+        config.approved_pdp_sp_count,
+    );
     let user_deposit_permit_step =
         UserDepositPermitStep::new(volumes_dir.clone(), logs_dir.clone());
-    let yugabyte_step = YugabyteStep::new(volumes_dir.clone(), logs_dir.clone());
-    let curio_step = CurioStep::new(volumes_dir.clone(), logs_dir.clone());
+    let yugabyte_step = YugabyteStep::new(
+        volumes_dir.clone(),
+        logs_dir.clone(),
+        config.active_pdp_sp_count,
+    );
+    let curio_step = CurioStep::new(
+        volumes_dir.clone(),
+        logs_dir.clone(),
+        config.active_pdp_sp_count,
+    );
 
     // Execute all steps
     // Note: PDP SP registration MUST happen after Curio because it needs
@@ -278,7 +314,7 @@ pub fn start_cluster(
         &user_deposit_permit_step,
         &yugabyte_step,
         &curio_step,
-        &pdp_sp_reg_step,  // Moved after Curio to access dynamic PDP ports
+        &pdp_sp_reg_step, // Moved after Curio to access dynamic PDP ports
     ];
     execute_steps(
         steps,

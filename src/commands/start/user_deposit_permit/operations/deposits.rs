@@ -15,8 +15,8 @@ use std::process::Command;
 /// # Arguments
 /// * `filecoin_pay_address` - Address of FilecoinPay contract
 /// * `usdfc_address` - Address of USDFC token contract
-/// * `user_eth_address` - Ethereum address of USER_0 (recipient)
-/// * `user_private_key` - Private key of USER_0
+/// * `user_eth_address` - Ethereum address of USER_1 (recipient)
+/// * `user_private_key` - Private key of USER_1
 /// * `deposit_amount_wei` - Amount to deposit in wei
 ///
 /// # Returns
@@ -86,14 +86,14 @@ pub fn deposit_usdfc_to_filecoin_pay(
     Ok(())
 }
 
-/// Query USER_0's USDFC balance in FilecoinPay
+/// Query USER_1's USDFC balance in FilecoinPay
 ///
 /// Uses getAccountInfoIfSettled which returns (fundedUntilEpoch, currentFunds, availableFunds, currentLockupRate)
 ///
 /// # Arguments
 /// * `filecoin_pay_address` - Address of FilecoinPay contract
 /// * `usdfc_address` - Address of USDFC token
-/// * `user_eth_address` - Ethereum address of USER_0
+/// * `user_eth_address` - Ethereum address of USER_1
 ///
 /// # Returns
 /// Balance (currentFunds) in wei as a string, or error

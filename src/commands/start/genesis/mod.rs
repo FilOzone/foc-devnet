@@ -27,7 +27,9 @@ pub mod sectors;
 ///
 /// # Returns
 /// Returns `Ok(())` if all prerequisites are ready, or an error if preparation fails.
-pub fn ensure_genesis_prerequisites() -> Result<(), Box<dyn std::error::Error>> {
+pub fn ensure_genesis_prerequisites(
+    active_pdp_sp_count: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "Checking genesis prerequisites...".blue().bold());
 
     // Ensure proof parameters are downloaded
@@ -37,10 +39,10 @@ pub fn ensure_genesis_prerequisites() -> Result<(), Box<dyn std::error::Error>> 
     keys::ensure_bls_keys()?;
 
     // Ensure sectors are pre-sealed
-    sectors::ensure_presealed_sectors()?;
+    sectors::ensure_presealed_sectors(active_pdp_sp_count)?;
 
     // Construct genesis configuration
-    construction::construct_genesis()?;
+    construction::construct_genesis(active_pdp_sp_count)?;
 
     println!("{}", "✓ All genesis prerequisites are ready".green().bold());
     Ok(())

@@ -122,16 +122,21 @@ pub fn foc_localnet_genesis_sectors_lotus_miner() -> PathBuf {
     foc_localnet_genesis_sectors().join("lotus-miner")
 }
 
-/// Returns the path to the pre-sealed sectors for miner 2 (t01001)
-/// e.g., ~/.foc-localnet/artifacts/docker/volumes/genesis-sectors/curio-miner
-pub fn foc_localnet_genesis_sectors_curio_miner() -> PathBuf {
-    foc_localnet_genesis_sectors().join("curio-miner")
-}
-
 /// Returns the path to the pre-sealed sectors for a PDP SP miner (base-1 indexed)
+///
+/// PDP SP 1 = t01001, PDP SP 2 = t01002, etc.
 /// e.g., ~/.foc-localnet/artifacts/docker/volumes/genesis-sectors/pdp-sp-1
 pub fn foc_localnet_genesis_sectors_pdp_sp(sp_index: usize) -> PathBuf {
     foc_localnet_genesis_sectors().join(format!("pdp-sp-{}", sp_index))
+}
+
+/// **DEPRECATED:** No longer used. Curio miners are now PDP Service Providers.
+///
+/// This path function remains for backward compatibility during cleanup operations.
+/// e.g., ~/.foc-localnet/artifacts/docker/volumes/genesis-sectors/curio-miner
+#[allow(dead_code)]
+pub fn foc_localnet_genesis_sectors_curio_miner() -> PathBuf {
+    foc_localnet_genesis_sectors().join("curio-miner")
 }
 
 /// Returns the path to the genesis template

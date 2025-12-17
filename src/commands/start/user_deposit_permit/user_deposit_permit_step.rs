@@ -1,4 +1,4 @@
-//! USER_0 deposit and operator approval step implementation.
+//! USER_1 deposit and operator approval step implementation.
 
 use super::constants::*;
 use super::operations::*;
@@ -13,7 +13,7 @@ use crossterm::style::Stylize;
 use std::error::Error;
 use std::path::PathBuf;
 
-/// Step for depositing USDFC and approving WarmStorage operator for USER_0
+/// Step for depositing USDFC and approving WarmStorage operator for USER_1
 pub struct UserDepositPermitStep {
     #[allow(dead_code)]
     logs_dir: PathBuf,
@@ -66,12 +66,12 @@ impl UserDepositPermitStep {
         Ok((filecoin_pay_address, warm_storage_address, usdfc_address))
     }
 
-    /// Check if USER_0 has sufficient USDFC balance
+    /// Check if USER_1 has sufficient USDFC balance
     fn check_usdfc_balance(user_eth_address: &str) -> Result<(), Box<dyn Error>> {
         // This would query the USDFC contract to check balance
         // For now we assume the USDFC funding step has completed successfully
         println!(
-            "  {} USER_0 USDFC balance check (assumed from funding step)",
+            "  {} USER_1 USDFC balance check (assumed from funding step)",
             "✓".green()
         );
         let _ = user_eth_address; // Suppress unused warning for now
@@ -81,7 +81,7 @@ impl UserDepositPermitStep {
 
 impl Step for UserDepositPermitStep {
     fn name(&self) -> &str {
-        "USER_0 Deposit and Operator Approval"
+        "USER_1 Deposit and Operator Approval"
     }
 
     fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
@@ -104,9 +104,9 @@ impl Step for UserDepositPermitStep {
         println!("  {} WarmStorage: {}", "✓".green(), warm_storage_address);
         println!("  {} USDFC: {}", "✓".green(), usdfc_address);
 
-        // Get USER_0 addresses
+        // Get USER_1 addresses
         let user_eth_address = get_user_eth_address(USER_ACCOUNT)?;
-        println!("  {} USER_0 ETH address: {}", "✓".green(), user_eth_address);
+        println!("  {} USER_1 ETH address: {}", "✓".green(), user_eth_address);
 
         // Check USDFC balance (basic check)
         Self::check_usdfc_balance(&user_eth_address)?;
@@ -131,7 +131,7 @@ impl Step for UserDepositPermitStep {
         let (filecoin_pay_address, warm_storage_address, usdfc_address) =
             Self::get_contract_addresses(&contract_addresses)?;
 
-        // Get USER_0 credentials
+        // Get USER_1 credentials
         let user_eth_address = get_user_eth_address(USER_ACCOUNT)?;
         let user_private_key = get_user_private_key(USER_ACCOUNT)?;
 
@@ -140,7 +140,7 @@ impl Step for UserDepositPermitStep {
 
         // Step 1: Approve FilecoinPay to spend USDFC tokens
         // This ERC-20 approval is required before depositWithPermitAndApproveOperator
-        // can transfer tokens from USER_0's account to FilecoinPay
+        // can transfer tokens from USER_1's account to FilecoinPay
         approve_usdfc_for_filecoin_pay(
             &usdfc_address,
             &filecoin_pay_address,
@@ -196,7 +196,7 @@ impl Step for UserDepositPermitStep {
         )?;
 
         println!(
-            "  {} USER_0 deposit and operator approval complete",
+            "  {} USER_1 deposit and operator approval complete",
             "✓".green().bold()
         );
 
@@ -223,7 +223,7 @@ impl Step for UserDepositPermitStep {
         let (filecoin_pay_address, warm_storage_address, usdfc_address) =
             Self::get_contract_addresses(&contract_addresses)?;
 
-        // Get USER_0 address
+        // Get USER_1 address
         let user_eth_address = get_user_eth_address(USER_ACCOUNT)?;
 
         // Verify FilecoinPay balance
@@ -245,14 +245,14 @@ impl Step for UserDepositPermitStep {
 
         if balance_u128 < expected_u128 {
             return Err(format!(
-                "USER_0 FilecoinPay balance {} is less than expected {}",
+                "USER_1 FilecoinPay balance {} is less than expected {}",
                 balance, expected_balance
             )
             .into());
         }
 
         println!(
-            "  {} USER_0 FilecoinPay balance: {} wei ({} USDFC)",
+            "  {} USER_1 FilecoinPay balance: {} wei ({} USDFC)",
             "✓".green(),
             balance,
             DEPOSIT_AMOUNT_TOKENS

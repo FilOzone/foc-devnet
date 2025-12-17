@@ -175,6 +175,23 @@ pub struct Config {
     /// This is the direct link to the Yugabyte tarball required for running curio.
     /// Default: https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz
     pub yugabyte_download_url: String,
+
+    /// Number of approved PDP service providers.
+    ///
+    /// This is the total number of Curio SPs that will be registered and approved
+    /// in the service provider registry. These SPs can accept storage deals.
+    /// Must satisfy: APPROVED_PDP_SP_COUNT <= ACTIVE_PDP_SP_COUNT <= MAX_PDP_SP_COUNT
+    /// Default: 1
+    pub approved_pdp_sp_count: usize,
+
+    /// Number of active PDP service providers.
+    ///
+    /// This is the total number of Curio SPs that will actually be started/running.
+    /// Some may be approved, some may not (for testing unapproved SP scenarios).
+    /// Total miners = 1 (lotus-miner) + ACTIVE_PDP_SP_COUNT (curio SPs)
+    /// Must satisfy: APPROVED_PDP_SP_COUNT <= ACTIVE_PDP_SP_COUNT <= MAX_PDP_SP_COUNT
+    /// Default: 1
+    pub active_pdp_sp_count: usize,
 }
 
 impl Default for Config {
@@ -208,6 +225,34 @@ impl Default for Config {
                 tag: "synapse-sdk-v0.36.1".to_string(),
             },
             yugabyte_download_url: "https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz".to_string(),
+            approved_pdp_sp_count: 1,
+            active_pdp_sp_count: 1,
         }
+    }
+}
+
+impl Config {
+    /// Validate configuration values.
+    ///
+    /// Ensures that:
+    /// - APPROVED_PDP_SP_COUNT <= ACTIVE_PDP_SP_COUNT <= MAX_PDP_SP_COUNT
+    pub fn validate(&self) -> Result<(), String> {
+        const MAX_PDP_SP_COUNT: usize = crate::constants::MAX_PDP_SP_COUNT;
+
+        if self.approved_pdp_sp_count > self.active_pdp_sp_count {
+            return Err(format!(
+                "approved_pdp_sp_count ({}) cannot exceed active_pdp_sp_count ({})",
+                self.approved_pdp_sp_count, self.active_pdp_sp_count
+            ));
+        }
+
+        if self.active_pdp_sp_count > MAX_PDP_SP_COUNT {
+            return Err(format!(
+                "active_pdp_sp_count ({}) cannot exceed MAX_PDP_SP_COUNT ({})",
+                self.active_pdp_sp_count, MAX_PDP_SP_COUNT
+            ));
+        }
+
+        Ok(())
     }
 }

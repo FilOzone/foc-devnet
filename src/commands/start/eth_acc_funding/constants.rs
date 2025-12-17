@@ -17,10 +17,10 @@ pub const FEVM_ACCOUNTS_PREFUNDED: [(&str, u64); 11] = [
     ("PDP_SP_3", 1000),
     ("PDP_SP_4", 1000),
     ("PDP_SP_5", 1000),
-    // Some user accounts for testing
-    ("USER_0", 1000),
+    // User accounts for testing (base-1 numbering)
     ("USER_1", 1000),
     ("USER_2", 1000),
+    ("USER_3", 1000),
 ];
 
 /// Network configuration

@@ -5,8 +5,8 @@
 use crate::commands::start::env_vars::build_network_env_vars;
 use crate::paths::{
     foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_genesis,
-    foc_localnet_genesis_sectors, foc_localnet_genesis_sectors_curio_miner,
-    foc_localnet_genesis_sectors_lotus_miner, foc_localnet_genesis_sectors_pdp_sp,
+    foc_localnet_genesis_sectors, foc_localnet_genesis_sectors_lotus_miner,
+    foc_localnet_genesis_sectors_pdp_sp,
 };
 use crossterm::style::Stylize;
 use std::fs;
@@ -15,30 +15,39 @@ use std::process::Command;
 
 /// Ensure sectors are pre-sealed for genesis.
 ///
-/// Pre-seals sectors for lotus-miner, curio-miner, and PDP SP miners using lotus-seed
+/// Pre-seals sectors for lotus-miner and PDP SP miners using lotus-seed
 /// and stores them in the genesis-sectors directory.
-pub fn ensure_presealed_sectors() -> Result<(), Box<dyn std::error::Error>> {
+///
+/// # Parameters
+/// - `active_pdp_sp_count`: Number of active PDP SPs to create sectors for
+///
+/// # Returns
+/// Returns `Ok(())` if sectors exist or are successfully generated.
+pub fn ensure_presealed_sectors(
+    active_pdp_sp_count: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
     let sectors_dir = foc_localnet_genesis_sectors();
     let genesis_dir = foc_localnet_genesis();
 
-    // Build list of all miner directories to check
-    let mut miner_dirs = vec![
-        foc_localnet_genesis_sectors_lotus_miner(),
-        foc_localnet_genesis_sectors_curio_miner(),
-    ];
-    
+    // Build list of all miner directories to check: lotus-miner + PDP SPs
+    let mut miner_dirs = vec![foc_localnet_genesis_sectors_lotus_miner()];
+
     // Add PDP SP directories
-    for i in 1..=super::constants::ACTIVE_PDP_SP_COUNT {
+    for i in 1..=active_pdp_sp_count {
         miner_dirs.push(foc_localnet_genesis_sectors_pdp_sp(i));
     }
 
     // Check if sectors already exist for all miners
     let all_exist = miner_dirs.iter().all(|dir| {
-        dir.exists() && dir.read_dir().map(|mut rd| rd.next().is_some()).unwrap_or(false)
+        dir.exists()
+            && dir
+                .read_dir()
+                .map(|mut rd| rd.next().is_some())
+                .unwrap_or(false)
     });
 
     if all_exist {
-        let total_miners = 2 + super::constants::ACTIVE_PDP_SP_COUNT;
+        let total_miners = 1 + active_pdp_sp_count;
         println!(
             "  {} Pre-sealed sectors already exist for all {} miners",
             "✓".green(),
@@ -47,7 +56,7 @@ pub fn ensure_presealed_sectors() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let total_miners = 2 + super::constants::ACTIVE_PDP_SP_COUNT;
+    let total_miners = 1 + active_pdp_sp_count;
     println!(
         "  {} Pre-sealing {} sectors (size: {}) for {} miners...",
         "⚙".cyan(),
@@ -60,15 +69,18 @@ pub fn ensure_presealed_sectors() -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(&sectors_dir)?;
     fs::create_dir_all(&genesis_dir)?;
 
-    // Pre-seal sectors for lotus-miner and curio-miner
-    let mut miner_configs: Vec<(String, PathBuf)> = vec![
-        (super::constants::LOTUS_MINER_ID.to_string(), foc_localnet_genesis_sectors_lotus_miner()),
-        (super::constants::CURIO_MINER_ID.to_string(), foc_localnet_genesis_sectors_curio_miner()),
-    ];
+    // Pre-seal sectors for lotus-miner
+    let mut miner_configs: Vec<(String, PathBuf)> = vec![(
+        super::constants::LOTUS_MINER_ID.to_string(),
+        foc_localnet_genesis_sectors_lotus_miner(),
+    )];
 
     // Add PDP SP miners
-    for i in 1..=super::constants::ACTIVE_PDP_SP_COUNT {
-        let miner_id = format!("t0{}", super::constants::PDP_SP_MINER_ID_START + (i as u32) - 1);
+    for i in 1..=active_pdp_sp_count {
+        let miner_id = format!(
+            "t0{}",
+            super::constants::PDP_SP_MINER_ID_START + (i as u32) - 1
+        );
         let miner_dir = foc_localnet_genesis_sectors_pdp_sp(i);
         miner_configs.push((miner_id, miner_dir));
     }
@@ -86,7 +98,10 @@ pub fn ensure_presealed_sectors() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Pre-seal sectors for a single miner.
-fn preseal_miner_sectors(miner_id: &str, miner_dir: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+fn preseal_miner_sectors(
+    miner_id: &str,
+    miner_dir: &PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Create miner directory
     fs::create_dir_all(miner_dir)?;
 

@@ -1,10 +1,10 @@
-//! Constants for USER_0 deposit and operator approval.
+//! Constants for USER_1 deposit and operator approval.
 
 /// Account name for the user
-pub const USER_ACCOUNT: &str = "USER_0";
+pub const USER_ACCOUNT: &str = "USER_1";
 
 /// USDFC deposit amount in tokens (not wei)
-/// This is the amount USER_0 will deposit into FilecoinPay
+/// This is the amount USER_1 will deposit into FilecoinPay
 pub const DEPOSIT_AMOUNT_TOKENS: u64 = 1_000;
 
 /// Lockup allowance in seconds (30 days)

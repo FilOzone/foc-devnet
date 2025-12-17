@@ -93,10 +93,7 @@ fn create_base_cluster(container_name: &str, miner_id: &str) -> Result<(), Box<d
 ///
 /// Runs: `curio config create --title pdp-only` with PDP layer config
 fn create_pdp_layer(container_name: &str, sp_index: usize) -> Result<(), Box<dyn Error>> {
-    println!(
-        "      {} Creating PDP layer configuration...",
-        "⚙".cyan()
-    );
+    println!("      {} Creating PDP layer configuration...", "⚙".cyan());
 
     // Generate PDP layer config with sp_index
     let pdp_config = PDP_LAYER_CONFIG_TEMPLATE.replace("{sp_index}", &sp_index.to_string());

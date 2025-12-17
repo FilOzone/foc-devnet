@@ -1,5 +1,4 @@
 use super::step::{Step, StepContext};
-use crate::commands::start::genesis::constants::ACTIVE_PDP_SP_COUNT;
 use crate::docker::containers::yugabyte_container_name;
 use crate::docker::network::curio_miner_network_name;
 use crate::docker::{
@@ -48,7 +47,11 @@ fn spawn_yugabyte_instance(
         println!(
             "    {} Removing existing Yugabyte container {} ...",
             "⚠".yellow(),
-            if total_instances == 1 { "".to_string() } else { instance_index.to_string() }
+            if total_instances == 1 {
+                "".to_string()
+            } else {
+                instance_index.to_string()
+            }
         );
         stop_and_remove_container(&container_name)?;
     }
@@ -65,13 +68,13 @@ fn spawn_yugabyte_instance(
 
     // Add port mappings
     let port_mappings = vec![
-        format!("{}:5433", ports[0]),      // YSQL
-        format!("{}:9042", ports[1]),      // YCQL
-        format!("{}:7100", ports[2]),      // Master RPC
-        format!("{}:7000", ports[3]),      // Master UI
-        format!("{}:9100", ports[4]),      // TServer RPC
-        format!("{}:9000", ports[5]),      // TServer UI
-        format!("{}:15433", ports[6]),     // Web UI
+        format!("{}:5433", ports[0]),  // YSQL
+        format!("{}:9042", ports[1]),  // YCQL
+        format!("{}:7100", ports[2]),  // Master RPC
+        format!("{}:7000", ports[3]),  // Master UI
+        format!("{}:9100", ports[4]),  // TServer RPC
+        format!("{}:9000", ports[5]),  // TServer UI
+        format!("{}:15433", ports[6]), // Web UI
     ];
 
     for mapping in &port_mappings {
@@ -146,14 +149,17 @@ pub struct YugabyteStep {
     volumes_dir: PathBuf,
     #[allow(dead_code)]
     logs_dir: PathBuf,
+    /// Number of PDP SPs to activate (1-5)
+    active_sp_count: usize,
 }
 
 impl YugabyteStep {
     /// Create a new YugabyteStep
-    pub fn new(volumes_dir: PathBuf, logs_dir: PathBuf) -> Self {
+    pub fn new(volumes_dir: PathBuf, logs_dir: PathBuf, active_sp_count: usize) -> Self {
         Self {
             volumes_dir,
             logs_dir,
+            active_sp_count,
         }
     }
 
@@ -161,192 +167,6 @@ impl YugabyteStep {
     fn get_container_name(context: &StepContext) -> Result<String, Box<dyn Error>> {
         let run_id = context.run_id().ok_or("Run ID not found in context")?;
         Ok(yugabyte_container_name(run_id))
-    }
-
-    /// Verify PostgreSQL connectivity
-    fn verify_postgres_connection(context: &StepContext) -> Result<(), Box<dyn Error>> {
-        let container_name = Self::get_container_name(context)?;
-
-        // When connecting from inside the container with docker exec,
-        // we use the fixed container port (5433), not the dynamic host port
-        const YUGABYTE_YSQL_CONTAINER_PORT: &str = "5433";
-
-        // Try to connect to the database using docker exec
-        let output = Command::new("docker")
-            .args([
-                "exec",
-                &container_name,
-                "/yugabyte/bin/ysqlsh",
-                "-h",
-                "localhost",
-                "-p",
-                YUGABYTE_YSQL_CONTAINER_PORT,
-                "-c",
-                "SELECT 1;",
-            ])
-            .output()?;
-
-        if !output.status.success() {
-            return Err(format!(
-                "Failed to query PostgreSQL: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )
-            .into());
-        }
-
-        Ok(())
-    }
-
-    /// Verify YugabyteDB is accessible from the Curio miner network
-    fn verify_network_connectivity(context: &StepContext) -> Result<(), Box<dyn Error>> {
-        let run_id = context.run_id().ok_or("Run ID not found in context")?;
-        let yugabyte_name = yugabyte_container_name(run_id);
-        let pdp_network = curio_miner_network_name(run_id);
-
-        // When connecting from another container on the same Docker network,
-        // we use the fixed container port (5433), not the dynamic host port
-        const YUGABYTE_YSQL_CONTAINER_PORT: &str = "5433";
-
-        // Retry up to 10 times with 2 second delays
-        for attempt in 1..=10 {
-            let test_command = format!(
-                "psql 'postgresql://yugabyte:yugabyte@{}:{}/yugabyte?sslmode=disable' -c 'SELECT 1;'",
-                yugabyte_name, YUGABYTE_YSQL_CONTAINER_PORT
-            );
-
-            let output = Command::new("docker")
-                .args([
-                    "run",
-                    "--rm",
-                    "--network",
-                    &pdp_network,
-                    "alpine",
-                    "sh",
-                    "-c",
-                    &format!(
-                        "apk add --no-cache postgresql-client >/dev/null 2>&1 && {}",
-                        test_command
-                    ),
-                ])
-                .output()?;
-
-            if output.status.success() {
-                return Ok(());
-            }
-
-            if attempt < 10 {
-                thread::sleep(Duration::from_secs(2));
-            }
-        }
-
-        Err("YugabyteDB is not accessible from the Curio miner network after 10 attempts".into())
-    }
-
-    /// Create the YugabyteDB data directory
-    fn setup_data_directory(&self) -> Result<(), Box<dyn Error>> {
-        let yugabyte_data_dir = self.volumes_dir.join("yugabyte-data");
-        std::fs::create_dir_all(&yugabyte_data_dir)?;
-        Ok(())
-    }
-
-    /// Build the Docker run command for YugabyteDB
-    fn build_docker_command(&self, context: &StepContext) -> Result<Vec<String>, Box<dyn Error>> {
-        let run_id = context.run_id().ok_or("Run ID not found in context")?;
-        let container_name = yugabyte_container_name(run_id);
-        let network_name = curio_miner_network_name(run_id);
-
-        // Read allocated ports from context
-        let ysql_port: u16 = context.get("yugabyte_ysql_port").unwrap().parse()?;
-        let ycql_port: u16 = context.get("yugabyte_ycql_port").unwrap().parse()?;
-        let master_rpc_port: u16 = context.get("yugabyte_master_rpc_port").unwrap().parse()?;
-        let master_ui_port: u16 = context.get("yugabyte_master_ui_port").unwrap().parse()?;
-        let tserver_rpc_port: u16 = context.get("yugabyte_tserver_rpc_port").unwrap().parse()?;
-        let tserver_ui_port: u16 = context.get("yugabyte_tserver_ui_port").unwrap().parse()?;
-        let web_ui_port: u16 = context.get("yugabyte_web_ui_port").unwrap().parse()?;
-
-        // Build docker run command
-        let mut docker_args = vec![
-            "run".to_string(),
-            "-d".to_string(),
-            "--name".to_string(),
-            container_name,
-            "--network".to_string(),
-            network_name,
-        ];
-
-        // Add port mappings: map dynamic host ports to fixed container ports
-        // Container internal ports: 5433 (YSQL), 9042 (YCQL), 7100 (Master RPC),
-        // 7000 (Master UI), 9100 (TServer RPC), 9000 (TServer UI), 15433 (Web UI)
-        docker_args.extend_from_slice(&[
-            "-p".to_string(),
-            format!("{}:5433", ysql_port), // host:container
-            "-p".to_string(),
-            format!("{}:9042", ycql_port), // host:container
-            "-p".to_string(),
-            format!("{}:7100", master_rpc_port), // host:container
-            "-p".to_string(),
-            format!("{}:7000", master_ui_port), // host:container
-            "-p".to_string(),
-            format!("{}:9100", tserver_rpc_port), // host:container
-            "-p".to_string(),
-            format!("{}:9000", tserver_ui_port), // host:container
-            "-p".to_string(),
-            format!("{}:15433", web_ui_port), // host:container
-        ]);
-
-        // Add volume mount
-        let yugabyte_data_dir = self.volumes_dir.join("yugabyte-data");
-        let volume_mount = format!("{}:/yugabyte/data", yugabyte_data_dir.display());
-        docker_args.extend_from_slice(&["-v".to_string(), volume_mount]);
-
-        // Add image name
-        docker_args.push(IMAGE_NAME.to_string());
-
-        // Add the command to start yugabyted
-        // These flags configure the internal container ports (fixed)
-        docker_args.extend_from_slice(&[
-            "/yugabyte/bin/yugabyted".to_string(),
-            "start".to_string(),
-            "--ui=true".to_string(),
-            "--callhome=false".to_string(),
-            "--advertise_address=0.0.0.0".to_string(),
-            "--master_flags=rpc_bind_addresses=0.0.0.0".to_string(),
-            "--tserver_flags=rpc_bind_addresses=0.0.0.0,pgsql_proxy_bind_address=0.0.0.0:5433,cql_proxy_bind_address=0.0.0.0:9042".to_string(),
-            "--daemon=false".to_string(),
-        ]);
-
-        Ok(docker_args)
-    }
-
-    /// Start the YugabyteDB container
-    fn start_container(
-        &self,
-        docker_args: Vec<String>,
-        context: &mut StepContext,
-    ) -> Result<(), Box<dyn Error>> {
-        let container_name = Self::get_container_name(context)?;
-
-        println!("    Starting container '{}'...", container_name);
-        let output = Command::new("docker").args(&docker_args).output()?;
-
-        if !output.status.success() {
-            return Err(format!(
-                "Failed to start YugabyteDB container: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )
-            .into());
-        }
-
-        let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        context.set("yugabyte_container_id", container_id.clone());
-        context.set("yugabyte_container_name", container_name);
-        println!(
-            "    {} Container started with ID: {}",
-            "✓".green(),
-            &container_id[..12]
-        );
-
-        Ok(())
     }
 }
 
@@ -392,8 +212,8 @@ impl Step for YugabyteStep {
 
     fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
         // Determine how many Yugabyte instances to spawn based on active Curio SPs
-        let num_instances = ACTIVE_PDP_SP_COUNT;
-        
+        let num_instances = self.active_sp_count;
+
         println!(
             "  {} Spawning {} Yugabyte instance(s) in parallel...",
             "⚡".cyan(),
@@ -414,12 +234,15 @@ impl Step for YugabyteStep {
             } else {
                 format!("yugabyte_{}", instance_index)
             };
-            
+
             context.set(&format!("{}_ysql_port", prefix), ports[0].to_string());
             context.set(&format!("{}_ycql_port", prefix), ports[1].to_string());
             context.set(&format!("{}_master_rpc_port", prefix), ports[2].to_string());
             context.set(&format!("{}_master_ui_port", prefix), ports[3].to_string());
-            context.set(&format!("{}_tserver_rpc_port", prefix), ports[4].to_string());
+            context.set(
+                &format!("{}_tserver_rpc_port", prefix),
+                ports[4].to_string(),
+            );
             context.set(&format!("{}_tserver_ui_port", prefix), ports[5].to_string());
             context.set(&format!("{}_web_ui_port", prefix), ports[6].to_string());
         }
@@ -434,12 +257,22 @@ impl Step for YugabyteStep {
             let errors_clone = Arc::clone(&errors);
 
             let handle = thread::spawn(move || {
-                match spawn_yugabyte_instance(instance_index, num_instances, &ports, &volumes_dir, &run_id) {
+                match spawn_yugabyte_instance(
+                    instance_index,
+                    num_instances,
+                    &ports,
+                    &volumes_dir,
+                    &run_id,
+                ) {
                     Ok(_) => {
                         println!(
                             "    {} Yugabyte instance {} started successfully",
                             "✓".green(),
-                            if num_instances == 1 { "".to_string() } else { instance_index.to_string() }
+                            if num_instances == 1 {
+                                "".to_string()
+                            } else {
+                                instance_index.to_string()
+                            }
                         );
                     }
                     Err(e) => {
@@ -460,7 +293,11 @@ impl Step for YugabyteStep {
         // Check for errors
         let error_list = errors.lock().unwrap();
         if !error_list.is_empty() {
-            return Err(format!("Failed to start Yugabyte instances:\n{}", error_list.join("\n")).into());
+            return Err(format!(
+                "Failed to start Yugabyte instances:\n{}",
+                error_list.join("\n")
+            )
+            .into());
         }
 
         println!(
@@ -473,7 +310,7 @@ impl Step for YugabyteStep {
     }
 
     fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        let num_instances = ACTIVE_PDP_SP_COUNT;
+        let num_instances = self.active_sp_count;
         let run_id = context.run_id().ok_or("Run ID not found")?;
 
         println!("    Waiting for YugabyteDB instance(s) to start...");
@@ -495,9 +332,15 @@ impl Step for YugabyteStep {
 
             // Verify container is running
             if !container_is_running(&container_name)? {
-                return Err(format!("Yugabyte instance{} stopped unexpectedly", instance_label).into());
+                return Err(
+                    format!("Yugabyte instance{} stopped unexpectedly", instance_label).into(),
+                );
             }
-            println!("    {} Yugabyte instance{} is running", "✓".green(), instance_label);
+            println!(
+                "    {} Yugabyte instance{} is running",
+                "✓".green(),
+                instance_label
+            );
 
             // Check all ports are accessible for this instance
             let prefix = if num_instances == 1 {
@@ -518,11 +361,15 @@ impl Step for YugabyteStep {
 
             for (port_suffix, description) in port_names {
                 let port_key = format!("{}_{}", prefix, port_suffix);
-                let port: u16 = context.get(&port_key)
+                let port: u16 = context
+                    .get(&port_key)
                     .ok_or(format!("Port key {} not found in context", port_key))?
                     .parse()?;
-                
-                print!("      Instance{} - Checking port {} ({})... ", instance_label, port, description);
+
+                print!(
+                    "      Instance{} - Checking port {} ({})... ",
+                    instance_label, port, description
+                );
                 match wait_for_port(port, 30) {
                     Ok(_) => println!("{}", "✓".green()),
                     Err(e) => {
@@ -533,11 +380,18 @@ impl Step for YugabyteStep {
             }
 
             // Verify PostgreSQL connection for this instance
-            println!("    Verifying PostgreSQL connectivity for instance{}...", instance_label);
+            println!(
+                "    Verifying PostgreSQL connectivity for instance{}...",
+                instance_label
+            );
             thread::sleep(Duration::from_secs(2));
-            
+
             if let Err(e) = verify_postgres_connection_for_instance(&container_name) {
-                return Err(format!("PostgreSQL verification failed for instance{}: {}", instance_label, e).into());
+                return Err(format!(
+                    "PostgreSQL verification failed for instance{}: {}",
+                    instance_label, e
+                )
+                .into());
             }
 
             println!(
@@ -554,8 +408,11 @@ impl Step for YugabyteStep {
         );
 
         // Show connection info
-        println!("\n    {} All YugabyteDB instance(s) ready!", "✓".green().bold());
-        
+        println!(
+            "\n    {} All YugabyteDB instance(s) ready!",
+            "✓".green().bold()
+        );
+
         if num_instances == 1 {
             let web_ui_port: u16 = context.get("yugabyte_web_ui_port").unwrap().parse()?;
             let ysql_port: u16 = context.get("yugabyte_ysql_port").unwrap().parse()?;
@@ -564,10 +421,18 @@ impl Step for YugabyteStep {
         } else {
             for instance_index in 1..=num_instances {
                 let prefix = format!("yugabyte_{}", instance_index);
-                let web_ui_port: u16 = context.get(&format!("{}_web_ui_port", prefix)).unwrap().parse()?;
-                let ysql_port: u16 = context.get(&format!("{}_ysql_port", prefix)).unwrap().parse()?;
-                println!("      Instance {} - Web UI: http://localhost:{}, YSQL: localhost:{}", 
-                    instance_index, web_ui_port, ysql_port);
+                let web_ui_port: u16 = context
+                    .get(&format!("{}_web_ui_port", prefix))
+                    .unwrap()
+                    .parse()?;
+                let ysql_port: u16 = context
+                    .get(&format!("{}_ysql_port", prefix))
+                    .unwrap()
+                    .parse()?;
+                println!(
+                    "      Instance {} - Web UI: http://localhost:{}, YSQL: localhost:{}",
+                    instance_index, web_ui_port, ysql_port
+                );
             }
         }
 

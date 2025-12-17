@@ -10,12 +10,12 @@ use std::process::Command;
 /// Approve FilecoinPay to spend USDFC tokens
 ///
 /// This must be called before depositWithPermitAndApproveOperator to allow
-/// the FilecoinPay contract to transfer tokens from USER_0's account.
+/// the FilecoinPay contract to transfer tokens from USER_1's account.
 ///
 /// # Arguments
 /// * `usdfc_address` - Address of USDFC token contract
 /// * `filecoin_pay_address` - Address of FilecoinPay contract (spender)
-/// * `user_private_key` - Private key of USER_0
+/// * `user_private_key` - Private key of USER_1
 /// * `amount_wei` - Amount to approve in wei
 /// * `lotus_rpc_url` - Lotus RPC URL with dynamic port
 ///
@@ -80,11 +80,11 @@ pub fn approve_usdfc_for_filecoin_pay(
 /// Query USDFC allowance for FilecoinPay
 ///
 /// This checks how much USDFC the FilecoinPay contract is allowed to spend
-/// from USER_0's account.
+/// from USER_1's account.
 ///
 /// # Arguments
 /// * `usdfc_address` - Address of USDFC token contract
-/// * `user_eth_address` - Ethereum address of USER_0 (owner)
+/// * `user_eth_address` - Ethereum address of USER_1 (owner)
 /// * `filecoin_pay_address` - Address of FilecoinPay contract (spender)
 /// * `lotus_rpc_url` - Lotus RPC URL with dynamic port
 ///

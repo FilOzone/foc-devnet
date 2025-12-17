@@ -39,9 +39,4 @@ impl ProviderIdInfo {
 
         Ok(())
     }
-
-    /// Check if provider ID file exists
-    pub fn exists() -> bool {
-        pdp_sp_0_provider_id_file().exists()
-    }
 }

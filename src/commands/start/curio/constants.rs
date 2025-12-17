@@ -3,12 +3,6 @@
 /// Curio Web RPC API port
 pub const CURIO_WEB_RPC_PORT: u16 = 4701;
 
-/// Curio PDP subsystem port
-pub const CURIO_PDP_PORT: u16 = 4702;
-
-/// Curio CLI machine address
-pub const CURIO_CLI_MACHINE_ADDR: &str = "127.0.0.1:12300";
-
 /// Curio storage paths inside container
 pub const CURIO_FAST_STORAGE_PATH: &str = "/home/foc-user/curio/fast-storage";
 pub const CURIO_LONG_TERM_STORAGE_PATH: &str = "/home/foc-user/curio/long-term-storage";

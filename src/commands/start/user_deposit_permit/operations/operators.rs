@@ -16,7 +16,7 @@ use std::process::Command;
 /// * `filecoin_pay_address` - Address of FilecoinPay contract
 /// * `usdfc_address` - Address of USDFC token contract
 /// * `warm_storage_address` - Address of WarmStorage contract (operator)
-/// * `user_private_key` - Private key of USER_0
+/// * `user_private_key` - Private key of USER_1
 ///
 /// # Returns
 /// Ok(()) if successful, Error otherwise
@@ -93,7 +93,7 @@ pub fn set_operator_approval(
     Ok(())
 }
 
-/// Query operator allowance for WarmStorage on USER_0's account
+/// Query operator allowance for WarmStorage on USER_1's account
 ///
 /// This calls the auto-generated getter for the public mapping:
 /// mapping(IERC20 token => mapping(address client => mapping(address operator => OperatorApproval)))
@@ -103,7 +103,7 @@ pub fn set_operator_approval(
 /// # Arguments
 /// * `filecoin_pay_address` - Address of FilecoinPay contract
 /// * `usdfc_address` - Address of USDFC token
-/// * `user_eth_address` - Ethereum address of USER_0 (client/owner)
+/// * `user_eth_address` - Ethereum address of USER_1 (client/owner)
 /// * `warm_storage_address` - Address of WarmStorage contract (operator)
 ///
 /// # Returns

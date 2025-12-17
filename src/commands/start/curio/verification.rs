@@ -45,11 +45,7 @@ fn verify_pdp_ping(sp_index: usize) -> Result<(), Box<dyn Error>> {
     let response = reqwest::blocking::get(&ping_url)?;
 
     if !response.status().is_success() {
-        return Err(format!(
-            "PDP ping failed with status: {}",
-            response.status()
-        )
-        .into());
+        return Err(format!("PDP ping failed with status: {}", response.status()).into());
     }
 
     println!("      {} PDP subsystem responding", "✓".green());
@@ -89,9 +85,7 @@ fn verify_upload_download(sp_index: usize) -> Result<(), Box<dyn Error>> {
 fn create_random_test_file(temp_dir: &TempDir) -> Result<PathBuf, Box<dyn Error>> {
     let test_file_path = temp_dir.path().join("test_data.bin");
     let mut rng = rand::thread_rng();
-    let random_data: Vec<u8> = (0..TEST_FILE_SIZE_BYTES)
-        .map(|_| rng.gen())
-        .collect();
+    let random_data: Vec<u8> = (0..TEST_FILE_SIZE_BYTES).map(|_| rng.gen()).collect();
 
     fs::write(&test_file_path, random_data)?;
 
@@ -153,11 +147,7 @@ fn download_piece(piece_cid: &str, sp_index: usize) -> Result<Vec<u8>, Box<dyn E
     let response = reqwest::blocking::get(&download_url)?;
 
     if !response.status().is_success() {
-        return Err(format!(
-            "Piece download failed with status: {}",
-            response.status()
-        )
-        .into());
+        return Err(format!("Piece download failed with status: {}", response.status()).into());
     }
 
     let data = response.bytes()?.to_vec();
