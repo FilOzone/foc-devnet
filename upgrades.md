@@ -6,16 +6,16 @@ Refactoring Curio setup to support multiple PDP Service Providers with proper ve
 ---
 
 ## Milestone 1: Foundation - Multi-SP Infrastructure
-**Status**: 🔄 In Progress
+**Status**: ✅ Complete
 
 ### Tasks:
-- [ ] Add `MAX_PDP_SP_COUNT` constant (value: 5)
-- [ ] Update genesis/key generation to create PDP_SP_1 through PDP_SP_5 (base-1)
-- [ ] Create pre-sealed sectors for N PDP service providers
-- [ ] Update reset command to delete curio volumes
-- [ ] Add config.toml support for number of active PDP SPs
+- [x] Add `MAX_PDP_SP_COUNT` constant (value: 5)
+- [x] Update genesis/key generation to create PDP_SP_1 through PDP_SP_5 (base-1)
+- [x] Create pre-sealed sectors for N PDP service providers
+- [x] Update reset command to delete curio volumes
+- [x] Add config.toml support for number of active PDP SPs (via ACTIVE_PDP_SP_COUNT constant)
 
-**Git Commit**: `feat: foundation for multi-sp curio infrastructure`
+**Git Commit**: `f6b9604` - `feat: foundation for multi-sp curio infrastructure`
 
 ---
 
