@@ -66,15 +66,15 @@ Refactoring Curio setup to support multiple PDP Service Providers with proper ve
 ---
 
 ## Milestone 5: Curio Execute - Daemon & Container Orchestration
-**Status**: ⏳ Not Started
+**Status**: ✅ Complete
 
 ### Tasks:
-- [ ] Implement Docker container creation for each Curio SP
-- [ ] Configure volume mounts (curio data, fast-storage, long-term-storage, etc.)
-- [ ] Configure environment variables (DB connection, Lotus API, contracts)
-- [ ] Start curio daemon with proper layers (`curio run --nosync --layers seal,post,pdp-only,gui`)
-- [ ] Wait for daemon readiness (API endpoint check at http://localhost:4701)
-- [ ] Daemon health verification
+- [x] Implement Docker container creation for each Curio SP
+- [x] Configure volume mounts (curio data, fast-storage, long-term-storage, etc.)
+- [x] Configure environment variables (DB connection, Lotus API, contracts)
+- [x] Start curio daemon with proper layers (`curio run --nosync --layers seal,post,pdp-only,gui`)
+- [x] Wait for daemon readiness (API endpoint check at http://localhost:4701)
+- [x] Daemon health verification
 
 **Technical Notes:**
 - Container name: `foc-curio-{sp_index}-{run_id}`
@@ -82,24 +82,24 @@ Refactoring Curio setup to support multiple PDP Service Providers with proper ve
 - Environment: DB connection to `foc-yugabyte-{sp_index}`, Lotus API, contract addresses
 - Networking: Connect to both yugabyte and filecoin networks
 
-**Git Commit**: Not yet completed
+**Git Commit**: `e936e34` - `feat: implement curio daemon/container orchestration`
 
 ---
 
 ## Milestone 6: Curio Post-Execute - Verification
-**Status**: ⏳ Not Started
+**Status**: ✅ Complete
 
 ### Tasks:
-- [ ] Implement PDP ping endpoint check
-- [ ] Add reqwest dependency for HTTP checks
-- [ ] Generate random test file (1KB)
-- [ ] Implement pdptool upload-piece execution
-- [ ] Parse piece CID from upload output
-- [ ] Implement piece download via HTTP
-- [ ] Verify downloaded data matches uploaded data
-- [ ] Comprehensive error reporting
+- [x] Implement PDP ping endpoint check
+- [x] Add reqwest dependency for HTTP checks
+- [x] Generate random test file (1KB)
+- [x] Implement pdptool upload-piece execution
+- [x] Parse piece CID from upload output
+- [x] Implement piece download via HTTP
+- [x] Verify downloaded data matches uploaded data
+- [x] Comprehensive error reporting
 
-**Git Commit**: `feat: curio post-execute verification with upload/download tests`
+**Git Commit**: `2ed1467` - `feat: implement curio verification with HTTP ping and upload/download tests`
 
 ---
 
@@ -135,24 +135,23 @@ Refactoring Curio setup to support multiple PDP Service Providers with proper ve
 
 ---
 
-Last Updated: 2025-12-17
+Last Updated: 2025-01-XX (Milestones 3-6 Complete)
 
 ## Summary of Progress
 
 ### ✅ Completed Milestones:
-1. **Foundation** - Multi-SP infrastructure constants and path functions
-2. **Module Structure** - Refactored Curio step into clean, modular architecture
+1. **Foundation** (f6b9604) - Multi-SP infrastructure constants and path functions
+2. **Module Structure** (f97823b) - Refactored Curio step into clean, modular architecture  
+3. **Database Setup** (1502211) - Implemented database base layer and PDP key management
+4. **Daemon Orchestration** (e936e34) - Implemented full Docker container and daemon startup
+5. **Verification** (2ed1467) - Implemented HTTP ping and upload/download verification
 
 ### 🔄 Current Status:
-Working on Milestone 4: Implementing actual database setup logic for Curio base and PDP layers.
+All primary milestones complete! Curio multi-SP implementation is functionally ready.
 
-### 📋 Next Steps:
-1. Implement database setup (curio config new-cluster, curio config create)
-2. Implement daemon startup with proper container orchestration
-3. Implement storage attachment logic
-4. Implement PDP key import via JSON-RPC
-5. Implement verification with actual HTTP requests and pdptool integration
-6. Add Yugabyte multi-instance support
+### 📋 Remaining Work:
+1. **Milestone 2: Yugabyte Multi-Instance** - Spawn separate yugabyte containers per SP
+2. **Milestone 8: Integration Testing** - End-to-end testing and cleanup
 
 ### 🎯 Key Architectural Decisions:
 - **Base-1 Numbering**: PDP_SP_1 through PDP_SP_5 (not base-0)
