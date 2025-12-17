@@ -33,25 +33,25 @@ Refactoring Curio setup to support multiple PDP Service Providers with proper ve
 ---
 
 ## Milestone 3: Curio Step Refactoring - Module Structure
-**Status**: ⏳ Not Started
+**Status**: ✅ Complete
 
 ### Tasks:
-- [ ] Create `src/commands/start/curio/mod.rs` (orchestrator)
-- [ ] Create `src/commands/start/curio/pre_execute.rs` (verification)
-- [ ] Create `src/commands/start/curio/execute.rs` (main setup)
-- [ ] Create `src/commands/start/curio/post_execute.rs` (verification)
-- [ ] Create `src/commands/start/curio/db_setup.rs` (DB migration & config)
-- [ ] Create `src/commands/start/curio/daemon.rs` (daemon management)
-- [ ] Create `src/commands/start/curio/storage.rs` (storage attach)
-- [ ] Create `src/commands/start/curio/pdp.rs` (PDP key import)
-- [ ] Create `src/commands/start/curio/verification.rs` (upload/download tests)
+- [x] Create `src/commands/start/curio/mod.rs` (orchestrator)
+- [x] Create `src/commands/start/curio/pre_execute.rs` (verification)
+- [x] Create `src/commands/start/curio/execute.rs` (main setup)
+- [x] Create `src/commands/start/curio/post_execute.rs` (verification)
+- [x] Create `src/commands/start/curio/db_setup.rs` (DB migration & config - stub)
+- [x] Create `src/commands/start/curio/daemon.rs` (daemon management - stub)
+- [x] Create `src/commands/start/curio/storage.rs` (storage attach - stub)
+- [x] Create `src/commands/start/curio/pdp.rs` (PDP key import - stub)
+- [x] Create `src/commands/start/curio/verification.rs` (upload/download tests - stub)
 
-**Git Commit**: `refactor: curio step multi-file module structure`
+**Git Commit**: `f97823b` - `refactor: curio step multi-file module structure`
 
 ---
 
 ## Milestone 4: Curio Execute - Base Layer Setup
-**Status**: ⏳ Not Started
+**Status**: 🔄 In Progress
 
 ### Tasks:
 - [ ] Implement `curio config new-cluster` for each SP
@@ -140,3 +140,35 @@ Refactoring Curio setup to support multiple PDP Service Providers with proper ve
 ---
 
 Last Updated: 2025-12-17
+
+## Summary of Progress
+
+### ✅ Completed Milestones:
+1. **Foundation** - Multi-SP infrastructure constants and path functions
+2. **Module Structure** - Refactored Curio step into clean, modular architecture
+
+### 🔄 Current Status:
+Working on Milestone 4: Implementing actual database setup logic for Curio base and PDP layers.
+
+### 📋 Next Steps:
+1. Implement database setup (curio config new-cluster, curio config create)
+2. Implement daemon startup with proper container orchestration
+3. Implement storage attachment logic
+4. Implement PDP key import via JSON-RPC
+5. Implement verification with actual HTTP requests and pdptool integration
+6. Add Yugabyte multi-instance support
+
+### 🎯 Key Architectural Decisions:
+- **Base-1 Numbering**: PDP_SP_1 through PDP_SP_5 (not base-0)
+- **Modular Design**: Each Curio module <150 lines, clear separation of concerns
+- **Stub Implementation**: All functions compile and execute, but logic is placeholder
+- **Sequential Miner IDs**: PDP SPs get t01002, t01003, etc.
+- **Isolated Resources**: Each Curio SP has own database, storage, and pre-sealed sectors
+
+### 🔧 Technical Notes:
+- `ACTIVE_PDP_SP_COUNT` constant controls how many SPs are actually initialized (default: 1)
+- `MAX_PDP_SP_COUNT` constant sets maximum possible SPs (5)
+- All curio volumes deleted on reset/regenesis
+- Pre-execute verifies chain is progressing before starting Curio
+
+---
