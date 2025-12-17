@@ -145,7 +145,14 @@ fn build_docker_run_args(
 ) -> Result<Vec<String>, Box<dyn Error>> {
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let pdp_network = curio_miner_network_name(run_id);
-    let yugabyte_name = format!("foc-yugabyte-{}-{}", sp_index, run_id);
+    
+    // Yugabyte container naming: foc-yugabyte-{run_id}-{sp_index}
+    let yugabyte_name = if crate::commands::start::genesis::constants::ACTIVE_PDP_SP_COUNT == 1 {
+        format!("foc-yugabyte-{}", run_id)
+    } else {
+        format!("foc-yugabyte-{}-{}", run_id, sp_index)
+    };
+    
     let lotus_name = format!("foc-lotus-{}", run_id);
 
     let volumes_dir = foc_localnet_docker_volumes();

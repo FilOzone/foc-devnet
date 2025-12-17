@@ -26,11 +26,11 @@ fn spawn_yugabyte_instance(
     run_id: &str,
 ) -> Result<(), Box<dyn Error>> {
     // Generate container name with instance suffix if multiple instances
-    // Format: foc-yugabyte-{instance_index}-{run_id} to match Curio expectations
+    // Format: foc-yugabyte-{run_id}-{instance_index} for multiple instances
     let container_name = if total_instances == 1 {
         yugabyte_container_name(run_id)
     } else {
-        format!("foc-yugabyte-{}-{}", instance_index, run_id)
+        format!("{}-{}", yugabyte_container_name(run_id), instance_index)
     };
 
     let network_name = curio_miner_network_name(run_id);
@@ -484,7 +484,7 @@ impl Step for YugabyteStep {
             let container_name = if num_instances == 1 {
                 yugabyte_container_name(run_id)
             } else {
-                format!("foc-yugabyte-{}-{}", instance_index, run_id)
+                format!("{}-{}", yugabyte_container_name(run_id), instance_index)
             };
 
             let instance_label = if num_instances == 1 {
