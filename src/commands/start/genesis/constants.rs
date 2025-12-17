@@ -57,3 +57,15 @@ pub const LOTUS_MINER_ID: &str = "t01000";
 /// This is the actor ID that will be used for the second miner in the genesis block.
 /// The "t0" prefix indicates a testnet actor ID.
 pub const CURIO_MINER_ID: &str = "t01001";
+
+/// The starting miner ID for PDP Service Providers.
+///
+/// PDP SP miners start from t01002 and increment sequentially (t01002, t01003, etc.)
+/// This allows lotus-miner (t01000) and curio-miner (t01001) to have fixed IDs.
+pub const PDP_SP_MINER_ID_START: u32 = 1002;
+
+/// The number of active PDP Service Providers to initialize.
+///
+/// This determines how many PDP SP miners will have pre-sealed sectors created.
+/// Keys for all MAX_PDP_SP_COUNT are generated, but only this many are activated.
+pub const ACTIVE_PDP_SP_COUNT: usize = 1;

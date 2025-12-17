@@ -121,6 +121,7 @@ pub fn start_cluster(
             base_volumes.join("genesis").join("foc-localnet.json"),
             base_volumes.join("lotus-data"),
             base_volumes.join("lotus-miner-data"),
+            crate::paths::foc_localnet_curio_volumes(),
             contract_addresses_file(),
             crate::paths::pdp_sp_0_provider_id_file(),
         ];
@@ -168,6 +169,7 @@ pub fn start_cluster(
         let paths_to_delete = vec![
             base_volumes.join("lotus-data"),
             base_volumes.join("lotus-miner-data"),
+            crate::paths::foc_localnet_curio_volumes(),
             contract_addresses_file(),
             crate::paths::foc_metadata_file(),
             crate::paths::pdp_sp_0_provider_id_file(),

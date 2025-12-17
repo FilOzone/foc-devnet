@@ -40,6 +40,9 @@ const PORT_WAIT_TIMEOUT_SECS: u64 = 30;
 const API_CHECK_DELAY_SECS: u64 = 3;
 
 // PDP configuration for Curio
+// DelegateTLS: Rev proxy is setup manually, so Curio does not terminate TLS itself
+// DomainName: If DelegateTLS is false, then curio needs to get SSL cert, does not matter much if true.
+//             For IPNI: curio connects to IPNI to register itself, and needs to tell to tell IPNI to reach it back. (does not matter here much)
 const PDP_CONFIG: &str = r#"[HTTP]
 DelegateTLS = true
 DomainName = "pdp-sp-0.foc-localnet.internal"
