@@ -51,46 +51,42 @@ Refactoring Curio setup to support multiple PDP Service Providers with proper ve
 ---
 
 ## Milestone 4: Curio Execute - Base Layer Setup
-**Status**: 🔄 In Progress
+**Status**: ✅ Complete
 
 ### Tasks:
-- [ ] Implement `curio config new-cluster` for each SP
-- [ ] Implement `curio config create` for pdp-layer config
-- [ ] Handle volume mappings for curio-X instances
-- [ ] Error handling for DB setup failures
+- [x] Implement `curio config new-cluster` for each SP
+- [x] Implement `curio config create` for pdp-layer config
+- [x] Handle volume mappings for curio-X instances
+- [x] Error handling for DB setup failures
+- [x] Implement PDP key import via JSON-RPC
+- [x] Verify returned address matches addresses.json
 
-**Git Commit**: `feat: curio base and pdp layer configuration`
+**Git Commit**: `1502211` - `feat: implement curio database setup and key management`
 
 ---
 
-## Milestone 5: Curio Execute - Daemon & Storage
+## Milestone 5: Curio Execute - Daemon & Container Orchestration
 **Status**: ⏳ Not Started
 
 ### Tasks:
-- [ ] Start curio daemon with proper layers
-- [ ] Implement storage attach for fast-storage
-- [ ] Implement storage attach for long-term-storage
-- [ ] Volume mount configuration for Docker
+- [ ] Implement Docker container creation for each Curio SP
+- [ ] Configure volume mounts (curio data, fast-storage, long-term-storage, etc.)
+- [ ] Configure environment variables (DB connection, Lotus API, contracts)
+- [ ] Start curio daemon with proper layers (`curio run --nosync --layers seal,post,pdp-only,gui`)
+- [ ] Wait for daemon readiness (API endpoint check at http://localhost:4701)
 - [ ] Daemon health verification
 
-**Git Commit**: `feat: curio daemon and storage management`
+**Technical Notes:**
+- Container name: `foc-curio-{sp_index}-{run_id}`
+- Volume mounts: `.curio`, `fast-storage`, `long-term-storage`, `lotus-data`, `genesis-sectors/pdp-sp-{sp_index}`
+- Environment: DB connection to `foc-yugabyte-{sp_index}`, Lotus API, contract addresses
+- Networking: Connect to both yugabyte and filecoin networks
+
+**Git Commit**: Not yet completed
 
 ---
 
-## Milestone 6: Curio Execute - PDP Key Import
-**Status**: ⏳ Not Started
-
-### Tasks:
-- [ ] Implement PDP key import via JSON-RPC
-- [ ] Verify returned address matches addresses.json
-- [ ] Error handling for key import failures
-- [ ] Add retry logic for API calls
-
-**Git Commit**: `feat: curio pdp key import and verification`
-
----
-
-## Milestone 7: Curio Post-Execute - Verification
+## Milestone 6: Curio Post-Execute - Verification
 **Status**: ⏳ Not Started
 
 ### Tasks:
