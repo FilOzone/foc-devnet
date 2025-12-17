@@ -4,12 +4,15 @@ use super::super::contract_addresses::ContractAddresses;
 use super::super::step::{Step, StepContext};
 use super::provider_id::ProviderIdInfo;
 use super::registration;
+use crate::commands::start::genesis::constants::ACTIVE_PDP_SP_COUNT;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::core::container_is_running;
 use crate::paths::pdp_sp_0_provider_id_file;
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 /// Step for registering PDP service provider
 pub struct PdpSpRegistrationStep {
@@ -142,14 +145,14 @@ impl Step for PdpSpRegistrationStep {
             self.name().green().bold()
         );
 
-        // Check if already registered
-        if ProviderIdInfo::exists() {
-            println!(
-                "  {} Provider already registered, skipping...",
-                "⊙".yellow()
-            );
-            return Ok(());
-        }
+        // Determine how many SPs to register
+        let num_sps = ACTIVE_PDP_SP_COUNT;
+        
+        println!(
+            "  {} Registering {} PDP Service Provider(s) in parallel...",
+            "⚡".cyan(),
+            num_sps
+        );
 
         // Get run ID
         let run_id = context.run_id().ok_or("Run ID not found in context")?;
@@ -157,15 +160,7 @@ impl Step for PdpSpRegistrationStep {
         // Get Lotus RPC URL with dynamic port
         let lotus_rpc_url = get_lotus_rpc_url(context)?;
 
-        // Get required addresses
-        let (
-            pdp_sp_0_address,
-            pdp_sp_0_eth_address,
-            deployer_foc_address,
-            deployer_foc_eth_address,
-        ) = Self::get_required_addresses(context)?;
-
-        // Load contract addresses
+        // Load contract addresses (shared for all SPs)
         let contract_addresses = Self::load_contract_addresses()?;
         let registry_address = contract_addresses
             .foc_contracts
@@ -185,42 +180,134 @@ impl Step for PdpSpRegistrationStep {
             .ok_or("usdfc address not found in contract addresses")?
             .clone();
 
-        // Register provider
-        let provider_id = registration::register_provider(
-            run_id,
-            &registry_address,
-            &pdp_sp_0_address,
-            &pdp_sp_0_eth_address,
-            &mock_usdfc_address,
-            &lotus_rpc_url,
-        )?;
+        // Get deployer addresses (for approval)
+        let deployer_foc_address = context
+            .get("deployer_foc_address")
+            .ok_or("DEPLOYER_FOC address not found in context")?;
+        let deployer_foc_eth_address = context
+            .get("deployer_foc_eth_address")
+            .ok_or("DEPLOYER_FOC Ethereum address not found in context")?;
 
-        // Add to approved list
-        registration::add_to_approved_list(
-            run_id,
-            &warm_storage_address,
-            provider_id,
-            &deployer_foc_address,
-            &deployer_foc_eth_address,
-            &lotus_rpc_url,
-        )?;
+        // Collect SP registration data
+        let mut sp_data = Vec::new();
+        for sp_index in 1..=num_sps {
+            let pdp_key = format!("pdp_sp_{}_address", sp_index - 1); // 0-indexed in keys
+            let eth_key = format!("pdp_sp_{}_eth_address", sp_index - 1);
+            let port_key = format!("curio_sp_{}_pdp_port", sp_index);
 
-        // Save provider ID to state
-        let info = ProviderIdInfo {
-            provider_id,
-            provider_address: pdp_sp_0_eth_address.clone(),
-            payee_address: pdp_sp_0_eth_address.clone(),
-        };
-        info.save()?;
+            let sp_address = context.get(&pdp_key)
+                .ok_or(format!("{} not found in context", pdp_key))?;
+            let sp_eth_address = context.get(&eth_key)
+                .ok_or(format!("{} not found in context", eth_key))?;
+            let pdp_port: u16 = context.get(&port_key)
+                .ok_or(format!("{} not found in context - Curio must be started first", port_key))?
+                .parse()?;
+
+            sp_data.push((sp_index, sp_address, sp_eth_address, pdp_port));
+        }
+
+        // Register all SPs in parallel
+        let errors: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let provider_ids: Arc<Mutex<Vec<(usize, u64)>>> = Arc::new(Mutex::new(Vec::new()));
+        let mut handles = Vec::new();
+
+        for (sp_index, sp_address, sp_eth_address, pdp_port) in sp_data {
+            let run_id = run_id.to_string();
+            let registry_address = registry_address.clone();
+            let sp_address = sp_address.clone();
+            let sp_eth_address = sp_eth_address.clone();
+            let mock_usdfc_address = mock_usdfc_address.clone();
+            let lotus_rpc_url = lotus_rpc_url.clone();
+            let warm_storage_address = warm_storage_address.clone();
+            let deployer_foc_address = deployer_foc_address.clone();
+            let deployer_foc_eth_address = deployer_foc_eth_address.clone();
+            let errors_clone = Arc::clone(&errors);
+            let provider_ids_clone = Arc::clone(&provider_ids);
+
+            let handle = thread::spawn(move || {
+                let service_url = format!("http://localhost:{}", pdp_port);
+                
+                match registration::register_single_provider(
+                    &run_id,
+                    &registry_address,
+                    &sp_address,
+                    &sp_eth_address,
+                    &mock_usdfc_address,
+                    &lotus_rpc_url,
+                    &service_url,
+                    sp_index,
+                ) {
+                    Ok(provider_id) => {
+                        // Add to approved list
+                        if let Err(e) = registration::add_to_approved_list(
+                            &run_id,
+                            &warm_storage_address,
+                            provider_id,
+                            &deployer_foc_address,
+                            &deployer_foc_eth_address,
+                            &lotus_rpc_url,
+                        ) {
+                            errors_clone.lock().unwrap().push(
+                                format!("SP {} approval failed: {}", sp_index, e)
+                            );
+                        } else {
+                            provider_ids_clone.lock().unwrap().push((sp_index, provider_id));
+                            println!(
+                                "  {} PDP SP {} registered (Provider ID: {}, URL: {})",
+                                "✓".green(),
+                                sp_index,
+                                provider_id,
+                                service_url
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        errors_clone.lock().unwrap().push(
+                            format!("SP {} registration failed: {}", sp_index, e)
+                        );
+                    }
+                }
+            });
+
+            handles.push(handle);
+        }
+
+        // Wait for all threads to complete
+        for handle in handles {
+            handle.join().map_err(|_| "Registration thread panicked")?;
+        }
+
+        // Check for errors
+        let error_list = errors.lock().unwrap();
+        if !error_list.is_empty() {
+            return Err(format!(
+                "Failed to register some providers:\n{}",
+                error_list.join("\n")
+            ).into());
+        }
+
+        // Store first provider ID (for backward compatibility)
+        let provider_ids_list = provider_ids.lock().unwrap();
+        if let Some((sp_index, first_provider_id)) = provider_ids_list.first() {
+            let sp_key_prefix = format!("pdp_sp_{}", sp_index - 1); // 0-indexed keys
+            let sp_address = context.get(&format!("{}_address", sp_key_prefix))
+                .ok_or("SP address not found")?;
+            let sp_eth_address = context.get(&format!("{}_eth_address", sp_key_prefix))
+                .ok_or("SP eth address not found")?;
+            
+            let info = ProviderIdInfo {
+                provider_id: *first_provider_id,
+                provider_address: sp_eth_address.clone(),
+                payee_address: sp_eth_address.clone(),
+            };
+            info.save()?;
+        }
 
         println!(
-            "  {} Provider ID saved to {}",
+            "  {} All {} PDP SP(s) registered successfully",
             "✓".green(),
-            pdp_sp_0_provider_id_file().display()
+            num_sps
         );
-
-        // Store provider ID in context for downstream steps
-        context.set("pdp_sp_0_provider_id", &provider_id.to_string());
 
         Ok(())
     }

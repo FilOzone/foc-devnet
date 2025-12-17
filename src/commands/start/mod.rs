@@ -265,6 +265,8 @@ pub fn start_cluster(
     let curio_step = CurioStep::new(volumes_dir.clone(), logs_dir.clone());
 
     // Execute all steps
+    // Note: PDP SP registration MUST happen after Curio because it needs
+    // the dynamic ports allocated to each Curio instance's PDP endpoint
     let steps: Vec<&dyn Step> = vec![
         &lotus_step,
         &lotus_miner_step,
@@ -273,10 +275,10 @@ pub fn start_cluster(
         &usdfc_funding_step,
         &multicall3_deploy_step,
         &foc_deploy_step,
-        &pdp_sp_reg_step,
         &user_deposit_permit_step,
         &yugabyte_step,
         &curio_step,
+        &pdp_sp_reg_step,  // Moved after Curio to access dynamic PDP ports
     ];
     execute_steps(
         steps,

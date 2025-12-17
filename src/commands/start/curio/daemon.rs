@@ -28,8 +28,9 @@ use std::time::Duration;
 /// 3. Start container with sleep infinity
 /// 4. Run curio daemon in background
 /// 5. Wait for API to be ready
+/// 6. Store PDP port in context for later registration
 pub fn start_curio_daemon(
-    context: &StepContext,
+    context: &mut StepContext,
     _step: &CurioStep,
     sp_index: usize,
 ) -> Result<(), Box<dyn Error>> {
@@ -41,6 +42,13 @@ pub fn start_curio_daemon(
 
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let container_name = format!("{}-{}-{}", CURIO_CONTAINER, sp_index, run_id);
+
+    // Calculate PDP port (will be stored in context for registration)
+    let base_gui_port = 4700 + ((sp_index - 1) * 10) as u16;
+    let pdp_port = base_gui_port + 2;
+    
+    // Store PDP port in context for registration step
+    context.set(&format!("curio_sp_{}_pdp_port", sp_index), pdp_port.to_string());
 
     // Clean up existing container if any
     if container_exists(&container_name)? {
