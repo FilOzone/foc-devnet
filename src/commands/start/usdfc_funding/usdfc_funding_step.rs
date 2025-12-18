@@ -134,8 +134,7 @@ impl USDFCFundingStep {
         // Process transfers in batches
         for (batch_idx, batch) in transfers.chunks(MAX_CONCURRENT_TRANSFERS).enumerate() {
             let batch_num = batch_idx + 1;
-            let total_batches =
-                num_transfers.div_ceil(MAX_CONCURRENT_TRANSFERS);
+            let total_batches = num_transfers.div_ceil(MAX_CONCURRENT_TRANSFERS);
 
             println!(
                 "      Processing batch {}/{} ({} transfers)...",

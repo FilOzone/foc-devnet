@@ -295,7 +295,8 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
 /// - "ServiceProviderRegistry Proxy" -> "service_provider_registry_proxy"
 /// - "FilecoinPayV1 Contract" -> "filecoin_pay_v1_contract"
 fn to_snake_case(name: &str) -> String {
-    name.chars()
+    let mut result = name
+        .chars()
         .enumerate()
         .fold(String::new(), |mut acc, (i, c)| {
             if c.is_uppercase() && i > 0 {
@@ -304,5 +305,12 @@ fn to_snake_case(name: &str) -> String {
             acc.push(c.to_lowercase().next().unwrap());
             acc
         })
-        .replace(" ", "_")
+        .replace(" ", "_");
+
+    // Replace multiple consecutive underscores with single underscore
+    while result.contains("__") {
+        result = result.replace("__", "_");
+    }
+
+    result
 }

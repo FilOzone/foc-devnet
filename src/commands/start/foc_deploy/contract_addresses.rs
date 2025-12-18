@@ -10,8 +10,7 @@ use std::fs;
 use crate::paths::contract_addresses_file;
 
 /// Contract addresses and deployment information
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ContractAddresses {
     /// Standard contracts (multicall, USDFC, etc.)
     pub contracts: std::collections::HashMap<String, String>,
@@ -75,4 +74,3 @@ impl ContractAddresses {
         Ok(())
     }
 }
-

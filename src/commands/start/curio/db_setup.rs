@@ -45,7 +45,7 @@ pub fn build_foc_contract_env_vars(_context: &StepContext) -> Result<Vec<String>
     if let Some(multicall) = addresses.contracts.get("multicall") {
         env_vars.push(format!("FOC_CONTRACT_MULTICALL={}", multicall));
     }
-    if let Some(pay) = addresses.foc_contracts.get("filecoin_pay_v1__contract") {
+    if let Some(pay) = addresses.foc_contracts.get("filecoin_pay_v1_contract") {
         env_vars.push(format!("FOC_CONTRACT_PAY={}", pay));
     }
     if let Some(pdp) = addresses.foc_contracts.get("p_d_p_verifier_proxy") {
