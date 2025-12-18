@@ -54,12 +54,12 @@ pub fn deploy_mock_usdfc_foundry(
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     // Print output for debugging
-    if !stdout.is_empty() {
-        println!("        Deployment output:");
-        for line in stdout.lines() {
-            println!("          {}", line);
-        }
-    }
+    // if !stdout.is_empty() {
+    //     println!("        Deployment output:");
+    //     for line in stdout.lines() {
+    //         println!("          {}", line);
+    //     }
+    // }
 
     if !output.status.success() {
         println!("        {} Deployment failed", "✗".red());

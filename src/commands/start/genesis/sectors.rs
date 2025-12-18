@@ -2,7 +2,6 @@
 //!
 //! This module handles pre-sealing sectors required for the genesis miners.
 
-use crate::commands::start::env_vars::build_network_env_vars;
 use crate::paths::{
     foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_genesis,
     foc_localnet_genesis_sectors, foc_localnet_genesis_sectors_lotus_miner,
@@ -118,9 +117,6 @@ fn preseal_miner_sectors(
 
     // Build docker args with network environment variables
     let mut docker_args = vec!["run".to_string(), "--rm".to_string()];
-
-    // Add network environment variables (required for lotus-seed built with -tags=localnet)
-    docker_args.extend(build_network_env_vars());
 
     // Add volume mounts
     docker_args.extend(vec![

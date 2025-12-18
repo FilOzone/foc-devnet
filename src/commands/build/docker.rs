@@ -143,8 +143,8 @@ pub fn setup_build_script(
         Project::Curio => format!(
             r#"git config --global --add safe.directory {} && \
                 cd {} && \
-                make clean 2k && \
-                cp curio sptool {}"#,
+                make clean 2k pdptool && \
+                cp curio sptool pdptool {}"#,
             container_source_dir, container_source_dir, container_output_dir
         ),
     }

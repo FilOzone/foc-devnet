@@ -57,9 +57,3 @@ pub const LOTUS_MINER_ID: &str = "t01000";
 /// PDP SP miners start from t01001 and increment sequentially (t01001, t01002, etc.)
 /// This allows lotus-miner (t01000) to have a fixed ID, while PDP SPs occupy t01001+.
 pub const PDP_SP_MINER_ID_START: u32 = 1001;
-
-/// The number of active PDP Service Providers to initialize.
-///
-/// This determines how many PDP SP miners will have pre-sealed sectors created.
-/// Keys for all MAX_PDP_SP_COUNT are generated, but only this many are activated.
-pub const ACTIVE_PDP_SP_COUNT: usize = 1;

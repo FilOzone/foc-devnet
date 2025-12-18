@@ -6,7 +6,6 @@ use std::error::Error;
 use std::path::PathBuf;
 
 use super::constants::{IMAGE_NAME, LOTUS_API_WAIT_SLEEP_SECS};
-use crate::commands::start::env_vars::build_network_env_vars;
 use crate::commands::start::lotus_utils::{build_fullnode_api_info, read_lotus_token};
 use crate::commands::start::step::StepContext;
 use crate::docker::containers::{lotus_container_name, lotus_miner_container_name};
@@ -90,10 +89,6 @@ pub fn build_miner_docker_command(
     for mount in &volume_mounts {
         docker_args.extend_from_slice(&["-v".to_string(), mount.clone()]);
     }
-
-    // Add network parameter environment variables
-    let network_env_vars = build_network_env_vars();
-    docker_args.extend(network_env_vars);
 
     // Add FULLNODE_API_INFO with token read from host
     docker_args.extend_from_slice(&[

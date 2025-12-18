@@ -6,13 +6,15 @@
 //! - File download and content verification
 
 use super::super::step::StepContext;
-use super::constants::{CURIO_WEB_RPC_PORT, TEST_FILE_SIZE_BYTES};
+use super::constants::TEST_FILE_SIZE_BYTES;
 use crossterm::style::Stylize;
 use rand::Rng;
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use std::thread::sleep;
+use std::time::Duration;
 use tempfile::TempDir;
 
 /// Verify a single Curio PDP SP is functioning correctly.
@@ -27,19 +29,24 @@ pub fn verify_single_curio_sp(
     sp_index: usize,
 ) -> Result<(), Box<dyn Error>> {
     // Step 1: Ping PDP subsystem
-    verify_pdp_ping(sp_index)?;
+    verify_pdp_ping(context, sp_index)?;
 
     // Step 2: Upload and download test
-    verify_upload_download(sp_index)?;
+    verify_upload_download(context, sp_index)?;
 
     Ok(())
 }
 
 /// Verify PDP subsystem responds to ping.
-fn verify_pdp_ping(sp_index: usize) -> Result<(), Box<dyn Error>> {
+fn verify_pdp_ping(context: &StepContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
     println!("      {} Pinging PDP subsystem...", "🏓".cyan());
 
-    let port = CURIO_WEB_RPC_PORT + sp_index as u16;
+    // Get dynamically allocated PDP port from context
+    let port: u16 = context
+        .get(&format!("curio_sp_{}_pdp_port", sp_index))
+        .ok_or("Curio PDP port not found in context")?
+        .parse()?;
+
     let ping_url = format!("http://localhost:{}/pdp/ping", port);
 
     let response = reqwest::blocking::get(&ping_url)?;
@@ -54,7 +61,7 @@ fn verify_pdp_ping(sp_index: usize) -> Result<(), Box<dyn Error>> {
 }
 
 /// Verify file upload and download works correctly.
-fn verify_upload_download(sp_index: usize) -> Result<(), Box<dyn Error>> {
+fn verify_upload_download(context: &StepContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
     println!(
         "      {} Testing upload/download functionality...",
         "📤".cyan()
@@ -65,10 +72,13 @@ fn verify_upload_download(sp_index: usize) -> Result<(), Box<dyn Error>> {
     let test_file_path = create_random_test_file(&temp_dir)?;
 
     // Upload file via pdptool
-    let piece_cid = upload_test_file(&test_file_path, sp_index)?;
+    let piece_cid = upload_test_file(context, &test_file_path, sp_index)?;
+
+    // Wait a bit for the piece to be available for download
+    sleep(Duration::from_secs(3));
 
     // Download file via HTTP
-    let downloaded_data = download_piece(&piece_cid, sp_index)?;
+    let downloaded_data = download_piece(context, &piece_cid, sp_index)?;
 
     // Verify contents match
     let original_data = fs::read(&test_file_path)?;
@@ -93,23 +103,33 @@ fn create_random_test_file(temp_dir: &TempDir) -> Result<PathBuf, Box<dyn Error>
 }
 
 /// Upload test file using pdptool.
-fn upload_test_file(file_path: &PathBuf, sp_index: usize) -> Result<String, Box<dyn Error>> {
-    let port = CURIO_WEB_RPC_PORT + sp_index as u16;
+fn upload_test_file(
+    context: &StepContext,
+    file_path: &PathBuf,
+    sp_index: usize,
+) -> Result<String, Box<dyn Error>> {
+    // Get dynamically allocated PDP port from context
+    let port: u16 = context
+        .get(&format!("curio_sp_{}_pdp_port", sp_index))
+        .ok_or("Curio PDP port not found in context")?
+        .parse()?;
+
     let service_url = format!("http://localhost:{}", port);
 
-    let output = Command::new("pdptool")
-        .args([
-            "upload-piece",
-            "--service-url",
-            &service_url,
-            "--service-name",
-            "public",
-            "--hash-type",
-            "commp",
-            file_path.to_str().unwrap(),
-            "--verbose",
-        ])
-        .output()?;
+    // Run pdptool upload twice due to tool quirk
+    let args = [
+        "upload-piece",
+        "--service-url",
+        &service_url,
+        "--service-name",
+        "public",
+        "--hash-type",
+        "commp",
+        file_path.to_str().unwrap(),
+        "--verbose",
+    ];
+
+    let output = Command::new("pdptool").args(&args).output()?;
 
     if !output.status.success() {
         return Err(format!(
@@ -119,38 +139,77 @@ fn upload_test_file(file_path: &PathBuf, sp_index: usize) -> Result<String, Box<
         .into());
     }
 
+    println!("      {} File uploaded via pdptool", "✓".green(),);
+
     // Extract piece CID from output
     let stdout = String::from_utf8_lossy(&output.stdout);
     extract_piece_cid(&stdout)
 }
 
 /// Extract piece CID from pdptool output.
+///
+/// Parses output like: "Piece uploaded successfully. Piece CID: baga6ea4seaq..."
 fn extract_piece_cid(output: &str) -> Result<String, Box<dyn Error>> {
-    // Look for line like: "Piece CID: baga6ea4seaq..."
     for line in output.lines() {
-        if line.contains("Piece CID:") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if let Some(cid) = parts.last() {
+        if let Some(prefix_pos) = line.find("Piece CID:") {
+            // Extract everything after "Piece CID: "
+            let cid_part = &line[prefix_pos + "Piece CID:".len()..];
+            let cid = cid_part.trim();
+
+            println!("      {} Extracted Piece CID: {}", "🔍".cyan(), cid);
+            if !cid.is_empty() {
                 return Ok(cid.to_string());
             }
         }
     }
 
-    Err("Could not extract piece CID from pdptool output".into())
+    Err(format!(
+        "Could not extract piece CID from pdptool output. Output was:\n{}",
+        output
+    )
+    .into())
 }
 
 /// Download piece via HTTP.
-fn download_piece(piece_cid: &str, sp_index: usize) -> Result<Vec<u8>, Box<dyn Error>> {
-    let port = CURIO_WEB_RPC_PORT + sp_index as u16;
+fn download_piece(
+    context: &StepContext,
+    piece_cid: &str,
+    sp_index: usize,
+) -> Result<Vec<u8>, Box<dyn Error>> {
+    // Get dynamically allocated PDP port from context
+    let port: u16 = context
+        .get(&format!("curio_sp_{}_pdp_port", sp_index))
+        .ok_or("Curio PDP port not found in context")?
+        .parse()?;
+
     let download_url = format!("http://localhost:{}/piece/{}", port, piece_cid);
 
-    let response = reqwest::blocking::get(&download_url)?;
+    // Retry download a few times in case piece isn't immediately available
+    for attempt in 1..=5 {
+        let response = reqwest::blocking::get(&download_url)?;
 
+        if response.status().is_success() {
+            let data = response.bytes()?.to_vec();
+            return Ok(data);
+        }
+
+        if attempt < 5 {
+            println!(
+                "      {} Download attempt {} failed with status: {}, retrying...",
+                "⏳".yellow(),
+                attempt,
+                response.status()
+            );
+            sleep(Duration::from_secs(2));
+        }
+    }
+
+    // Final attempt
+    let response = reqwest::blocking::get(&download_url)?;
     if !response.status().is_success() {
         return Err(format!("Piece download failed with status: {}", response.status()).into());
     }
 
     let data = response.bytes()?.to_vec();
-
     Ok(data)
 }

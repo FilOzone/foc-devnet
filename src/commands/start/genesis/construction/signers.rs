@@ -2,7 +2,6 @@
 //!
 //! This module handles adding BLS signer keys to the genesis file.
 
-use crate::commands::start::env_vars::build_network_env_vars;
 use crate::commands::start::genesis::constants;
 use crate::commands::start::genesis::keys::get_bls_addresses;
 use crate::paths::{
@@ -48,9 +47,6 @@ pub fn add_signers_to_genesis() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build docker args with network environment variables
     let mut docker_args = vec!["run".to_string(), "--rm".to_string()];
-
-    // Add network environment variables (required for lotus-seed built with -tags=localnet)
-    docker_args.extend(build_network_env_vars());
 
     // Add volume mounts and command
     docker_args.extend(vec![

@@ -1,6 +1,6 @@
 use super::step::{Step, StepContext};
 use crate::docker::containers::yugabyte_container_name;
-use crate::docker::network::curio_miner_network_name;
+use crate::docker::network::pdp_miner_network_name;
 use crate::docker::{
     container_exists, container_is_running, stop_and_remove_container, wait_for_port,
 };
@@ -18,28 +18,19 @@ const IMAGE_NAME: &str = "foc-yugabyte";
 ///
 /// This function is thread-safe and can be called concurrently.
 fn spawn_yugabyte_instance(
-    instance_index: usize,
+    sp_idx: usize,
     total_instances: usize,
     ports: &[u16],
     volumes_dir: &PathBuf,
     run_id: &str,
 ) -> Result<(), Box<dyn Error>> {
-    // Generate container name with instance suffix if multiple instances
-    // Format: foc-yugabyte-{run_id}-{instance_index} for multiple instances
-    let container_name = if total_instances == 1 {
-        yugabyte_container_name(run_id)
-    } else {
-        format!("{}-{}", yugabyte_container_name(run_id), instance_index)
-    };
-
-    let network_name = curio_miner_network_name(run_id);
+    // Generate container name with instance suffix
+    // Format: foc-{run_id}-yugabyte-{instance_index} (always indexed for consistency)
+    let container_name = yugabyte_container_name(run_id, sp_idx);
+    let network_name = pdp_miner_network_name(run_id, sp_idx);
 
     // Create data directory for this instance
-    let data_dir = if total_instances == 1 {
-        volumes_dir.join("yugabyte-data")
-    } else {
-        volumes_dir.join(format!("yugabyte-{}-data", instance_index))
-    };
+    let data_dir = volumes_dir.join(format!("yugabyte-data/{}", sp_idx));
     std::fs::create_dir_all(&data_dir)?;
 
     // Stop and remove existing container if it exists
@@ -50,7 +41,7 @@ fn spawn_yugabyte_instance(
             if total_instances == 1 {
                 "".to_string()
             } else {
-                instance_index.to_string()
+                sp_idx.to_string()
             }
         );
         stop_and_remove_container(&container_name)?;
@@ -100,6 +91,18 @@ fn spawn_yugabyte_instance(
     // Add image name
     docker_args.push(IMAGE_NAME);
 
+    // Add YugabyteDB startup command with full configuration
+    docker_args.extend_from_slice(&[
+        "/yugabyte/bin/yugabyted",
+        "start",
+        "--ui=true",
+        "--callhome=false",
+        "--advertise_address=0.0.0.0",
+        "--master_flags=rpc_bind_addresses=0.0.0.0",
+        "--tserver_flags=rpc_bind_addresses=0.0.0.0,pgsql_proxy_bind_address=0.0.0.0:5433,cql_proxy_bind_address=0.0.0.0:9042",
+        "--daemon=false",
+    ]);
+
     // Run the container
     let output = Command::new("docker").args(&docker_args).output()?;
 
@@ -117,28 +120,47 @@ fn spawn_yugabyte_instance(
 /// Verify PostgreSQL connectivity for a specific Yugabyte instance.
 fn verify_postgres_connection_for_instance(container_name: &str) -> Result<(), Box<dyn Error>> {
     const YUGABYTE_YSQL_CONTAINER_PORT: &str = "5433";
+    const MAX_RETRIES: u32 = 30;
+    const RETRY_DELAY_SECS: u64 = 2;
 
-    // Try to connect to the database using docker exec
-    let output = Command::new("docker")
-        .args([
-            "exec",
-            container_name,
-            "/yugabyte/bin/ysqlsh",
-            "-h",
-            "localhost",
-            "-p",
-            YUGABYTE_YSQL_CONTAINER_PORT,
-            "-c",
-            "SELECT 1;",
-        ])
-        .output()?;
+    // YugabyteDB YSQL service takes time to initialize after the container starts
+    // Retry connection attempts with delays
+    for attempt in 1..=MAX_RETRIES {
+        let output = Command::new("docker")
+            .args([
+                "exec",
+                "-e",
+                "PGPASSWORD=yugabyte",
+                container_name,
+                "/yugabyte/bin/ysqlsh",
+                "-h",
+                "localhost",
+                "-p",
+                YUGABYTE_YSQL_CONTAINER_PORT,
+                "-U",
+                "yugabyte",
+                "-d",
+                "yugabyte",
+                "-c",
+                "SELECT 1;",
+            ])
+            .output()?;
 
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to query PostgreSQL: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
+        if output.status.success() {
+            return Ok(());
+        }
+
+        // If not the last attempt, wait before retrying
+        if attempt < MAX_RETRIES {
+            thread::sleep(Duration::from_secs(RETRY_DELAY_SECS));
+        } else {
+            // Last attempt failed, return error
+            return Err(format!(
+                "Failed to query PostgreSQL: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .into());
+        }
     }
 
     Ok(())
@@ -164,9 +186,12 @@ impl YugabyteStep {
     }
 
     /// Get the YugabyteDB container name from context
-    fn get_container_name(context: &StepContext) -> Result<String, Box<dyn Error>> {
+    fn get_container_name(
+        context: &StepContext,
+        instance_index: usize,
+    ) -> Result<String, Box<dyn Error>> {
         let run_id = context.run_id().ok_or("Run ID not found in context")?;
-        Ok(yugabyte_container_name(run_id))
+        Ok(yugabyte_container_name(run_id, instance_index))
     }
 }
 
@@ -176,24 +201,26 @@ impl Step for YugabyteStep {
     }
 
     fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        let container_name = Self::get_container_name(context)?;
+        for instance_index in 1..=self.active_sp_count {
+            let container_name = Self::get_container_name(context, instance_index)?;
 
-        // Check if any existing yugabyte container is running
-        if container_exists(&container_name)? {
-            if container_is_running(&container_name)? {
-                println!(
-                    "    {} Container '{}' is already running",
-                    "⚠".yellow(),
-                    container_name
-                );
-                stop_and_remove_container(&container_name)?;
-            } else {
-                println!(
-                    "    {} Container '{}' exists but is not running",
-                    "⚠".yellow(),
-                    container_name
-                );
-                stop_and_remove_container(&container_name)?;
+            // Check if any existing yugabyte container is running
+            if container_exists(&container_name)? {
+                if container_is_running(&container_name)? {
+                    println!(
+                        "    {} Container '{}' is already running",
+                        "⚠".yellow(),
+                        container_name
+                    );
+                    stop_and_remove_container(&container_name)?;
+                } else {
+                    println!(
+                        "    {} Container '{}' exists but is not running",
+                        "⚠".yellow(),
+                        container_name
+                    );
+                    stop_and_remove_container(&container_name)?;
+                }
             }
         }
 
@@ -229,11 +256,7 @@ impl Step for YugabyteStep {
 
         // Store ports in context for each instance
         for (instance_index, ports) in &all_ports {
-            let prefix = if num_instances == 1 {
-                "yugabyte".to_string()
-            } else {
-                format!("yugabyte_{}", instance_index)
-            };
+            let prefix = format!("yugabyte_{}", instance_index);
 
             context.set(&format!("{}_ysql_port", prefix), ports[0].to_string());
             context.set(&format!("{}_ycql_port", prefix), ports[1].to_string());
@@ -251,19 +274,14 @@ impl Step for YugabyteStep {
         let errors: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
         let mut handles = Vec::new();
 
-        for (instance_index, ports) in all_ports {
+        for (sp_idx, ports) in all_ports {
             let volumes_dir = self.volumes_dir.clone();
             let run_id = context.run_id().ok_or("Run ID not found")?.to_string();
             let errors_clone = Arc::clone(&errors);
 
             let handle = thread::spawn(move || {
-                match spawn_yugabyte_instance(
-                    instance_index,
-                    num_instances,
-                    &ports,
-                    &volumes_dir,
-                    &run_id,
-                ) {
+                match spawn_yugabyte_instance(sp_idx, num_instances, &ports, &volumes_dir, &run_id)
+                {
                     Ok(_) => {
                         println!(
                             "    {} Yugabyte instance {} started successfully",
@@ -271,12 +289,12 @@ impl Step for YugabyteStep {
                             if num_instances == 1 {
                                 "".to_string()
                             } else {
-                                instance_index.to_string()
+                                sp_idx.to_string()
                             }
                         );
                     }
                     Err(e) => {
-                        let error_msg = format!("Instance {}: {}", instance_index, e);
+                        let error_msg = format!("Instance {}: {}", sp_idx, e);
                         errors_clone.lock().unwrap().push(error_msg);
                     }
                 }
@@ -318,36 +336,22 @@ impl Step for YugabyteStep {
 
         // Verify all instances
         for instance_index in 1..=num_instances {
-            let container_name = if num_instances == 1 {
-                yugabyte_container_name(run_id)
-            } else {
-                format!("{}-{}", yugabyte_container_name(run_id), instance_index)
-            };
-
-            let instance_label = if num_instances == 1 {
-                "".to_string()
-            } else {
-                format!(" {}", instance_index)
-            };
+            let container_name = yugabyte_container_name(run_id, instance_index);
 
             // Verify container is running
             if !container_is_running(&container_name)? {
                 return Err(
-                    format!("Yugabyte instance{} stopped unexpectedly", instance_label).into(),
+                    format!("Yugabyte instance{} stopped unexpectedly", container_name).into(),
                 );
             }
             println!(
                 "    {} Yugabyte instance{} is running",
                 "✓".green(),
-                instance_label
+                container_name
             );
 
             // Check all ports are accessible for this instance
-            let prefix = if num_instances == 1 {
-                "yugabyte".to_string()
-            } else {
-                format!("yugabyte_{}", instance_index)
-            };
+            let prefix = format!("yugabyte_{}", instance_index);
 
             let port_names = [
                 ("ysql_port", "YSQL (PostgreSQL API)"),
@@ -368,7 +372,7 @@ impl Step for YugabyteStep {
 
                 print!(
                     "      Instance{} - Checking port {} ({})... ",
-                    instance_label, port, description
+                    container_name, port, description
                 );
                 match wait_for_port(port, 30) {
                     Ok(_) => println!("{}", "✓".green()),
@@ -381,23 +385,23 @@ impl Step for YugabyteStep {
 
             // Verify PostgreSQL connection for this instance
             println!(
-                "    Verifying PostgreSQL connectivity for instance{}...",
-                instance_label
+                "    Verifying PostgreSQL connectivity for {}...",
+                container_name
             );
             thread::sleep(Duration::from_secs(2));
 
             if let Err(e) = verify_postgres_connection_for_instance(&container_name) {
                 return Err(format!(
-                    "PostgreSQL verification failed for instance{}: {}",
-                    instance_label, e
+                    "PostgreSQL verification failed for {}: {}",
+                    container_name, e
                 )
                 .into());
             }
 
             println!(
-                "    {} PostgreSQL is ready for instance{}",
+                "    {} PostgreSQL is ready for {}",
                 "✓".green(),
-                instance_label
+                container_name
             );
         }
 
@@ -413,27 +417,20 @@ impl Step for YugabyteStep {
             "✓".green().bold()
         );
 
-        if num_instances == 1 {
-            let web_ui_port: u16 = context.get("yugabyte_web_ui_port").unwrap().parse()?;
-            let ysql_port: u16 = context.get("yugabyte_ysql_port").unwrap().parse()?;
-            println!("      Web UI: http://localhost:{}", web_ui_port);
-            println!("      YSQL endpoint: localhost:{}", ysql_port);
-        } else {
-            for instance_index in 1..=num_instances {
-                let prefix = format!("yugabyte_{}", instance_index);
-                let web_ui_port: u16 = context
-                    .get(&format!("{}_web_ui_port", prefix))
-                    .unwrap()
-                    .parse()?;
-                let ysql_port: u16 = context
-                    .get(&format!("{}_ysql_port", prefix))
-                    .unwrap()
-                    .parse()?;
-                println!(
-                    "      Instance {} - Web UI: http://localhost:{}, YSQL: localhost:{}",
-                    instance_index, web_ui_port, ysql_port
-                );
-            }
+        for instance_index in 1..=num_instances {
+            let prefix = format!("yugabyte_{}", instance_index);
+            let web_ui_port: u16 = context
+                .get(&format!("{}_web_ui_port", prefix))
+                .unwrap()
+                .parse()?;
+            let ysql_port: u16 = context
+                .get(&format!("{}_ysql_port", prefix))
+                .unwrap()
+                .parse()?;
+            println!(
+                "      Instance {} - Web UI: http://localhost:{}, YSQL: localhost:{}",
+                instance_index, web_ui_port, ysql_port
+            );
         }
 
         Ok(())

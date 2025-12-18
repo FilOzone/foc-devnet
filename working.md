@@ -247,3 +247,28 @@ New CurioStep will:
     - use this piece CID (`bafkzcibdyeoaqt65bbxel7udfzz676ar44327o527ugh2seukeme7anlcpi23rqq`) to download the file via (use reqwest):
         - curl -X GET http://localhost:4702/piece/bafkzcibdyeoaqt65bbxel7udfzz676ar44327o527ugh2seukeme7anlcpi23rqq
         - verify if the data retrieved is what was uploaded
+
+
+Ensure these env vars (across all calls to foc-curio):
+```
+# Derive from contract_addresses.json
+export FOC_CONTRACT_USDFC=0xB514FeE11119E0923950C09A181F1fa3aa62C80b ;
+export FOC_CONTRACT_FWSS=0x4A8a81765bFBe09D6fDd167EF954a1D3401340e5 ;
+export FOC_CONTRACT_MULTICALL=0x2e1F1424b41ad7b2E34b0a60501edFc82FEf5BE8 ;
+export FOC_CONTRACT_SIMPLE=0x0000000000000000000000000000000000000000 ;
+export FOC_CONTRACT_PAY=0xFD61fA68CB8F70dfC35a4AB244703e39BaB9F352 ;
+
+export CURIO_DB_HOST=localhost;  # yugabyte DNS name
+export CURIO_DB_PORT=5703 ; # yugabyte dynamic port 
+export CURIO_DB_CASSANDRA_PORT=5704;  yugabyte dynamic port 
+export CURIO_DB_USER=yugabyte ;
+export CURIO_DB_PASSWORD=yugabyte ;
+export CURIO_DB_NAME=yugabyte ;
+export CURIO_DB_LOAD_BALANCE=false;
+
+# same as what is fed to lotus-miner
+export FULLNODE_API_INFO=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJyZWFkIiwid3JpdGUiLCJzaWduIiwiYWRtaW4iXX0.-A_dOiryIy0L91-CkYi8vedSLEAfiKuPhN-21ijJX_I:/dns4/localhost/tcp/5700/http
+
+# Private key from addresses.json
+export PDP_PRIVATE_KEY=cd3ec679d4c6928ff7db1854ee1720ad0e0f8c03299c093602360c431452705c;
+```

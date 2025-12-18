@@ -5,7 +5,6 @@
 use super::super::step::StepContext;
 use super::constants::{CURIO_WEB_RPC_PORT, PDP_KEY_IMPORT_WAIT_SECS};
 use crate::commands::init::keys::KeyInfo;
-use crate::constants::CURIO_CONTAINER;
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::fs;
@@ -25,7 +24,7 @@ pub fn import_pdp_key(context: &StepContext, sp_index: usize) -> Result<(), Box<
     );
 
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
-    let container_name = format!("{}-{}-{}", CURIO_CONTAINER, sp_index, run_id);
+    let container_name = format!("foc-{}-curio-{}", run_id, sp_index);
 
     // Get PDP_SP_{sp_index} private key and expected eth address
     let pdp_sp_name = format!("PDP_SP_{}", sp_index);

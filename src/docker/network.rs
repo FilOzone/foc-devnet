@@ -4,6 +4,8 @@
 //! for each cluster run. Networks are named with the foc- prefix and run ID
 //! to allow multiple concurrent runs and easy identification.
 
+use crate::constants::MAX_PDP_SP_COUNT;
+
 use super::core::docker_command;
 use crossterm::style::Stylize;
 use std::error::Error;
@@ -24,8 +26,8 @@ pub fn lotus_miner_network_name(run_id: &str) -> String {
 }
 
 /// Get the Curio miner network name for a run ID
-pub fn curio_miner_network_name(run_id: &str) -> String {
-    format!("foc_{}_{}", run_id, CURIO_MINER_NET_SUFFIX)
+pub fn pdp_miner_network_name(run_id: &str, sp_idx: usize) -> String {
+    format!("foc_{}_{}-{}", run_id, CURIO_MINER_NET_SUFFIX, sp_idx)
 }
 
 /// Check if a Docker network exists
@@ -103,7 +105,9 @@ pub fn create_all_networks(run_id: &str) -> Result<(), Box<dyn Error>> {
 
     create_network(&lotus_network_name(run_id))?;
     create_network(&lotus_miner_network_name(run_id))?;
-    create_network(&curio_miner_network_name(run_id))?;
+    for sp_idx in 1..=MAX_PDP_SP_COUNT {
+        create_network(&pdp_miner_network_name(run_id, sp_idx))?;
+    }
 
     println!("{}", "  All networks created successfully".green());
     Ok(())
@@ -120,7 +124,12 @@ pub fn delete_all_networks(run_id: &str) -> Result<(), Box<dyn Error>> {
     println!("{}", "Removing Docker networks...".blue().bold());
 
     // Delete in reverse order of creation
-    delete_network(&curio_miner_network_name(run_id))?;
+    for sp_idx in (1..=MAX_PDP_SP_COUNT).rev() {
+        let pdp_network = pdp_miner_network_name(run_id, sp_idx);
+        if network_exists(&pdp_network)? {
+            delete_network(&pdp_network)?;
+        }
+    }
     delete_network(&lotus_miner_network_name(run_id))?;
     delete_network(&lotus_network_name(run_id))?;
 

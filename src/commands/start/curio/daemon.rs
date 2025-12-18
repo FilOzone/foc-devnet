@@ -2,16 +2,16 @@
 //!
 //! Handles creating Docker containers and starting Curio daemon instances.
 
-use super::super::env_vars::build_network_env_vars;
 use super::super::step::StepContext;
 use super::constants::{CURIO_LAYERS, CURIO_WEB_RPC_PORT, DAEMON_STARTUP_WAIT_SECS};
+use super::db_setup::{build_db_env_vars, build_foc_contract_env_vars, build_lotus_env_vars};
 use super::CurioStep;
 use crate::commands::start::genesis::constants::PDP_SP_MINER_ID_START;
-use crate::constants::CURIO_CONTAINER;
-use crate::docker::network::{curio_miner_network_name, lotus_network_name};
+use crate::docker::network::{lotus_network_name, pdp_miner_network_name};
 use crate::docker::{container_exists, stop_and_remove_container};
 use crate::paths::{
     foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_genesis_sectors_pdp_sp,
+    foc_localnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
 };
 use crossterm::style::Stylize;
 use std::error::Error;
@@ -28,7 +28,7 @@ use std::time::Duration;
 /// 3. Start container with sleep infinity
 /// 4. Run curio daemon in background
 /// 5. Wait for API to be ready
-/// 6. Store PDP port in context for later registration
+/// 6. Store allocated ports in context for later use
 pub fn start_curio_daemon(
     context: &mut StepContext,
     _step: &CurioStep,
@@ -41,13 +41,27 @@ pub fn start_curio_daemon(
     );
 
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
-    let container_name = format!("{}-{}-{}", CURIO_CONTAINER, sp_index, run_id);
+    let container_name = format!("foc-{}-curio-{}", run_id, sp_index);
 
-    // Calculate PDP port (will be stored in context for registration)
-    let base_gui_port = 4700 + ((sp_index - 1) * 10) as u16;
-    let pdp_port = base_gui_port + 2;
+    // Allocate ports dynamically for this Curio instance
+    let api_port = context.port_allocator.allocate()?;
+    let api_port_alt = context.port_allocator.allocate()?;
+    let gui_port = context.port_allocator.allocate()?;
+    let pdp_port = context.port_allocator.allocate()?;
 
-    // Store PDP port in context for registration step
+    // Store allocated ports in context for later use (e.g., registration step)
+    context.set(
+        &format!("curio_sp_{}_api_port", sp_index),
+        api_port.to_string(),
+    );
+    context.set(
+        &format!("curio_sp_{}_api_port_alt", sp_index),
+        api_port_alt.to_string(),
+    );
+    context.set(
+        &format!("curio_sp_{}_gui_port", sp_index),
+        gui_port.to_string(),
+    );
     context.set(
         &format!("curio_sp_{}_pdp_port", sp_index),
         pdp_port.to_string(),
@@ -66,11 +80,8 @@ pub fn start_curio_daemon(
     // Create necessary directories
     create_curio_directories(sp_index)?;
 
-    // Create and start container
+    // Create and start container with curio as main process
     create_curio_container(context, sp_index, &container_name)?;
-
-    // Start curio daemon process inside container
-    start_daemon_process(&container_name)?;
 
     // Wait for daemon to be ready
     wait_for_daemon_ready(&container_name)?;
@@ -120,10 +131,13 @@ fn create_curio_container(
     // Build docker run command
     let mut docker_args = build_docker_run_args(context, sp_index, container_name, &miner_id)?;
 
-    // Add image and command
+    // Add image and command - run curio directly as the main process
     docker_args.push("foc-curio".to_string());
-    docker_args.push("sleep".to_string());
-    docker_args.push("infinity".to_string());
+    docker_args.push("/usr/local/bin/lotus-bins/curio".to_string());
+    docker_args.push("run".to_string());
+    docker_args.push("--nosync".to_string());
+    docker_args.push("--layers".to_string());
+    docker_args.push(CURIO_LAYERS.to_string());
 
     // Execute docker run
     let output = Command::new("docker").args(&docker_args).output()?;
@@ -155,22 +169,14 @@ fn build_docker_run_args(
     _miner_id: &str,
 ) -> Result<Vec<String>, Box<dyn Error>> {
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
-    let pdp_network = curio_miner_network_name(run_id);
-
-    // Yugabyte container naming: foc-yugabyte-{run_id}-{sp_index}
-    let yugabyte_name = if crate::commands::start::genesis::constants::ACTIVE_PDP_SP_COUNT == 1 {
-        format!("foc-yugabyte-{}", run_id)
-    } else {
-        format!("foc-yugabyte-{}-{}", run_id, sp_index)
-    };
-
-    let lotus_name = format!("foc-lotus-{}", run_id);
+    let pdp_network = pdp_miner_network_name(run_id, sp_index);
 
     let volumes_dir = foc_localnet_docker_volumes();
     let curio_sp_dir = volumes_dir.join("curio").join(sp_index.to_string());
     let lotus_data_dir = volumes_dir.join("lotus-data");
     let sectors_dir = foc_localnet_genesis_sectors_pdp_sp(sp_index);
     let bin_dir = foc_localnet_bin();
+    let params_dir = foc_localnet_proof_parameters();
 
     let mut docker_args = vec![
         "run".to_string(),
@@ -181,19 +187,33 @@ fn build_docker_run_args(
         pdp_network,
     ];
 
-    // Port mappings - each SP gets unique ports
-    let base_api_port = 12300 + ((sp_index - 1) * 10) as u16;
-    let base_gui_port = 4700 + ((sp_index - 1) * 10) as u16;
+    // Port mappings - get dynamically allocated ports from context
+    let api_port: u16 = context
+        .get(&format!("curio_sp_{}_api_port", sp_index))
+        .ok_or("Curio API port not found in context")?
+        .parse()?;
+    let api_port_alt: u16 = context
+        .get(&format!("curio_sp_{}_api_port_alt", sp_index))
+        .ok_or("Curio API alt port not found in context")?
+        .parse()?;
+    let gui_port: u16 = context
+        .get(&format!("curio_sp_{}_gui_port", sp_index))
+        .ok_or("Curio GUI port not found in context")?
+        .parse()?;
+    let pdp_port: u16 = context
+        .get(&format!("curio_sp_{}_pdp_port", sp_index))
+        .ok_or("Curio PDP port not found in context")?
+        .parse()?;
 
     docker_args.extend_from_slice(&[
         "-p".to_string(),
-        format!("{}:12300", base_api_port),
+        format!("{}:12300", api_port),
         "-p".to_string(),
-        format!("{}:12301", base_api_port + 1),
+        format!("{}:12301", api_port_alt),
         "-p".to_string(),
-        format!("{}:4701", base_gui_port + 1),
+        format!("{}:4701", gui_port),
         "-p".to_string(),
-        format!("{}:4702", base_gui_port + 2),
+        format!("{}:4702", pdp_port),
     ]);
 
     // Volume mounts
@@ -215,74 +235,37 @@ fn build_docker_run_args(
             "{}:/home/foc-user/.lotus-local-net",
             lotus_data_dir.display()
         ),
+        format!("{}:/lotus-data:ro", lotus_data_dir.display()),
         format!("{}:/sectors", sectors_dir.display()),
+        format!(
+            "{}:{}",
+            params_dir.display(),
+            CONTAINER_FILECOIN_PROOF_PARAMS_PATH
+        ),
     ];
 
     for mount in volume_mounts {
         docker_args.extend_from_slice(&["-v".to_string(), mount]);
     }
 
-    // Environment variables
-    docker_args.extend(build_network_env_vars());
+    // Add environment variables using shared builders
+    let foc_env = build_foc_contract_env_vars(context)?;
+    let db_env = build_db_env_vars(context, sp_index)?;
+    let lotus_env = build_lotus_env_vars(context)?;
 
-    // Yugabyte DB configuration
-    docker_args.extend_from_slice(&[
-        "-e".to_string(),
-        format!("CURIO_DB_HOST={}", yugabyte_name),
-        "-e".to_string(),
-        "CURIO_DB_PORT=5433".to_string(),
-        "-e".to_string(),
-        "CURIO_DB_USER=yugabyte".to_string(),
-        "-e".to_string(),
-        "CURIO_DB_PASSWORD=yugabyte".to_string(),
-        "-e".to_string(),
-        "CURIO_DB_NAME=yugabyte".to_string(),
-        "-e".to_string(),
-        "CURIO_DB_LOAD_BALANCE=false".to_string(),
-    ]);
-
-    // Lotus API configuration
-    let lotus_api = format!("http://{}:1234/rpc/v1", lotus_name);
-    docker_args.extend_from_slice(&[
-        "-e".to_string(),
-        format!("LOTUS_API={}", lotus_api),
-        "-e".to_string(),
-        "LOTUS_PATH=/home/foc-user/.lotus-local-net".to_string(),
-    ]);
-
-    Ok(docker_args)
-}
-
-/// Start curio daemon process inside container
-fn start_daemon_process(container_name: &str) -> Result<(), Box<dyn Error>> {
-    println!(
-        "      {} Starting daemon with layers: {}...",
-        "⚙".cyan(),
-        CURIO_LAYERS
-    );
-
-    let output = Command::new("docker")
-        .args([
-            "exec",
-            "-d",
-            container_name,
-            "/usr/local/bin/lotus-bins/curio",
-            "run",
-            "--nosync",
-            "--layers",
-            CURIO_LAYERS,
-        ])
-        .output()?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to start curio daemon: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
+    for env in &foc_env {
+        docker_args.extend_from_slice(&["-e".to_string(), env.clone()]);
     }
 
-    Ok(())
+    for env in &db_env {
+        docker_args.extend_from_slice(&["-e".to_string(), env.clone()]);
+    }
+
+    for env in &lotus_env {
+        docker_args.extend_from_slice(&["-e".to_string(), env.clone()]);
+    }
+
+    Ok(docker_args)
 }
 
 /// Wait for Curio daemon to be ready

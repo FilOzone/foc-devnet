@@ -29,7 +29,7 @@ pub fn transfer_mock_usdfc(
          --private-key {} \
          --rpc-url {} \
          'transfer(address,uint256)' {} {} \
-         --gas-limit 10000000",
+         --gas-limit 100000000",
         token_address, from_private_key, lotus_rpc_url, to_eth_address, amount
     );
 
@@ -37,6 +37,9 @@ pub fn transfer_mock_usdfc(
     if let Some(nonce_val) = nonce {
         cast_cmd.push_str(&format!(" --nonce {}", nonce_val));
     }
+
+    // Debug output
+    // println!("        Executing command: {}", cast_cmd);
 
     let output = Command::new("docker")
         .args([
@@ -71,10 +74,6 @@ pub fn transfer_mock_usdfc(
         return Err(format!("Failed to transfer MockUSDFC tokens: {}", description).into());
     }
 
-    println!("        {} Transfer successful", "✓".green());
-
-    // Wait for transaction confirmation
-    println!("      Waiting for transaction confirmation...");
     thread::sleep(Duration::from_secs(TRANSACTION_CONFIRMATION_WAIT_SECS));
 
     Ok(())

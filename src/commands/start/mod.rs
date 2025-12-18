@@ -1,6 +1,5 @@
 mod contract_addresses;
 mod curio;
-mod env_vars;
 mod eth_acc_funding;
 mod foc_deploy;
 mod foc_deployer;
@@ -122,6 +121,7 @@ pub fn start_cluster(
             base_volumes.join("lotus-data"),
             base_volumes.join("lotus-miner-data"),
             crate::paths::foc_localnet_curio_volumes(),
+            base_volumes.join("yugabyte-data"),
             contract_addresses_file(),
             crate::paths::pdp_sp_0_provider_id_file(),
         ];
@@ -169,6 +169,7 @@ pub fn start_cluster(
         let paths_to_delete = vec![
             base_volumes.join("lotus-data"),
             base_volumes.join("lotus-miner-data"),
+            base_volumes.join("yugabyte-data"),
             crate::paths::foc_localnet_curio_volumes(),
             contract_addresses_file(),
             crate::paths::foc_metadata_file(),
@@ -278,7 +279,11 @@ pub fn start_cluster(
     let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), logs_dir.clone());
     let eth_acc_funding_step = ETHAccFundingStep::new(logs_dir.clone());
     let usdfc_deploy_step = USDFCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
-    let usdfc_funding_step = USDFCFundingStep::new(volumes_dir.clone(), logs_dir.clone());
+    let usdfc_funding_step = USDFCFundingStep::new(
+        volumes_dir.clone(),
+        logs_dir.clone(),
+        config.active_pdp_sp_count,
+    );
     let multicall3_deploy_step = MultiCall3DeployStep::new(volumes_dir.clone(), logs_dir.clone());
     let foc_deploy_step = FOCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
     let pdp_sp_reg_step = PdpSpRegistrationStep::new(

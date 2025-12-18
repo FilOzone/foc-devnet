@@ -3,9 +3,7 @@
 //! This module contains the main Step implementation for distributing MockUSDFC tokens
 //! to user and service provider addresses.
 
-use super::constants::{
-    token_amount_to_wei, TRANSACTION_CONFIRMATION_WAIT_SECS, USDFC_ACCOUNTS_FUNDED,
-};
+use super::constants::{token_amount_to_wei, TRANSACTION_CONFIRMATION_WAIT_SECS};
 use super::funding_operations::{check_mock_usdfc_balance, transfer_mock_usdfc};
 use super::key_operations::get_user_private_key;
 use crate::commands::start::step::{Step, StepContext};
@@ -20,12 +18,16 @@ use std::path::PathBuf;
 pub struct USDFCFundingStep {
     #[allow(dead_code)]
     logs_dir: PathBuf,
+    active_pdp_sp_count: usize,
 }
 
 impl USDFCFundingStep {
     /// Create a new USDFCFundingStep
-    pub fn new(_volumes_dir: PathBuf, logs_dir: PathBuf) -> Self {
-        Self { logs_dir }
+    pub fn new(_volumes_dir: PathBuf, logs_dir: PathBuf, active_pdp_sp_count: usize) -> Self {
+        Self {
+            logs_dir,
+            active_pdp_sp_count,
+        }
     }
 
     /// Perform the token distribution process
@@ -52,23 +54,42 @@ impl USDFCFundingStep {
         // Get DEPLOYER_MOCKUSDFC private key from addresses.json
         let deployer_private_key = get_user_private_key("DEPLOYER_MOCKUSDFC")?;
 
+        // Build list of recipients based on active PDP SP count
+        let mut token_transfers = Vec::new();
+
+        // Always fund USER accounts (base-1 numbering)
+        for user_num in 1..=3 {
+            let account_name = format!("USER_{}", user_num);
+            let recepient = get_user_eth_address(&account_name)?;
+            token_transfers.push((
+                account_name,
+                recepient.to_string(),
+                token_amount_to_wei(100_000),
+                100_000u64,
+            ));
+        }
+
+        // Fund only active PDP SPs (base-1 numbering)
+        println!(
+            "      Funding {} active PDP SP(s)...",
+            self.active_pdp_sp_count
+        );
+        for sp_num in 1..=self.active_pdp_sp_count {
+            let account_name = format!("PDP_SP_{}", sp_num);
+            let recepient = get_user_eth_address(&account_name)?;
+            token_transfers.push((
+                account_name,
+                recepient.to_string(),
+                token_amount_to_wei(200_000),
+                200_000u64,
+            ));
+        }
+
         // Set the number of recipients in context
         context.set(
             "usdfc_tfr_recepient_count",
-            &USDFC_ACCOUNTS_FUNDED.len().to_string(),
+            &token_transfers.len().to_string(),
         );
-        let mut token_transfers = Vec::with_capacity(USDFC_ACCOUNTS_FUNDED.len());
-
-        for (account_name, amount_tokens) in USDFC_ACCOUNTS_FUNDED.iter() {
-            let recepient = get_user_eth_address(&account_name)?;
-
-            token_transfers.push((
-                account_name.to_string(),
-                recepient.to_string(),
-                token_amount_to_wei(*amount_tokens),
-                *amount_tokens,
-            ));
-        }
 
         // Execute all USDFC transfers in parallel
         self.parallel_transfer_usdfc(
@@ -83,9 +104,9 @@ impl USDFCFundingStep {
         Ok(())
     }
 
-    /// Execute multiple USDFC transfers in parallel
+    /// Execute multiple USDFC transfers in parallel with concurrency limit
     ///
-    /// This function spawns a thread for each transfer to execute them concurrently.
+    /// This function processes transfers in batches of 4 to avoid overwhelming the RPC endpoint.
     /// If any transfer fails, the entire operation fails after all threads complete.
     fn parallel_transfer_usdfc(
         &self,
@@ -99,68 +120,93 @@ impl USDFCFundingStep {
         use std::sync::{Arc, Mutex};
         use std::thread;
 
+        const MAX_CONCURRENT_TRANSFERS: usize = 6;
+
         let num_transfers = transfers.len();
         println!(
-            "      Executing {} USDFC transfers in parallel...",
-            num_transfers
+            "      Executing {} USDFC transfers (max {} concurrent)...",
+            num_transfers, MAX_CONCURRENT_TRANSFERS
         );
 
         // Shared error collection
         let errors: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
-        let mut handles = vec![];
 
-        for (tfr_idx, (account_name, to_addr, amount_wei, amount_tokens)) in
-            transfers.into_iter().enumerate()
-        {
-            let from_key = from_private_key.to_string();
-            let from_addr = from_eth_address.to_string();
-            let token_addr = token_address.to_string();
-            let rpc_url = lotus_rpc_url.to_string();
-            let errors_clone = Arc::clone(&errors);
+        // Process transfers in batches
+        for (batch_idx, batch) in transfers.chunks(MAX_CONCURRENT_TRANSFERS).enumerate() {
+            let batch_num = batch_idx + 1;
+            let total_batches =
+                (num_transfers + MAX_CONCURRENT_TRANSFERS - 1) / MAX_CONCURRENT_TRANSFERS;
 
-            let handle = thread::spawn(move || {
-                let description = format!("DEPLOYER_MOCKUSDFC → {}", account_name);
-                println!(
-                    "      Transferring {} tokens: {}...",
-                    amount_tokens, description
-                );
+            println!(
+                "      Processing batch {}/{} ({} transfers)...",
+                batch_num,
+                total_batches,
+                batch.len()
+            );
 
-                match transfer_mock_usdfc(
-                    &from_key,
-                    &from_addr,
-                    &to_addr,
-                    &amount_wei,
-                    &token_addr,
-                    &description,
-                    Some((tfr_idx + 1).try_into().unwrap()),
-                    &rpc_url,
-                ) {
-                    Ok(_) => {
-                        println!(
-                            "      ✓ Transferred {} tokens: {}",
-                            amount_tokens,
-                            description.dark_green().bold()
-                        );
-                    }
-                    Err(e) => {
-                        let error_msg = format!(
-                            "Failed to transfer {} tokens to {}: {}",
-                            amount_tokens, account_name, e
-                        );
-                        eprintln!("      ✗ {}", error_msg.clone().red());
-                        errors_clone.lock().unwrap().push(error_msg);
-                    }
+            let mut handles = vec![];
+
+            for (batch_tfr_idx, (account_name, to_addr, amount_wei, amount_tokens)) in
+                batch.iter().enumerate()
+            {
+                let tfr_idx = batch_idx * MAX_CONCURRENT_TRANSFERS + batch_tfr_idx;
+                let from_key = from_private_key.to_string();
+                let from_addr = from_eth_address.to_string();
+                let token_addr = token_address.to_string();
+                let rpc_url = lotus_rpc_url.to_string();
+                let errors_clone = Arc::clone(&errors);
+                let account_name = account_name.clone();
+                let to_addr = to_addr.clone();
+                let amount_wei = amount_wei.clone();
+                let amount_tokens = *amount_tokens;
+
+                // Stagger container launches to avoid overwhelming Docker
+                if batch_tfr_idx > 0 {
+                    thread::sleep(std::time::Duration::from_millis(100));
                 }
-            });
 
-            handles.push(handle);
-        }
+                let handle = thread::spawn(move || {
+                    let description = format!("DEPLOYER_MOCKUSDFC → {}", account_name);
 
-        // Wait for all transfers to complete
-        for handle in handles {
-            handle
-                .join()
-                .map_err(|_| "Thread panicked during USDFC transfer")?;
+                    match transfer_mock_usdfc(
+                        &from_key,
+                        &from_addr,
+                        &to_addr,
+                        &amount_wei,
+                        &token_addr,
+                        &description,
+                        Some((tfr_idx + 1).try_into().unwrap()),
+                        &rpc_url,
+                    ) {
+                        Ok(_) => {
+                            println!(
+                                "      ✓ Transferred {} tokens: {}",
+                                amount_tokens,
+                                description.dark_green().bold()
+                            );
+                        }
+                        Err(e) => {
+                            let error_msg = format!(
+                                "Failed to transfer {} tokens to {}: {}",
+                                amount_tokens, account_name, e
+                            );
+                            eprintln!("      ✗ {}", error_msg.clone().red());
+                            errors_clone.lock().unwrap().push(error_msg);
+                        }
+                    }
+                });
+
+                handles.push(handle);
+            }
+
+            // Wait for this batch to complete
+            for handle in handles {
+                handle
+                    .join()
+                    .map_err(|_| "Thread panicked during USDFC transfer")?;
+            }
+
+            println!("      Batch {}/{} completed", batch_num, total_batches);
         }
 
         // Wait for transaction confirmation and address activation
@@ -242,8 +288,23 @@ impl Step for USDFCFundingStep {
         // Get Lotus RPC URL with dynamic port
         let lotus_rpc_url = get_lotus_rpc_url(context)?;
 
-        // verify all accounts for distribution have MockUSDFC tokens as expected
-        for (account_name, amount_tokens) in USDFC_ACCOUNTS_FUNDED.iter() {
+        // Build list of accounts to verify (same as what was transferred)
+        let mut accounts_to_verify = Vec::new();
+
+        // Add user accounts (base-1 numbering)
+        for user_num in 1..=3 {
+            let account_name = format!("USER_{}", user_num);
+            accounts_to_verify.push((account_name, 100_000u64));
+        }
+
+        // Add only active PDP SPs (base-1 numbering)
+        for sp_num in 1..=self.active_pdp_sp_count {
+            let account_name = format!("PDP_SP_{}", sp_num);
+            accounts_to_verify.push((account_name, 200_000u64));
+        }
+
+        // Verify all accounts for distribution have MockUSDFC tokens as expected
+        for (account_name, amount_tokens) in accounts_to_verify.iter() {
             let eth_address = get_user_eth_address(&account_name)?;
 
             match check_mock_usdfc_balance(
@@ -257,10 +318,10 @@ impl Step for USDFCFundingStep {
                     let expected_wei = token_amount_to_wei(*amount_tokens);
                     if balance == expected_wei {
                         println!(
-                            "      {} {} balance correct: {} wei",
+                            "      {} {} balance correct: {} tokens",
                             "✓".green(),
                             account_name,
-                            balance
+                            amount_tokens
                         );
                     } else {
                         return Err(format!(

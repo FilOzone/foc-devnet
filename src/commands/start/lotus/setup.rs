@@ -3,7 +3,6 @@
 //! This module contains functions that prepare the environment
 //! for starting the Lotus daemon container.
 
-use super::super::env_vars::build_network_env_vars;
 use super::super::step::StepContext;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::network::lotus_network_name;
@@ -24,9 +23,11 @@ pub fn create_fevm_config(lotus_data_dir: &PathBuf) -> Result<(), Box<dyn Error>
 
     // Create a minimal config with FEVM enabled
     // The API always listens on the container's internal port 1234
+    // DisableAuth is set to true for local development (no JWT required)
     let config_content = r#"[API]
   ListenAddress = "/ip4/0.0.0.0/tcp/1234/http"
   Timeout = "30s"
+  DisableAuth = true
 
 [Chainstore]
   EnableSplitstore = false
@@ -133,10 +134,6 @@ pub fn build_docker_command(
     for mount in &volume_mounts {
         docker_args.extend_from_slice(&["-v".to_string(), mount.clone()]);
     }
-
-    // Add network parameter environment variables
-    let network_env_vars = build_network_env_vars();
-    docker_args.extend(network_env_vars);
 
     // Set working directory
     docker_args.extend_from_slice(&["-w".to_string(), "/data".to_string()]);

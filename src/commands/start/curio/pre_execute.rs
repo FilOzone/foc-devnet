@@ -4,7 +4,7 @@
 //! attempting to start Curio.
 
 use super::super::step::StepContext;
-use crate::constants::{LOTUS_CONTAINER, LOTUS_MINER_CONTAINER};
+use crate::docker::containers::lotus_container_name;
 use crate::docker::{container_exists, container_is_running};
 use crossterm::style::Stylize;
 use std::error::Error;
@@ -25,8 +25,7 @@ pub fn verify_prerequisites(context: &StepContext, sp_count: usize) -> Result<()
     );
 
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
-    let lotus_container = format!("{}-{}", LOTUS_CONTAINER, run_id);
-    let miner_container = format!("{}-{}", LOTUS_MINER_CONTAINER, run_id);
+    let lotus_container = lotus_container_name(run_id);
 
     // Check Lotus container exists and is running
     if !container_exists(&lotus_container)? {
@@ -41,23 +40,6 @@ pub fn verify_prerequisites(context: &StepContext, sp_count: usize) -> Result<()
         return Err(format!(
             "Lotus container '{}' is not running. Ensure Lotus step completed successfully.",
             lotus_container
-        )
-        .into());
-    }
-
-    // Check Lotus-Miner container exists and is running
-    if !container_exists(&miner_container)? {
-        return Err(format!(
-            "Lotus-Miner container '{}' does not exist. Run the Lotus-Miner step first.",
-            miner_container
-        )
-        .into());
-    }
-
-    if !container_is_running(&miner_container)? {
-        return Err(format!(
-            "Lotus-Miner container '{}' is not running. Ensure Lotus-Miner step completed successfully.",
-            miner_container
         )
         .into());
     }

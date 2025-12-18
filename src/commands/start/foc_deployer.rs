@@ -122,10 +122,10 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
     let output_str = String::from_utf8_lossy(&output.stdout);
 
     // Print output for debugging
-    println!("\n        Deployment output:");
-    for line in output_str.lines() {
-        println!("          {}", line);
-    }
+    // println!("\n        Deployment output:");
+    // for line in output_str.lines() {
+    //     println!("          {}", line);
+    // }
 
     if !output.status.success() {
         println!("        {} Deployment script failed", "✗".red());

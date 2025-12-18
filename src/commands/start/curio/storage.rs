@@ -6,7 +6,6 @@ use super::super::step::StepContext;
 use super::constants::{
     CURIO_FAST_STORAGE_PATH, CURIO_LONG_TERM_STORAGE_PATH, STORAGE_ATTACH_WAIT_SECS,
 };
-use crate::constants::CURIO_CONTAINER;
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::process::Command;
@@ -29,7 +28,7 @@ pub fn attach_storage_locations(
     );
 
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
-    let container_name = format!("{}-{}-{}", CURIO_CONTAINER, sp_index, run_id);
+    let container_name = format!("foc-{}-curio-{}", run_id, sp_index);
 
     // Attach fast storage
     attach_fast_storage(&container_name)?;
@@ -50,12 +49,17 @@ pub fn attach_storage_locations(
 fn attach_fast_storage(container_name: &str) -> Result<(), Box<dyn Error>> {
     println!("      {} Attaching fast storage...", "⚙".cyan());
 
+    // Use container DNS name for --machine flag so it works in Docker networks
+    let machine_addr = format!("{}:12300", container_name);
+
     let output = Command::new("docker")
         .args([
             "exec",
             container_name,
             "/usr/local/bin/lotus-bins/curio",
             "cli",
+            "--machine",
+            &machine_addr,
             "storage",
             "attach",
             "--init",
@@ -83,12 +87,17 @@ fn attach_fast_storage(container_name: &str) -> Result<(), Box<dyn Error>> {
 fn attach_long_term_storage(container_name: &str) -> Result<(), Box<dyn Error>> {
     println!("      {} Attaching long-term storage...", "⚙".cyan());
 
+    // Use container DNS name for --machine flag so it works in Docker networks
+    let machine_addr = format!("{}:12300", container_name);
+
     let output = Command::new("docker")
         .args([
             "exec",
             container_name,
             "/usr/local/bin/lotus-bins/curio",
             "cli",
+            "--machine",
+            &machine_addr,
             "storage",
             "attach",
             "--init",
