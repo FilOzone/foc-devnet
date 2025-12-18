@@ -11,6 +11,7 @@ use crate::paths::contract_addresses_file;
 
 /// Contract addresses and deployment information
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct ContractAddresses {
     /// Standard contracts (multicall, USDFC, etc.)
     pub contracts: std::collections::HashMap<String, String>,
@@ -73,17 +74,5 @@ impl ContractAddresses {
         fs::write(&path, json)?;
         Ok(())
     }
-
-
 }
 
-impl Default for ContractAddresses {
-    fn default() -> Self {
-        Self {
-            contracts: std::collections::HashMap::new(),
-            foc_contracts: std::collections::HashMap::new(),
-            filbeam_controller: None,
-            filbeam_beneficiary: None,
-        }
-    }
-}

@@ -93,7 +93,7 @@ pub fn generate_keys(use_random: bool) -> Result<Vec<KeyInfo>, Box<dyn std::erro
     }
 
     for (key_name, _) in &FEVM_ACCOUNTS_PREFUNDED {
-        let eth_key = crate::crypto::derive_ethereum_key(&seed, *key_name)?;
+        let eth_key = crate::crypto::derive_ethereum_key(&seed, key_name)?;
         keys.push(KeyInfo {
             name: key_name.to_string(),
             private_key: eth_key.private_key,

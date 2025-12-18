@@ -20,9 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Start {
             volumes_dir,
             logs_dir,
-            regenesis,
-            reset,
-        } => main_app::command_handlers::handle_start(volumes_dir, logs_dir, regenesis, reset),
+        } => main_app::command_handlers::handle_start(volumes_dir, logs_dir),
         Commands::Stop => main_app::command_handlers::handle_stop(),
         Commands::Init {
             curio,

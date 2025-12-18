@@ -4,7 +4,9 @@
 //! of the Step trait for deploying FOC service contracts.
 
 use super::deployment::{check_existing_deployment, perform_deployment, post_execute_verification};
-use super::helpers::{check_lotus_running, check_required_addresses, get_filecoin_services_repo_path};
+use super::helpers::{
+    check_lotus_running, check_required_addresses, get_filecoin_services_repo_path,
+};
 use crate::commands::start::step::{Step, StepContext};
 use crossterm::style::Stylize;
 use std::error::Error;

@@ -71,9 +71,8 @@ pub fn status() -> Result<(), Box<dyn std::error::Error>> {
     let padding_len = width.saturating_sub(header_display_width);
     let padding = "░".repeat(padding_len).dark_grey();
     println!(
-        "\n{}{}{}",
+        "\n{} {}",
         header_text.bold().cyan().underlined(),
-        " ",
         padding
     );
     println!("{}", "═".repeat(width).cyan());

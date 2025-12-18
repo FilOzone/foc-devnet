@@ -24,7 +24,7 @@ pub fn find_preseal_files() -> Result<(String, String), Box<dyn Error>> {
     let preseal_key_file = "pre-seal-t01000.key";
 
     let preseal_path = sectors_dir.join(preseal_file);
-    let preseal_key_path = sectors_dir.join(&preseal_key_file);
+    let preseal_key_path = sectors_dir.join(preseal_key_file);
 
     if !preseal_path.exists() {
         return Err(format!(

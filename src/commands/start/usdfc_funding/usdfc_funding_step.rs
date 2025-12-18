@@ -88,7 +88,7 @@ impl USDFCFundingStep {
         // Set the number of recipients in context
         context.set(
             "usdfc_tfr_recepient_count",
-            &token_transfers.len().to_string(),
+            token_transfers.len().to_string(),
         );
 
         // Execute all USDFC transfers in parallel
@@ -135,7 +135,7 @@ impl USDFCFundingStep {
         for (batch_idx, batch) in transfers.chunks(MAX_CONCURRENT_TRANSFERS).enumerate() {
             let batch_num = batch_idx + 1;
             let total_batches =
-                (num_transfers + MAX_CONCURRENT_TRANSFERS - 1) / MAX_CONCURRENT_TRANSFERS;
+                num_transfers.div_ceil(MAX_CONCURRENT_TRANSFERS);
 
             println!(
                 "      Processing batch {}/{} ({} transfers)...",
@@ -305,7 +305,7 @@ impl Step for USDFCFundingStep {
 
         // Verify all accounts for distribution have MockUSDFC tokens as expected
         for (account_name, amount_tokens) in accounts_to_verify.iter() {
-            let eth_address = get_user_eth_address(&account_name)?;
+            let eth_address = get_user_eth_address(account_name)?;
 
             match check_mock_usdfc_balance(
                 &eth_address,

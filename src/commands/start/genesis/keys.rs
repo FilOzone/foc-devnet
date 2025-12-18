@@ -157,7 +157,7 @@ pub fn get_bls_addresses(
         }
 
         // Find the keyinfo file (should be only one file matching bls-*.keyinfo)
-        let entries: Vec<_> = fs::read_dir(&key_dir)?
+        let entries: Vec<_> = fs::read_dir(key_dir)?
             .filter_map(|e| e.ok())
             .filter(|e| {
                 e.file_name()

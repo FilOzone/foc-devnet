@@ -258,16 +258,16 @@ impl Step for YugabyteStep {
         for (instance_index, ports) in &all_ports {
             let prefix = format!("yugabyte_{}", instance_index);
 
-            context.set(&format!("{}_ysql_port", prefix), ports[0].to_string());
-            context.set(&format!("{}_ycql_port", prefix), ports[1].to_string());
-            context.set(&format!("{}_master_rpc_port", prefix), ports[2].to_string());
-            context.set(&format!("{}_master_ui_port", prefix), ports[3].to_string());
+            context.set(format!("{}_ysql_port", prefix), ports[0].to_string());
+            context.set(format!("{}_ycql_port", prefix), ports[1].to_string());
+            context.set(format!("{}_master_rpc_port", prefix), ports[2].to_string());
+            context.set(format!("{}_master_ui_port", prefix), ports[3].to_string());
             context.set(
-                &format!("{}_tserver_rpc_port", prefix),
+                format!("{}_tserver_rpc_port", prefix),
                 ports[4].to_string(),
             );
-            context.set(&format!("{}_tserver_ui_port", prefix), ports[5].to_string());
-            context.set(&format!("{}_web_ui_port", prefix), ports[6].to_string());
+            context.set(format!("{}_tserver_ui_port", prefix), ports[5].to_string());
+            context.set(format!("{}_web_ui_port", prefix), ports[6].to_string());
         }
 
         // Spawn containers in parallel using threads

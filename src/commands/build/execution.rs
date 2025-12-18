@@ -86,11 +86,9 @@ pub fn execute_build_process(
         let mut log_file = log_file_clone;
         move || {
             let reader = BufReader::new(stdout);
-            for line in reader.lines() {
-                if let Ok(line) = line {
-                    println!("{}", line);
-                    writeln!(log_file, "{}", line).ok();
-                }
+            for line in reader.lines().flatten() {
+                println!("{}", line);
+                writeln!(log_file, "{}", line).ok();
             }
         }
     });
@@ -103,11 +101,9 @@ pub fn execute_build_process(
             .open(log_path)?;
         move || {
             let reader = BufReader::new(stderr);
-            for line in reader.lines() {
-                if let Ok(line) = line {
-                    eprintln!("{}", line);
-                    writeln!(log_file, "{}", line).ok();
-                }
+            for line in reader.lines().flatten() {
+                eprintln!("{}", line);
+                writeln!(log_file, "{}", line).ok();
             }
         }
     });
@@ -139,7 +135,7 @@ fn fix_directory_ownership(dir: &str) -> Result<(), Box<dyn std::error::Error>> 
     let gid = get_current_gid()?;
 
     let output = Command::new("sudo")
-        .args(&["chown", "-R", &format!("{}:{}", uid, gid), dir])
+        .args(["chown", "-R", &format!("{}:{}", uid, gid), dir])
         .output()?;
 
     if !output.status.success() {

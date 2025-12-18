@@ -1,9 +1,9 @@
 //! PDP Service Provider step implementation.
 
-use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
 use super::super::step::{Step, StepContext};
 use super::provider_id::ProviderIdInfo;
 use super::registration;
+use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::core::container_is_running;
 use crossterm::style::Stylize;

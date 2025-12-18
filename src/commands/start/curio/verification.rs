@@ -129,7 +129,7 @@ fn upload_test_file(
         "--verbose",
     ];
 
-    let output = Command::new("pdptool").args(&args).output()?;
+    let output = Command::new("pdptool").args(args).output()?;
 
     if !output.status.success() {
         return Err(format!(

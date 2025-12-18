@@ -17,7 +17,7 @@ fn main() {
     println!("cargo:rustc-env=BUILD_TIMESTAMP={}", timestamp);
 
     // Get git commit hash
-    if let Ok(output) = Command::new("git").args(&["rev-parse", "HEAD"]).output() {
+    if let Ok(output) = Command::new("git").args(["rev-parse", "HEAD"]).output() {
         if output.status.success() {
             let commit_hash = String::from_utf8_lossy(&output.stdout).trim().to_string();
             println!("cargo:rustc-env=GIT_COMMIT={}", commit_hash);
@@ -30,7 +30,7 @@ fn main() {
 
     // Get git branch
     if let Ok(output) = Command::new("git")
-        .args(&["rev-parse", "--abbrev-ref", "HEAD"])
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
         .output()
     {
         if output.status.success() {
@@ -45,7 +45,7 @@ fn main() {
 
     // Check if working directory is dirty (has uncommitted changes)
     let is_dirty = if let Ok(output) = Command::new("git")
-        .args(&["status", "--porcelain"])
+        .args(["status", "--porcelain"])
         .output()
     {
         output.status.success() && !output.stdout.is_empty()

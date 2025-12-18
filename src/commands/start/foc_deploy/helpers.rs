@@ -5,8 +5,8 @@
 
 use crate::config::{Config, Location};
 use crate::constants::*;
-use crate::paths::{foc_localnet_config, foc_localnet_filecoin_services_repo};
 use crate::docker::core::container_is_running;
+use crate::paths::{foc_localnet_config, foc_localnet_filecoin_services_repo};
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
@@ -59,9 +59,9 @@ pub fn check_lotus_running() -> Result<(), Box<dyn Error>> {
 pub fn check_required_addresses(
     context: &crate::commands::start::step::StepContext,
 ) -> Result<(String, String, String, String), Box<dyn Error>> {
-    let foc_deployer = context
-        .get("deployer_foc_address")
-        .ok_or("DEPLOYER_FOC address not found in context. Ensure ETHAccFunding step has been completed.")?;
+    let foc_deployer = context.get("deployer_foc_address").ok_or(
+        "DEPLOYER_FOC address not found in context. Ensure ETHAccFunding step has been completed.",
+    )?;
 
     let foc_deployer_eth = context
         .get("deployer_foc_eth_address")

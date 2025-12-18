@@ -3,9 +3,9 @@
 //! This module contains the core deployment execution logic,
 //! including contract deployment and output parsing.
 
+use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
 use crate::commands::start::foc_deployer::deploy_foc_contracts;
 use crate::paths::{contract_addresses_file, foc_metadata_file};
-use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
 use crossterm::style::Stylize;
 use std::error::Error;
 
@@ -16,7 +16,9 @@ use std::error::Error;
 ///
 /// # Returns
 /// true if contracts are already deployed, false otherwise
-pub fn check_existing_deployment(context: &mut crate::commands::start::step::StepContext) -> Result<bool, Box<dyn Error>> {
+pub fn check_existing_deployment(
+    context: &mut crate::commands::start::step::StepContext,
+) -> Result<bool, Box<dyn Error>> {
     if let Ok(existing_addresses) = ContractAddresses::load() {
         if !existing_addresses.foc_contracts.is_empty() {
             println!(
@@ -26,7 +28,7 @@ pub fn check_existing_deployment(context: &mut crate::commands::start::step::Ste
 
             // Store contract addresses in context
             for (name, addr) in &existing_addresses.foc_contracts {
-                context.set(&format!("foc_contract_{}", name.replace(' ', "_")), addr);
+                context.set(format!("foc_contract_{}", name.replace(' ', "_")), addr);
             }
             return Ok(true);
         }
@@ -38,7 +40,9 @@ pub fn check_existing_deployment(context: &mut crate::commands::start::step::Ste
 ///
 /// # Arguments
 /// * `context` - The step context containing required addresses
-pub fn perform_deployment(context: &mut crate::commands::start::step::StepContext) -> Result<(), Box<dyn Error>> {
+pub fn perform_deployment(
+    context: &mut crate::commands::start::step::StepContext,
+) -> Result<(), Box<dyn Error>> {
     println!("    Deploying FOC service contracts...");
 
     // Get required addresses from context
@@ -64,7 +68,7 @@ pub fn perform_deployment(context: &mut crate::commands::start::step::StepContex
 
     // Store contract addresses in context
     for (name, addr) in &contract_addresses.addresses {
-        context.set(&format!("foc_contract_{}", name.replace(' ', "_")), addr);
+        context.set(format!("foc_contract_{}", name.replace(' ', "_")), addr);
     }
 
     // Load existing addresses and update with FOC contracts
@@ -97,12 +101,14 @@ pub fn perform_deployment(context: &mut crate::commands::start::step::StepContex
 ///
 /// # Arguments
 /// * `context` - The step context to verify
-pub fn post_execute_verification(context: &crate::commands::start::step::StepContext) -> Result<(), Box<dyn Error>> {
+pub fn post_execute_verification(
+    context: &crate::commands::start::step::StepContext,
+) -> Result<(), Box<dyn Error>> {
     println!("    Verifying FOC deployment...");
 
     // Check if contracts were deployed
     let mut contract_count = 0;
-    for (key, _) in &context.state {
+    for key in context.state.keys() {
         if key.starts_with("foc_contract_") {
             contract_count += 1;
         }

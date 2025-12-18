@@ -144,68 +144,6 @@ fn perform_regenesis() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Perform a chain reset, resetting lotus and lotus-miner to block 0 while keeping genesis config.
-fn perform_reset() -> Result<(), Box<dyn std::error::Error>> {
-    println!(
-        "{}",
-        "Resetting lotus and lotus-miner to block 0..."
-            .yellow()
-            .bold()
-    );
-
-    // Stop lotus-miner and lotus containers
-    let containers = vec!["foc-lotus-miner", "foc-lotus"];
-    for container in containers {
-        if container_is_running(container)? {
-            println!("  Stopping container '{}'...", container);
-            stop_container(container)?;
-            remove_container(container)?;
-        }
-    }
-
-    let base_volumes = foc_localnet_docker_volumes();
-
-    // Only delete lotus-data and lotus-miner-data to reset to block 0
-    let paths_to_delete = vec![
-        base_volumes.join("lotus-data"),
-        base_volumes.join("lotus-miner-data"),
-        base_volumes.join("yugabyte-data"),
-        crate::paths::foc_localnet_curio_volumes(),
-        contract_addresses_file(),
-        crate::paths::foc_metadata_file(),
-        base_volumes.join("state").join("pdp_sps"),
-    ];
-
-    for path in paths_to_delete {
-        if path.exists() {
-            if path.is_dir() {
-                std::fs::remove_dir_all(&path)?;
-                println!("  {} {}", "Removed directory:".red(), path.display());
-            } else {
-                std::fs::remove_file(&path)?;
-                println!("  {} {}", "Removed file:".red(), path.display());
-            }
-        } else {
-            println!("  {} {}", "Skipped (not found):".dim(), path.display());
-        }
-    }
-
-    // Delete contract addresses file to allow re-deployment
-    let contract_addresses_path = crate::paths::contract_addresses_file();
-    if contract_addresses_path.exists() {
-        std::fs::remove_file(&contract_addresses_path)?;
-        println!(
-            "  {} {}",
-            "Removed file:".red(),
-            contract_addresses_path.display()
-        );
-    }
-
-    println!("{}", "Reset to block 0 complete.".green().bold());
-    println!();
-    Ok(())
-}
-
 /// Load and validate the configuration file.
 fn load_and_validate_config() -> Result<Config, Box<dyn std::error::Error>> {
     // Load config to get port range settings
@@ -232,11 +170,7 @@ fn load_and_validate_config() -> Result<Config, Box<dyn std::error::Error>> {
 }
 
 /// Create all the step instances for the cluster startup sequence.
-fn create_steps(
-    volumes_dir: &PathBuf,
-    logs_dir: &PathBuf,
-    config: &Config,
-) -> Vec<Box<dyn Step>> {
+fn create_steps(volumes_dir: &PathBuf, logs_dir: &PathBuf, config: &Config) -> Vec<Box<dyn Step>> {
     let lotus_step = LotusStep::new(volumes_dir.clone(), logs_dir.clone());
     let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), logs_dir.clone());
     let eth_acc_funding_step = ETHAccFundingStep::new(logs_dir.clone());
@@ -320,7 +254,7 @@ fn execute_cluster_steps(
 
     let steps = create_steps(volumes_dir, logs_dir, config);
 
-    // TODO: 
+    // TODO:
     // In case of parallelization needs, we can do as follows:
     // -------------------------------------------------------
     // PAR 1: Start Lotus, Start Yugabyte (can be parallelized)
@@ -349,22 +283,13 @@ fn execute_cluster_steps(
 pub fn start_cluster(
     volumes_dir: Option<String>,
     logs_dir: Option<String>,
-    regenesis: bool,
-    reset: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     stop_existing_cluster()?;
 
     let (volumes_dir, logs_dir, run_id) = setup_directories_and_run_id(volumes_dir, logs_dir)?;
 
-    // Handle regenesis flag - delete genesis-related files and keys
-    if regenesis {
-        perform_regenesis()?;
-    }
-
-    // Handle reset flag - reset lotus and lotus-miner to block 0
-    if reset && !regenesis {
-        perform_reset()?;
-    }
+    // Always perform regenesis (full reset) before starting
+    perform_regenesis()?;
 
     println!("{}", "Starting local cluster...".green().bold());
     println!("{}", format!("Run ID: {}", run_id).cyan().bold());
