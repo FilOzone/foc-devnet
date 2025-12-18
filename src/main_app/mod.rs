@@ -4,5 +4,4 @@
 //! for better maintainability and to comply with file size limits.
 
 pub mod command_handlers;
-pub mod completions;
 pub mod version;

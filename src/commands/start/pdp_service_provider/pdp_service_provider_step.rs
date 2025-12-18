@@ -1,6 +1,6 @@
 //! PDP Service Provider step implementation.
 
-use super::super::contract_addresses::ContractAddresses;
+use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
 use super::super::step::{Step, StepContext};
 use super::provider_id::ProviderIdInfo;
 use super::registration;

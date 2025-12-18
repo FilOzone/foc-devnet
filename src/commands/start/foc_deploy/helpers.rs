@@ -57,7 +57,7 @@ pub fn check_lotus_running() -> Result<(), Box<dyn Error>> {
 /// # Returns
 /// Tuple of (foc_deployer, foc_deployer_eth, mock_usdfc, global_faucet) addresses
 pub fn check_required_addresses(
-    context: &super::step::StepContext,
+    context: &crate::commands::start::step::StepContext,
 ) -> Result<(String, String, String, String), Box<dyn Error>> {
     let foc_deployer = context
         .get("deployer_foc_address")

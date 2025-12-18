@@ -5,14 +5,14 @@
 
 use super::deployment::{check_existing_deployment, perform_deployment, post_execute_verification};
 use super::helpers::{check_lotus_running, check_required_addresses, get_filecoin_services_repo_path};
-use super::step::{Step, StepContext};
-use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
+use crate::commands::start::step::{Step, StepContext};
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::path::PathBuf;
 
 /// Step for deploying FOC service contracts
 pub struct FOCDeployStep {
+    #[allow(dead_code)]
     volumes_dir: PathBuf,
     #[allow(dead_code)]
     logs_dir: PathBuf,

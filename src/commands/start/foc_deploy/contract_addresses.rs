@@ -16,6 +16,12 @@ pub struct ContractAddresses {
     pub contracts: std::collections::HashMap<String, String>,
     /// FOC service contracts
     pub foc_contracts: std::collections::HashMap<String, String>,
+    /// FilBeam controller address
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filbeam_controller: Option<String>,
+    /// FilBeam beneficiary address
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filbeam_beneficiary: Option<String>,
 }
 
 impl ContractAddresses {
@@ -69,4 +75,15 @@ impl ContractAddresses {
     }
 
 
+}
+
+impl Default for ContractAddresses {
+    fn default() -> Self {
+        Self {
+            contracts: std::collections::HashMap::new(),
+            foc_contracts: std::collections::HashMap::new(),
+            filbeam_controller: None,
+            filbeam_beneficiary: None,
+        }
+    }
 }

@@ -1,4 +1,3 @@
-mod contract_addresses;
 mod curio;
 mod eth_acc_funding;
 mod foc_deploy;

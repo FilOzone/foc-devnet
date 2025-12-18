@@ -100,10 +100,10 @@ pub fn deploy_multicall3(private_key: &str, lotus_rpc_url: &str) -> Result<Strin
 /// Perform the Multicall3 deployment process
 pub fn perform_deployment(
     volumes_dir: &std::path::PathBuf,
-    context: &mut super::super::step::StepContext,
+    context: &mut crate::commands::start::step::StepContext,
 ) -> Result<(), Box<dyn Error>> {
-    use super::super::contract_addresses::ContractAddresses;
-    use super::super::lotus_utils::get_lotus_rpc_url;
+    use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
+    use crate::commands::start::lotus_utils::get_lotus_rpc_url;
     use super::key_management::get_deployer_private_key;
     use super::prerequisites::check_required_addresses;
 

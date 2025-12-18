@@ -4,7 +4,7 @@
 //! - Base layer migration (curio config new-cluster)
 //! - PDP layer configuration (curio config create)
 
-use super::super::contract_addresses::ContractAddresses;
+use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
 use super::super::step::StepContext;
 use super::constants::{DB_SETUP_WAIT_SECS, PDP_LAYER_CONFIG_TEMPLATE};
 use crate::commands::start::genesis::constants::PDP_SP_MINER_ID_START;

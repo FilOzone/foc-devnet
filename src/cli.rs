@@ -30,12 +30,6 @@ pub enum Commands {
     },
     /// Stop the local cluster
     Stop,
-    /// Check system requirements
-    Requirements {
-        /// Automatically install and configure missing dependencies
-        #[arg(long)]
-        setup: bool,
-    },
     /// Initialize foc-localnet by building and caching Docker images
     Init {
         /// Curio source location (e.g., 'gittag:tag', 'gittag:url:tag', 'gitcommit:commit', 'gitcommit:url:commit', 'gitbranch:branch', 'gitbranch:url:branch', 'local:/path/to/curio')
@@ -71,40 +65,8 @@ pub enum Commands {
         #[command(subcommand)]
         build_command: BuildCommands,
     },
-    /// Configure foc-localnet settings
-    Config {
-        #[command(subcommand)]
-        config_command: ConfigCommands,
-    },
-    /// Clean various parts of the foc-localnet environment
-    Clean {
-        /// Clean downloaded artifacts only
-        #[arg(long)]
-        artifacts: bool,
-        /// Clean Docker images only
-        #[arg(long)]
-        dockerimages: bool,
-        /// Clean built binaries only
-        #[arg(long)]
-        binaries: bool,
-        /// Run 'make clean' in Lotus repository only
-        #[arg(long)]
-        lotus: bool,
-        /// Run 'make clean' in Curio repository only
-        #[arg(long)]
-        curio: bool,
-    },
     /// Show status of the foc-localnet system
     Status,
-    /// Generate shell completion scripts
-    Completions {
-        /// Shell to generate completions for (bash, zsh, fish, powershell, elvish)
-        /// If not provided, will attempt to detect from $SHELL environment variable
-        shell: Option<String>,
-        /// Install the completion script to the appropriate location for the shell
-        #[arg(long)]
-        install: bool,
-    },
     /// Show version information
     Version,
 }
