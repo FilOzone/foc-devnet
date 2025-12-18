@@ -4,7 +4,7 @@
 //! including repository path resolution and deployment checks.
 
 use crate::config::{Config, Location};
-use crate::constants::*;
+use crate::docker::containers::lotus_container_name;
 use crate::docker::core::container_is_running;
 use crate::paths::{foc_localnet_config, foc_localnet_filecoin_services_repo};
 use std::error::Error;
@@ -40,11 +40,20 @@ pub fn get_filecoin_services_repo_path() -> Result<PathBuf, Box<dyn Error>> {
 
 /// Check if Lotus is running and accessible
 ///
+/// # Arguments
+/// * `context` - The step context containing run ID and other state
+///
 /// # Returns
 /// Ok(()) if Lotus is running, error otherwise
-pub fn check_lotus_running() -> Result<(), Box<dyn Error>> {
-    if !container_is_running(LOTUS_CONTAINER)? {
-        return Err("Lotus container is not running. FOC deployment requires Lotus to be running with FEVM enabled.".into());
+pub fn check_lotus_running(context: &super::super::step::StepContext) -> Result<(), Box<dyn Error>> {
+    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let lotus_name = lotus_container_name(run_id);
+
+    if !container_is_running(&lotus_name)? {
+        return Err(format!(
+            "Lotus container '{}' is not running. FOC deployment requires Lotus to be running with FEVM enabled.",
+            lotus_name
+        ).into());
     }
     Ok(())
 }

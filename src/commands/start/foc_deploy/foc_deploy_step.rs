@@ -42,7 +42,7 @@ impl Step for FOCDeployStep {
 
     /// Perform pre-execution checks
     fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        check_lotus_running()?;
+        check_lotus_running(context)?;
         println!("    {} Lotus is running", "✓".green());
 
         let services_repo = get_filecoin_services_repo_path()?;

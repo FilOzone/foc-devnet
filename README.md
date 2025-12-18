@@ -1,176 +1,172 @@
 # foc-localnet
 
-A command-line tool for running local Filecoin networks with FOC (Filecoin Onchain Contracts) for development and testing.
+**Run a local Filecoin network with FOC (Filecoin Onchain Contracts) in minutes.**
 
-## Quick Start
+A developer-friendly tool for spinning up complete Filecoin test networks with smart contract support, deterministic key generation, and automated deployment—all running locally in Docker.
 
-```bash
-# 1. Install dependencies and check requirements
-foc-localnet requirements --setup
+---
 
-# 2. Initialize (builds Docker images and prepares environment)
-foc-localnet init
+## 🚀 Quick Start
 
-# 3. Start the local Filecoin cluster
-foc-localnet start
+Get up and running in three simple steps:
 
-# 4. Stop the cluster when done
-foc-localnet stop
-```
-
-That's it! Your local Filecoin network is now running with FOC contracts deployed.
-
-## What Gets Started
-
-When you run `foc-localnet start`, the following components are automatically deployed:
-
-1. **Lotus** - Filecoin daemon with FEVM (Filecoin EVM) enabled
-2. **Lotus-Miner** - Block producer for the local network
-3. **FOC Contracts** - Smart contracts including:
-   - MockUSDFC token (test ERC-20)
-   - PDP Verifier
-   - Warm Storage Service
-   - Service Provider Registry
-4. **YugabyteDB** - Database for Curio miner
-5. **Curio** - Second-generation storage provider (optional)
-
-Contract addresses are saved to: `~/.foc-localnet/artifacts/docker/volumes/foc-contract-addresses.json`
-
-## Installation
-
-### From Source
+### Step 1: Initialize
 
 ```bash
-git clone https://github.com/FilOzone/foc-localnet.git
-cd foc-localnet
-cargo install --path .
+cargo run -- init
 ```
 
-The binary will be installed to `~/.cargo/bin/foc-localnet`.
+This will:
+- Download required repositories (or use your local ones)
+- Build Docker images
+- Generate deterministic cryptographic keys
+- Prepare the environment
 
-### Shell Completions (Optional)
+**Using local repositories?** Specify them during init:
 
 ```bash
-# Auto-detect your shell and install completions
-foc-localnet completions --install
+cargo run -- init \
+    --curio local:/home/user/code/curio \
+    --filecoin-services local:/home/user/code/filecoin-services \
+    --lotus local:/home/user/code/lotus \
+    --synapse-sdk local:/home/user/code/synapse-sdk \
+    --force
 ```
 
-## Essential Commands
-
-| Command | Description |
-|---------|-------------|
-| `foc-localnet init` | Build Docker images and prepare environment (run once) |
-| `foc-localnet start` | Start the local Filecoin cluster |
-| `foc-localnet stop` | Stop all running containers |
-| `foc-localnet status` | View cluster status and system information |
-| `foc-localnet clean` | Remove all artifacts and reset environment |
-
-## System Requirements
-
-- **Rust** 1.70+ (install from [rustup.rs](https://rustup.rs))
-- **Docker** Desktop (macOS) or Docker CE (Linux)
-- **Disk Space** ~20GB for Docker images and blockchain data
-- **macOS** - Homebrew (auto-installed with `--setup`)
-- **Linux** - Ubuntu/Debian (apt-based)
-
-## Common Use Cases
-
-### Reset Everything and Start Fresh
+### Step 2: Build
 
 ```bash
-foc-localnet clean         # Remove all data
-foc-localnet init          # Rebuild images
-foc-localnet start         # Start fresh cluster
+cargo run -- build lotus
+cargo run -- build curio
 ```
 
-### Check Cluster Status
+This will:
+- Compile Lotus and Curio binaries inside Docker containers
+- Cache build artifacts for faster subsequent builds
+
+### Step 3: Start the Network
 
 ```bash
-foc-localnet status
+cargo run -- start
 ```
 
-This shows:
-- Running containers and uptime
-- Disk usage
-- Build versions
-- Git repository status
+This will:
+- Create the genesis block
+- Start Lotus daemon with FEVM enabled
+- Deploy FOC smart contracts (including MockUSDFC)
+- Start storage provider(s)
+- Launch Portainer UI for container management
 
-### Advanced Configuration
+**That's it!** Your local Filecoin network is running.
 
-```bash
-# Use local Lotus source for development
-foc-localnet config lotus local --dir /path/to/lotus
+---
 
-# Use specific Git branch
-foc-localnet config lotus git --repo https://github.com/filecoin-project/lotus --branch master
+## ✨ Key Features
 
-# Rebuild specific component
-foc-localnet build lotus
-foc-localnet build curio
-```
+### 🪶 Lean Host Requirements
+Only needs three things on your machine:
+- **tar** archiver
+- **rustup/rustc** for building the CLI
+- **Docker** for containerized components
 
-## Troubleshooting
+Everything else (Lotus, Curio, dependencies) is built inside Docker.
 
-### Port Already in Use
+### ⚙️ Configurable Repositories
+Depends on 4 repositories, all configurable:
+- `filecoin-services` - FOC smart contracts
+- `curio` - Next-gen storage provider
+- `lotus` - Filecoin daemon
+- `synapse-sdk` - PDP verification
 
-If you see port conflicts:
-```bash
-foc-localnet stop          # Stop all containers
-lsof -i :1234              # Check what's using the port
-```
+Each can be:
+- Auto-downloaded from GitHub (default)
+- Linked to your local git repository for development
 
-### Cluster Won't Start
+### 🔒 Deterministic Setup
+- **Pinned versions**: All components use specific git tags/commits for reproducibility
+- **Deterministic keys**: Uses fixed seeds, generating the same keys on every setup
+- **Consistent addresses**: Find derived accounts in `~/.foc-localnet/state/addresses.json`
 
-```bash
-foc-localnet clean         # Clean everything
-foc-localnet init          # Reinitialize
-foc-localnet start         # Try again
-```
+### 🤖 Fully Automated
+From building Docker images to deploying contracts—everything is automated:
+- Genesis block creation
+- Network initialization
+- Smart contract deployment
+- Storage provider setup
 
-### Docker Permission Issues
+### 🧩 Modular Architecture
+Built with modular steps for easy extension and customization:
+- Add custom deployment steps
+- Configure multiple PDP service providers
+- Control "allowed" SP nodes via `~/.foc-localnet/config.toml`
 
-On Linux, ensure your user is in the `docker` group:
-```bash
-sudo usermod -aG docker $USER
-newgrp docker
-```
+### 📜 Programmable
+Built for scripting and automation:
+- **Contract addresses**: `~/.foc-localnet/state/contract_addresses.json`
+- **Account addresses**: `~/.foc-localnet/state/addresses.json`
+- Write scripts for testing, demos, CI/CD pipelines, etc.
 
-## Data Locations
+### 🌐 Isolated Networks
+Uses Docker user-defined networks to mimic real-world node separation—just like production deployments.
 
-All data is stored in `~/.foc-localnet/`:
+### 💰 Built-in Token Contracts
+Includes ready-to-use test contracts:
+- **MockUSDFC** - ERC-20 test token
+- **Multicall3** - Batch contract calls
+
+### 🖥️ Portainer UI
+Bundled with Portainer for browser-based Docker management—no terminal wizardry required.
+
+---
+
+## 📋 System Requirements
+
+| Requirement | Details |
+|-------------|---------|
+| **Rust** | 1.70+ ([rustup.rs](https://rustup.rs)) |
+| **Docker** | Desktop (macOS) or CE (Linux) |
+| **tar** | Archive utility (usually pre-installed) |
+| **Disk Space** | ~20GB for images and blockchain data |
+
+---
+
+## 📂 Where's My Data?
+
+Everything lives in `~/.foc-localnet/`:
 
 ```
 ~/.foc-localnet/
-├── artifacts/          # Built binaries and Docker images
-├── logs/              # Container logs
-├── repos/             # Cloned Git repositories
-├── state/             # Runtime state
-└── config.toml        # Configuration file
+├── state/
+│   ├── addresses.json           # Derived account addresses
+│   └── contract_addresses.json  # Deployed smart contracts
+├── artifacts/
+│   └── docker/volumes/          # Persistent container data
+├── logs/                        # Container logs
+├── repos/                       # Cloned Git repositories
+└── config.toml                  # Configuration
 ```
 
-## Getting Help
+---
 
-```bash
-foc-localnet --help                    # General help
-foc-localnet <command> --help          # Command-specific help
-```
+## 🛠️ Need More?
 
-## Contributing
+For advanced topics like:
+- Custom repository configurations
+- Multiple storage provider setups
+- Architecture deep-dives
+- Troubleshooting guides
+- API access and scripting
 
-We welcome contributions! Please:
+See **[README_ADVANCED.md](README_ADVANCED.md)** for detailed documentation (coming soon).
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Make your changes and run tests: `cargo test`
-4. Ensure code quality: `cargo fmt && cargo clippy`
-5. Submit a pull request
+---
 
-## License
+## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) file for details.
 
-## Support
+---
+
+## 💬 Support
 
 - **Issues**: [GitHub Issues](https://github.com/FilOzone/foc-localnet/issues)
-- **Documentation**: See `.github/copilot-instructions.md` for detailed architecture
-- **Community**: Join the FilOzone community discussions
