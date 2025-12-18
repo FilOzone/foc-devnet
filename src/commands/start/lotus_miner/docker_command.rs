@@ -6,7 +6,6 @@ use std::error::Error;
 use std::path::PathBuf;
 
 use super::constants::{IMAGE_NAME, LOTUS_API_WAIT_SLEEP_SECS};
-use crate::commands::start::env_vars::build_network_env_vars;
 use crate::commands::start::lotus_utils::{build_fullnode_api_info, read_lotus_token};
 use crate::commands::start::step::StepContext;
 use crate::docker::containers::{lotus_container_name, lotus_miner_container_name};
@@ -41,6 +40,12 @@ pub fn build_miner_docker_command(
     let builder_volumes_dir = foc_localnet_docker_volumes().join("foc-builder");
     let params_dir = foc_localnet_proof_parameters();
 
+    // Get allocated miner API port from context
+    let miner_api_port: u16 = context
+        .get("lotus_miner_api_port")
+        .ok_or("Lotus-Miner API port not found in context")?
+        .parse()?;
+
     // Build docker run command
     // Start on filecoin network for immediate Lotus access
     // Will be connected to porep-miner-net after start
@@ -52,6 +57,13 @@ pub fn build_miner_docker_command(
         "--network".to_string(),
         filecoin_network, // Start on filecoin network for Lotus daemon access
     ];
+
+    // Add port mapping: map dynamic host port to fixed container port
+    // Container internal port: 2345 (Miner API)
+    docker_args.extend_from_slice(&[
+        "-p".to_string(),
+        format!("{}:2345", miner_api_port), // host:container
+    ]);
 
     // Add volume mounts (paths updated for foc-user)
     let miner_data_dir = volumes_dir.join("lotus-miner-data");
@@ -77,10 +89,6 @@ pub fn build_miner_docker_command(
     for mount in &volume_mounts {
         docker_args.extend_from_slice(&["-v".to_string(), mount.clone()]);
     }
-
-    // Add network parameter environment variables
-    let network_env_vars = build_network_env_vars();
-    docker_args.extend(network_env_vars);
 
     // Add FULLNODE_API_INFO with token read from host
     docker_args.extend_from_slice(&[

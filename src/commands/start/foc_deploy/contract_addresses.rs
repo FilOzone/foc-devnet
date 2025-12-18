@@ -11,11 +11,18 @@ use crate::paths::contract_addresses_file;
 
 /// Contract addresses and deployment information
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct ContractAddresses {
     /// Standard contracts (multicall, USDFC, etc.)
     pub contracts: std::collections::HashMap<String, String>,
     /// FOC service contracts
     pub foc_contracts: std::collections::HashMap<String, String>,
+    /// FilBeam controller address
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filbeam_controller: Option<String>,
+    /// FilBeam beneficiary address
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filbeam_beneficiary: Option<String>,
 }
 
 impl ContractAddresses {
@@ -67,6 +74,5 @@ impl ContractAddresses {
         fs::write(&path, json)?;
         Ok(())
     }
-
-
 }
+

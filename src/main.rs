@@ -20,11 +20,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Start {
             volumes_dir,
             logs_dir,
-            regenesis,
-            reset,
-        } => main_app::command_handlers::handle_start(volumes_dir, logs_dir, regenesis, reset),
+        } => main_app::command_handlers::handle_start(volumes_dir, logs_dir),
         Commands::Stop => main_app::command_handlers::handle_stop(),
-        Commands::Requirements { setup } => main_app::command_handlers::handle_requirements(setup),
         Commands::Init {
             curio,
             lotus,
@@ -49,27 +46,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Build { build_command } => {
             main_app::command_handlers::handle_build(build_command)
         }
-        Commands::Clean {
-            artifacts,
-            dockerimages,
-            binaries,
-            lotus,
-            curio,
-        } => main_app::command_handlers::handle_clean(
-            artifacts,
-            dockerimages,
-            binaries,
-            lotus,
-            curio,
-        ),
         Commands::Status => main_app::command_handlers::handle_status(),
-        Commands::Completions { shell, install } => {
-            main_app::completions::handle_completions(shell, install)
-        }
         Commands::Version => main_app::version::handle_version(),
-        Commands::Config { config_command } => {
-            main_app::command_handlers::handle_config(config_command)
-        }
     };
 
     // Handle the result

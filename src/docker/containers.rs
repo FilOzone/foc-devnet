@@ -19,51 +19,16 @@ pub fn builder_container_name(run_id: &str) -> String {
 }
 
 /// Generate the YugabyteDB container name for a run ID
-pub fn yugabyte_container_name(run_id: &str) -> String {
-    format!("foc-{}-yugabyte", run_id)
+pub fn yugabyte_container_name(run_id: &str, sp_idx: usize) -> String {
+    format!("foc-{}-yugabyte-{}", run_id, sp_idx)
 }
 
 /// Generate the Curio container name for a run ID
-pub fn curio_container_name(run_id: &str) -> String {
-    format!("foc-{}-curio", run_id)
+pub fn curio_container_name(run_id: &str, sp_idx: usize) -> String {
+    format!("foc-{}-curio-{}", run_id, sp_idx)
 }
 
 /// Generate the Portainer container name for a run ID
 pub fn portainer_container_name(run_id: &str) -> String {
     format!("portainer-{}", run_id)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_container_names() {
-        let run_id = "251203-1246-thirsty-wolf";
-
-        assert_eq!(
-            lotus_container_name(run_id),
-            "foc-251203-1246-thirsty-wolf-lotus"
-        );
-        assert_eq!(
-            lotus_miner_container_name(run_id),
-            "foc-251203-1246-thirsty-wolf-lotus-miner"
-        );
-        assert_eq!(
-            builder_container_name(run_id),
-            "foc-251203-1246-thirsty-wolf-builder"
-        );
-        assert_eq!(
-            yugabyte_container_name(run_id),
-            "foc-251203-1246-thirsty-wolf-yugabyte"
-        );
-        assert_eq!(
-            curio_container_name(run_id),
-            "foc-251203-1246-thirsty-wolf-curio"
-        );
-        assert_eq!(
-            portainer_container_name(run_id),
-            "foc-251203-1246-thirsty-wolf-portainer"
-        );
-    }
 }

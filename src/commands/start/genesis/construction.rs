@@ -21,7 +21,13 @@ use crossterm::style::Stylize;
 ///
 /// If the genesis file already exists, all construction steps are skipped
 /// since the genesis configuration is considered complete.
-pub fn construct_genesis() -> Result<(), Box<dyn std::error::Error>> {
+///
+/// # Parameters
+/// - `active_pdp_sp_count`: Number of active PDP SPs to add to genesis
+///
+/// # Returns
+/// Returns `Ok(())` if genesis is constructed or already exists.
+pub fn construct_genesis(active_pdp_sp_count: usize) -> Result<(), Box<dyn std::error::Error>> {
     let genesis_dir = foc_localnet_genesis();
     let genesis_file_path = genesis_dir.join(super::constants::GENESIS_FILE);
 
@@ -40,7 +46,7 @@ pub fn construct_genesis() -> Result<(), Box<dyn std::error::Error>> {
 
     creation::create_genesis_file()?;
     signers::add_signers_to_genesis()?;
-    miner::add_miner_to_genesis()?;
+    miner::add_miner_to_genesis(active_pdp_sp_count)?;
     accounts::add_global_fil_faucet_account()?;
     accounts::add_foc_accounts()?;
 

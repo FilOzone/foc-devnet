@@ -43,9 +43,11 @@ pub fn foc_metadata_file() -> PathBuf {
     foc_localnet_state().join("foc_metadata.json")
 }
 
-/// Returns the path to the PDP_SP_0 provider ID file, e.g., ~/.foc-localnet/state/pdp_sp_0.provider_id.json
-pub fn pdp_sp_0_provider_id_file() -> PathBuf {
-    foc_localnet_state().join("pdp_sp_0.provider_id.json")
+/// Returns the path to the PDP_SP_X provider ID file, e.g., ~/.foc-localnet/state/pdp_sps/X.provider_id.json
+pub fn pdp_sp_provider_id_file(sp_idx: usize) -> PathBuf {
+    foc_localnet_state()
+        .join("pdp_sps")
+        .join(format!("{}.provider_id.json", sp_idx))
 }
 
 /// Returns the path to the foc-localnet remote pulls directory, e.g., ~/.foc-localnet/remote-pulls
@@ -122,8 +124,19 @@ pub fn foc_localnet_genesis_sectors_lotus_miner() -> PathBuf {
     foc_localnet_genesis_sectors().join("lotus-miner")
 }
 
-/// Returns the path to the pre-sealed sectors for miner 2 (t01001)
+/// Returns the path to the pre-sealed sectors for a PDP SP miner (base-1 indexed)
+///
+/// PDP SP 1 = t01001, PDP SP 2 = t01002, etc.
+/// e.g., ~/.foc-localnet/artifacts/docker/volumes/genesis-sectors/pdp-sp-1
+pub fn foc_localnet_genesis_sectors_pdp_sp(sp_index: usize) -> PathBuf {
+    foc_localnet_genesis_sectors().join(format!("pdp-sp-{}", sp_index))
+}
+
+/// **DEPRECATED:** No longer used. Curio miners are now PDP Service Providers.
+///
+/// This path function remains for backward compatibility during cleanup operations.
 /// e.g., ~/.foc-localnet/artifacts/docker/volumes/genesis-sectors/curio-miner
+#[allow(dead_code)]
 pub fn foc_localnet_genesis_sectors_curio_miner() -> PathBuf {
     foc_localnet_genesis_sectors().join("curio-miner")
 }
@@ -132,6 +145,30 @@ pub fn foc_localnet_genesis_sectors_curio_miner() -> PathBuf {
 /// e.g., ~/.foc-localnet/artifacts/docker/volumes/genesis
 pub fn foc_localnet_genesis() -> PathBuf {
     foc_localnet_docker_volumes().join("genesis")
+}
+
+/// Returns the path to the curio volumes directory
+/// e.g., ~/.foc-localnet/artifacts/docker/volumes/curio
+pub fn foc_localnet_curio_volumes() -> PathBuf {
+    foc_localnet_docker_volumes().join("curio")
+}
+
+/// Returns the path to a specific curio SP volume directory (base-1 indexed)
+/// e.g., ~/.foc-localnet/artifacts/docker/volumes/curio/1
+pub fn foc_localnet_curio_sp_volume(sp_index: usize) -> PathBuf {
+    foc_localnet_curio_volumes().join(sp_index.to_string())
+}
+
+/// Returns the path to the yugabyte volumes directory
+/// e.g., ~/.foc-localnet/artifacts/docker/volumes/yugabyte-data
+pub fn foc_localnet_yugabyte_volumes() -> PathBuf {
+    foc_localnet_docker_volumes().join("yugabyte-data")
+}
+
+/// Returns the path to a specific yugabyte instance volume directory (base-1 indexed)
+/// e.g., ~/.foc-localnet/artifacts/docker/volumes/yugabyte-data-1
+pub fn foc_localnet_yugabyte_sp_volume(sp_index: usize) -> PathBuf {
+    foc_localnet_docker_volumes().join(format!("yugabyte-data-{}", sp_index))
 }
 
 /// Returns the path to the project root directory

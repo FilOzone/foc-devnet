@@ -5,6 +5,7 @@
 use std::error::Error;
 use std::fs;
 
+use super::step::StepContext;
 use crate::paths::foc_localnet_docker_volumes;
 
 /// Read the Lotus API token from the lotus-data directory.
@@ -45,4 +46,29 @@ pub fn read_lotus_token() -> Result<String, Box<dyn Error>> {
 /// * `lotus_container_name` - The name of the Lotus container on the Docker network
 pub fn build_fullnode_api_info(token: &str, lotus_container_name: &str) -> String {
     format!("{}:/dns4/{}/tcp/1234/http", token, lotus_container_name)
+}
+
+/// Get the Lotus RPC URL from context with dynamically allocated port.
+///
+/// This function retrieves the Lotus API port that was dynamically allocated
+/// during startup and builds the complete RPC URL for contract deployment
+/// and other interactions.
+///
+/// # Arguments
+///
+/// * `context` - The StepContext containing the allocated lotus_api_port
+///
+/// # Returns
+///
+/// The full RPC URL (e.g., "http://localhost:5700/rpc/v1")
+///
+/// # Errors
+///
+/// Returns an error if the lotus_api_port is not found in context or cannot be parsed
+pub fn get_lotus_rpc_url(context: &StepContext) -> Result<String, Box<dyn Error>> {
+    let lotus_api_port: u16 = context
+        .get("lotus_api_port")
+        .ok_or("Lotus API port not found in context")?
+        .parse()?;
+    Ok(format!("http://localhost:{}/rpc/v1", lotus_api_port))
 }

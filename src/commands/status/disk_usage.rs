@@ -39,7 +39,7 @@ pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
     let header_display_width = 2 + 1 + 10 + 1;
     let padding_len = width.saturating_sub(header_display_width);
     let padding = "░".repeat(padding_len).dark_grey();
-    println!("\n{}{}{}", header_text.bold().blue(), " ", padding);
+    println!("\n{} {}", header_text.bold().blue(), padding);
     let width = get_terminal_width().min(120);
     println!("{}", "─".repeat(width).blue());
 

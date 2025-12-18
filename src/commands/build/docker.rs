@@ -38,7 +38,7 @@ pub fn build_image_from_dockerfile(
     dockerfile_dir: &str,
     image_tag: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let dockerfile_path = "docker/Dockerfile.builder";
+    let dockerfile_path = "docker/builder/Dockerfile";
     let output = build_docker_image(dockerfile_path, image_tag, dockerfile_dir)?;
 
     if !output.status.success() {
@@ -143,8 +143,8 @@ pub fn setup_build_script(
         Project::Curio => format!(
             r#"git config --global --add safe.directory {} && \
                 cd {} && \
-                make clean 2k && \
-                cp curio sptool {}"#,
+                make clean 2k pdptool && \
+                cp curio sptool pdptool {}"#,
             container_source_dir, container_source_dir, container_output_dir
         ),
     }

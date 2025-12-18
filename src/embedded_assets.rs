@@ -10,19 +10,19 @@ use std::path::PathBuf;
 use tar::Archive;
 
 // Dockerfiles
-pub static DOCKERFILE_BUILDER: &[u8] = include_bytes!("../docker/Dockerfile.builder");
-pub static DOCKERFILE_CURIO: &[u8] = include_bytes!("../docker/Dockerfile.curio");
-pub static DOCKERFILE_LOTUS: &[u8] = include_bytes!("../docker/Dockerfile.lotus");
-pub static DOCKERFILE_LOTUS_MINER: &[u8] = include_bytes!("../docker/Dockerfile.lotus-miner");
-pub static DOCKERFILE_YUGABYTE: &[u8] = include_bytes!("../docker/Dockerfile.yugabyte");
+pub static DOCKERFILE_BUILDER: &[u8] = include_bytes!("../docker/builder/Dockerfile");
+pub static DOCKERFILE_CURIO: &[u8] = include_bytes!("../docker/curio/Dockerfile");
+pub static DOCKERFILE_LOTUS: &[u8] = include_bytes!("../docker/lotus/Dockerfile");
+pub static DOCKERFILE_LOTUS_MINER: &[u8] = include_bytes!("../docker/lotus-miner/Dockerfile");
+pub static DOCKERFILE_YUGABYTE: &[u8] = include_bytes!("../docker/yugabyte/Dockerfile");
 
 // Volumes maps
-pub static BUILDER_VOLUMES_MAP: &[u8] = include_bytes!("../docker/builder.volumes_map.toml");
-pub static CURIO_VOLUMES_MAP: &[u8] = include_bytes!("../docker/curio.volumes_map.toml");
+pub static BUILDER_VOLUMES_MAP: &[u8] = include_bytes!("../docker/builder/volumes_map.toml");
+pub static CURIO_VOLUMES_MAP: &[u8] = include_bytes!("../docker/curio/volumes_map.toml");
 pub static LOTUS_MINER_VOLUMES_MAP: &[u8] =
-    include_bytes!("../docker/lotus-miner.volumes_map.toml");
-pub static LOTUS_VOLUMES_MAP: &[u8] = include_bytes!("../docker/lotus.volumes_map.toml");
-pub static YUGABYTE_VOLUMES_MAP: &[u8] = include_bytes!("../docker/yugabyte.volumes_map.toml");
+    include_bytes!("../docker/lotus-miner/volumes_map.toml");
+pub static LOTUS_VOLUMES_MAP: &[u8] = include_bytes!("../docker/lotus/volumes_map.toml");
+pub static YUGABYTE_VOLUMES_MAP: &[u8] = include_bytes!("../docker/yugabyte/volumes_map.toml");
 
 // MockUSDFC Foundry Project (as tar.gz archive)
 pub static MOCKUSDFC_ARCHIVE: &[u8] = include_bytes!("../artifacts/MockUSDFC.tar.gz");

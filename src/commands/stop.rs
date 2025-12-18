@@ -70,13 +70,11 @@ pub fn stop_cluster() -> Result<(), Box<dyn Error>> {
         println!();
     }
 
-    // Force kill any remaining foc-* containers
+    // Force kill any remaining foc* containers
     force_kill_foc_containers()?;
 
-    // Force delete any remaining foc-* networks (use run_id if available)
-    if !run_id.is_empty() {
-        delete_all_networks(&run_id)?;
-    }
+    // Force delete any remaining foc* networks
+    force_remove_foc_networks()?;
 
     // Delete the run ID file
     delete_current_run_id()?;
@@ -173,13 +171,13 @@ fn get_run_containers(run_id: &str) -> Vec<(String, &'static str)> {
 fn force_kill_foc_containers() -> Result<(), Box<dyn Error>> {
     println!(
         "{}",
-        "Force killing any remaining foc-* containers..."
+        "Force killing any remaining foc* containers..."
             .blue()
             .bold()
     );
 
     // Get all running containers
-    let output = docker_command(&["ps", "-q", "--filter", "name=^foc-"])?;
+    let output = docker_command(&["ps", "-q", "--filter", "name=^foc*"])?;
     let stdout_str = String::from_utf8_lossy(&output.stdout);
     let container_ids: Vec<&str> = stdout_str
         .lines()
@@ -187,7 +185,7 @@ fn force_kill_foc_containers() -> Result<(), Box<dyn Error>> {
         .collect();
 
     if container_ids.is_empty() {
-        println!("  {} No remaining foc-* containers found", "ℹ".cyan());
+        println!("  {} No remaining foc* containers found", "ℹ".cyan());
         return Ok(());
     }
 
@@ -200,5 +198,50 @@ fn force_kill_foc_containers() -> Result<(), Box<dyn Error>> {
     }
 
     println!("  {} Force kill complete", "✓".green());
+    Ok(())
+}
+
+/// Force remove all Docker networks starting with "foc-" or "foc_"
+fn force_remove_foc_networks() -> Result<(), Box<dyn Error>> {
+    println!(
+        "{}",
+        "Force removing any remaining foc* networks..."
+            .blue()
+            .bold()
+    );
+
+    // Get all networks starting with foc- or foc_
+    let output = docker_command(&[
+        "network",
+        "ls",
+        "--filter",
+        "name=^foc*",
+        "--format",
+        "{{.Name}}",
+    ])?;
+
+    let stdout_str = String::from_utf8_lossy(&output.stdout);
+    let network_names: Vec<&str> = stdout_str
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .collect();
+
+    if network_names.is_empty() {
+        println!("  {} No remaining foc-* networks found", "ℹ".cyan());
+        return Ok(());
+    }
+
+    println!("  Found {} remaining network(s)", network_names.len());
+
+    for network_name in network_names {
+        println!("  Removing network {}...", network_name);
+        let result = docker_command(&["network", "rm", network_name]);
+        match result {
+            Ok(_) => println!("    {} Removed", "✓".green()),
+            Err(e) => println!("    {} Failed: {}", "⚠".yellow(), e),
+        }
+    }
+
+    println!("  {} Force remove networks complete", "✓".green());
     Ok(())
 }

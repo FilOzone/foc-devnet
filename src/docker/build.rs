@@ -44,7 +44,7 @@ pub fn perform_build_from_embedded(
     let pb = setup_build_progress_bar(image_tag);
     let (uid, gid) = get_build_user_ids()?;
     let temp_dockerfile_path =
-        create_temp_dockerfile(name, std::str::from_utf8(&dockerfile_content)?)?;
+        create_temp_dockerfile(name, std::str::from_utf8(dockerfile_content)?)?;
 
     let result = execute_standard_build(&temp_dockerfile_path, image_tag, &uid, &gid);
 
@@ -154,7 +154,7 @@ fn perform_yugabyte_build(name: &str, image_tag: &str) -> Result<(), Box<dyn std
     let pb = setup_build_progress_bar(image_tag);
     let (uid, gid) = get_build_user_ids()?;
     let temp_dockerfile_path =
-        create_temp_dockerfile(name, std::str::from_utf8(&dockerfile_content)?)?;
+        create_temp_dockerfile(name, std::str::from_utf8(dockerfile_content)?)?;
 
     let result =
         execute_yugabyte_build(&temp_dockerfile_path, image_tag, &artifacts_dir, &uid, &gid);

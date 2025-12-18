@@ -121,45 +121,21 @@ impl Location {
 /// counts of different node types, port allocations, and locations for executables.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    /// Number of lotus-miner nodes to run in the cluster.
+    /// Starting port number for the contiguous port range.
     ///
-    /// Lotus-miner nodes are responsible for mining operations in the Filecoin network.
-    /// Default: 1
-    pub lotus_miner_count: u32,
+    /// All ports used by the localnet will be dynamically allocated from a contiguous
+    /// range starting at this port. This ensures no port conflicts and allows
+    /// easy firewall configuration.
+    /// Default: 5700
+    pub port_range_start: u16,
 
-    /// Number of lotus execution nodes to run in the cluster.
+    /// Number of ports in the contiguous port range.
     ///
-    /// Lotus nodes handle the core Filecoin protocol execution, including
-    /// transaction processing and block validation.
-    /// Default: 1
-    pub lotus_count: u32,
-
-    /// Number of curio nodes to run in the cluster.
-    ///
-    /// Curio nodes provide additional services and utilities for the Filecoin network.
-    /// Default: 1
-    pub curio_count: u32,
-
-    /// Number of ports to reserve for lotus-miner nodes.
-    ///
-    /// Each lotus-miner node requires dedicated ports for communication.
-    /// This specifies how many ports per miner node.
-    /// Default: 1
-    pub lotus_miner_ports: u32,
-
-    /// Number of ports to reserve for lotus execution nodes.
-    ///
-    /// Each lotus node requires dedicated ports for P2P communication and APIs.
-    /// This specifies how many ports per lotus node.
-    /// Default: 1
-    pub lotus_ports: u32,
-
-    /// Number of ports to reserve for curio nodes.
-    ///
-    /// Each curio node requires dedicated ports for its services.
-    /// This specifies how many ports per curio node.
-    /// Default: 1
-    pub curio_miner_ports: u32,
+    /// This defines the size of the port range available for allocation.
+    /// For example, with port_range_start=5700 and port_range_count=300,
+    /// ports 5700-5999 are reserved for the localnet.
+    /// Default: 100
+    pub port_range_count: u16,
 
     /// Location specification for the lotus executable.
     ///
@@ -199,6 +175,23 @@ pub struct Config {
     /// This is the direct link to the Yugabyte tarball required for running curio.
     /// Default: https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz
     pub yugabyte_download_url: String,
+
+    /// Number of approved PDP service providers.
+    ///
+    /// This is the total number of Curio SPs that will be registered and approved
+    /// in the service provider registry. These SPs can accept storage deals.
+    /// Must satisfy: APPROVED_PDP_SP_COUNT <= ACTIVE_PDP_SP_COUNT <= MAX_PDP_SP_COUNT
+    /// Default: 1
+    pub approved_pdp_sp_count: usize,
+
+    /// Number of active PDP service providers.
+    ///
+    /// This is the total number of Curio SPs that will actually be started/running.
+    /// Some may be approved, some may not (for testing unapproved SP scenarios).
+    /// Total miners = 1 (lotus-miner) + ACTIVE_PDP_SP_COUNT (curio SPs)
+    /// Must satisfy: APPROVED_PDP_SP_COUNT <= ACTIVE_PDP_SP_COUNT <= MAX_PDP_SP_COUNT
+    /// Default: 1
+    pub active_pdp_sp_count: usize,
 }
 
 impl Default for Config {
@@ -209,12 +202,8 @@ impl Default for Config {
     /// system locations (/usr/local/bin/).
     fn default() -> Self {
         Self {
-            lotus_miner_count: 1,
-            lotus_count: 1,
-            curio_count: 1,
-            lotus_miner_ports: 1,
-            lotus_ports: 1,
-            curio_miner_ports: 1,
+            port_range_start: 5700,
+            port_range_count: 100,
             lotus: Location::GitTag {
                 url: "https://github.com/filecoin-project/lotus.git".to_string(),
                 tag: "v1.34.0".to_string(),
@@ -236,6 +225,34 @@ impl Default for Config {
                 tag: "synapse-sdk-v0.36.1".to_string(),
             },
             yugabyte_download_url: "https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz".to_string(),
+            approved_pdp_sp_count: 1,
+            active_pdp_sp_count: 1,
         }
+    }
+}
+
+impl Config {
+    /// Validate configuration values.
+    ///
+    /// Ensures that:
+    /// - APPROVED_PDP_SP_COUNT <= ACTIVE_PDP_SP_COUNT <= MAX_PDP_SP_COUNT
+    pub fn validate(&self) -> Result<(), String> {
+        const MAX_PDP_SP_COUNT: usize = crate::constants::MAX_PDP_SP_COUNT;
+
+        if self.approved_pdp_sp_count > self.active_pdp_sp_count {
+            return Err(format!(
+                "approved_pdp_sp_count ({}) cannot exceed active_pdp_sp_count ({})",
+                self.approved_pdp_sp_count, self.active_pdp_sp_count
+            ));
+        }
+
+        if self.active_pdp_sp_count > MAX_PDP_SP_COUNT {
+            return Err(format!(
+                "active_pdp_sp_count ({}) cannot exceed MAX_PDP_SP_COUNT ({})",
+                self.active_pdp_sp_count, MAX_PDP_SP_COUNT
+            ));
+        }
+
+        Ok(())
     }
 }

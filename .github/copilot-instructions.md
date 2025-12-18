@@ -54,7 +54,7 @@ foc-curio           # Second-gen miner (WIP)
 **Critical Network Details**:
 - `foc-builder` uses `--network host` to access Lotus RPC at `http://localhost:1234/rpc/v1`
 - All other containers use bridge networking
-- Volume mounts are handled via `docker/builder.volumes_map.toml` (TOML format)
+- Volume mounts are handled via `docker/<component>/volumes_map.toml` (TOML format)
 
 ## Directory Structure & Conventions
 

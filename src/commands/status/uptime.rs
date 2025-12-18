@@ -192,7 +192,7 @@ pub fn print_uptime() -> Result<(), Box<dyn std::error::Error>> {
     let header_display_width = 2 + 1 + 13 + 1;
     let padding_len = width.saturating_sub(header_display_width);
     let padding = "░".repeat(padding_len).dark_grey();
-    println!("\n{}{}{}", header_text.bold().magenta(), " ", padding);
+    println!("\n{} {}", header_text.bold().magenta(), padding);
     let width = get_terminal_width().min(120);
     println!("{}", "─".repeat(width).magenta());
 
@@ -209,7 +209,7 @@ pub fn print_uptime() -> Result<(), Box<dyn std::error::Error>> {
         let uptime = now.signed_duration_since(start_time);
 
         let total_seconds = uptime.num_seconds();
-        let uptime_str = format_duration(total_seconds as i64);
+        let uptime_str = format_duration(total_seconds);
 
         println!("{} {}", "System uptime:".green(), uptime_str.green().bold());
 

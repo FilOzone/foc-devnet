@@ -46,14 +46,14 @@ pub const SIGNERS_THRESHOLD: u32 = 2;
 /// and other privileged operations. Each signer gets an equal vote in consensus.
 pub const NUM_SIGNER_KEYS: u32 = 2;
 
-/// The miner ID for the first genesis miner (Lotus miner).
+/// The miner ID for the first genesis miner (lotus-miner).
 ///
 /// This is the actor ID that will be used for the first miner in the genesis block.
 /// The "t0" prefix indicates a testnet actor ID.
 pub const LOTUS_MINER_ID: &str = "t01000";
 
-/// The miner ID for the second genesis miner (Curio miner).
+/// The starting miner ID for PDP Service Providers.
 ///
-/// This is the actor ID that will be used for the second miner in the genesis block.
-/// The "t0" prefix indicates a testnet actor ID.
-pub const CURIO_MINER_ID: &str = "t01001";
+/// PDP SP miners start from t01001 and increment sequentially (t01001, t01002, etc.)
+/// This allows lotus-miner (t01000) to have a fixed ID, while PDP SPs occupy t01001+.
+pub const PDP_SP_MINER_ID_START: u32 = 1001;

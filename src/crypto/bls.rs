@@ -28,7 +28,7 @@ pub fn derive_bls_key(
 
     // Create BLS private key using the proper key generation method
     // PrivateKey::new() uses HKDF to derive the actual BLS key from the seed
-    let bls_private_key = PrivateKey::new(&private_key_bytes);
+    let bls_private_key = PrivateKey::new(private_key_bytes);
     let bls_public_key = bls_private_key.public_key();
 
     // Serialize the actual BLS private key (not the input seed)

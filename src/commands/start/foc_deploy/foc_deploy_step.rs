@@ -4,15 +4,17 @@
 //! of the Step trait for deploying FOC service contracts.
 
 use super::deployment::{check_existing_deployment, perform_deployment, post_execute_verification};
-use super::helpers::{check_lotus_running, check_required_addresses, get_filecoin_services_repo_path};
-use super::step::{Step, StepContext};
-use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
+use super::helpers::{
+    check_lotus_running, check_required_addresses, get_filecoin_services_repo_path,
+};
+use crate::commands::start::step::{Step, StepContext};
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::path::PathBuf;
 
 /// Step for deploying FOC service contracts
 pub struct FOCDeployStep {
+    #[allow(dead_code)]
     volumes_dir: PathBuf,
     #[allow(dead_code)]
     logs_dir: PathBuf,
@@ -40,7 +42,7 @@ impl Step for FOCDeployStep {
 
     /// Perform pre-execution checks
     fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        check_lotus_running()?;
+        check_lotus_running(context)?;
         println!("    {} Lotus is running", "✓".green());
 
         let services_repo = get_filecoin_services_repo_path()?;

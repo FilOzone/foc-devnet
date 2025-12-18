@@ -8,6 +8,7 @@ use std::error::Error;
 use std::fs;
 
 /// Save contract address to the contract addresses file
+#[allow(dead_code)]
 pub fn save_contract_address(name: &str, address: &str) -> Result<(), Box<dyn Error>> {
     let file_path = contract_addresses_file();
 

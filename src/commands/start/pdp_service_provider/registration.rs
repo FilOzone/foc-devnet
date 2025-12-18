@@ -6,29 +6,34 @@ use crossterm::style::Stylize;
 use std::error::Error;
 use std::process::Command;
 
-/// Register provider in ServiceProviderRegistry contract
+/// Register a single provider in ServiceProviderRegistry contract
 ///
 /// Returns the provider ID assigned by the registry.
-pub fn register_provider(
+pub fn register_single_provider(
     run_id: &str,
     registry_address: &str,
-    pdp_sp_0_address: &str,
-    pdp_sp_0_eth_address: &str,
+    pdp_sp_address: &str,
+    pdp_sp_eth_address: &str,
     mock_usdfc_address: &str,
+    lotus_rpc_url: &str,
+    service_url: &str,
+    sp_index: usize,
 ) -> Result<u64, Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
-    println!("  Registering PDP_SP_0 in ServiceProviderRegistry...");
+    let label = format!("PDP_SP_{}", sp_index);
 
-    // Get private key for PDP_SP_0
-    let pdp_sp_0_private_key =
-        crate::commands::start::foc_deployer::get_private_key(pdp_sp_0_address, "")?;
+    println!("  Registering {} in ServiceProviderRegistry...", label);
+
+    // Get private key for this PDP SP
+    let pdp_sp_private_key =
+        crate::commands::start::foc_deployer::get_private_key(pdp_sp_address, "")?;
 
     // Build capability keys array
     let cap_keys = build_capability_keys();
 
-    // Build capability values array
-    let cap_values = build_capability_values(mock_usdfc_address)?;
+    // Build capability values array with the specific service URL
+    let cap_values = build_capability_values_with_url(mock_usdfc_address, service_url)?;
 
     // Calculate registration fee in wei
     let registration_fee_wei = format!("{}000000000000000000", REGISTRATION_FEE_FIL);
@@ -54,17 +59,18 @@ pub fn register_provider(
                 {} \
                 {} \
                 --value {} \
-                --rpc-url http://localhost:1234/rpc/v1 \
+                --rpc-url {} \
                 --private-key {} \
                 --gas-limit 10000000000"#,
                 registry_address,
-                pdp_sp_0_eth_address,
-                PROVIDER_NAME,
+                pdp_sp_eth_address,
+                label,
                 PROVIDER_DESCRIPTION,
                 cap_keys,
                 cap_values,
                 registration_fee_wei,
-                pdp_sp_0_private_key
+                lotus_rpc_url,
+                pdp_sp_private_key
             ),
         ])
         .output()?;
@@ -87,9 +93,9 @@ pub fn register_provider(
     wait_for_confirmation();
 
     // Query provider ID
-    let provider_id = query_provider_id(registry_address, pdp_sp_0_eth_address)?;
+    let provider_id = query_provider_id(registry_address, pdp_sp_eth_address, lotus_rpc_url)?;
 
-    println!("  {} Provider ID: {}", "✓".green(), provider_id);
+    println!("  {} {} Provider ID: {}", "✓".green(), label, provider_id);
     Ok(provider_id)
 }
 
@@ -100,6 +106,7 @@ pub fn add_to_approved_list(
     provider_id: u64,
     deployer_foc_address: &str,
     _deployer_foc_eth_address: &str,
+    lotus_rpc_url: &str,
 ) -> Result<(), Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
@@ -126,7 +133,7 @@ pub fn add_to_approved_list(
             "addApprovedProvider(uint256)",
             &provider_id.to_string(),
             "--rpc-url",
-            "http://localhost:1234/rpc/v1",
+            lotus_rpc_url,
             "--private-key",
             &deployer_foc_private_key,
             "--gas-limit",
@@ -159,13 +166,16 @@ fn build_capability_keys() -> String {
     "[serviceURL,minPieceSizeInBytes,maxPieceSizeInBytes,storagePricePerTibPerDay,minProvingPeriodInEpochs,location,paymentTokenAddress]".to_string()
 }
 
-/// Build capability values array with properly ABI-encoded bytes values (no quotes, bracket format)
-fn build_capability_values(mock_usdfc_address: &str) -> Result<String, Box<dyn Error>> {
+/// Build capability values array with custom service URL
+fn build_capability_values_with_url(
+    mock_usdfc_address: &str,
+    service_url: &str,
+) -> Result<String, Box<dyn Error>> {
     // For the bytes[] parameter in Solidity, we need to pass raw bytes for each value
     // Cast expects array format: [0x...,0x...,0x...] (no quotes, no spaces)
 
     // Encode each value using big-endian minimal encoding (like BigEndian.sol does)
-    let service_url_bytes = hex::encode(DEFAULT_SERVICE_URL.as_bytes());
+    let service_url_bytes = hex::encode(service_url.as_bytes());
     let location_bytes = hex::encode(LOCATION.as_bytes());
 
     // For uint256 values, encode as minimal big-endian bytes (no leading zeros)
@@ -210,10 +220,11 @@ fn encode_uint_minimal(value: u64) -> String {
     hex::encode(&bytes[first_non_zero..])
 }
 
-/// Query provider ID from registry
+/// Query provider ID from registry by eth address
 fn query_provider_id(
     registry_address: &str,
-    pdp_sp_0_eth_address: &str,
+    pdp_sp_eth_address: &str,
+    lotus_rpc_url: &str,
 ) -> Result<u64, Box<dyn Error>> {
     let output = Command::new("docker")
         .args([
@@ -226,9 +237,9 @@ fn query_provider_id(
             "call",
             registry_address,
             "getProviderIdByAddress(address)(uint256)",
-            pdp_sp_0_eth_address,
+            pdp_sp_eth_address,
             "--rpc-url",
-            "http://localhost:1234/rpc/v1",
+            lotus_rpc_url,
         ])
         .output()?;
 
@@ -261,7 +272,11 @@ fn wait_for_confirmation() {
 /// Verify provider count on-chain
 ///
 /// Returns the total number of registered providers.
-pub fn verify_provider_count(run_id: &str, registry_address: &str) -> Result<u64, Box<dyn Error>> {
+pub fn verify_provider_count(
+    run_id: &str,
+    registry_address: &str,
+    lotus_rpc_url: &str,
+) -> Result<u64, Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
     let output = Command::new("docker")
@@ -276,7 +291,7 @@ pub fn verify_provider_count(run_id: &str, registry_address: &str) -> Result<u64
             registry_address,
             "getProviderCount()(uint256)",
             "--rpc-url",
-            "http://localhost:1234/rpc/v1",
+            lotus_rpc_url,
         ])
         .output()?;
 
@@ -298,6 +313,7 @@ pub fn verify_provider_id_by_address(
     run_id: &str,
     registry_address: &str,
     provider_address: &str,
+    lotus_rpc_url: &str,
 ) -> Result<u64, Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
@@ -314,7 +330,7 @@ pub fn verify_provider_id_by_address(
             "getProviderIdByAddress(address)(uint256)",
             provider_address,
             "--rpc-url",
-            "http://localhost:1234/rpc/v1",
+            lotus_rpc_url,
         ])
         .output()?;
 
@@ -337,6 +353,7 @@ pub fn verify_approved_provider(
     run_id: &str,
     state_view_address: &str,
     provider_id: u64,
+    lotus_rpc_url: &str,
 ) -> Result<bool, Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
@@ -354,7 +371,7 @@ pub fn verify_approved_provider(
             "isProviderApproved(uint256)(bool)",
             &provider_id.to_string(),
             "--rpc-url",
-            "http://localhost:1234/rpc/v1",
+            lotus_rpc_url,
         ])
         .output()?;
 

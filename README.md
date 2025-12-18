@@ -1,270 +1,172 @@
 # foc-localnet
 
-A command-line tool for managing local Filecoin-onchain-cloud clusters.
+**Run a local Filecoin network with FOC (Filecoin Onchain Contracts) in minutes.**
 
-## Quick Start
+A developer-friendly tool for spinning up complete Filecoin test networks with smart contract support, deterministic key generation, and automated deployment—all running locally in Docker.
 
-```bash
-# Install foc-localnet
-cargo install --git https://github.com/FilOzone/foc-localnet.git
+---
 
-# Install shell completions (optional)
-foc-localnet completions --install
+## 🚀 Quick Start
 
-# Check version and build info
-foc-localnet version
+Get up and running in three simple steps:
 
-# Check system requirements and install dependencies
-foc-localnet requirements --setup
-
-# Initialize the environment (build Docker images)
-foc-localnet init
-
-# Start the local cluster
-foc-localnet start
-
-# Check status
-foc-localnet status
-
-# Stop the cluster
-foc-localnet stop
-```
-
-## Installation
-
-### From Crates.io (when published)
+### Step 1: Initialize
 
 ```bash
-cargo install foc-localnet
+cargo run -- init
 ```
 
-### From Source
+This will:
+- Download required repositories (or use your local ones)
+- Build Docker images
+- Generate deterministic cryptographic keys
+- Prepare the environment
+
+**Using local repositories?** Specify them during init:
 
 ```bash
-git clone https://github.com/FilOzone/foc-localnet.git
-cd foc-localnet
-cargo install --path .
+cargo run -- init \
+    --curio local:/home/user/code/curio \
+    --filecoin-services local:/home/user/code/filecoin-services \
+    --lotus local:/home/user/code/lotus \
+    --synapse-sdk local:/home/user/code/synapse-sdk \
+    --force
 ```
 
-The binary will be installed to `~/.cargo/bin/foc-localnet` (which should be in your PATH).
-
-### System-wide Installation
-
-To install to `/opt/bin` or another system directory:
+### Step 2: Build
 
 ```bash
-# Build the binary
-cargo build --release
-
-# Install to /opt/bin (requires sudo)
-sudo cp target/release/foc-localnet /opt/bin/
-
-# Or install via cargo with custom root
-cargo install --path . --root /opt
+cargo run -- build lotus
+cargo run -- build curio
 ```
 
-### Shell Completion
+This will:
+- Compile Lotus and Curio binaries inside Docker containers
+- Cache build artifacts for faster subsequent builds
 
-Install shell completion scripts automatically:
+### Step 3: Start the Network
 
 ```bash
-# Auto-detect shell and install to appropriate location
-foc-localnet completions --install
-
-# Install for specific shell
-foc-localnet completions bash --install
-foc-localnet completions zsh --install
-foc-localnet completions fish --install
+cargo run -- start
 ```
 
-Or generate scripts manually:
+This will:
+- Create the genesis block
+- Start Lotus daemon with FEVM enabled
+- Deploy FOC smart contracts (including MockUSDFC)
+- Start storage provider(s)
+- Launch Portainer UI for container management
 
-```bash
-# Auto-detect shell and output to stdout
-foc-localnet completions > completion_script
+**That's it!** Your local Filecoin network is running.
 
-# Generate for specific shell
-foc-localnet completions bash > ~/.bash_completion.d/foc-localnet
-foc-localnet completions zsh > ~/.zsh/completions/_foc-localnet
-foc-localnet completions fish > ~/.config/fish/completions/foc-localnet.fish
-```
+---
 
-The `--install` flag automatically chooses the best location:
-- **System-wide** (if writable): `/etc/bash_completion.d/`, `/usr/local/share/zsh/site-functions/`
-- **User-specific** (fallback): `~/.bash_completion.d/`, `~/.zsh/completions/`, `~/.config/fish/completions/`
+## ✨ Key Features
 
-## Commands
+### 🪶 Lean Host Requirements
+Only needs three things on your machine:
+- **tar** archiver
+- **rustup/rustc** for building the CLI
+- **Docker** for containerized components
 
-### Core Commands
+Everything else (Lotus, Curio, dependencies) is built inside Docker.
 
-- `foc-localnet start` - Start the local Filecoin cluster
-- `foc-localnet stop` - Stop the running cluster
-- `foc-localnet status` - Show cluster status and system information
-- `foc-localnet version` - Show version, commit ID, and build information
-- `foc-localnet requirements` - Check system requirements
-- `foc-localnet requirements --setup` - Check and automatically install missing dependencies
+### ⚙️ Configurable Repositories
+Depends on 4 repositories, all configurable:
+- `filecoin-services` - FOC smart contracts
+- `curio` - Next-gen storage provider
+- `lotus` - Filecoin daemon
+- `synapse-sdk` - PDP verification
 
-### Initialization & Building
+Each can be:
+- Auto-downloaded from GitHub (default)
+- Linked to your local git repository for development
 
-- `foc-localnet init` - Initialize environment and build Docker images
-- `foc-localnet build lotus` - Build Lotus binaries
-- `foc-localnet build curio` - Build Curio binaries
+### 🔒 Deterministic Setup
+- **Pinned versions**: All components use specific git tags/commits for reproducibility
+- **Deterministic keys**: Uses fixed seeds, generating the same keys on every setup
+- **Consistent addresses**: Find derived accounts in `~/.foc-localnet/state/addresses.json`
 
-### Configuration
+### 🤖 Fully Automated
+From building Docker images to deploying contracts—everything is automated:
+- Genesis block creation
+- Network initialization
+- Smart contract deployment
+- Storage provider setup
 
-- `foc-localnet config lotus <source>` - Configure Lotus source location
-- `foc-localnet config curio <source>` - Configure Curio source location
+### 🧩 Modular Architecture
+Built with modular steps for easy extension and customization:
+- Add custom deployment steps
+- Configure multiple PDP service providers
+- Control "allowed" SP nodes via `~/.foc-localnet/config.toml`
 
-### Maintenance
+### 📜 Programmable
+Built for scripting and automation:
+- **Contract addresses**: `~/.foc-localnet/state/contract_addresses.json`
+- **Account addresses**: `~/.foc-localnet/state/addresses.json`
+- Write scripts for testing, demos, CI/CD pipelines, etc.
 
-- `foc-localnet clean` - Clean all artifacts, binaries, and Docker images
-- `foc-localnet clean --artifacts` - Clean only downloaded artifacts
-- `foc-localnet clean --dockerimages` - Clean only Docker images
-- `foc-localnet clean --binaries` - Clean only built binaries
+### 🌐 Isolated Networks
+Uses Docker user-defined networks to mimic real-world node separation—just like production deployments.
 
-## Overview
+### 💰 Built-in Token Contracts
+Includes ready-to-use test contracts:
+- **MockUSDFC** - ERC-20 test token
+- **Multicall3** - Batch contract calls
 
-`foc-localnet` provides an easy way to start, stop, and manage local Filecoin network clusters for development and testing purposes. It checks system requirements and can install some dependencies automatically.
+### 🖥️ Portainer UI
+Bundled with Portainer for browser-based Docker management—no terminal wizardry required.
 
-## Features
+---
 
-- 🚀 **Start/Stop Clusters**: Easily manage local Filecoin clusters
-- 🔍 **Requirements Checking**: Automatically verify system prerequisites
-- 📦 **Auto-Installation**: Install missing dependencies (Homebrew) with `--setup`
-- 🏗️ **Build Projects**: Build Lotus and Curio from source in Docker containers
-- 🧹 **Clean Environment**: Clean artifacts, binaries, and Docker images
-- 🖥️ **Cross-Platform**: Supports macOS and Ubuntu/Debian Linux
-- 🎨 **Beautiful Output**: Colorized terminal output with emojis
+## 📋 System Requirements
 
-## Prerequisites
+| Requirement | Details |
+|-------------|---------|
+| **Rust** | 1.70+ ([rustup.rs](https://rustup.rs)) |
+| **Docker** | Desktop (macOS) or CE (Linux) |
+| **tar** | Archive utility (usually pre-installed) |
+| **Disk Space** | ~20GB for images and blockchain data |
 
-- Rust 1.70+ (install via rustup: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)
-- Docker
-- Homebrew (macOS only, will be installed automatically with `--setup`)
+---
 
-## FOC Contract Deployment
+## 📂 Where's My Data?
 
-When you start the cluster with `foc-localnet start`, the following happens automatically:
-
-1. **Lotus** starts with FEVM enabled for Ethereum RPC support
-2. **Lotus-Miner** builds blocks and maintains the chain
-3. **FOC Contracts** are deployed to the local network:
-   - MockUSDFC token (toy ERC-20 for testing)
-   - PDP Verifier contracts
-   - Warm Storage Service contracts
-   - Service Provider Registry
-4. **Yugabyte** database starts for Curio
-5. **Curio** second-generation miner connects to FOC contracts
-
-### Contract Addresses
-
-After deployment, all contract addresses are saved to:
-```
-~/.foc-localnet/artifacts/docker/volumes/foc-contract-addresses.json
-```
-
-### Fund Transfer Chain
+Everything lives in `~/.foc-localnet/`:
 
 ```
-GLOBAL_FIL_FAUCET (50,000 FIL from genesis)
-    ↓ 10,000 FIL
-FEVM_FAUCET (f4 address for FEVM operations)
-    ↓ 5,000 FIL  
-FOC_DEPLOYER (f4 address that deploys contracts)
+~/.foc-localnet/
+├── state/
+│   ├── addresses.json           # Derived account addresses
+│   └── contract_addresses.json  # Deployed smart contracts
+├── artifacts/
+│   └── docker/volumes/          # Persistent container data
+├── logs/                        # Container logs
+├── repos/                       # Cloned Git repositories
+└── config.toml                  # Configuration
 ```
 
-For detailed information about FOC deployment, see [docs/FOC_DEPLOYMENT.md](docs/FOC_DEPLOYMENT.md).
+---
 
-### Get Help
+## 🛠️ Need More?
 
-```bash
-foc-localnet --help
-foc-localnet <command> --help
-```
+For advanced topics like:
+- Custom repository configurations
+- Multiple storage provider setups
+- Architecture deep-dives
+- Troubleshooting guides
+- API access and scripting
 
-## System Requirements
+See **[README_ADVANCED.md](README_ADVANCED.md)** for detailed documentation (coming soon).
 
-### macOS
-- Homebrew (auto-installed with `--setup`)
-- Docker Desktop
+---
 
-### Ubuntu/Debian Linux
-- Docker CE
-- sudo access for package installation
+## 📝 License
 
-## Development
+MIT License - see [LICENSE](LICENSE) file for details.
 
-### Building
+---
 
-```bash
-cargo build
-```
+## 💬 Support
 
-### Testing
-
-```bash
-cargo test
-```
-
-### Code Quality
-
-```bash
-cargo fmt --all -- --check
-cargo clippy -- -D warnings
-```
-
-## CI/CD
-
-This project uses GitHub Actions for continuous integration:
-
-- **Build & Test**: Runs on Ubuntu latest
-- **Requirements Check**: Validates setup functionality on macOS and Ubuntu 24.04
-- **Code Quality**: Enforces formatting and linting standards
-
-## Project Structure
-
-```
-src/
-├── main.rs                 # Application entry point
-├── lib.rs                  # Library exports
-├── app.rs                  # Application initialization
-├── cli.rs                  # CLI argument parsing
-├── config.rs               # Configuration management
-└── commands/
-    ├── mod.rs              # Command exports
-    ├── start.rs            # Cluster start logic
-    ├── stop.rs            # Cluster stop logic
-    ├── clean.rs           # Environment cleaning logic
-    ├── build/
-    │   ├── mod.rs         # Build command logic
-    │   └── repository.rs  # Repository preparation logic
-    └── requirements/
-        ├── mod.rs         # Requirements checking logic
-        └── setup_docker/
-            ├── mod.rs     # Docker setup dispatcher
-            ├── macos.rs   # macOS-specific setup
-            └── linux.rs   # Linux-specific setup
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Make your changes and add tests
-4. Run the test suite: `cargo test`
-5. Ensure code quality: `cargo fmt && cargo clippy`
-6. Commit your changes: `git commit -am 'Add your feature'`
-7. Push to the branch: `git push origin feature/your-feature`
-8. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Support
-
-For questions, issues, or contributions, please:
-
-- Open an issue on [GitHub](https://github.com/FilOzone/foc-localnet/issues)
-- Check existing documentation and examples
-- Review the code for implementation details
+- **Issues**: [GitHub Issues](https://github.com/FilOzone/foc-localnet/issues)

@@ -4,7 +4,7 @@
 
 use std::fs;
 
-use foc_localnet::cli::{BuildCommands, ConfigCommands};
+use foc_localnet::cli::BuildCommands;
 use foc_localnet::commands;
 use foc_localnet::commands::build::Project;
 use foc_localnet::config::Config;
@@ -15,23 +15,15 @@ use foc_localnet::poison;
 pub fn handle_start(
     volumes_dir: Option<String>,
     logs_dir: Option<String>,
-    regenesis: bool,
-    reset: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     poison::create_poison("Start")?;
-    commands::start_cluster(volumes_dir, logs_dir, regenesis, reset)
+    commands::start_cluster(volumes_dir, logs_dir)
 }
 
 /// Execute the stop command
 pub fn handle_stop() -> Result<(), Box<dyn std::error::Error>> {
     poison::create_poison("Stop")?;
     commands::stop_cluster()
-}
-
-/// Execute the requirements command
-pub fn handle_requirements(setup: bool) -> Result<(), Box<dyn std::error::Error>> {
-    poison::create_poison("Requirements")?;
-    commands::check_requirements(setup)
 }
 
 /// Execute the init command
@@ -83,29 +75,8 @@ pub fn handle_build(build_command: BuildCommands) -> Result<(), Box<dyn std::err
     }
 }
 
-/// Execute the clean command
-pub fn handle_clean(
-    artifacts: bool,
-    dockerimages: bool,
-    binaries: bool,
-    lotus: bool,
-    curio: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
-    poison::create_poison("Clean")?;
-    commands::clean_environment(artifacts, dockerimages, binaries, lotus, curio, false)
-}
-
 /// Execute the status command
 pub fn handle_status() -> Result<(), Box<dyn std::error::Error>> {
     // Status is read-only, no poison protection needed
     commands::status()
-}
-
-/// Execute the config command
-pub fn handle_config(config_command: ConfigCommands) -> Result<(), Box<dyn std::error::Error>> {
-    poison::create_poison("Config")?;
-    match config_command {
-        ConfigCommands::Lotus { source } => commands::config_lotus(source),
-        ConfigCommands::Curio { source } => commands::config_curio(source),
-    }
 }

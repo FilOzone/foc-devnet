@@ -13,9 +13,6 @@ use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
-// Lotus daemon ports
-const LOTUS_PORTS: &[(u16, &str)] = &[(1234, "Lotus API"), (1235, "Lotus P2P")];
-
 // Timing constants
 const PORT_CHECK_TIMEOUT_SECS: u64 = 30;
 const API_FILE_TIMEOUT_SECS: u64 = 180;
@@ -54,10 +51,22 @@ pub fn check_lotus_api(context: &StepContext) -> Result<(), Box<dyn Error>> {
 }
 
 /// Verify that all required ports are accessible
-pub fn verify_ports() -> Result<(), Box<dyn Error>> {
+pub fn verify_ports(context: &StepContext) -> Result<(), Box<dyn Error>> {
+    // Read allocated ports from context
+    let lotus_api_port: u16 = context
+        .get("lotus_api_port")
+        .ok_or("Lotus API port not found in context")?
+        .parse()?;
+    let lotus_p2p_port: u16 = context
+        .get("lotus_p2p_port")
+        .ok_or("Lotus P2P port not found in context")?
+        .parse()?;
+
+    let ports = [(lotus_api_port, "Lotus API"), (lotus_p2p_port, "Lotus P2P")];
+
     // Check all ports are accessible
     println!("    Verifying port accessibility...");
-    for &(port, description) in LOTUS_PORTS {
+    for &(port, description) in &ports {
         print!("      Checking port {} ({})... ", port, description);
         match wait_for_port(port, PORT_CHECK_TIMEOUT_SECS) {
             Ok(_) => println!("{}", "✓".green()),
@@ -105,6 +114,12 @@ pub fn wait_for_api_file(volumes_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
 pub fn check_ethereum_rpc(context: &StepContext) -> Result<(), Box<dyn Error>> {
     let container_name = get_container_name(context)?;
 
+    // Read allocated API port from context
+    let lotus_api_port: u16 = context
+        .get("lotus_api_port")
+        .ok_or("Lotus API port not found in context")?
+        .parse()?;
+
     // Test eth_blockNumber via docker exec
     // This is a simple, safe RPC call that should work if FEVM is enabled
     let output = Command::new("docker")
@@ -113,9 +128,12 @@ pub fn check_ethereum_rpc(context: &StepContext) -> Result<(), Box<dyn Error>> {
             &container_name,
             "/bin/bash",
             "-c",
-            "curl -s -X POST -H 'Content-Type: application/json' \
-            --data '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}' \
-            http://localhost:1234/rpc/v1",
+            &format!(
+                "curl -s -X POST -H 'Content-Type: application/json' \
+                --data '{{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}}' \
+                http://localhost:{}/rpc/v1",
+                lotus_api_port
+            ),
         ])
         .output()?;
 
@@ -179,7 +197,13 @@ pub fn verify_api_connectivity(context: &StepContext) -> Result<(), Box<dyn Erro
     }
 
     println!("\n    {} Lotus daemon is ready!", "✓".green().bold());
-    println!("      API endpoint: http://localhost:1234");
+
+    // Display endpoint information with dynamic port
+    let lotus_api_port: u16 = context
+        .get("lotus_api_port")
+        .ok_or("Lotus API port not found in context")?
+        .parse()?;
+    println!("      API endpoint: http://localhost:{}", lotus_api_port);
     println!("      Ethereum RPC: Available via Lotus API");
     Ok(())
 }

@@ -26,7 +26,7 @@ pub fn derive_ethereum_key(
 
     let private_key = derive_ethereum_private_key(seed, &path)?;
     let public_key = private_key.verifying_key();
-    let eth_address = compute_eth_address(&public_key)?;
+    let eth_address = compute_eth_address(public_key)?;
 
     const FEVM_MANAGER_ID: u64 = 10;
     let native_address = compute_native_address(&eth_address, FEVM_MANAGER_ID)?;

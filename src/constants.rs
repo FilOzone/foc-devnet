@@ -30,6 +30,9 @@ pub const TRANSACTION_CONFIRMATION_WAIT_SECS: u64 = 15;
 pub const PORT_CHECK_INTERVAL_MS: u64 = 100;
 pub const PORT_CHECK_TIMEOUT_MS: u64 = 5000;
 
+/// PDP Service Provider configuration
+pub const MAX_PDP_SP_COUNT: usize = 5;
+
 /// Service configuration
 pub const SERVICE_NAME: &str = "FOC LocalNet Warm Storage";
 pub const SERVICE_DESCRIPTION: &str = "Warm storage service for FOC local development network";
