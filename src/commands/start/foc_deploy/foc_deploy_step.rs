@@ -41,7 +41,7 @@ impl Step for FOCDeployStep {
     }
 
     /// Perform pre-execution checks
-    fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn pre_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         check_lotus_running(context)?;
         println!("    {} Lotus is running", "✓".green());
 
@@ -87,7 +87,7 @@ impl Step for FOCDeployStep {
     }
 
     /// Execute the FOC deployment process
-    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         if check_existing_deployment(context)? {
             return Ok(());
         }
@@ -97,7 +97,7 @@ impl Step for FOCDeployStep {
     }
 
     /// Perform post-execution verification for FOC deployment
-    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn post_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         post_execute_verification(context)
     }
 }

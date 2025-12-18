@@ -15,9 +15,10 @@ use foc_localnet::poison;
 pub fn handle_start(
     volumes_dir: Option<String>,
     logs_dir: Option<String>,
+    parallel: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     poison::create_poison("Start")?;
-    commands::start_cluster(volumes_dir, logs_dir)
+    commands::start_cluster(volumes_dir, logs_dir, parallel)
 }
 
 /// Execute the stop command

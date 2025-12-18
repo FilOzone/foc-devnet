@@ -58,7 +58,7 @@ impl Step for CurioStep {
         "Curio PDP Service Providers"
     }
 
-    fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn pre_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         println!(
             "{}",
             format!("Pre-checks for {}", self.name()).blue().bold()
@@ -67,19 +67,19 @@ impl Step for CurioStep {
         Ok(())
     }
 
-    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         println!("{}", format!("Executing {}", self.name()).blue().bold());
         execute::setup_all_curio_sps(context, self)?;
         Ok(())
     }
 
-    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn post_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         println!("{}", format!("Verifying {}", self.name()).blue().bold());
         post_execute::verify_all_curio_sps(context, self.active_sp_count)?;
         Ok(())
     }
 
-    fn run(&self, context: &mut StepContext) -> Result<std::time::Duration, Box<dyn Error>> {
+    fn run(&self, context: &StepContext) -> Result<std::time::Duration, Box<dyn Error>> {
         let start = std::time::Instant::now();
         self.pre_execute(context)?;
         self.execute(context)?;

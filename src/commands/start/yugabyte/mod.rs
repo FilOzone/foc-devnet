@@ -200,7 +200,7 @@ impl Step for YugabyteStep {
         "Start YugabyteDB"
     }
 
-    fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn pre_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         for instance_index in 1..=self.active_sp_count {
             let container_name = Self::get_container_name(context, instance_index)?;
 
@@ -237,7 +237,7 @@ impl Step for YugabyteStep {
         Ok(())
     }
 
-    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         // Determine how many Yugabyte instances to spawn based on active Curio SPs
         let num_instances = self.active_sp_count;
 
@@ -250,7 +250,7 @@ impl Step for YugabyteStep {
         // Allocate ports for all instances upfront
         let mut all_ports = Vec::new();
         for instance_index in 1..=num_instances {
-            let yugabyte_ports = context.port_allocator.allocate_multiple(7)?;
+            let yugabyte_ports = context.allocate_multiple_ports(7)?;
             all_ports.push((instance_index, yugabyte_ports));
         }
 
@@ -324,7 +324,7 @@ impl Step for YugabyteStep {
         Ok(())
     }
 
-    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn post_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         let num_instances = self.active_sp_count;
         let run_id = context.run_id().ok_or("Run ID not found")?;
 
@@ -368,7 +368,7 @@ impl Step for YugabyteStep {
                     .parse()?;
 
                 print!(
-                    "      Instance{} - Checking port {} ({})... ",
+                    "      {} - Checking port {} ({})... ",
                     container_name, port, description
                 );
                 match wait_for_port(port, 30) {

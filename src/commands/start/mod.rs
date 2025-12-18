@@ -22,7 +22,7 @@ use lotus::LotusStep;
 use lotus_miner::LotusMinerStep;
 use multicall3_deploy::MultiCall3DeployStep;
 use pdp_service_provider::PdpSpRegistrationStep;
-pub use step::{execute_steps, Step, StepContext};
+pub use step::{execute_steps, execute_steps_parallel, Step, StepContext};
 use usdfc_deploy::USDFCDeployStep;
 use yugabyte::YugabyteStep;
 
@@ -216,12 +216,84 @@ fn create_steps(volumes_dir: &PathBuf, logs_dir: &PathBuf, config: &Config) -> V
     ]
 }
 
+/// Create step epochs for parallel execution.
+///
+/// Each epoch contains steps that can be executed in parallel.
+/// All steps in an epoch must complete before the next epoch begins.
+///
+/// # Parallelization Strategy
+///
+/// - Epoch 1: Lotus + Yugabyte (independent services)
+/// - Epoch 2: Lotus Miner (depends on Lotus)
+/// - Epoch 3: ETH Account Funding (needs blockchain running)
+/// - Epoch 4: MockUSDFC Deploy + MultiCall3 Deploy + FOC Deploy (can be parallelized)
+/// - Epoch 5: MockUSDFC Funding + Curio daemons (can be parallelized, needs FOC Deploy)
+/// - Epoch 6: PDP SP Registration (needs Curio daemons started)
+fn create_step_epochs(
+    volumes_dir: &PathBuf,
+    logs_dir: &PathBuf,
+    config: &Config,
+) -> Vec<Vec<Box<dyn Step>>> {
+    let lotus_step = LotusStep::new(volumes_dir.clone(), logs_dir.clone());
+    let yugabyte_step = YugabyteStep::new(
+        volumes_dir.clone(),
+        logs_dir.clone(),
+        config.active_pdp_sp_count,
+    );
+    let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), logs_dir.clone());
+    let eth_acc_funding_step = ETHAccFundingStep::new(logs_dir.clone());
+    let usdfc_deploy_step = USDFCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
+    let multicall3_deploy_step = MultiCall3DeployStep::new(volumes_dir.clone(), logs_dir.clone());
+    let foc_deploy_step = FOCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
+    let usdfc_funding_step = USDFCFundingStep::new(
+        volumes_dir.clone(),
+        logs_dir.clone(),
+        config.active_pdp_sp_count,
+    );
+    let curio_step = CurioStep::new(
+        volumes_dir.clone(),
+        logs_dir.clone(),
+        config.active_pdp_sp_count,
+    );
+    let pdp_sp_reg_step = PdpSpRegistrationStep::new(
+        volumes_dir.clone(),
+        logs_dir.clone(),
+        config.active_pdp_sp_count,
+        config.approved_pdp_sp_count,
+    );
+
+    vec![
+        // Epoch 1: Start Lotus
+        vec![Box::new(lotus_step)],
+        // Epoch 2: Start Lotus Miner (depends on Lotus)
+        vec![Box::new(lotus_miner_step)],
+        // Epoch 3: ETH Account Funding (needs blockchain running)
+        vec![Box::new(eth_acc_funding_step)],
+        // Epoch 4: Deploy contracts (can be parallelized)
+        vec![
+            Box::new(usdfc_deploy_step),
+            Box::new(multicall3_deploy_step),
+        ],
+        // Epoch 5: Fund accounts with USDFC, deploy foc (needs usdfc deployed), start yugabyte for curio later
+        vec![
+            Box::new(foc_deploy_step),
+            Box::new(usdfc_funding_step),
+            Box::new(yugabyte_step),
+        ],
+        // Epoch 6: Start Curio daemons
+        vec![Box::new(curio_step)],
+        // Epoch 7: Register PDP SPs (needs Curio running, for port information)
+        vec![Box::new(pdp_sp_reg_step)],
+    ]
+}
+
 /// Execute the cluster startup steps.
 fn execute_cluster_steps(
     volumes_dir: &PathBuf,
     logs_dir: &PathBuf,
     run_id: &str,
     config: &Config,
+    parallel: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Ensure genesis prerequisites are ready (one-time setup, needs config for sector count)
     ensure_genesis_prerequisites(config.active_pdp_sp_count)?;
@@ -252,37 +324,55 @@ fn execute_cluster_steps(
         .cyan()
     );
 
-    let steps = create_steps(volumes_dir, logs_dir, config);
+    if parallel {
+        println!(
+            "{}",
+            "Execution mode: PARALLEL (experimental)".yellow().bold()
+        );
+        let step_epochs = create_step_epochs(volumes_dir, logs_dir, config);
 
-    // TODO:
-    // In case of parallelization needs, we can do as follows:
-    // -------------------------------------------------------
-    // PAR 1: Start Lotus, Start Yugabyte (can be parallelized)
-    // PAR 2: Start Lotus Miner (since it depends on Lotus)
-    // PAR 3: ETH Account Funding (needs blockchain running)
-    // PAR 4: MockUSDFC Deploy + MultiCall3 Deploy + FOC Deploy (can be parallelized)
-    // PAR 5: MockUSDFC Funding, Start Curio daemons (can be parallelized, needs FOC Deploy)
-    // PAR 6: PDP SP Registration (needs Curio daemons started)
-    // PAR 7: End to End tests (needs everything else)
+        // Convert Vec<Vec<Box<dyn Step>>> to Vec<Vec<&dyn Step>>
+        let epoch_refs: Vec<Vec<&dyn Step>> = step_epochs
+            .iter()
+            .map(|epoch| epoch.iter().map(|s| s.as_ref()).collect())
+            .collect();
 
-    execute_steps(
-        steps.iter().map(|s| s.as_ref()).collect::<Vec<_>>(),
-        run_id.to_string(),
-        logs_dir.clone(),
-        config.port_range_start,
-        config.port_range_count,
-    )?;
+        execute_steps_parallel(
+            epoch_refs,
+            run_id.to_string(),
+            logs_dir.clone(),
+            config.port_range_start,
+            config.port_range_count,
+        )?;
+    } else {
+        println!("{}", "Execution mode: SEQUENTIAL".cyan());
+        let steps = create_steps(volumes_dir, logs_dir, config);
+
+        execute_steps(
+            steps.iter().map(|s| s.as_ref()).collect::<Vec<_>>(),
+            run_id.to_string(),
+            logs_dir.clone(),
+            config.port_range_start,
+            config.port_range_count,
+        )?;
+    }
 
     println!("\n{}", "Local cluster started successfully!".green().bold());
     Ok(())
 }
-
 /// Execute the start command.
 ///
 /// This function handles starting the local Filecoin cluster.
+///
+/// # Arguments
+///
+/// * `volumes_dir` - Optional directory for docker volumes
+/// * `logs_dir` - Optional directory for logs
+/// * `parallel` - Whether to run steps in parallel where possible
 pub fn start_cluster(
     volumes_dir: Option<String>,
     logs_dir: Option<String>,
+    parallel: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     stop_existing_cluster()?;
 
@@ -313,7 +403,7 @@ pub fn start_cluster(
 
     let config = load_and_validate_config()?;
 
-    execute_cluster_steps(&volumes_dir, &logs_dir, &run_id, &config)?;
+    execute_cluster_steps(&volumes_dir, &logs_dir, &run_id, &config, parallel)?;
 
     Ok(())
 }

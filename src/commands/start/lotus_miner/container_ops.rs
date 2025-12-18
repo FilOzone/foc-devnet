@@ -20,7 +20,7 @@ pub fn get_container_name(context: &StepContext) -> Result<String, Box<dyn Error
 /// Start the Lotus-Miner container
 pub fn start_miner_container(
     docker_args: Vec<String>,
-    context: &mut StepContext,
+    context: &StepContext,
 ) -> Result<(), Box<dyn Error>> {
     let container_name = get_container_name(context)?;
     let run_id = context.run_id().ok_or("Run ID not found in context")?;

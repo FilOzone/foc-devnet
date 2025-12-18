@@ -41,7 +41,7 @@ impl Step for LotusStep {
     /// This includes checking for existing containers, verifying port availability,
     /// ensuring required Docker images and binaries exist, and validating
     /// genesis and proof parameter files.
-    fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn pre_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         check_existing_container(context)?;
         check_image_and_binary()?;
         check_genesis_and_params()?;
@@ -52,10 +52,10 @@ impl Step for LotusStep {
     ///
     /// This allocates ports, creates necessary directories, builds the Docker run command with
     /// appropriate volume mounts and port mappings, and starts the container.
-    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         // Allocate ports first
-        let lotus_api_port = context.port_allocator.allocate()?;
-        let lotus_p2p_port = context.port_allocator.allocate()?;
+        let lotus_api_port = context.allocate_port()?;
+        let lotus_p2p_port = context.allocate_port()?;
 
         // Store ports in context for later steps to use
         context.set("lotus_api_port", lotus_api_port.to_string());
@@ -76,7 +76,7 @@ impl Step for LotusStep {
     /// This waits for the container to initialize, verifies port accessibility,
     /// waits for the Lotus API file to be created, and checks API connectivity
     /// including FEVM/Ethereum RPC availability.
-    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn post_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         wait_for_container_init(context)?;
         verify_ports(context)?;
         wait_for_api_file(&self.volumes_dir)?;

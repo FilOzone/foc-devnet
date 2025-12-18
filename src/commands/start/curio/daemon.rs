@@ -30,7 +30,7 @@ use std::time::Duration;
 /// 5. Wait for API to be ready
 /// 6. Store allocated ports in context for later use
 pub fn start_curio_daemon(
-    context: &mut StepContext,
+    context: &StepContext,
     _step: &CurioStep,
     sp_index: usize,
 ) -> Result<(), Box<dyn Error>> {
@@ -44,10 +44,10 @@ pub fn start_curio_daemon(
     let container_name = format!("foc-{}-curio-{}", run_id, sp_index);
 
     // Allocate ports dynamically for this Curio instance
-    let api_port = context.port_allocator.allocate()?;
-    let api_port_alt = context.port_allocator.allocate()?;
-    let gui_port = context.port_allocator.allocate()?;
-    let pdp_port = context.port_allocator.allocate()?;
+    let api_port = context.allocate_port()?;
+    let api_port_alt = context.allocate_port()?;
+    let gui_port = context.allocate_port()?;
+    let pdp_port = context.allocate_port()?;
 
     // Store allocated ports in context for later use (e.g., registration step)
     context.set(

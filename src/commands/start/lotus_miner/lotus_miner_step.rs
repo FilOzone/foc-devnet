@@ -34,9 +34,9 @@ impl Step for LotusMinerStep {
         "Start Lotus-Miner"
     }
 
-    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         // Allocate port for Lotus-Miner API
-        let miner_api_port = context.port_allocator.allocate()?;
+        let miner_api_port = context.allocate_port()?;
         context.set("lotus_miner_api_port", miner_api_port.to_string());
 
         setup_miner_directories(&self.volumes_dir)?;
@@ -47,7 +47,7 @@ impl Step for LotusMinerStep {
     }
 
     /// Perform post-execution verification for Lotus-Miner startup
-    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn post_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         perform_post_execution_verification(context)
     }
 }

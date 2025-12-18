@@ -31,7 +31,7 @@ impl USDFCFundingStep {
     }
 
     /// Perform the token distribution process
-    fn perform_token_distribution(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn perform_token_distribution(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         use super::super::lotus_utils::get_lotus_rpc_url;
 
         println!("    Distributing MockUSDFC tokens...");
@@ -115,7 +115,7 @@ impl USDFCFundingStep {
         token_address: &str,
         transfers: Vec<(String, String, String, u64)>,
         lotus_rpc_url: &str,
-        _context: &mut StepContext,
+        _context: &StepContext,
     ) -> Result<(), Box<dyn Error>> {
         use std::sync::{Arc, Mutex};
         use std::thread;
@@ -237,7 +237,7 @@ impl Step for USDFCFundingStep {
         "Distribute MockUSDFC"
     }
 
-    fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn pre_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         // Check if Lotus is running
         let run_id = context.run_id().ok_or("Run ID not found in context")?;
         let lotus_name = lotus_container_name(run_id);
@@ -273,13 +273,13 @@ impl Step for USDFCFundingStep {
     }
 
     /// Execute the token distribution process
-    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         self.perform_token_distribution(context)?;
         Ok(())
     }
 
     /// Perform post-execution verification for token distribution
-    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn post_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         use super::super::lotus_utils::get_lotus_rpc_url;
 
         println!("    Verifying MockUSDFC distribution...");
@@ -306,13 +306,11 @@ impl Step for USDFCFundingStep {
         for (account_name, amount_tokens) in accounts_to_verify.iter() {
             let eth_address = get_user_eth_address(account_name)?;
 
-            match check_mock_usdfc_balance(
-                &eth_address,
-                context
-                    .get("mock_usdfc_address")
-                    .ok_or("MockUSDFC address not found in context")?,
-                &lotus_rpc_url,
-            ) {
+            let mock_usdfc_address = context
+                .get("mock_usdfc_address")
+                .ok_or("MockUSDFC address not found in context")?;
+
+            match check_mock_usdfc_balance(&eth_address, &mock_usdfc_address, &lotus_rpc_url) {
                 Ok(balance) => {
                     let expected_wei = token_amount_to_wei(*amount_tokens);
                     if balance == expected_wei {

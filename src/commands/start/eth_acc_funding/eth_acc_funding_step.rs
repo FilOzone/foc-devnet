@@ -31,7 +31,7 @@ impl ETHAccFundingStep {
     }
 
     /// Check if account funding has already been completed
-    fn check_existing_funding(&self, context: &mut StepContext) -> Result<bool, Box<dyn Error>> {
+    fn check_existing_funding(&self, context: &StepContext) -> Result<bool, Box<dyn Error>> {
         // Check if we have the required addresses in context
         let has_global_faucet = context.get("global_faucet_address").is_some();
         let has_all_prefunded_accounts = FEVM_ACCOUNTS_PREFUNDED.iter().all(|(name, _)| {
@@ -104,7 +104,7 @@ impl ETHAccFundingStep {
     ///  → All pre-funded FEVM accounts (using addresses from keys.rs, NOT imported to Lotus)
     fn perform_account_funding(
         &self,
-        context: &mut StepContext,
+        context: &StepContext,
         volumes_dir: &PathBuf,
     ) -> Result<(), Box<dyn Error>> {
         println!("    Setting up Ethereum accounts for FOC deployment...");
@@ -393,7 +393,7 @@ impl Step for ETHAccFundingStep {
         "Fund Ethereum Accounts"
     }
 
-    fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn pre_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         // Check if Lotus is running
         check_lotus_running(context)?;
         println!("    {} Lotus is running", "✓".green());
@@ -418,7 +418,7 @@ impl Step for ETHAccFundingStep {
     }
 
     /// Execute the account funding process
-    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         if self.check_existing_funding(context)? {
             return Ok(());
         }
@@ -429,7 +429,7 @@ impl Step for ETHAccFundingStep {
     }
 
     /// Perform post-execution verification for account funding
-    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn post_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         println!("    Verifying account funding...");
 
         // First, verify all addresses are in context

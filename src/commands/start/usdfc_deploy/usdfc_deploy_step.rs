@@ -38,7 +38,7 @@ impl Step for USDFCDeployStep {
         "Deploy MockUSDFC Token"
     }
 
-    fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn pre_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         // Check if Lotus is running
         check_lotus_running(context)?;
         println!("    {} Lotus is running", "✓".green());
@@ -60,7 +60,7 @@ impl Step for USDFCDeployStep {
     }
 
     /// Execute the token deployment process
-    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         if check_existing_deployment(context) {
             println!(
                 "    {} MockUSDFC token already deployed, skipping...",
@@ -74,7 +74,7 @@ impl Step for USDFCDeployStep {
     }
 
     /// Perform post-execution verification for token deployment
-    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn post_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         println!("    Verifying MockUSDFC deployment...");
 
         // Check if token address is in context

@@ -35,7 +35,7 @@ impl Step for MultiCall3DeployStep {
         "Deploy Multicall3 Contract"
     }
 
-    fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn pre_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         // Check if Lotus is running
         check_lotus_running(context)?;
         println!("    {} Lotus is running", "✓".green());
@@ -57,7 +57,7 @@ impl Step for MultiCall3DeployStep {
     }
 
     /// Execute the contract deployment process
-    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         if check_existing_deployment(context) {
             println!(
                 "    {} Multicall3 contract already deployed, skipping...",
@@ -71,7 +71,7 @@ impl Step for MultiCall3DeployStep {
     }
 
     /// Perform post-execution verification for contract deployment
-    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn post_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         println!("    Verifying Multicall3 deployment...");
 
         // Check if contract address is in context

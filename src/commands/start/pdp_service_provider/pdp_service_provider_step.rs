@@ -75,7 +75,7 @@ impl Step for PdpSpRegistrationStep {
         "PDP Service Provider Registration"
     }
 
-    fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn pre_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         println!(
             "{} {}",
             "Pre-checking".cyan().bold(),
@@ -165,7 +165,7 @@ impl Step for PdpSpRegistrationStep {
         Ok(())
     }
 
-    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         use super::super::lotus_utils::get_lotus_rpc_url;
 
         println!(
@@ -373,7 +373,7 @@ impl Step for PdpSpRegistrationStep {
         Ok(())
     }
 
-    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
+    fn post_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
         use super::super::lotus_utils::get_lotus_rpc_url;
 
         println!(

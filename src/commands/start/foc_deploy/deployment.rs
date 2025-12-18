@@ -17,7 +17,7 @@ use std::error::Error;
 /// # Returns
 /// true if contracts are already deployed, false otherwise
 pub fn check_existing_deployment(
-    context: &mut crate::commands::start::step::StepContext,
+    context: &crate::commands::start::step::StepContext,
 ) -> Result<bool, Box<dyn Error>> {
     if let Ok(existing_addresses) = ContractAddresses::load() {
         if !existing_addresses.foc_contracts.is_empty() {
@@ -41,7 +41,7 @@ pub fn check_existing_deployment(
 /// # Arguments
 /// * `context` - The step context containing required addresses
 pub fn perform_deployment(
-    context: &mut crate::commands::start::step::StepContext,
+    context: &crate::commands::start::step::StepContext,
 ) -> Result<(), Box<dyn Error>> {
     println!("    Deploying FOC service contracts...");
 
@@ -107,12 +107,8 @@ pub fn post_execute_verification(
     println!("    Verifying FOC deployment...");
 
     // Check if contracts were deployed
-    let mut contract_count = 0;
-    for key in context.state.keys() {
-        if key.starts_with("foc_contract_") {
-            contract_count += 1;
-        }
-    }
+    let contract_keys = context.get_keys_matching(|k| k.starts_with("foc_contract_"));
+    let contract_count = contract_keys.len();
 
     if contract_count > 0 {
         println!(

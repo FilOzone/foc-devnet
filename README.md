@@ -57,6 +57,8 @@ This will:
 - Start storage provider(s)
 - Launch Portainer UI for container management
 
+**If you are feeling adventurous**: Use `cargo run -- start --parallel`, an experimental feature that attempts to parallelize setup steps as much as possible. 
+
 **That's it!** Your local Filecoin network is running.
 
 ---

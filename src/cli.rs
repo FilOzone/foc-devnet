@@ -21,6 +21,9 @@ pub enum Commands {
         /// Directory where logs of running docker instances will be stored
         #[arg(long)]
         logs_dir: Option<String>,
+        /// Run steps in parallel where possible (experimental)
+        #[arg(long)]
+        parallel: bool,
     },
     /// Stop the local cluster
     Stop,

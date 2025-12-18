@@ -52,7 +52,7 @@ pub fn check_existing_container(context: &StepContext) -> Result<(), Box<dyn Err
 /// Start the Lotus daemon container
 pub fn start_container(
     docker_args: Vec<String>,
-    context: &mut StepContext,
+    context: &StepContext,
 ) -> Result<(), Box<dyn Error>> {
     let container_name = get_container_name(context)?;
 
