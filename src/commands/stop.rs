@@ -64,16 +64,25 @@ pub fn stop_cluster() -> Result<(), Box<dyn Error>> {
         "ℹ".cyan()
     );
 
-    // Delete Docker networks
-    if !run_id.is_empty() {
-        delete_all_networks(&run_id)?;
-        println!();
-    }
-
-    // Force kill any remaining foc* containers
+    // Force kill any remaining foc* containers (including stopped ones)
     force_kill_foc_containers()?;
 
-    // Force delete any remaining foc* networks
+    // Delete Docker networks (now that all containers are stopped/removed)
+    if !run_id.is_empty() {
+        if let Err(e) = delete_all_networks(&run_id) {
+            println!(
+                "  {} Failed to remove run-specific networks: {}",
+                "⚠".yellow(),
+                e
+            );
+            println!(
+                "  {} Will attempt force removal of all foc* networks",
+                "ℹ".cyan()
+            );
+        }
+    }
+
+    // Force remove any remaining foc* networks (always called)
     force_remove_foc_networks()?;
 
     // Delete the run ID file
@@ -167,7 +176,7 @@ fn get_run_containers(run_id: &str) -> Vec<(String, &'static str)> {
     ]
 }
 
-/// Force kill all containers whose image starts with "foc-"
+/// Force kill all containers whose name starts with "foc-"
 fn force_kill_foc_containers() -> Result<(), Box<dyn Error>> {
     println!(
         "{}",
@@ -176,8 +185,8 @@ fn force_kill_foc_containers() -> Result<(), Box<dyn Error>> {
             .bold()
     );
 
-    // Get all running containers
-    let output = docker_command(&["ps", "-q", "--filter", "name=^foc*"])?;
+    // Get all containers (running and stopped) whose name starts with "foc"
+    let output = docker_command(&["ps", "-aq", "--filter", "name=^foc*"])?;
     let stdout_str = String::from_utf8_lossy(&output.stdout);
     let container_ids: Vec<&str> = stdout_str
         .lines()
@@ -192,12 +201,15 @@ fn force_kill_foc_containers() -> Result<(), Box<dyn Error>> {
     println!("  Found {} remaining container(s)", container_ids.len());
 
     for container_id in container_ids {
-        println!("  Killing container {}...", container_id);
-        let _ = docker_command(&["kill", container_id]); // Ignore errors
-        let _ = docker_command(&["rm", container_id]); // Ignore errors
+        println!("  Force removing container {}...", container_id);
+        let result = docker_command(&["rm", "-f", container_id]);
+        match result {
+            Ok(_) => println!("    {} Removed", "✓".green()),
+            Err(e) => println!("    {} Failed: {}", "⚠".yellow(), e),
+        }
     }
 
-    println!("  {} Force kill complete", "✓".green());
+    println!("  {} Force remove containers complete", "✓".green());
     Ok(())
 }
 
