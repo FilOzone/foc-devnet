@@ -43,9 +43,11 @@ pub fn foc_metadata_file() -> PathBuf {
     foc_localnet_state().join("foc_metadata.json")
 }
 
-/// Returns the path to the PDP_SP_0 provider ID file, e.g., ~/.foc-localnet/state/pdp_sp_0.provider_id.json
-pub fn pdp_sp_0_provider_id_file() -> PathBuf {
-    foc_localnet_state().join("pdp_sp_0.provider_id.json")
+/// Returns the path to the PDP_SP_X provider ID file, e.g., ~/.foc-localnet/state/pdp_sps/X.provider_id.json
+pub fn pdp_sp_provider_id_file(sp_idx: usize) -> PathBuf {
+    foc_localnet_state()
+        .join("pdp_sps")
+        .join(format!("{}.provider_id.json", sp_idx))
 }
 
 /// Returns the path to the foc-localnet remote pulls directory, e.g., ~/.foc-localnet/remote-pulls

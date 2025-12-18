@@ -48,6 +48,9 @@ pub fn build_foc_contract_env_vars(_context: &StepContext) -> Result<Vec<String>
     if let Some(pay) = addresses.foc_contracts.get("filecoin_pay_v1_contract") {
         env_vars.push(format!("FOC_CONTRACT_PAY={}", pay));
     }
+    if let Some(pdp) = addresses.foc_contracts.get("p_d_p_verifier_proxy") {
+        env_vars.push(format!("FOC_PDP_VERIFIER_PROXY={}", pdp));
+    }
 
     // SIMPLE contract is always zero address
     env_vars.push("FOC_CONTRACT_SIMPLE=0x0000000000000000000000000000000000000000".to_string());

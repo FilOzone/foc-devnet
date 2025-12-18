@@ -272,3 +272,6 @@ export FULLNODE_API_INFO=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJyZW
 # Private key from addresses.json
 export PDP_PRIVATE_KEY=cd3ec679d4c6928ff7db1854ee1720ad0e0f8c03299c093602360c431452705c;
 ```
+
+
+curl -X GET http://172.23.0.3:5713/piece/bafkzcibd6adqne2c5wxovp3dz6hqxzgke7amhn3eflgdxzcyycrdso6seoghkorp

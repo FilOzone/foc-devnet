@@ -123,7 +123,7 @@ pub fn start_cluster(
             crate::paths::foc_localnet_curio_volumes(),
             base_volumes.join("yugabyte-data"),
             contract_addresses_file(),
-            crate::paths::pdp_sp_0_provider_id_file(),
+            base_volumes.join("state").join("pdp_sps"),
         ];
 
         for path in paths_to_delete {
@@ -173,7 +173,7 @@ pub fn start_cluster(
             crate::paths::foc_localnet_curio_volumes(),
             contract_addresses_file(),
             crate::paths::foc_metadata_file(),
-            crate::paths::pdp_sp_0_provider_id_file(),
+            base_volumes.join("state").join("pdp_sps"),
         ];
 
         for path in paths_to_delete {

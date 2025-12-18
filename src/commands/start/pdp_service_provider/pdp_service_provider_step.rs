@@ -54,17 +54,7 @@ impl PdpSpRegistrationStep {
     }
 
     /// Get required addresses from context
-    fn get_required_addresses(
-        context: &StepContext,
-    ) -> Result<(String, String, String, String), Box<dyn Error>> {
-        let pdp_sp_0_address = context
-            .get("pdp_sp_0_address")
-            .ok_or("PDP_SP_0 address not found in context")?;
-
-        let pdp_sp_0_eth_address = context
-            .get("pdp_sp_0_eth_address")
-            .ok_or("PDP_SP_0 Ethereum address not found in context")?;
-
+    fn get_required_addresses(context: &StepContext) -> Result<(String, String), Box<dyn Error>> {
         let deployer_foc_address = context
             .get("deployer_foc_address")
             .ok_or("DEPLOYER_FOC address not found in context")?;
@@ -74,8 +64,6 @@ impl PdpSpRegistrationStep {
             .ok_or("DEPLOYER_FOC Ethereum address not found in context")?;
 
         Ok((
-            pdp_sp_0_address.clone(),
-            pdp_sp_0_eth_address.clone(),
             deployer_foc_address.clone(),
             deployer_foc_eth_address.clone(),
         ))
@@ -99,18 +87,8 @@ impl Step for PdpSpRegistrationStep {
         println!("  {} Lotus is running", "✓".green());
 
         // Check if required addresses are available
-        let (
-            pdp_sp_0_address,
-            pdp_sp_0_eth_address,
-            deployer_foc_address,
-            deployer_foc_eth_address,
-        ) = Self::get_required_addresses(context)?;
-        println!("  {} PDP_SP_0 address: {}", "✓".green(), pdp_sp_0_address);
-        println!(
-            "  {} PDP_SP_0 ETH address: {}",
-            "✓".green(),
-            pdp_sp_0_eth_address
-        );
+        let (deployer_foc_address, deployer_foc_eth_address) =
+            Self::get_required_addresses(context)?;
         println!(
             "  {} DEPLOYER_FOC address: {}",
             "✓".green(),
@@ -121,6 +99,46 @@ impl Step for PdpSpRegistrationStep {
             "✓".green(),
             deployer_foc_eth_address
         );
+
+        // Check if all SP addresses are available
+        for sp_index in 1..=self.active_sp_count {
+            let pdp_key = format!("pdp_sp_{}_address", sp_index);
+            let eth_key = format!("pdp_sp_{}_eth_address", sp_index);
+            let port_key = format!("curio_sp_{}_pdp_port", sp_index);
+
+            let sp_address = context
+                .get(&pdp_key)
+                .ok_or(format!("{} not found in context", pdp_key))?;
+            let sp_eth_address = context
+                .get(&eth_key)
+                .ok_or(format!("{} not found in context", eth_key))?;
+            let pdp_port: u16 = context
+                .get(&port_key)
+                .ok_or(format!(
+                    "{} not found in context - Curio must be started first",
+                    port_key
+                ))?
+                .parse()?;
+
+            println!(
+                "  {} PDP SP {} address: {}",
+                "✓".green(),
+                sp_index,
+                sp_address
+            );
+            println!(
+                "  {} PDP SP {} ETH address: {}",
+                "✓".green(),
+                sp_index,
+                sp_eth_address
+            );
+            println!(
+                "  {} PDP SP {} PDP port: {}",
+                "✓".green(),
+                sp_index,
+                pdp_port
+            );
+        }
 
         // Check if contract addresses are available
         let contract_addresses = Self::load_contract_addresses()?;
@@ -202,8 +220,8 @@ impl Step for PdpSpRegistrationStep {
         // Collect SP registration data
         let mut sp_data = Vec::new();
         for sp_index in 1..=num_sps {
-            let pdp_key = format!("pdp_sp_{}_address", sp_index - 1); // 0-indexed in keys
-            let eth_key = format!("pdp_sp_{}_eth_address", sp_index - 1);
+            let pdp_key = format!("pdp_sp_{}_address", sp_index);
+            let eth_key = format!("pdp_sp_{}_eth_address", sp_index);
             let port_key = format!("curio_sp_{}_pdp_port", sp_index);
 
             let sp_address = context
@@ -333,7 +351,7 @@ impl Step for PdpSpRegistrationStep {
         // Store first provider ID (for backward compatibility)
         let provider_ids_list = provider_ids.lock().unwrap();
         if let Some((sp_index, first_provider_id)) = provider_ids_list.first() {
-            let sp_key_prefix = format!("pdp_sp_{}", sp_index - 1); // 0-indexed keys
+            let sp_key_prefix = format!("pdp_sp_{}", sp_index); // 1-indexed keys
             let sp_eth_address = context
                 .get(&format!("{}_eth_address", sp_key_prefix))
                 .ok_or("SP eth address not found")?;
@@ -343,7 +361,7 @@ impl Step for PdpSpRegistrationStep {
                 provider_address: sp_eth_address.clone(),
                 payee_address: sp_eth_address.clone(),
             };
-            info.save()?;
+            info.save(*sp_index)?;
         }
 
         println!(
@@ -370,14 +388,6 @@ impl Step for PdpSpRegistrationStep {
         // Get Lotus RPC URL with dynamic port
         let lotus_rpc_url = get_lotus_rpc_url(context)?;
 
-        // Verify provider ID file exists and is valid
-        let info = ProviderIdInfo::load()?;
-        println!(
-            "  {} Provider ID file exists: {}",
-            "✓".green(),
-            info.provider_id
-        );
-
         // Load contract addresses for verification
         let contract_addresses = Self::load_contract_addresses()?;
         let registry_address = contract_addresses
@@ -392,13 +402,66 @@ impl Step for PdpSpRegistrationStep {
             .ok_or("filecoin_warm_storage_service_state_view address not found")?
             .clone();
 
-        // Verify there's exactly one provider on-chain
+        for sp_index in 1..=self.active_sp_count {
+            println!("  {} Verifying PDP SP {}...", "🔍".cyan(), sp_index);
+            // Verify provider ID file exists and is valid
+            let info = ProviderIdInfo::load(sp_index)?;
+            println!(
+                "  {} Provider ID file exists: {}",
+                "✓".green(),
+                info.provider_id
+            );
+
+            // Verify on-chain provider ID matches the saved one
+            let onchain_provider_id = registration::verify_provider_id_by_address(
+                run_id,
+                &registry_address,
+                &info.provider_address,
+                &lotus_rpc_url,
+            )?;
+            if onchain_provider_id != info.provider_id {
+                return Err(format!(
+                    "Provider ID mismatch: saved {} but on-chain is {}",
+                    info.provider_id, onchain_provider_id
+                )
+                .into());
+            }
+            println!(
+                "  {} On-chain provider ID matches: {}",
+                "✓".green(),
+                onchain_provider_id
+            );
+
+            if sp_index < self.approved_sp_count {
+                // Verify provider is approved
+                let is_approved = registration::verify_approved_provider(
+                    run_id,
+                    &state_view_address,
+                    info.provider_id,
+                    &lotus_rpc_url,
+                )?;
+                if !is_approved {
+                    return Err(format!(
+                        "Provider {} is not in the approved list but should be",
+                        info.provider_id
+                    )
+                    .into());
+                }
+                println!(
+                    "  {} Provider {} is approved",
+                    "✓".green(),
+                    info.provider_id
+                );
+            }
+        }
+
+        // Verify there's exactly the expected number of providers on-chain
         let provider_count =
             registration::verify_provider_count(run_id, &registry_address, &lotus_rpc_url)?;
-        if provider_count != 1 {
+        if provider_count != self.active_sp_count as u64 {
             return Err(format!(
-                "Expected exactly 1 provider on-chain, found {}",
-                provider_count
+                "Expected exactly {} providers on-chain, found {}",
+                self.active_sp_count, provider_count
             )
             .into());
         }
@@ -407,60 +470,6 @@ impl Step for PdpSpRegistrationStep {
             "✓".green(),
             provider_count
         );
-
-        // Verify on-chain provider ID matches the saved one
-        let onchain_provider_id = registration::verify_provider_id_by_address(
-            run_id,
-            &registry_address,
-            &info.provider_address,
-            &lotus_rpc_url,
-        )?;
-        if onchain_provider_id != info.provider_id {
-            return Err(format!(
-                "Provider ID mismatch: saved {} but on-chain is {}",
-                info.provider_id, onchain_provider_id
-            )
-            .into());
-        }
-        println!(
-            "  {} On-chain provider ID matches: {}",
-            "✓".green(),
-            onchain_provider_id
-        );
-
-        // Try to verify provider is in approved list (optional - may not be supported by all contract versions)
-        match registration::verify_approved_provider(
-            run_id,
-            &state_view_address,
-            info.provider_id,
-            &lotus_rpc_url,
-        ) {
-            Ok(true) => {
-                println!(
-                    "  {} Provider {} is in approved list",
-                    "✓".green(),
-                    info.provider_id
-                );
-            }
-            Ok(false) => {
-                println!(
-                    "  {} Warning: Provider {} not found in approved list (verification may be incomplete)",
-                    "⚠".yellow(),
-                    info.provider_id
-                );
-            }
-            Err(e) => {
-                println!(
-                    "  {} Warning: Could not verify approved provider list: {}",
-                    "⚠".yellow(),
-                    e
-                );
-                println!(
-                    "  {} This is non-critical - the addApprovedProvider transaction succeeded",
-                    "ℹ".cyan()
-                );
-            }
-        }
 
         println!(
             "  {} All critical on-chain verifications passed",

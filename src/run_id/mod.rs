@@ -8,22 +8,22 @@ mod persistence;
 pub use persistence::{delete_current_run_id, load_current_run_id, save_current_run_id};
 
 use chrono::Local;
-use names::{Generator, Name};
+use rand::seq::SliceRandom;
 
 /// Adjectives for random name generation.
 pub const ADJECTIVES: &[&str] = &[
-    "red", "blue", "pink", "gold", "teal", "lime", "navy", "cyan", "gray", "grey", "aqua", "plum",
-    "mint", "rose", "jade", "ruby", "tan", "snow", "coal", "rust", "sand", "clay", "mist", "fog",
-    "ice", "sky", "sea", "peach", "opal", "lava", "sage", "moss", "slate", "iris", "onyx",
+    "Zany", "Goofy", "Wacky", "Derpy", "Loopy", "Bonky", "Doofy", "Dorky", "Ditzy", "Giddy",
+    "Snazzy", "Funky", "Janky", "Dippy", "Noodle", "Goony", "Weeny", "Yucky", "Icky", "Borky",
+    "Clown", "Sassy", "Spong", "Bloop", "Tizzy", "Quack", "Smol", "Boing", "Honky", "Wonky",
+    "Ploop", "Goobs", "Snorty", "Wobly", "Whiff", "Zoomy", "Fizzy", "Klutz", "Pipsy", "Womp",
 ];
 
 /// Nouns for random name generation
 pub const NOUNS: &[&str] = &[
-    "cat", "dog", "fox", "owl", "bat", "rat", "pig", "cow", "hen", "bee", "ant", "fly", "bug",
-    "ape", "eel", "yak", "wolf", "lion", "mole", "vole", "hare", "frog", "toad", "mink", "seal",
-    "crab", "fish", "worm", "slug", "deer", "goat", "duck", "swan", "crow", "boar", "lynx", "shad",
-    "tern", "pika", "ibis", "gnat", "clam", "lamb", "puma", "orca", "skua", "tuna", "bass", "myna",
-    "gull", "newt", "fowl", "dove", "cusk", "cavy", "croc", "paca",
+    "Pip", "Dudu", "Bop", "Moo", "Bean", "Tofu", "Peep", "Mimi", "Lolo", "Coco", "Nini", "Kiki",
+    "Fifi", "Bubu", "Dodo", "Toto", "Gigi", "Momo", "Pomp", "Paws", "Buns", "Snip", "Dot", "Wig",
+    "Bub", "Tike", "Puff", "Boop", "Zuzu", "Nubs", "Cub", "Toad", "Pig", "Bug", "Mooz", "Pika",
+    "Lulu", "Bear", "Fig", "Boo",
 ];
 
 /// Generate a unique run ID for this execution.
@@ -44,8 +44,13 @@ pub fn generate_run_id() -> String {
     let date = now.format("%y%b%d").to_string().to_lowercase();
     let time = now.format("%H%M");
 
-    let mut generator = Generator::new(ADJECTIVES, NOUNS, Name::Plain);
-    let random_name = generator.next().unwrap_or_else(|| "unknown".to_string());
+    // Implement our own random name generator to control format
+    let random_name = {
+        let rng = &mut rand::thread_rng();
+        let adjective = ADJECTIVES.choose(rng).unwrap();
+        let noun = NOUNS.choose(rng).unwrap();
+        format!("{}{}", adjective, noun)
+    };
 
     format!("{}-{}_{}", date, time, random_name)
 }

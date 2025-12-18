@@ -21,11 +21,7 @@ pub fn register_single_provider(
 ) -> Result<u64, Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
-    let label = if sp_index == 0 {
-        "PDP_SP_0".to_string()
-    } else {
-        format!("PDP_SP_{}", sp_index)
-    };
+    let label = format!("PDP_SP_{}", sp_index);
 
     println!("  Registering {} in ServiceProviderRegistry...", label);
 
@@ -224,10 +220,10 @@ fn encode_uint_minimal(value: u64) -> String {
     hex::encode(&bytes[first_non_zero..])
 }
 
-/// Query provider ID from registry
+/// Query provider ID from registry by eth address
 fn query_provider_id(
     registry_address: &str,
-    pdp_sp_0_eth_address: &str,
+    pdp_sp_eth_address: &str,
     lotus_rpc_url: &str,
 ) -> Result<u64, Box<dyn Error>> {
     let output = Command::new("docker")
@@ -241,7 +237,7 @@ fn query_provider_id(
             "call",
             registry_address,
             "getProviderIdByAddress(address)(uint256)",
-            pdp_sp_0_eth_address,
+            pdp_sp_eth_address,
             "--rpc-url",
             lotus_rpc_url,
         ])
