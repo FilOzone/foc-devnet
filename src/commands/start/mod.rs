@@ -13,7 +13,6 @@ mod pdp_service_provider;
 mod step;
 mod usdfc_deploy;
 mod usdfc_funding;
-mod user_deposit_permit;
 mod yugabyte;
 
 use curio::CurioStep;
@@ -26,7 +25,6 @@ use multicall3_deploy::MultiCall3DeployStep;
 use pdp_service_provider::PdpSpRegistrationStep;
 pub use step::{execute_steps, Step, StepContext};
 use usdfc_deploy::USDFCDeployStep;
-use user_deposit_permit::UserDepositPermitStep;
 use yugabyte::YugabyteStep;
 
 use crate::commands::start::usdfc_funding::USDFCFundingStep;
@@ -43,16 +41,8 @@ use crossterm::style::Stylize;
 pub use eth_acc_funding::constants::FEVM_ACCOUNTS_PREFUNDED;
 use std::path::PathBuf;
 
-/// Execute the start command.
-///
-/// This function handles starting the local Filecoin cluster.
-pub fn start_cluster(
-    volumes_dir: Option<String>,
-    logs_dir: Option<String>,
-    regenesis: bool,
-    reset: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // Stop any existing cluster before starting a new one
+/// Stop any existing cluster before starting a new one.
+fn stop_existing_cluster() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "{}",
         "Ensuring clean state by stopping any existing cluster...".yellow()
@@ -66,7 +56,14 @@ pub fn start_cluster(
         println!("  Continuing with startup...");
     }
     println!();
+    Ok(())
+}
 
+/// Setup directories, run ID, and version information for the cluster startup.
+fn setup_directories_and_run_id(
+    volumes_dir: Option<String>,
+    logs_dir: Option<String>,
+) -> Result<(PathBuf, PathBuf, String), Box<dyn std::error::Error>> {
     // Generate run ID for this execution
     let run_id = generate_run_id();
 
@@ -96,135 +93,122 @@ pub fn start_cluster(
     let version_info = crate::version_info::VersionInfo::from_env();
     write_version_file(&logs_dir, &version_info)?;
 
-    // Handle regenesis flag - delete genesis-related files and keys
-    if regenesis {
-        println!("{}", "Performing regenesis (full reset)...".yellow().bold());
+    Ok((volumes_dir, logs_dir, run_id))
+}
 
-        // First, stop any running containers to ensure clean state
-        println!("  Stopping any running containers...");
-        let containers = vec!["foc-lotus-miner", "foc-lotus", "foc-curio", "foc-yugabyte"];
-        for container in containers {
-            if container_is_running(container)? {
-                println!("    Stopping container '{}'...", container);
-                stop_container(container)?;
-                remove_container(container)?;
-            }
+/// Perform a full regenesis reset, deleting all genesis-related files and keys.
+fn perform_regenesis() -> Result<(), Box<dyn std::error::Error>> {
+    println!("{}", "Performing regenesis (full reset)...".yellow().bold());
+
+    // First, stop any running containers to ensure clean state
+    println!("  Stopping any running containers...");
+    let containers = vec!["foc-lotus-miner", "foc-lotus", "foc-curio", "foc-yugabyte"];
+    for container in containers {
+        if container_is_running(container)? {
+            println!("    Stopping container '{}'...", container);
+            stop_container(container)?;
+            remove_container(container)?;
         }
-
-        let base_volumes = foc_localnet_docker_volumes();
-
-        // Files and directories to delete
-        let paths_to_delete = vec![
-            base_volumes.join("lotus-keys"),
-            base_volumes.join("genesis-sectors"),
-            base_volumes.join("genesis").join("foc-localnet.json"),
-            base_volumes.join("lotus-data"),
-            base_volumes.join("lotus-miner-data"),
-            crate::paths::foc_localnet_curio_volumes(),
-            base_volumes.join("yugabyte-data"),
-            contract_addresses_file(),
-            base_volumes.join("state").join("pdp_sps"),
-        ];
-
-        for path in paths_to_delete {
-            if path.exists() {
-                if path.is_dir() {
-                    std::fs::remove_dir_all(&path)?;
-                    println!("  {} {}", "Removed directory:".red(), path.display());
-                } else {
-                    std::fs::remove_file(&path)?;
-                    println!("  {} {}", "Removed file:".red(), path.display());
-                }
-            } else {
-                println!("  {} {}", "Skipped (not found):".dim(), path.display());
-            }
-        }
-
-        println!("{}", "Regenesis complete.".green().bold());
-        println!();
     }
 
-    // Handle reset flag - reset lotus and lotus-miner to block 0
-    if reset && !regenesis {
+    let base_volumes = foc_localnet_docker_volumes();
+
+    // Files and directories to delete
+    let paths_to_delete = vec![
+        base_volumes.join("lotus-keys"),
+        base_volumes.join("genesis-sectors"),
+        base_volumes.join("genesis").join("foc-localnet.json"),
+        base_volumes.join("lotus-data"),
+        base_volumes.join("lotus-miner-data"),
+        crate::paths::foc_localnet_curio_volumes(),
+        base_volumes.join("yugabyte-data"),
+        contract_addresses_file(),
+        base_volumes.join("state").join("pdp_sps"),
+    ];
+
+    for path in paths_to_delete {
+        if path.exists() {
+            if path.is_dir() {
+                std::fs::remove_dir_all(&path)?;
+                println!("  {} {}", "Removed directory:".red(), path.display());
+            } else {
+                std::fs::remove_file(&path)?;
+                println!("  {} {}", "Removed file:".red(), path.display());
+            }
+        } else {
+            println!("  {} {}", "Skipped (not found):".dim(), path.display());
+        }
+    }
+
+    println!("{}", "Regenesis complete.".green().bold());
+    println!();
+    Ok(())
+}
+
+/// Perform a chain reset, resetting lotus and lotus-miner to block 0 while keeping genesis config.
+fn perform_reset() -> Result<(), Box<dyn std::error::Error>> {
+    println!(
+        "{}",
+        "Resetting lotus and lotus-miner to block 0..."
+            .yellow()
+            .bold()
+    );
+
+    // Stop lotus-miner and lotus containers
+    let containers = vec!["foc-lotus-miner", "foc-lotus"];
+    for container in containers {
+        if container_is_running(container)? {
+            println!("  Stopping container '{}'...", container);
+            stop_container(container)?;
+            remove_container(container)?;
+        }
+    }
+
+    let base_volumes = foc_localnet_docker_volumes();
+
+    // Only delete lotus-data and lotus-miner-data to reset to block 0
+    let paths_to_delete = vec![
+        base_volumes.join("lotus-data"),
+        base_volumes.join("lotus-miner-data"),
+        base_volumes.join("yugabyte-data"),
+        crate::paths::foc_localnet_curio_volumes(),
+        contract_addresses_file(),
+        crate::paths::foc_metadata_file(),
+        base_volumes.join("state").join("pdp_sps"),
+    ];
+
+    for path in paths_to_delete {
+        if path.exists() {
+            if path.is_dir() {
+                std::fs::remove_dir_all(&path)?;
+                println!("  {} {}", "Removed directory:".red(), path.display());
+            } else {
+                std::fs::remove_file(&path)?;
+                println!("  {} {}", "Removed file:".red(), path.display());
+            }
+        } else {
+            println!("  {} {}", "Skipped (not found):".dim(), path.display());
+        }
+    }
+
+    // Delete contract addresses file to allow re-deployment
+    let contract_addresses_path = crate::paths::contract_addresses_file();
+    if contract_addresses_path.exists() {
+        std::fs::remove_file(&contract_addresses_path)?;
         println!(
-            "{}",
-            "Resetting lotus and lotus-miner to block 0..."
-                .yellow()
-                .bold()
+            "  {} {}",
+            "Removed file:".red(),
+            contract_addresses_path.display()
         );
-
-        // Stop lotus-miner and lotus containers
-        let containers = vec!["foc-lotus-miner", "foc-lotus"];
-        for container in containers {
-            if container_is_running(container)? {
-                println!("  Stopping container '{}'...", container);
-                stop_container(container)?;
-                remove_container(container)?;
-            }
-        }
-
-        let base_volumes = foc_localnet_docker_volumes();
-
-        // Only delete lotus-data and lotus-miner-data to reset to block 0
-        let paths_to_delete = vec![
-            base_volumes.join("lotus-data"),
-            base_volumes.join("lotus-miner-data"),
-            base_volumes.join("yugabyte-data"),
-            crate::paths::foc_localnet_curio_volumes(),
-            contract_addresses_file(),
-            crate::paths::foc_metadata_file(),
-            base_volumes.join("state").join("pdp_sps"),
-        ];
-
-        for path in paths_to_delete {
-            if path.exists() {
-                if path.is_dir() {
-                    std::fs::remove_dir_all(&path)?;
-                    println!("  {} {}", "Removed directory:".red(), path.display());
-                } else {
-                    std::fs::remove_file(&path)?;
-                    println!("  {} {}", "Removed file:".red(), path.display());
-                }
-            } else {
-                println!("  {} {}", "Skipped (not found):".dim(), path.display());
-            }
-        }
-
-        // Delete contract addresses file to allow re-deployment
-        let contract_addresses_path = crate::paths::contract_addresses_file();
-        if contract_addresses_path.exists() {
-            std::fs::remove_file(&contract_addresses_path)?;
-            println!(
-                "  {} {}",
-                "Removed file:".red(),
-                contract_addresses_path.display()
-            );
-        }
-
-        println!("{}", "Reset to block 0 complete.".green().bold());
-        println!();
     }
 
-    println!("{}", "Starting local cluster...".green().bold());
-    println!("{}", format!("Run ID: {}", run_id).cyan().bold());
-    println!(
-        "{}",
-        format!("Volumes directory: {}", volumes_dir.display()).cyan()
-    );
-    println!(
-        "{}",
-        format!("Logs directory: {}", logs_dir.display()).cyan()
-    );
+    println!("{}", "Reset to block 0 complete.".green().bold());
     println!();
+    Ok(())
+}
 
-    // Step 0: Create Docker networks for this run
-    create_all_networks(&run_id)?;
-    println!();
-
-    // Step 0.5: Start Portainer for web UI management
-    start_portainer(&run_id)?;
-    println!();
-
+/// Load and validate the configuration file.
+fn load_and_validate_config() -> Result<Config, Box<dyn std::error::Error>> {
     // Load config to get port range settings
     let config_path = foc_localnet_config();
     let config_content = std::fs::read_to_string(&config_path).map_err(|e| {
@@ -245,6 +229,67 @@ pub fn start_cluster(
     println!("  • Approved PDP SPs: {}", config.approved_pdp_sp_count);
     println!();
 
+    Ok(config)
+}
+
+/// Create all the step instances for the cluster startup sequence.
+fn create_steps(
+    volumes_dir: &PathBuf,
+    logs_dir: &PathBuf,
+    config: &Config,
+) -> Vec<Box<dyn Step>> {
+    let lotus_step = LotusStep::new(volumes_dir.clone(), logs_dir.clone());
+    let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), logs_dir.clone());
+    let eth_acc_funding_step = ETHAccFundingStep::new(logs_dir.clone());
+    let usdfc_deploy_step = USDFCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
+    let usdfc_funding_step = USDFCFundingStep::new(
+        volumes_dir.clone(),
+        logs_dir.clone(),
+        config.active_pdp_sp_count,
+    );
+    let multicall3_deploy_step = MultiCall3DeployStep::new(volumes_dir.clone(), logs_dir.clone());
+    let foc_deploy_step = FOCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
+    let pdp_sp_reg_step = PdpSpRegistrationStep::new(
+        volumes_dir.clone(),
+        logs_dir.clone(),
+        config.active_pdp_sp_count,
+        config.approved_pdp_sp_count,
+    );
+    let yugabyte_step = YugabyteStep::new(
+        volumes_dir.clone(),
+        logs_dir.clone(),
+        config.active_pdp_sp_count,
+    );
+    let curio_step = CurioStep::new(
+        volumes_dir.clone(),
+        logs_dir.clone(),
+        config.active_pdp_sp_count,
+    );
+
+    // Execute all steps
+    // Note: PDP SP registration MUST happen after Curio because it needs
+    // the dynamic ports allocated to each Curio instance's PDP endpoint
+    vec![
+        Box::new(lotus_step),
+        Box::new(lotus_miner_step),
+        Box::new(eth_acc_funding_step),
+        Box::new(usdfc_deploy_step),
+        Box::new(usdfc_funding_step),
+        Box::new(multicall3_deploy_step),
+        Box::new(foc_deploy_step),
+        Box::new(yugabyte_step),
+        Box::new(curio_step),
+        Box::new(pdp_sp_reg_step),
+    ]
+}
+
+/// Execute the cluster startup steps.
+fn execute_cluster_steps(
+    volumes_dir: &PathBuf,
+    logs_dir: &PathBuf,
+    run_id: &str,
+    config: &Config,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Ensure genesis prerequisites are ready (one-time setup, needs config for sector count)
     ensure_genesis_prerequisites(config.active_pdp_sp_count)?;
     println!();
@@ -274,61 +319,77 @@ pub fn start_cluster(
         .cyan()
     );
 
-    // Create steps in the order they need to be started
-    let lotus_step = LotusStep::new(volumes_dir.clone(), logs_dir.clone());
-    let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), logs_dir.clone());
-    let eth_acc_funding_step = ETHAccFundingStep::new(logs_dir.clone());
-    let usdfc_deploy_step = USDFCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
-    let usdfc_funding_step = USDFCFundingStep::new(
-        volumes_dir.clone(),
-        logs_dir.clone(),
-        config.active_pdp_sp_count,
-    );
-    let multicall3_deploy_step = MultiCall3DeployStep::new(volumes_dir.clone(), logs_dir.clone());
-    let foc_deploy_step = FOCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
-    let pdp_sp_reg_step = PdpSpRegistrationStep::new(
-        volumes_dir.clone(),
-        logs_dir.clone(),
-        config.active_pdp_sp_count,
-        config.approved_pdp_sp_count,
-    );
-    let user_deposit_permit_step =
-        UserDepositPermitStep::new(volumes_dir.clone(), logs_dir.clone());
-    let yugabyte_step = YugabyteStep::new(
-        volumes_dir.clone(),
-        logs_dir.clone(),
-        config.active_pdp_sp_count,
-    );
-    let curio_step = CurioStep::new(
-        volumes_dir.clone(),
-        logs_dir.clone(),
-        config.active_pdp_sp_count,
-    );
+    let steps = create_steps(volumes_dir, logs_dir, config);
 
-    // Execute all steps
-    // Note: PDP SP registration MUST happen after Curio because it needs
-    // the dynamic ports allocated to each Curio instance's PDP endpoint
-    let steps: Vec<&dyn Step> = vec![
-        &lotus_step,
-        &lotus_miner_step,
-        &eth_acc_funding_step,
-        &usdfc_deploy_step,
-        &usdfc_funding_step,
-        &multicall3_deploy_step,
-        &foc_deploy_step,
-        &user_deposit_permit_step,
-        &yugabyte_step,
-        &curio_step,
-        &pdp_sp_reg_step, // Moved after Curio to access dynamic PDP ports
-    ];
+    // TODO: 
+    // In case of parallelization needs, we can do as follows:
+    // -------------------------------------------------------
+    // PAR 1: Start Lotus, Start Yugabyte (can be parallelized)
+    // PAR 2: Start Lotus Miner (since it depends on Lotus)
+    // PAR 3: ETH Account Funding (needs blockchain running)
+    // PAR 4: MockUSDFC Deploy + MultiCall3 Deploy + FOC Deploy (can be parallelized)
+    // PAR 5: MockUSDFC Funding, Start Curio daemons (can be parallelized, needs FOC Deploy)
+    // PAR 6: PDP SP Registration (needs Curio daemons started)
+    // PAR 7: End to End tests (needs everything else)
+
     execute_steps(
-        steps,
-        run_id,
-        logs_dir,
+        steps.iter().map(|s| s.as_ref()).collect::<Vec<_>>(),
+        run_id.to_string(),
+        logs_dir.clone(),
         config.port_range_start,
         config.port_range_count,
     )?;
 
     println!("\n{}", "Local cluster started successfully!".green().bold());
+    Ok(())
+}
+
+/// Execute the start command.
+///
+/// This function handles starting the local Filecoin cluster.
+pub fn start_cluster(
+    volumes_dir: Option<String>,
+    logs_dir: Option<String>,
+    regenesis: bool,
+    reset: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    stop_existing_cluster()?;
+
+    let (volumes_dir, logs_dir, run_id) = setup_directories_and_run_id(volumes_dir, logs_dir)?;
+
+    // Handle regenesis flag - delete genesis-related files and keys
+    if regenesis {
+        perform_regenesis()?;
+    }
+
+    // Handle reset flag - reset lotus and lotus-miner to block 0
+    if reset && !regenesis {
+        perform_reset()?;
+    }
+
+    println!("{}", "Starting local cluster...".green().bold());
+    println!("{}", format!("Run ID: {}", run_id).cyan().bold());
+    println!(
+        "{}",
+        format!("Volumes directory: {}", volumes_dir.display()).cyan()
+    );
+    println!(
+        "{}",
+        format!("Logs directory: {}", logs_dir.display()).cyan()
+    );
+    println!();
+
+    // Step 0: Create Docker networks for this run
+    create_all_networks(&run_id)?;
+    println!();
+
+    // Step 0.5: Start Portainer for web UI management
+    start_portainer(&run_id)?;
+    println!();
+
+    let config = load_and_validate_config()?;
+
+    execute_cluster_steps(&volumes_dir, &logs_dir, &run_id, &config)?;
+
     Ok(())
 }
