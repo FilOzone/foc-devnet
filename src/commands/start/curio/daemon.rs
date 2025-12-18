@@ -36,7 +36,7 @@ pub fn start_curio_daemon(
 ) -> Result<(), Box<dyn Error>> {
     println!(
         "    {} Starting Curio daemon for PDP SP {}...",
-        "🚀".cyan(),
+        "✓".green(),
         sp_index
     );
 
@@ -71,7 +71,7 @@ pub fn start_curio_daemon(
     if container_exists(&container_name)? {
         println!(
             "      {} Removing existing container {}...",
-            "🗑️".yellow(),
+            "✓".green(),
             container_name
         );
         stop_and_remove_container(&container_name)?;
@@ -121,7 +121,7 @@ fn create_curio_container(
 ) -> Result<(), Box<dyn Error>> {
     println!(
         "      {} Creating container {}...",
-        "🐳".cyan(),
+        "✓".green(),
         container_name
     );
 
@@ -270,7 +270,7 @@ fn build_docker_run_args(
 
 /// Wait for Curio daemon to be ready
 fn wait_for_daemon_ready(container_name: &str) -> Result<(), Box<dyn Error>> {
-    println!("      {} Waiting for daemon to be ready...", "⏳".cyan());
+    println!("      {} Waiting for daemon to be ready...", "✓".green());
 
     thread::sleep(Duration::from_secs(DAEMON_STARTUP_WAIT_SECS));
 
@@ -294,7 +294,7 @@ fn wait_for_daemon_ready(container_name: &str) -> Result<(), Box<dyn Error>> {
         if attempt < 12 {
             println!(
                 "      {} Waiting for API (attempt {}/12)...",
-                "⏳".dim(),
+                "✓".green(),
                 attempt
             );
             thread::sleep(Duration::from_secs(5));

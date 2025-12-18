@@ -18,10 +18,14 @@ use std::process::Command;
 ///
 /// # Parameters
 /// - `active_pdp_sp_count`: Number of active PDP SPs to add to genesis
+/// - `run_id`: The run ID for this cluster
 ///
 /// # Returns
 /// Returns `Ok(())` if all miners are added successfully.
-pub fn add_miner_to_genesis(active_pdp_sp_count: usize) -> Result<(), Box<dyn std::error::Error>> {
+pub fn add_miner_to_genesis(
+    active_pdp_sp_count: usize,
+    run_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("  {} Adding miners to genesis...", "⛏".cyan());
 
     // Build list of all miners to add: lotus-miner + PDP SPs
@@ -38,7 +42,7 @@ pub fn add_miner_to_genesis(active_pdp_sp_count: usize) -> Result<(), Box<dyn st
     }
 
     for (miner_id, miner_dir) in miner_configs {
-        add_single_miner_to_genesis(&miner_id, &miner_dir)?;
+        add_single_miner_to_genesis(&miner_id, &miner_dir, run_id)?;
     }
 
     let total_miners = 1 + active_pdp_sp_count;
@@ -54,6 +58,7 @@ pub fn add_miner_to_genesis(active_pdp_sp_count: usize) -> Result<(), Box<dyn st
 fn add_single_miner_to_genesis(
     miner_id: &str,
     miner_dir: &PathBuf,
+    run_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "    {} Adding miner {} to genesis from {}...",
@@ -79,7 +84,12 @@ fn add_single_miner_to_genesis(
     let builder_volumes_dir = foc_localnet_docker_volumes().join("builder");
 
     // Build docker args with network environment variables
-    let mut docker_args = vec!["run".to_string(), "--rm".to_string()];
+    let mut docker_args = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "--name".to_string(),
+        format!("foc-{}-genesis-add-miner-{}", run_id, miner_id),
+    ];
 
     // Add volume mounts and command
     docker_args.extend(vec![

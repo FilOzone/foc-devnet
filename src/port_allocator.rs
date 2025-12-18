@@ -102,45 +102,43 @@ impl PortAllocator {
         }
 
         Err(format!(
-            "All {} ports in range {}..{} have been allocated",
-            self.count,
+            "No available ports in range {}-{}",
             self.start,
             self.start + self.count - 1
         )
         .into())
     }
 
-    /// Allocate multiple consecutive ports.
-    ///
-    /// This is useful for components that need a specific number of ports
-    /// (e.g., Yugabyte needs 7 ports).
+    /// Allocate multiple ports from the range.
+    pub fn allocate_multiple(&mut self, count: usize) -> Result<Vec<u16>, Box<dyn Error>> {
+        let mut ports = Vec::with_capacity(count);
+        for _ in 0..count {
+            ports.push(self.allocate()?);
+        }
+        Ok(ports)
+    }
+
+    /// Mark a specific port as allocated.
     ///
     /// # Arguments
     ///
-    /// * `n` - Number of ports to allocate
-    ///
-    /// # Returns
-    ///
-    /// A vector of allocated port numbers, or an error if allocation fails.
+    /// * `port` - The port to mark as allocated
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - `n` is 0
-    /// - Not enough consecutive unallocated ports are available
-    pub fn allocate_multiple(&mut self, n: u16) -> Result<Vec<u16>, Box<dyn Error>> {
-        if n == 0 {
-            return Err("Cannot allocate 0 ports".into());
+    /// Returns an error if the port is outside the managed range.
+    pub fn mark_allocated(&mut self, port: u16) -> Result<(), Box<dyn Error>> {
+        if port < self.start || port >= self.start + self.count {
+            return Err(format!(
+                "Port {} is outside the range {}-{}",
+                port,
+                self.start,
+                self.start + self.count - 1
+            )
+            .into());
         }
-
-        let mut ports = Vec::with_capacity(n as usize);
-
-        for _ in 0..n {
-            let port = self.allocate()?;
-            ports.push(port);
-        }
-
-        Ok(ports)
+        self.allocated.insert(port);
+        Ok(())
     }
 
     /// Get the number of allocated ports.

@@ -248,7 +248,7 @@ impl Step for YugabyteStep {
         );
 
         // Allocate ports for all instances upfront
-        let mut all_ports = Vec::new();
+        let mut all_ports: Vec<(usize, Vec<u16>)> = Vec::new();
         for instance_index in 1..=num_instances {
             let yugabyte_ports = context.allocate_multiple_ports(7)?;
             all_ports.push((instance_index, yugabyte_ports));
@@ -271,7 +271,7 @@ impl Step for YugabyteStep {
         let errors: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
         let mut handles = Vec::new();
 
-        for (sp_idx, ports) in all_ports {
+        for (sp_idx, ports) in all_ports.into_iter() {
             let volumes_dir = self.volumes_dir.clone();
             let run_id = context.run_id().ok_or("Run ID not found")?.to_string();
             let errors_clone = Arc::clone(&errors);

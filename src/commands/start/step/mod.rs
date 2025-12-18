@@ -149,8 +149,8 @@ impl StepContext {
         allocator.allocate()
     }
 
-    /// Allocate multiple ports from the port allocator (thread-safe)
-    pub fn allocate_multiple_ports(&self, count: u16) -> Result<Vec<u16>, Box<dyn Error>> {
+    /// Allocate multiple contiguous ports from the port allocator (thread-safe)
+    pub fn allocate_multiple_ports(&self, count: usize) -> Result<Vec<u16>, Box<dyn Error>> {
         let mut allocator = self
             .port_allocator
             .lock()
@@ -158,16 +158,20 @@ impl StepContext {
         allocator.allocate_multiple(count)
     }
 
-    /// Get a reference to the port allocator for verification (thread-safe)
-    pub fn with_port_allocator<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce(&PortAllocator) -> R,
-    {
-        let allocator = self
-            .port_allocator
-            .lock()
-            .expect("Failed to lock port allocator");
-        f(&allocator)
+    /// Save the shared state to a JSON file
+    pub fn save_to_file(&self) -> Result<(), Box<dyn Error>> {
+        let state = self.state.lock().expect("Failed to lock state");
+        let path = crate::paths::step_context_file();
+        
+        // Ensure parent directory exists
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        let file = std::fs::File::create(&path)?;
+        serde_json::to_writer_pretty(file, &*state)?;
+        
+        Ok(())
     }
 }
 
@@ -257,15 +261,17 @@ pub trait Step: Send + Sync {
 /// * `logs_dir` - Directory for storing logs
 /// * `port_start` - Starting port for the contiguous port range
 /// * `port_count` - Number of ports in the range
+/// * `portainer_port` - Optional port already allocated for Portainer
 pub fn execute_steps(
     steps: Vec<&dyn Step>,
     run_id: String,
     logs_dir: PathBuf,
     port_start: u16,
     port_count: u16,
+    portainer_port: Option<u16>,
 ) -> Result<(), Box<dyn Error>> {
     // Create port allocator and verify all ports are available
-    let port_allocator = PortAllocator::new(port_start, port_count)?;
+    let mut port_allocator = PortAllocator::new(port_start, port_count)?;
 
     println!(
         "{}",
@@ -278,9 +284,28 @@ pub fn execute_steps(
         .cyan()
     );
 
-    port_allocator.verify_all_ports_available()?;
+    // If Portainer is using a port in our range, we don't want to fail the availability check
+    // because Portainer is already running (started by us).
+    // So we verify all ports EXCEPT the portainer port if it's in range.
+    for port in port_start..(port_start + port_count) {
+        if let Some(p_port) = portainer_port {
+            if port == p_port {
+                continue;
+            }
+        }
+        if !crate::docker::core::is_port_available(port) {
+            // This is a bit of a hack since we're calling a private function from PortAllocator
+            // but we'll just do the check here.
+            return Err(format!("Port {} is already in use", port).into());
+        }
+    }
     println!("{}", "  ✓ All ports in range are available".green());
     println!();
+
+    // Mark portainer port as allocated if provided
+    if let Some(port) = portainer_port {
+        port_allocator.mark_allocated(port)?;
+    }
 
     let overall_start = Instant::now();
     let mut context = StepContext::with_run_id_and_ports(run_id, logs_dir, port_allocator);
@@ -364,6 +389,11 @@ pub fn execute_steps(
     }
     drop(state); // Release lock before final output
 
+    // Save context at the end
+    if let Err(e) = context.save_to_file() {
+        eprintln!("Warning: Failed to save step context: {}", e);
+    }
+
     println!("\n{}", "All steps completed successfully!".green().bold());
     Ok(())
 }
@@ -380,6 +410,7 @@ pub fn execute_steps(
 /// * `logs_dir` - Directory for storing logs
 /// * `port_start` - Starting port for the contiguous port range
 /// * `port_count` - Number of ports in the range
+/// * `portainer_port` - Optional port already allocated for Portainer
 ///
 /// # Returns
 ///
@@ -390,9 +421,10 @@ pub fn execute_steps_parallel(
     logs_dir: PathBuf,
     port_start: u16,
     port_count: u16,
+    portainer_port: Option<u16>,
 ) -> Result<(), Box<dyn Error>> {
     // Create port allocator and verify all ports are available
-    let port_allocator = PortAllocator::new(port_start, port_count)?;
+    let mut port_allocator = PortAllocator::new(port_start, port_count)?;
 
     println!(
         "{}",
@@ -405,9 +437,25 @@ pub fn execute_steps_parallel(
         .cyan()
     );
 
-    port_allocator.verify_all_ports_available()?;
+    // If Portainer is using a port in our range, we don't want to fail the availability check
+    // because Portainer is already running (started by us).
+    for port in port_start..(port_start + port_count) {
+        if let Some(p_port) = portainer_port {
+            if port == p_port {
+                continue;
+            }
+        }
+        if !crate::docker::core::is_port_available(port) {
+            return Err(format!("Port {} is already in use", port).into());
+        }
+    }
     println!("{}", "  ✓ All ports in range are available".green());
     println!();
+
+    // Mark portainer port as allocated if provided
+    if let Some(port) = portainer_port {
+        port_allocator.mark_allocated(port)?;
+    }
 
     let overall_start = Instant::now();
     let context = Arc::new(StepContext::with_run_id_and_ports(
@@ -422,7 +470,14 @@ pub fn execute_steps_parallel(
         all_step_timings.extend(epoch_timings);
     }
 
-    print_execution_summary(&all_step_timings, overall_start.elapsed(), &context)
+    print_execution_summary(&all_step_timings, overall_start.elapsed(), &context)?;
+
+    // Save context at the end
+    if let Err(e) = context.save_to_file() {
+        eprintln!("Warning: Failed to save step context: {}", e);
+    }
+
+    Ok(())
 }
 
 /// Execute a single epoch of steps (either sequentially or in parallel)
@@ -434,9 +489,8 @@ fn execute_epoch(
     println!(
         "\n{}\n",
         format!(
-            "EPOCH {}/{}: Running {} step(s) in parallel",
+            "EPOCH {}: Running {} step(s) in parallel",
             epoch_index + 1,
-            epoch_steps.len(),
             epoch_steps.len(),
         )
         .white()

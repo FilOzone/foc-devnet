@@ -15,7 +15,7 @@ use std::process::Command;
 ///
 /// Note: This function assumes the genesis file does not already exist.
 /// The caller should check for existence first.
-pub fn create_genesis_file() -> Result<(), Box<dyn std::error::Error>> {
+pub fn create_genesis_file(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
     let genesis_dir = foc_localnet_genesis();
 
     println!("  {} Creating genesis file...", "📜".cyan());
@@ -34,7 +34,12 @@ pub fn create_genesis_file() -> Result<(), Box<dyn std::error::Error>> {
     let builder_volumes_dir = foc_localnet_docker_volumes().join("builder");
 
     // Build docker args with network environment variables
-    let mut docker_args = vec!["run".to_string(), "--rm".to_string()];
+    let mut docker_args = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "--name".to_string(),
+        format!("foc-{}-genesis-creation", run_id),
+    ];
 
     // Add volume mounts and command
     docker_args.extend(vec![

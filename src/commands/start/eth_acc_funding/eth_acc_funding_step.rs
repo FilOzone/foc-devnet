@@ -22,19 +22,34 @@ use std::time::Duration;
 pub struct ETHAccFundingStep {
     #[allow(dead_code)]
     logs_dir: PathBuf,
+    active_pdp_sp_count: usize,
 }
 
 impl ETHAccFundingStep {
     /// Create a new ETHAccFundingStep
-    pub fn new(logs_dir: PathBuf) -> Self {
-        Self { logs_dir }
+    pub fn new(logs_dir: PathBuf, active_pdp_sp_count: usize) -> Self {
+        Self {
+            logs_dir,
+            active_pdp_sp_count,
+        }
     }
 
     /// Check if account funding has already been completed
     fn check_existing_funding(&self, context: &StepContext) -> Result<bool, Box<dyn Error>> {
         // Check if we have the required addresses in context
         let has_global_faucet = context.get("global_faucet_address").is_some();
-        let has_all_prefunded_accounts = FEVM_ACCOUNTS_PREFUNDED.iter().all(|(name, _)| {
+
+        // Filter accounts based on active PDP SP count
+        let mut accounts_to_check = FEVM_ACCOUNTS_PREFUNDED.iter().filter(|(name, _)| {
+            if name.starts_with("PDP_SP_") {
+                let sp_num: usize = name.strip_prefix("PDP_SP_").unwrap().parse().unwrap_or(0);
+                sp_num <= self.active_pdp_sp_count
+            } else {
+                true
+            }
+        });
+
+        let has_all_prefunded_accounts = accounts_to_check.all(|(name, _)| {
             context
                 .get(&format!("{}_address", name.to_lowercase()))
                 .is_some()
@@ -119,6 +134,18 @@ impl ETHAccFundingStep {
         // Prepare all accounts first (setup phase)
         let mut account_transfers = Vec::new();
         for (account_name, amount) in FEVM_ACCOUNTS_PREFUNDED.iter() {
+            // Skip PDP SP accounts that are not active
+            if account_name.starts_with("PDP_SP_") {
+                let sp_num: usize = account_name
+                    .strip_prefix("PDP_SP_")
+                    .unwrap()
+                    .parse()
+                    .unwrap_or(0);
+                if sp_num > self.active_pdp_sp_count {
+                    continue;
+                }
+            }
+
             // Find the key info for this account
             let key_info = keys
                 .iter()
@@ -435,6 +462,18 @@ impl Step for ETHAccFundingStep {
         // First, verify all addresses are in context
         let mut accounts_to_verify = Vec::new();
         for (account_name, expected_amount) in FEVM_ACCOUNTS_PREFUNDED.iter() {
+            // Skip PDP SP accounts that are not active
+            if account_name.starts_with("PDP_SP_") {
+                let sp_num: usize = account_name
+                    .strip_prefix("PDP_SP_")
+                    .unwrap()
+                    .parse()
+                    .unwrap_or(0);
+                if sp_num > self.active_pdp_sp_count {
+                    continue;
+                }
+            }
+
             let address_key = format!("{}_address", account_name.to_lowercase());
             let eth_key = format!("{}_eth_address", account_name.to_lowercase());
 

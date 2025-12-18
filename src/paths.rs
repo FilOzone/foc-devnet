@@ -43,6 +43,11 @@ pub fn foc_metadata_file() -> PathBuf {
     foc_localnet_state().join("foc_metadata.json")
 }
 
+/// Returns the path to the step context file, e.g., ~/.foc-localnet/state/step_context.json
+pub fn step_context_file() -> PathBuf {
+    foc_localnet_state().join("step_context.json")
+}
+
 /// Returns the path to the PDP_SP_X provider ID file, e.g., ~/.foc-localnet/state/pdp_sps/X.provider_id.json
 pub fn pdp_sp_provider_id_file(sp_idx: usize) -> PathBuf {
     foc_localnet_state()

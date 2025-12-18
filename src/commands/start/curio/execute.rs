@@ -20,7 +20,7 @@ use std::error::Error;
 /// 4. Import PDP private key
 pub fn setup_all_curio_sps(context: &StepContext, step: &CurioStep) -> Result<(), Box<dyn Error>> {
     for sp_index in 1..=step.active_sp_count() {
-        println!("  {} Setting up Curio PDP SP {}...", "🚀".cyan(), sp_index);
+        println!("  {} Setting up Curio PDP SP {}...", "✓".green(), sp_index);
 
         setup_single_curio_sp(context, step, sp_index)?;
 

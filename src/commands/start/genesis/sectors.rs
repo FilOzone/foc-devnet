@@ -19,11 +19,13 @@ use std::process::Command;
 ///
 /// # Parameters
 /// - `active_pdp_sp_count`: Number of active PDP SPs to create sectors for
+/// - `run_id`: The run ID for this cluster
 ///
 /// # Returns
 /// Returns `Ok(())` if sectors exist or are successfully generated.
 pub fn ensure_presealed_sectors(
     active_pdp_sp_count: usize,
+    run_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let sectors_dir = foc_localnet_genesis_sectors();
     let genesis_dir = foc_localnet_genesis();
@@ -85,7 +87,7 @@ pub fn ensure_presealed_sectors(
     }
 
     for (miner_id, miner_dir) in miner_configs {
-        preseal_miner_sectors(&miner_id, &miner_dir)?;
+        preseal_miner_sectors(&miner_id, &miner_dir, run_id)?;
     }
 
     println!(
@@ -100,6 +102,7 @@ pub fn ensure_presealed_sectors(
 fn preseal_miner_sectors(
     miner_id: &str,
     miner_dir: &PathBuf,
+    run_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Create miner directory
     fs::create_dir_all(miner_dir)?;
@@ -116,9 +119,14 @@ fn preseal_miner_sectors(
     let builder_volumes_dir = foc_localnet_docker_volumes().join("builder");
 
     // Build docker args with network environment variables
-    let mut docker_args = vec!["run".to_string(), "--rm".to_string()];
+    let mut docker_args = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "--name".to_string(),
+        format!("foc-{}-genesis-preseal-{}", run_id, miner_id),
+    ];
 
-    // Add volume mounts
+    // Add volume mounts and command
     docker_args.extend(vec![
         "-v".to_string(),
         format!("{}:/opt/bin", bin_dir.display()),

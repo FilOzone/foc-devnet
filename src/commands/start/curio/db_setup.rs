@@ -109,7 +109,7 @@ pub fn build_lotus_env_vars(context: &StepContext) -> Result<Vec<String>, Box<dy
 pub fn setup_curio_database(context: &StepContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
     println!(
         "    {} Setting up database for PDP SP {}...",
-        "💾".cyan(),
+        "✓".green(),
         sp_index
     );
 
@@ -141,7 +141,7 @@ fn create_base_cluster(
 ) -> Result<(), Box<dyn Error>> {
     println!(
         "      {} Creating base cluster for miner {}...",
-        "⚙".cyan(),
+        "✓".green(),
         miner_id
     );
 
@@ -247,7 +247,7 @@ fn create_base_cluster(
 ///
 /// Runs: `curio config create --title pdp-only` with PDP layer config in a temporary container
 fn create_pdp_layer(context: &StepContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
-    println!("      {} Creating PDP layer configuration...", "⚙".cyan());
+    println!("      {} Creating PDP layer configuration...", "✓".green());
 
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let pdp_network = pdp_miner_network_name(run_id, sp_index);

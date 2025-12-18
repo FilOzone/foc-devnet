@@ -39,7 +39,7 @@ pub fn verify_single_curio_sp(
 
 /// Verify PDP subsystem responds to ping.
 fn verify_pdp_ping(context: &StepContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
-    println!("      {} Pinging PDP subsystem...", "🏓".cyan());
+    println!("      {} Pinging PDP subsystem...", "✓".green());
 
     // Get dynamically allocated PDP port from context
     let port: u16 = context
@@ -64,7 +64,7 @@ fn verify_pdp_ping(context: &StepContext, sp_index: usize) -> Result<(), Box<dyn
 fn verify_upload_download(context: &StepContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
     println!(
         "      {} Testing upload/download functionality...",
-        "📤".cyan()
+        "✓".green()
     );
 
     // Create temporary directory for test files
@@ -156,7 +156,7 @@ fn extract_piece_cid(output: &str) -> Result<String, Box<dyn Error>> {
             let cid_part = &line[prefix_pos + "Piece CID:".len()..];
             let cid = cid_part.trim();
 
-            println!("      {} Extracted Piece CID: {}", "🔍".cyan(), cid);
+            println!("      {} Extracted Piece CID: {}", "✓".green(), cid);
             if !cid.is_empty() {
                 return Ok(cid.to_string());
             }
@@ -196,7 +196,7 @@ fn download_piece(
         if attempt < 5 {
             println!(
                 "      {} Download attempt {} failed with status: {}, retrying...",
-                "⏳".yellow(),
+                "✓".green(),
                 attempt,
                 response.status()
             );

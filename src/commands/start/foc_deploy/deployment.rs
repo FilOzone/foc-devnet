@@ -64,6 +64,7 @@ pub fn perform_deployment(
         &services_repo,
         &lotus_container,
         &lotus_rpc_url,
+        run_id,
     )?;
 
     // Store contract addresses in context

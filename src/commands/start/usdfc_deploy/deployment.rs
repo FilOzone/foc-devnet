@@ -11,6 +11,7 @@ use std::process::Command;
 pub fn deploy_mock_usdfc_foundry(
     private_key: &str,
     lotus_rpc_url: &str,
+    run_id: &str,
 ) -> Result<String, Box<dyn Error>> {
     println!("      Deploying MockUSDFC using Foundry project...");
 
@@ -39,6 +40,8 @@ pub fn deploy_mock_usdfc_foundry(
         .args([
             "run",
             "--rm",
+            "--name",
+            &format!("foc-{}-usdfc-deploy", run_id),
             "--network",
             "host", // Use host network to access Lotus RPC on dynamic port
             "-v",
@@ -111,9 +114,12 @@ pub fn perform_token_deployment(
         mockusdfc_deployer_eth.cyan()
     );
 
-    // Deploy MockUSDFC token using Foundry
+    // Get Lotus RPC URL
     let lotus_rpc_url = get_lotus_rpc_url(context)?;
-    let mock_usdfc_address = deploy_mock_usdfc_foundry(&private_key, &lotus_rpc_url)?;
+    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+
+    // Deploy MockUSDFC
+    let mock_usdfc_address = deploy_mock_usdfc_foundry(&private_key, &lotus_rpc_url, run_id)?;
 
     // Store in context
     context.set("mock_usdfc_address", &mock_usdfc_address);

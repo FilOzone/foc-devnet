@@ -97,15 +97,16 @@ pub fn delete_network(network_name: &str) -> Result<(), Box<dyn Error>> {
 ///
 /// # Arguments
 /// * `run_id` - The run ID for this cluster
+/// * `active_pdp_sp_count` - The number of active PDP SPs
 ///
 /// # Returns
 /// Ok(()) on success, error on failure
-pub fn create_all_networks(run_id: &str) -> Result<(), Box<dyn Error>> {
+pub fn create_all_networks(run_id: &str, active_pdp_sp_count: usize) -> Result<(), Box<dyn Error>> {
     println!("{}", "Creating Docker networks...".blue().bold());
 
     create_network(&lotus_network_name(run_id))?;
     create_network(&lotus_miner_network_name(run_id))?;
-    for sp_idx in 1..=MAX_PDP_SP_COUNT {
+    for sp_idx in 1..=active_pdp_sp_count {
         create_network(&pdp_miner_network_name(run_id, sp_idx))?;
     }
 
@@ -124,6 +125,7 @@ pub fn delete_all_networks(run_id: &str) -> Result<(), Box<dyn Error>> {
     println!("{}", "Removing Docker networks...".blue().bold());
 
     // Delete in reverse order of creation
+    // We check all possible SP indices to ensure cleanup
     for sp_idx in (1..=MAX_PDP_SP_COUNT).rev() {
         let pdp_network = pdp_miner_network_name(run_id, sp_idx);
         if network_exists(&pdp_network)? {

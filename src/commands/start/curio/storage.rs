@@ -23,7 +23,7 @@ pub fn attach_storage_locations(
 ) -> Result<(), Box<dyn Error>> {
     println!(
         "    {} Attaching storage locations for PDP SP {}...",
-        "💿".cyan(),
+        "✓".green(),
         sp_index
     );
 
@@ -47,7 +47,7 @@ pub fn attach_storage_locations(
 
 /// Attach fast storage for sealing operations.
 fn attach_fast_storage(container_name: &str) -> Result<(), Box<dyn Error>> {
-    println!("      {} Attaching fast storage...", "⚙".cyan());
+    println!("      {} Attaching fast storage...", "✓".green());
 
     // Use container DNS name for --machine flag so it works in Docker networks
     let machine_addr = format!("{}:12300", container_name);
@@ -85,7 +85,7 @@ fn attach_fast_storage(container_name: &str) -> Result<(), Box<dyn Error>> {
 
 /// Attach long-term storage for storing sealed sectors.
 fn attach_long_term_storage(container_name: &str) -> Result<(), Box<dyn Error>> {
-    println!("      {} Attaching long-term storage...", "⚙".cyan());
+    println!("      {} Attaching long-term storage...", "✓".green());
 
     // Use container DNS name for --machine flag so it works in Docker networks
     let machine_addr = format!("{}:12300", container_name);

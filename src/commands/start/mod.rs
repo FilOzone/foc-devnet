@@ -173,7 +173,8 @@ fn load_and_validate_config() -> Result<Config, Box<dyn std::error::Error>> {
 fn create_steps(volumes_dir: &PathBuf, logs_dir: &PathBuf, config: &Config) -> Vec<Box<dyn Step>> {
     let lotus_step = LotusStep::new(volumes_dir.clone(), logs_dir.clone());
     let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), logs_dir.clone());
-    let eth_acc_funding_step = ETHAccFundingStep::new(logs_dir.clone());
+    let eth_acc_funding_step =
+        ETHAccFundingStep::new(logs_dir.clone(), config.active_pdp_sp_count);
     let usdfc_deploy_step = USDFCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
     let usdfc_funding_step = USDFCFundingStep::new(
         volumes_dir.clone(),
@@ -241,7 +242,8 @@ fn create_step_epochs(
         config.active_pdp_sp_count,
     );
     let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), logs_dir.clone());
-    let eth_acc_funding_step = ETHAccFundingStep::new(logs_dir.clone());
+    let eth_acc_funding_step =
+        ETHAccFundingStep::new(logs_dir.clone(), config.active_pdp_sp_count);
     let usdfc_deploy_step = USDFCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
     let multicall3_deploy_step = MultiCall3DeployStep::new(volumes_dir.clone(), logs_dir.clone());
     let foc_deploy_step = FOCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
@@ -294,9 +296,10 @@ fn execute_cluster_steps(
     run_id: &str,
     config: &Config,
     parallel: bool,
+    portainer_port: u16,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Ensure genesis prerequisites are ready (one-time setup, needs config for sector count)
-    ensure_genesis_prerequisites(config.active_pdp_sp_count)?;
+    ensure_genesis_prerequisites(config.active_pdp_sp_count, &run_id)?;
     println!();
 
     // Validate configuration
@@ -343,6 +346,7 @@ fn execute_cluster_steps(
             logs_dir.clone(),
             config.port_range_start,
             config.port_range_count,
+            Some(portainer_port),
         )?;
     } else {
         println!("{}", "Execution mode: SEQUENTIAL".cyan());
@@ -354,21 +358,14 @@ fn execute_cluster_steps(
             logs_dir.clone(),
             config.port_range_start,
             config.port_range_count,
+            Some(portainer_port),
         )?;
     }
 
-    println!("\n{}", "Local cluster started successfully!".green().bold());
     Ok(())
 }
-/// Execute the start command.
-///
-/// This function handles starting the local Filecoin cluster.
-///
-/// # Arguments
-///
-/// * `volumes_dir` - Optional directory for docker volumes
-/// * `logs_dir` - Optional directory for logs
-/// * `parallel` - Whether to run steps in parallel where possible
+
+/// Start the local Filecoin network cluster.
 pub fn start_cluster(
     volumes_dir: Option<String>,
     logs_dir: Option<String>,
@@ -393,17 +390,25 @@ pub fn start_cluster(
     );
     println!();
 
-    // Step 0: Create Docker networks for this run
-    create_all_networks(&run_id)?;
-    println!();
-
-    // Step 0.5: Start Portainer for web UI management
-    start_portainer(&run_id)?;
-    println!();
-
     let config = load_and_validate_config()?;
 
-    execute_cluster_steps(&volumes_dir, &logs_dir, &run_id, &config, parallel)?;
+    // Allocate port for Portainer (first port in dynamic range)
+    let mut port_allocator = crate::port_allocator::PortAllocator::new(
+        config.port_range_start,
+        config.port_range_count,
+    )?;
+    let portainer_port = port_allocator.allocate()?;
+    
+    // Start Portainer
+    start_portainer(&run_id, portainer_port)?;
 
+    // Create networks
+    create_all_networks(&run_id, config.active_pdp_sp_count)?;
+
+    // Execute steps
+    execute_cluster_steps(&volumes_dir, &logs_dir, &run_id, &config, parallel, portainer_port)?;
+
+    println!();
+    println!("{}", "Cluster started successfully!".green().bold());
     Ok(())
 }

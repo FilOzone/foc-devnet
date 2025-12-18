@@ -48,6 +48,7 @@ pub fn deploy_foc_contracts(
     services_repo_path: &std::path::Path,
     lotus_container: &str,
     lotus_rpc_url: &str,
+    run_id: &str,
 ) -> Result<DeploymentResult, Box<dyn Error>> {
     println!("      Running deploy-all-warm-storage.sh...");
 
@@ -102,6 +103,8 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
     let output = docker_command(&[
         "run",
         "--rm",
+        "--name",
+        &format!("foc-{}-foc-deploy", run_id),
         "--network",
         "host",
         "-v",

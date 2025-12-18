@@ -14,7 +14,7 @@ use std::process::Command;
 ///
 /// Runs `lotus-seed genesis set-signers` to add the BLS signer keys
 /// with the configured threshold.
-pub fn add_signers_to_genesis() -> Result<(), Box<dyn std::error::Error>> {
+pub fn add_signers_to_genesis(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("  {} Adding signers to genesis...", "🔑".cyan());
 
     let genesis_dir = foc_localnet_genesis();
@@ -46,7 +46,12 @@ pub fn add_signers_to_genesis() -> Result<(), Box<dyn std::error::Error>> {
     let builder_volumes_dir = foc_localnet_docker_volumes().join("builder");
 
     // Build docker args with network environment variables
-    let mut docker_args = vec!["run".to_string(), "--rm".to_string()];
+    let mut docker_args = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "--name".to_string(),
+        format!("foc-{}-genesis-signers", run_id),
+    ];
 
     // Add volume mounts and command
     docker_args.extend(vec![

@@ -21,7 +21,7 @@ use std::time::Duration;
 pub fn verify_prerequisites(context: &StepContext, sp_count: usize) -> Result<(), Box<dyn Error>> {
     println!(
         "  {} Verifying Lotus is running and producing blocks...",
-        "🔍".cyan()
+        "✓".green()
     );
 
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
@@ -53,7 +53,7 @@ pub fn verify_prerequisites(context: &StepContext, sp_count: usize) -> Result<()
     );
     println!(
         "  {} Will activate {} PDP Service Provider(s)",
-        "ℹ".cyan(),
+        "✓".green(),
         sp_count
     );
 
@@ -62,7 +62,7 @@ pub fn verify_prerequisites(context: &StepContext, sp_count: usize) -> Result<()
 
 /// Verify that the Filecoin chain is progressing (blocks are being generated).
 fn verify_chain_progressing(lotus_container: &str) -> Result<(), Box<dyn Error>> {
-    println!("    {} Checking chain is progressing...", "⛓".cyan());
+    println!("    {} Checking chain is progressing...", "✓".green());
 
     // Get initial block height
     let height1 = get_chain_head_height(lotus_container)?;
@@ -70,7 +70,7 @@ fn verify_chain_progressing(lotus_container: &str) -> Result<(), Box<dyn Error>>
     // Wait 6 seconds (should be enough for at least 1 block with 4s block time)
     println!(
         "    {} Waiting 6 seconds to verify block production...",
-        "⏳".cyan()
+        "✓".green()
     );
     thread::sleep(Duration::from_secs(6));
 

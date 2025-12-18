@@ -8,7 +8,11 @@ use std::error::Error;
 use std::process::Command;
 
 /// Deploy Multicall3 using forge create
-pub fn deploy_multicall3(private_key: &str, lotus_rpc_url: &str) -> Result<String, Box<dyn Error>> {
+pub fn deploy_multicall3(
+    private_key: &str,
+    lotus_rpc_url: &str,
+    run_id: &str,
+) -> Result<String, Box<dyn Error>> {
     println!("      Deploying Multicall3 contract...");
 
     // Get the multicall3 repository path
@@ -47,6 +51,8 @@ pub fn deploy_multicall3(private_key: &str, lotus_rpc_url: &str) -> Result<Strin
         .args([
             "run",
             "--rm",
+            "--name",
+            &format!("foc-{}-multicall3-deploy", run_id),
             "--network",
             "host", // Use host network to access Lotus RPC on dynamic port
             "-v",
@@ -122,7 +128,8 @@ pub fn perform_deployment(
 
     // Deploy Multicall3 contract
     let lotus_rpc_url = get_lotus_rpc_url(context)?;
-    let multicall3_address = deploy_multicall3(&private_key, &lotus_rpc_url)?;
+    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let multicall3_address = deploy_multicall3(&private_key, &lotus_rpc_url, run_id)?;
 
     // Store in context
     context.set("multicall3_address", &multicall3_address);

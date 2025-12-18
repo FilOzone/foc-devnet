@@ -19,7 +19,7 @@ use std::time::Duration;
 pub fn import_pdp_key(context: &StepContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
     println!(
         "    {} Importing PDP private key for PDP SP {}...",
-        "🔑".cyan(),
+        "✓".green(),
         sp_index
     );
 
