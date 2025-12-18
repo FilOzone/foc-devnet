@@ -1,21 +1,21 @@
 //! PDP Service Provider step implementation.
 
-use super::super::step::{Step, StepContext};
+use super::super::step::{SetupContext, Step};
 use super::provider_id::ProviderIdInfo;
 use super::registration;
 use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::core::container_is_running;
-use crossterm::style::Stylize;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use tracing::info;
 
 /// Step for registering PDP service provider
 pub struct PdpSpRegistrationStep {
     #[allow(dead_code)]
-    logs_dir: PathBuf,
+    run_dir: PathBuf,
     /// Number of PDP SPs to activate (1-5)
     active_sp_count: usize,
     /// Number of PDP SPs to approve in registry
@@ -26,19 +26,19 @@ impl PdpSpRegistrationStep {
     /// Create a new PDPServiceProviderStep
     pub fn new(
         _volumes_dir: PathBuf,
-        logs_dir: PathBuf,
+        run_dir: PathBuf,
         active_sp_count: usize,
         approved_sp_count: usize,
     ) -> Self {
         Self {
-            logs_dir,
+            run_dir,
             active_sp_count,
             approved_sp_count,
         }
     }
 
     /// Check if Lotus is running
-    fn check_lotus_running(context: &StepContext) -> Result<(), Box<dyn Error>> {
+    fn check_lotus_running(context: &SetupContext) -> Result<(), Box<dyn Error>> {
         let run_id = context.run_id().ok_or("Run ID not found in context")?;
         let container_name = lotus_container_name(run_id);
         if !container_is_running(&container_name)? {
@@ -48,13 +48,16 @@ impl PdpSpRegistrationStep {
     }
 
     /// Load contract addresses from state
-    fn load_contract_addresses() -> Result<ContractAddresses, Box<dyn Error>> {
-        ContractAddresses::load()
+    fn load_contract_addresses(
+        context: &SetupContext,
+    ) -> Result<ContractAddresses, Box<dyn Error>> {
+        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        ContractAddresses::load(run_id)
             .map_err(|e| format!("Failed to load contract addresses: {}", e).into())
     }
 
     /// Get required addresses from context
-    fn get_required_addresses(context: &StepContext) -> Result<(String, String), Box<dyn Error>> {
+    fn get_required_addresses(context: &SetupContext) -> Result<(String, String), Box<dyn Error>> {
         let deployer_foc_address = context
             .get("deployer_foc_address")
             .ok_or("DEPLOYER_FOC address not found in context")?;
@@ -75,30 +78,18 @@ impl Step for PdpSpRegistrationStep {
         "PDP Service Provider Registration"
     }
 
-    fn pre_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
-        println!(
-            "{} {}",
-            "Pre-checking".cyan().bold(),
-            self.name().cyan().bold()
-        );
+    fn pre_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
+        info!("Pre-checking {}", self.name());
 
         // Check if Lotus is running
         Self::check_lotus_running(context)?;
-        println!("  {} Lotus is running", "✓".green());
+        info!("  Lotus is running");
 
         // Check if required addresses are available
         let (deployer_foc_address, deployer_foc_eth_address) =
             Self::get_required_addresses(context)?;
-        println!(
-            "  {} DEPLOYER_FOC address: {}",
-            "✓".green(),
-            deployer_foc_address
-        );
-        println!(
-            "  {} DEPLOYER_FOC ETH address: {}",
-            "✓".green(),
-            deployer_foc_eth_address
-        );
+        info!("  DEPLOYER_FOC address: {}", deployer_foc_address);
+        info!("  DEPLOYER_FOC ETH address: {}", deployer_foc_eth_address);
 
         // Check if all SP addresses are available
         for sp_index in 1..=self.active_sp_count {
@@ -120,77 +111,35 @@ impl Step for PdpSpRegistrationStep {
                 ))?
                 .parse()?;
 
-            println!(
-                "  {} PDP SP {} address: {}",
-                "✓".green(),
-                sp_index,
-                sp_address
-            );
-            println!(
-                "  {} PDP SP {} ETH address: {}",
-                "✓".green(),
-                sp_index,
-                sp_eth_address
-            );
-            println!(
-                "  {} PDP SP {} PDP port: {}",
-                "✓".green(),
-                sp_index,
-                pdp_port
-            );
+            info!("  PDP SP {} address: {}", sp_index, sp_address);
+            info!("  PDP SP {} ETH address: {}", sp_index, sp_eth_address);
+            info!("  PDP SP {} PDP port: {}", sp_index, pdp_port);
         }
 
         // Check if contract addresses are available
-        let contract_addresses = Self::load_contract_addresses()?;
+        let contract_addresses = Self::load_contract_addresses(context)?;
         let registry_address = contract_addresses
             .foc_contracts
             .get("service_provider_registry_proxy")
             .ok_or("service_provider_registry_proxy address not found")?;
-        println!(
-            "  {} ServiceProviderRegistry: {}",
-            "✓".green(),
-            registry_address
-        );
+        info!("  ServiceProviderRegistry: {}", registry_address);
 
         let warm_storage_address = contract_addresses
             .foc_contracts
             .get("filecoin_warm_storage_service_proxy")
             .ok_or("filecoin_warm_storage_service_proxy address not found")?;
-        println!(
-            "  {} WarmStorageService: {}",
-            "✓".green(),
-            warm_storage_address
-        );
+        info!("  WarmStorageService: {}", warm_storage_address);
 
         Ok(())
     }
 
-    fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
-        use super::super::lotus_utils::get_lotus_rpc_url;
+    fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
+        Self::check_lotus_running(context)?;
 
-        println!(
-            "{} {}",
-            "Executing".green().bold(),
-            self.name().green().bold()
-        );
-
-        // Determine how many SPs to register
-        let num_sps = self.active_sp_count;
-
-        println!(
-            "  {} Registering {} PDP Service Provider(s) in parallel...",
-            "⚡".cyan(),
-            num_sps
-        );
-
-        // Get run ID
         let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let lotus_rpc_url = crate::commands::start::lotus_utils::get_lotus_rpc_url(context)?;
 
-        // Get Lotus RPC URL with dynamic port
-        let lotus_rpc_url = get_lotus_rpc_url(context)?;
-
-        // Load contract addresses (shared for all SPs)
-        let contract_addresses = Self::load_contract_addresses()?;
+        let contract_addresses = Self::load_contract_addresses(context)?;
         let registry_address = contract_addresses
             .foc_contracts
             .get("service_provider_registry_proxy")
@@ -219,7 +168,7 @@ impl Step for PdpSpRegistrationStep {
 
         // Collect SP registration data
         let mut sp_data = Vec::new();
-        for sp_index in 1..=num_sps {
+        for sp_index in 1..=self.active_sp_count {
             let pdp_key = format!("pdp_sp_{}_address", sp_index);
             let eth_key = format!("pdp_sp_{}_eth_address", sp_index);
             let port_key = format!("curio_sp_{}_pdp_port", sp_index);
@@ -298,9 +247,8 @@ impl Step for PdpSpRegistrationStep {
                                     .lock()
                                     .unwrap()
                                     .push((sp_index, provider_id));
-                                println!(
-                                    "  {} PDP SP {} registered and approved (Provider ID: {}, URL: {})",
-                                    "✓".green(),
+                                info!(
+                                    "  PDP SP {} registered and approved (Provider ID: {}, URL: {})",
                                     sp_index,
                                     provider_id,
                                     service_url
@@ -312,12 +260,9 @@ impl Step for PdpSpRegistrationStep {
                                 .lock()
                                 .unwrap()
                                 .push((sp_index, provider_id));
-                            println!(
-                                "  {} PDP SP {} registered (not approved, Provider ID: {}, URL: {})",
-                                "⚠".yellow(),
-                                sp_index,
-                                provider_id,
-                                service_url
+                            info!(
+                                "  PDP SP {} registered (not approved, Provider ID: {}, URL: {})",
+                                sp_index, provider_id, service_url
                             );
                         }
                     }
@@ -361,35 +306,24 @@ impl Step for PdpSpRegistrationStep {
                 provider_address: sp_eth_address.clone(),
                 payee_address: sp_eth_address.clone(),
             };
-            info.save(*sp_index)?;
+            info.save(run_id, *sp_index)?;
         }
 
-        println!(
-            "  {} All {} PDP SP(s) registered successfully",
-            "✓".green(),
-            num_sps
+        info!(
+            "  All {} PDP SP(s) registered successfully",
+            self.active_sp_count
         );
 
         Ok(())
     }
 
-    fn post_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
-        use super::super::lotus_utils::get_lotus_rpc_url;
+    fn post_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
+        Self::check_lotus_running(context)?;
 
-        println!(
-            "{} {}",
-            "Post-checking".cyan().bold(),
-            self.name().cyan().bold()
-        );
-
-        // Get run ID
         let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let lotus_rpc_url = crate::commands::start::lotus_utils::get_lotus_rpc_url(context)?;
 
-        // Get Lotus RPC URL with dynamic port
-        let lotus_rpc_url = get_lotus_rpc_url(context)?;
-
-        // Load contract addresses for verification
-        let contract_addresses = Self::load_contract_addresses()?;
+        let contract_addresses = Self::load_contract_addresses(context)?;
         let registry_address = contract_addresses
             .foc_contracts
             .get("service_provider_registry_proxy")
@@ -403,14 +337,10 @@ impl Step for PdpSpRegistrationStep {
             .clone();
 
         for sp_index in 1..=self.active_sp_count {
-            println!("  {} Verifying PDP SP {}...", "🔍".cyan(), sp_index);
+            info!("  Verifying PDP SP {}...", sp_index);
             // Verify provider ID file exists and is valid
-            let info = ProviderIdInfo::load(sp_index)?;
-            println!(
-                "  {} Provider ID file exists: {}",
-                "✓".green(),
-                info.provider_id
-            );
+            let info = ProviderIdInfo::load(run_id, sp_index)?;
+            info!("  Provider ID file exists: {}", info.provider_id);
 
             // Verify on-chain provider ID matches the saved one
             let onchain_provider_id = registration::verify_provider_id_by_address(
@@ -426,11 +356,7 @@ impl Step for PdpSpRegistrationStep {
                 )
                 .into());
             }
-            println!(
-                "  {} On-chain provider ID matches: {}",
-                "✓".green(),
-                onchain_provider_id
-            );
+            info!("  On-chain provider ID matches: {}", onchain_provider_id);
 
             if sp_index < self.approved_sp_count {
                 // Verify provider is approved
@@ -447,11 +373,7 @@ impl Step for PdpSpRegistrationStep {
                     )
                     .into());
                 }
-                println!(
-                    "  {} Provider {} is approved",
-                    "✓".green(),
-                    info.provider_id
-                );
+                info!("  Provider {} is approved", info.provider_id);
             }
         }
 
@@ -465,16 +387,9 @@ impl Step for PdpSpRegistrationStep {
             )
             .into());
         }
-        println!(
-            "  {} Provider count on-chain: {}",
-            "✓".green(),
-            provider_count
-        );
+        info!("  Provider count on-chain: {}", provider_count);
 
-        println!(
-            "  {} All critical on-chain verifications passed",
-            "✓".green().bold()
-        );
+        info!("  All critical on-chain verifications passed");
 
         Ok(())
     }

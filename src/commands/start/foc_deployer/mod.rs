@@ -7,9 +7,9 @@
 use super::foc_metadata::FOCMetadata;
 use crate::constants::*;
 use crate::docker::core::docker_command;
-use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes};
-use crossterm::style::Stylize;
+use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes_cache};
 use std::error::Error;
+use tracing::{info, warn};
 
 /// Deployment result containing contract addresses and network metadata
 pub struct DeploymentResult {
@@ -50,7 +50,7 @@ pub fn deploy_foc_contracts(
     lotus_rpc_url: &str,
     run_id: &str,
 ) -> Result<DeploymentResult, Box<dyn Error>> {
-    println!("      Running deploy-all-warm-storage.sh...");
+    info!("Running deploy-all-warm-storage.sh...");
 
     // Resolve symlinks to get the real path for Docker mounting
     let services_repo = services_repo_path
@@ -66,7 +66,7 @@ pub fn deploy_foc_contracts(
     }
 
     let bin_dir = foc_localnet_bin();
-    let builder_volumes_dir = foc_localnet_docker_volumes().join("builder");
+    let builder_volumes_dir = foc_localnet_docker_volumes_cache().join("foc-builder");
 
     // Get the private key from lotus for the deployer address
     let private_key = get_private_key(foc_deployer, lotus_container)?;
@@ -98,7 +98,7 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
         private_key, env_vars
     );
 
-    println!("        This may take several minutes...");
+    info!("This may take several minutes...");
 
     let output = docker_command(&[
         "run",
@@ -124,18 +124,11 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
 
     let output_str = String::from_utf8_lossy(&output.stdout);
 
-    // Print output for debugging
-    // println!("\n        Deployment output:");
-    // for line in output_str.lines() {
-    //     println!("          {}", line);
-    // }
-
     if !output.status.success() {
-        println!("        {} Deployment script failed", "✗".red());
+        warn!("Deployment script failed");
         let stderr_str = String::from_utf8_lossy(&output.stderr);
-        println!("        Error output:");
         for line in stderr_str.lines() {
-            println!("          {}", line);
+            warn!("  {}", line);
         }
         return Err("FOC contract deployment failed".into());
     }
@@ -159,18 +152,16 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
     let mut service_name = String::new();
     let mut service_description = String::new();
 
-    println!("        Parsing deployment output for contract addresses...");
+    info!("        Parsing deployment output for contract addresses...");
 
     // Look for "DEPLOYMENT SUMMARY" section
     let mut in_summary = false;
     let mut in_network_config = false;
 
     for line in output_str.lines() {
-        // println!("        Line: {}", line); // Debug: print each line
-
         if line.contains("DEPLOYMENT SUMMARY") {
             in_summary = true;
-            println!("        Found DEPLOYMENT SUMMARY section");
+            info!("        Found DEPLOYMENT SUMMARY section");
             continue;
         }
 
@@ -183,13 +174,13 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
                 if addr.starts_with("0x") && !addr.is_empty() {
                     // Convert name to snake_case for consistency
                     let snake_case_name = to_snake_case(name);
-                    println!("        Found contract: {} -> {}", snake_case_name, addr);
+                    info!("        Found contract: {} -> {}", snake_case_name, addr);
                     addresses.insert(snake_case_name, addr.to_string());
                 } else {
-                    println!("        Skipping line with invalid address: {}", addr);
+                    info!("        Skipping line with invalid address: {}", addr);
                 }
             } else {
-                println!(
+                info!(
                     "        Skipping line that doesn't split into exactly 2 parts: {}",
                     line
                 );
@@ -200,13 +191,13 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
         if line.contains("Network Configuration") {
             in_network_config = true;
             in_summary = false;
-            println!("        Found Network Configuration section");
+            info!("        Found Network Configuration section");
 
             // Extract network name from "Network Configuration (localnet):"
             if let Some(start) = line.find('(') {
                 if let Some(end) = line.find(')') {
                     network_name = line[start + 1..end].to_string();
-                    println!("        Network name: {}", network_name);
+                    info!("        Network name: {}", network_name);
                 }
             }
             continue;
@@ -221,35 +212,35 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
                 match key {
                     "Challenge finality" => {
                         challenge_finality = value.replace(" epochs", "").trim().to_string();
-                        println!("        Challenge finality: {}", challenge_finality);
+                        info!("        Challenge finality: {}", challenge_finality);
                     }
                     "Max proving period" => {
                         max_proving_period = value.replace(" epochs", "").trim().to_string();
-                        println!("        Max proving period: {}", max_proving_period);
+                        info!("        Max proving period: {}", max_proving_period);
                     }
                     "Challenge window size" => {
                         challenge_window_size = value.replace(" epochs", "").trim().to_string();
-                        println!("        Challenge window size: {}", challenge_window_size);
+                        info!("        Challenge window size: {}", challenge_window_size);
                     }
                     "USDFC token address" => {
                         // Already captured in addresses
-                        println!("        USDFC token address: {}", value);
+                        info!("        USDFC token address: {}", value);
                     }
                     "FilBeam controller address" => {
                         filbeam_controller = Some(value.clone());
-                        println!("        FilBeam controller: {}", value);
+                        info!("        FilBeam controller: {}", value);
                     }
                     "FilBeam beneficiary address" => {
                         filbeam_beneficiary = Some(value.clone());
-                        println!("        FilBeam beneficiary: {}", value);
+                        info!("        FilBeam beneficiary: {}", value);
                     }
                     "Service name" => {
                         service_name = value.clone();
-                        println!("        Service name: {}", value);
+                        info!("        Service name: {}", value);
                     }
                     "Service description" => {
                         service_description = value.clone();
-                        println!("        Service description: {}", value);
+                        info!("        Service description: {}", value);
                     }
                     _ => {}
                 }
@@ -258,19 +249,15 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
     }
 
     if addresses.is_empty() {
-        println!(
-            "        {} No contract addresses found in output",
-            "⚠".yellow()
-        );
-        println!("        Full output:");
+        warn!("        No contract addresses found in output");
+        info!("        Full output:");
         for line in output_str.lines() {
-            println!("          {}", line);
+            info!("          {}", line);
         }
-        println!("        Deployment may have failed or output format changed");
+        info!("        Deployment may have failed or output format changed");
     } else {
-        println!(
-            "        {} Successfully parsed {} contracts from output",
-            "✓".green(),
+        info!(
+            "        Successfully parsed {} contracts from output",
             addresses.len()
         );
     }

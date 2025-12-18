@@ -7,10 +7,10 @@ use crate::docker::{
     core::{get_current_gid, get_current_uid, image_exists},
 };
 use crate::embedded_assets;
-use crate::paths::foc_localnet_docker_volumes;
-use crossterm::style::Stylize;
+use crate::paths::foc_localnet_docker_volumes_cache;
 use std::collections::HashMap;
 use std::fs;
+use tracing::info;
 
 use super::Project;
 
@@ -20,13 +20,9 @@ pub fn build_builder_image(dockerfile_dir: &str) -> Result<String, Box<dyn std::
 
     // Check if image already exists in Docker
     if image_exists(image_tag)? {
-        println!(
-            "{} Docker image {} already exists, skipping build",
-            "✓".green(),
-            image_tag
-        );
+        info!("Docker image {} already exists, skipping build", image_tag);
     } else {
-        println!("{}", "Building Docker image for builder...".bold());
+        info!("Building Docker image for builder...");
         build_image_from_dockerfile(dockerfile_dir, image_tag)?;
     }
 
@@ -100,8 +96,8 @@ pub fn setup_docker_run_args(
     // Load and apply volume mappings for this image
     let volume_map = load_volume_map("builder")?;
     if !volume_map.is_empty() {
-        let volumes_dir = foc_localnet_docker_volumes();
-        let image_volumes_dir = volumes_dir.join("builder");
+        let cache_dir = foc_localnet_docker_volumes_cache();
+        let image_volumes_dir = cache_dir.join("foc-builder");
 
         for (host_subdir, container_path) in volume_map {
             let host_path = image_volumes_dir.join(&host_subdir);

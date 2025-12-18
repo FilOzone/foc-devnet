@@ -4,20 +4,20 @@
 //! for deploying the MockUSDFC contract.
 
 use crate::embedded_assets;
-use crate::paths::foc_localnet_tmp;
-use crossterm::style::Stylize;
+use crate::paths::foc_localnet_run_dir;
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use tracing::info;
 
 /// Get or create the MockUSDFC project directory from embedded assets
 ///
 /// Extracts the embedded MockUSDFC Foundry project to a temporary directory
 /// and returns the path to that directory.
-pub fn get_mockusdfc_project_dir() -> Result<PathBuf, Box<dyn Error>> {
-    let tmp_dir = foc_localnet_tmp();
-    let extract_target = tmp_dir.join("mockusdfc-extract");
+pub fn get_mockusdfc_project_dir(run_id: &str) -> Result<PathBuf, Box<dyn Error>> {
+    let run_dir = foc_localnet_run_dir(run_id);
+    let extract_target = run_dir.join("mockusdfc-extract");
 
     // Always clean and re-extract to ensure we have the latest embedded version
     if extract_target.exists() {
@@ -46,12 +46,12 @@ pub fn setup_foundry_project(contract_dir: &PathBuf) -> Result<(), Box<dyn Error
     let openzeppelin_path = contract_dir.join("lib/openzeppelin-contracts");
 
     if !openzeppelin_path.exists() {
-        println!("      Installing OpenZeppelin contracts...");
+        info!("      Installing OpenZeppelin contracts...");
 
         // First, initialize git repo if it doesn't exist
         let git_dir = contract_dir.join(".git");
         if !git_dir.exists() {
-            println!("        Initializing git repository...");
+            info!("        Initializing git repository...");
             let output = Command::new("docker")
                 .args([
                     "run",
@@ -98,11 +98,11 @@ pub fn setup_foundry_project(contract_dir: &PathBuf) -> Result<(), Box<dyn Error
             .into());
         }
 
-        println!("        {} Dependencies installed", "✓".green());
+        info!("        Dependencies installed");
     }
 
     // Build contracts
-    println!("      Building MockUSDFC contract...");
+    info!("      Building MockUSDFC contract...");
     let output = Command::new("docker")
         .args([
             "run",
@@ -124,6 +124,6 @@ pub fn setup_foundry_project(contract_dir: &PathBuf) -> Result<(), Box<dyn Error
         .into());
     }
 
-    println!("        {} Contracts built", "✓".green());
+    info!("        Contracts built");
     Ok(())
 }

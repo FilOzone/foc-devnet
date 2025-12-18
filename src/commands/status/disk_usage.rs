@@ -7,14 +7,16 @@
 //! - Display formatted size information
 //! - Show breakdown by directory type
 
+use crossterm::style::Stylize;
+use tracing::info;
+
 use crate::paths::{
     foc_localnet_artifacts, foc_localnet_bin, foc_localnet_code, foc_localnet_docker_volumes,
     foc_localnet_home, foc_localnet_logs, foc_localnet_state, foc_localnet_tmp,
 };
-use crossterm::style::Stylize;
 use tabular::{Row, Table};
 
-use super::utils::{format_size, get_directory_size, get_terminal_width};
+use super::utils::{format_size, get_directory_size};
 
 /// Print disk usage information for foc-localnet directories.
 ///
@@ -33,15 +35,7 @@ use super::utils::{format_size, get_directory_size, get_terminal_width};
 ///
 /// Returns an error if directory size calculations fail.
 pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
-    let width = get_terminal_width().min(120);
-    let header_text = format!("{} {}", "💾".blue(), "Disk Usage");
-    // Display width: 💾 (2) + space (1) + "Disk Usage" (10) + space (1) = 14
-    let header_display_width = 2 + 1 + 10 + 1;
-    let padding_len = width.saturating_sub(header_display_width);
-    let padding = "░".repeat(padding_len).dark_grey();
-    println!("\n{} {}", header_text.bold().blue(), padding);
-    let width = get_terminal_width().min(120);
-    println!("{}", "─".repeat(width).blue());
+    info!("Disk Usage");
 
     let home_dir = foc_localnet_home();
 
@@ -56,21 +50,24 @@ pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
 
     // Main directories
     let directories = vec![
-        ("Code", foc_localnet_code()),
-        ("Binaries", foc_localnet_bin()),
+        ("Home", foc_localnet_home()),
         ("Logs", foc_localnet_logs()),
         ("State", foc_localnet_state()),
-        ("Temp", foc_localnet_tmp()),
+        ("Tmp", foc_localnet_tmp()),
+        ("Code", foc_localnet_code()),
+        ("Binaries", foc_localnet_bin()),
     ];
 
-    for (name, path) in directories {
-        let size = get_directory_size(&path)?;
-        table.add_row(
-            Row::new()
-                .with_cell(name)
-                .with_ansi_cell(format_size(size))
-                .with_ansi_cell(path.display().to_string().dim()),
-        );
+    for (name, path) in &directories {
+        if path.exists() {
+            let size = get_directory_size(path)?;
+            table.add_row(
+                Row::new()
+                    .with_ansi_cell(name.to_string())
+                    .with_ansi_cell(format_size(size))
+                    .with_ansi_cell(path.display().to_string().dim()),
+            );
+        }
     }
 
     // Artifacts breakdown
@@ -104,17 +101,13 @@ pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
             .with_ansi_cell(format!("{}/(other files)", other_artifacts_path).dim()),
     );
 
-    print!("{}", table);
+    for line in table.to_string().lines() {
+        info!("{}", line);
+    }
 
     // Total size
     let total_size = get_directory_size(&home_dir)?;
-    let width = get_terminal_width().min(120);
-    println!("{}", "─".repeat(width).blue());
-    println!(
-        "{} {}",
-        "Total foc-localnet size:".blue().bold(),
-        format_size(total_size).blue().bold()
-    );
+    info!("Total foc-localnet size: {}", format_size(total_size));
 
     Ok(())
 }

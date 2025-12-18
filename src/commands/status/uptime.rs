@@ -7,12 +7,12 @@
 //! - Display formatted uptime strings
 //! - Handle cases where the system is not running
 
-use chrono::Utc;
-use crossterm::style::Stylize;
+use chrono::{DateTime, Utc};
 use std::process::Command;
+use tracing::{info, warn};
 
-use super::utils::{format_duration, get_terminal_width};
-use crate::docker::status::{get_running_foc_containers, get_system_start_time};
+use super::utils::format_duration;
+use crate::docker::status::{get_container_start_time, get_running_foc_containers};
 
 /// Get the current lotus chain block height.
 ///
@@ -186,58 +186,61 @@ fn parse_memory_value(mem_str: &str) -> Option<f64> {
 ///
 /// Returns an error if Docker commands fail.
 pub fn print_uptime() -> Result<(), Box<dyn std::error::Error>> {
-    let width = get_terminal_width().min(120);
-    let header_text = format!("{} {}", "⏱️".magenta(), "System Uptime");
-    // Display width: ⏱️ (2) + space (1) + "System Uptime" (13) + space (1) = 17
-    let header_display_width = 2 + 1 + 13 + 1;
-    let padding_len = width.saturating_sub(header_display_width);
-    let padding = "░".repeat(padding_len).dark_grey();
-    println!("\n{} {}", header_text.bold().magenta(), padding);
-    let width = get_terminal_width().min(120);
-    println!("{}", "─".repeat(width).magenta());
+    info!("System Uptime");
 
     let containers = get_running_foc_containers()?;
 
     if containers.is_empty() {
-        println!("{}", "System is not running".red());
+        info!("System is not running");
         return Ok(());
     }
 
     // Get the oldest container start time as system start time
-    if let Some(start_time) = get_system_start_time()? {
+    let mut oldest_start_time: Option<DateTime<Utc>> = None;
+
+    for container in &containers {
+        if let Ok(start_time_str) = get_container_start_time(container) {
+            if let Ok(start_time) = DateTime::parse_from_rfc3339(&start_time_str) {
+                let start_time_utc = start_time.with_timezone(&Utc);
+                match oldest_start_time {
+                    None => oldest_start_time = Some(start_time_utc),
+                    Some(oldest) if start_time_utc < oldest => {
+                        oldest_start_time = Some(start_time_utc)
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    if let Some(start_time) = oldest_start_time {
         let now = Utc::now();
         let uptime = now.signed_duration_since(start_time);
 
         let total_seconds = uptime.num_seconds();
         let uptime_str = format_duration(total_seconds);
 
-        println!("{} {}", "System uptime:".green(), uptime_str.green().bold());
+        info!("System uptime: {}", uptime_str);
 
         // Try to get lotus block height if chain is running
         if let Some(block_height) = get_lotus_block_height() {
-            println!(
-                "{} {}",
-                "Chain height (lotus):".green(),
-                block_height.to_string().green().bold()
-            );
+            info!("Chain height (lotus): {}", block_height);
         }
 
         // Display CPU usage
         if let Some(cpu_usage) = get_containers_cpu_usage() {
-            println!("{} {:.1}%", "Containers CPU usage:".green(), cpu_usage);
+            info!("Containers CPU usage: {:.1}%", cpu_usage);
         }
 
         // Display RAM usage
         if let Some((used_ram, total_ram)) = get_containers_memory_usage() {
-            println!(
-                "{} {:.1}GB / {:.1}GB",
-                "Containers RAM usage:".green(),
-                used_ram,
-                total_ram
+            info!(
+                "Containers RAM usage: {:.1}GB / {:.1}GB",
+                used_ram, total_ram
             );
         }
     } else {
-        println!("{}", "Unable to determine uptime".yellow());
+        warn!("Unable to determine uptime");
     }
 
     Ok(())

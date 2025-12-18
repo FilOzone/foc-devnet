@@ -2,26 +2,22 @@
 //!
 //! Handles importing PDP private keys via Curio Web RPC API.
 
-use super::super::step::StepContext;
+use super::super::step::SetupContext;
 use super::constants::{CURIO_WEB_RPC_PORT, PDP_KEY_IMPORT_WAIT_SECS};
 use crate::commands::init::keys::KeyInfo;
-use crossterm::style::Stylize;
 use std::error::Error;
 use std::fs;
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
+use tracing::info;
 
 /// Import PDP private key for a specific PDP SP.
 ///
 /// Uses JSON-RPC to call: CurioWeb.ImportPDPKey
 /// Verifies the returned address matches the expected PDP_SP_X address.
-pub fn import_pdp_key(context: &StepContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
-    println!(
-        "    {} Importing PDP private key for PDP SP {}...",
-        "✓".green(),
-        sp_index
-    );
+pub fn import_pdp_key(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
+    info!("    Importing PDP private key for PDP SP {}...", sp_index);
 
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let container_name = format!("foc-{}-curio-{}", run_id, sp_index);
@@ -42,11 +38,9 @@ pub fn import_pdp_key(context: &StepContext, sp_index: usize) -> Result<(), Box<
         .into());
     }
 
-    println!(
-        "    {} PDP key imported and verified for {} ({})",
-        "✓".green(),
-        pdp_sp_name,
-        returned_address
+    info!(
+        "    PDP key imported and verified for {} ({})",
+        pdp_sp_name, returned_address
     );
 
     Ok(())

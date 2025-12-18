@@ -2,10 +2,14 @@
 //!
 //! This module contains the core deployment functionality for the Multicall3 contract.
 
+use super::key_management;
+use super::prerequisites::check_required_addresses;
+use crate::commands::start::lotus_utils::get_lotus_rpc_url;
 use crate::paths::foc_localnet_multicall3_repo;
 use crossterm::style::Stylize;
 use std::error::Error;
 use std::process::Command;
+use tracing::{error, info};
 
 /// Deploy Multicall3 using forge create
 pub fn deploy_multicall3(
@@ -13,7 +17,7 @@ pub fn deploy_multicall3(
     lotus_rpc_url: &str,
     run_id: &str,
 ) -> Result<String, Box<dyn Error>> {
-    println!("      Deploying Multicall3 contract...");
+    info!("      Deploying Multicall3 contract...");
 
     // Get the multicall3 repository path
     let multicall3_repo = foc_localnet_multicall3_repo();
@@ -32,7 +36,7 @@ pub fn deploy_multicall3(
         return Err(format!("Multicall3.sol not found at: {}", contract_file.display()).into());
     }
 
-    println!("      Compiling and deploying contract...");
+    info!("      Compiling and deploying contract...");
 
     // Deploy using forge create with explicit gas limit for FEVM
     let deploy_cmd = format!(
@@ -69,18 +73,18 @@ pub fn deploy_multicall3(
 
     // Print output for debugging
     if !stdout.is_empty() {
-        println!("        Deployment output:");
+        info!("        Deployment output:");
         for line in stdout.lines() {
-            println!("          {}", line);
+            info!("          {}", line);
         }
     }
 
     if !output.status.success() {
-        println!("        {} Deployment failed", "✗".red());
+        error!("        ✗ Deployment failed");
         if !stderr.is_empty() {
-            println!("        Error output:");
+            error!("        Error output:");
             for line in stderr.lines() {
-                println!("          {}", line);
+                error!("          {}", line);
             }
         }
         return Err("Multicall3 deployment failed".into());
@@ -94,34 +98,25 @@ pub fn deploy_multicall3(
         .and_then(|line| line.split_whitespace().last())
         .ok_or("Failed to extract contract address from deployment output")?;
 
-    println!(
-        "        {} Multicall3 deployed at: {}",
-        "✓".green(),
-        contract_address.cyan().bold()
-    );
+    info!("        ✓ Multicall3 deployed at: {}", contract_address);
 
     Ok(contract_address.to_string())
 }
 
 /// Perform the Multicall3 deployment process
 pub fn perform_deployment(
-    volumes_dir: &std::path::PathBuf,
-    context: &crate::commands::start::step::StepContext,
+    _volumes_dir: &std::path::PathBuf,
+    context: &super::super::step::SetupContext,
 ) -> Result<(), Box<dyn Error>> {
-    use super::key_management::get_deployer_private_key;
-    use super::prerequisites::check_required_addresses;
-    use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
-    use crate::commands::start::lotus_utils::get_lotus_rpc_url;
-
-    println!("    Deploying Multicall3 contract...");
+    info!("    Deploying Multicall3 contract...");
 
     // Get required addresses from context
     let (multicall3_deployer, multicall3_deployer_eth) = check_required_addresses(context)?;
 
-    // Get deployer private key from the exported key file
-    let private_key = get_deployer_private_key(volumes_dir, &multicall3_deployer)?;
+    // Get deployer private key from addresses.json
+    let private_key = key_management::get_deployer_private_key(&multicall3_deployer)?;
 
-    println!(
+    info!(
         "      Deployer ETH address: {}",
         multicall3_deployer_eth.cyan()
     );
@@ -135,11 +130,13 @@ pub fn perform_deployment(
     context.set("multicall3_address", &multicall3_address);
 
     // Load existing contract addresses and add multicall3
-    let mut addresses_struct = ContractAddresses::load().unwrap_or_else(|_| {
-        // If no existing addresses, create a minimal struct
-        // This shouldn't happen as multicall3 runs after other deployments
-        ContractAddresses::default()
-    });
+    let mut addresses_struct =
+        crate::commands::start::foc_deploy::contract_addresses::ContractAddresses::load(run_id)
+            .unwrap_or_else(|_| {
+                // If no existing addresses, create a minimal struct
+                // This shouldn't happen as multicall3 runs after other deployments
+                crate::commands::start::foc_deploy::contract_addresses::ContractAddresses::default()
+            });
 
     // Add multicall3 to contracts
     addresses_struct
@@ -147,18 +144,14 @@ pub fn perform_deployment(
         .insert("multicall".to_string(), multicall3_address.clone());
 
     // Save updated addresses
-    addresses_struct.save()?;
+    addresses_struct.save(run_id)?;
 
     // Verify the deployment
     super::verification::verify_multicall3(&private_key, &multicall3_address, &lotus_rpc_url)?;
 
-    println!(
-        "\n    {} Multicall3 contract deployed successfully!",
-        "✓".green().bold()
-    );
-    println!(
-        "      Contract Address: {}",
-        multicall3_address.cyan().bold()
+    info!(
+        "✓ Multicall3 contract deployed successfully! Address: {}",
+        multicall3_address
     );
 
     Ok(())

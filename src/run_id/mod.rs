@@ -55,6 +55,32 @@ pub fn generate_run_id() -> String {
     format!("{}-{}_{}", date, time, random_name)
 }
 
+/// Create a symlink to the latest run directory.
+pub fn create_latest_symlink(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let latest_link = crate::paths::foc_localnet_state_latest();
+    let run_dir = crate::paths::foc_localnet_run_dir(run_id);
+
+    // Remove existing symlink if it exists
+    if latest_link.exists() || latest_link.is_symlink() {
+        #[cfg(unix)]
+        std::fs::remove_file(&latest_link)?;
+        #[cfg(windows)]
+        if latest_link.is_dir() {
+            std::fs::remove_dir(&latest_link)?;
+        } else {
+            std::fs::remove_file(&latest_link)?;
+        }
+    }
+
+    // Create new symlink
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&run_dir, &latest_link)?;
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_dir(&run_dir, &latest_link)?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

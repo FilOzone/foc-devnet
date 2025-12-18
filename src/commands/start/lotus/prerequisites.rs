@@ -8,14 +8,14 @@ use crate::paths::{
     foc_localnet_bin, foc_localnet_genesis, foc_localnet_genesis_sectors,
     foc_localnet_proof_parameters,
 };
-use crossterm::style::Stylize;
 use std::error::Error;
+use tracing::info;
 
 const IMAGE_NAME: &str = "foc-lotus";
 
 /// Verify that the genesis block file exists
-pub fn verify_genesis_file() -> Result<std::path::PathBuf, Box<dyn Error>> {
-    let genesis_dir = foc_localnet_genesis();
+pub fn verify_genesis_file(run_id: &str) -> Result<std::path::PathBuf, Box<dyn Error>> {
+    let genesis_dir = foc_localnet_genesis(run_id);
     let genesis_file = genesis_dir.join(GENESIS_FILE);
 
     if !genesis_file.exists() {
@@ -38,7 +38,7 @@ pub fn check_image_and_binary() -> Result<(), Box<dyn Error>> {
         )
         .into());
     }
-    println!("    {} Docker image '{}' found", "✓".green(), IMAGE_NAME);
+    info!("    ✓ Docker image '{}' found", IMAGE_NAME);
 
     // Verify lotus binary exists
     let lotus_bin = foc_localnet_bin().join("lotus");
@@ -46,19 +46,15 @@ pub fn check_image_and_binary() -> Result<(), Box<dyn Error>> {
         return Err("Lotus binary not found. Please run 'foc-localnet build lotus' first.".into());
     }
 
-    println!("    {} Lotus binary found", "✓".green());
+    info!("    ✓ Lotus binary found");
     Ok(())
 }
 
 /// Check that genesis file, proof parameters, and sectors exist
-pub fn check_genesis_and_params() -> Result<(), Box<dyn Error>> {
+pub fn check_genesis_and_params(run_id: &str) -> Result<(), Box<dyn Error>> {
     // Verify genesis file exists
-    let genesis_file = verify_genesis_file()?;
-    println!(
-        "    {} Genesis file found at {}",
-        "✓".green(),
-        genesis_file.display()
-    );
+    let genesis_file = verify_genesis_file(run_id)?;
+    info!("    ✓ Genesis file found at {}", genesis_file.display());
 
     // Verify proof parameters exist
     let params_dir = foc_localnet_proof_parameters();
@@ -68,16 +64,16 @@ pub fn check_genesis_and_params() -> Result<(), Box<dyn Error>> {
         );
     }
 
-    println!("    {} Proof parameters found", "✓".green());
+    info!("    ✓ Proof parameters found");
 
     // Verify pre-sealed sectors exist
-    let sectors_dir = foc_localnet_genesis_sectors();
+    let sectors_dir = foc_localnet_genesis_sectors(run_id);
     if !sectors_dir.exists() || sectors_dir.read_dir()?.next().is_none() {
         return Err(
             "Pre-sealed sectors not found. They should have been created during genesis preparation.".into(),
         );
     }
 
-    println!("    {} Pre-sealed sectors found", "✓".green());
+    info!("    ✓ Pre-sealed sectors found");
     Ok(())
 }

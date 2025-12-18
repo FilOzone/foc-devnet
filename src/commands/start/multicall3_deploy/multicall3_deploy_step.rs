@@ -3,28 +3,28 @@
 //! This module contains the MultiCall3DeployStep struct and its implementation
 //! of the Step trait for deploying the Multicall3 contract.
 
-use super::super::step::{Step, StepContext};
+use super::super::step::{SetupContext, Step};
 use super::deployment::perform_deployment;
 use super::prerequisites::{
     check_existing_deployment, check_lotus_running, check_required_addresses,
 };
-use crossterm::style::Stylize;
 use std::error::Error;
 use std::path::PathBuf;
+use tracing::info;
 
 /// Step for deploying Multicall3 contract
 pub struct MultiCall3DeployStep {
     volumes_dir: PathBuf,
     #[allow(dead_code)]
-    logs_dir: PathBuf,
+    run_dir: PathBuf,
 }
 
 impl MultiCall3DeployStep {
     /// Create a new MultiCall3DeployStep
-    pub fn new(volumes_dir: PathBuf, logs_dir: PathBuf) -> Self {
+    pub fn new(volumes_dir: PathBuf, run_dir: PathBuf) -> Self {
         Self {
             volumes_dir,
-            logs_dir,
+            run_dir,
         }
     }
 }
@@ -35,34 +35,26 @@ impl Step for MultiCall3DeployStep {
         "Deploy Multicall3 Contract"
     }
 
-    fn pre_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
+    fn pre_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         // Check if Lotus is running
         check_lotus_running(context)?;
-        println!("    {} Lotus is running", "✓".green());
+        info!("    ✓ Lotus is running");
 
         // Check if required addresses are available
         let (multicall3_deployer, multicall3_deployer_eth) = check_required_addresses(context)?;
-        println!(
-            "    {} DEPLOYER_MULTICALL3 address: {}",
-            "✓".green(),
-            multicall3_deployer.cyan()
-        );
-        println!(
-            "    {} DEPLOYER_MULTICALL3 Ethereum address: {}",
-            "✓".green(),
-            multicall3_deployer_eth.cyan()
+        info!("    ✓ DEPLOYER_MULTICALL3 address: {}", multicall3_deployer);
+        info!(
+            "    ✓ DEPLOYER_MULTICALL3 Ethereum address: {}",
+            multicall3_deployer_eth
         );
 
         Ok(())
     }
 
     /// Execute the contract deployment process
-    fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
+    fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         if check_existing_deployment(context) {
-            println!(
-                "    {} Multicall3 contract already deployed, skipping...",
-                "✓".green()
-            );
+            info!("    ✓ Multicall3 contract already deployed, skipping...");
             return Ok(());
         }
 
@@ -71,29 +63,18 @@ impl Step for MultiCall3DeployStep {
     }
 
     /// Perform post-execution verification for contract deployment
-    fn post_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
-        println!("    Verifying Multicall3 deployment...");
+    fn post_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
+        info!("    Verifying Multicall3 deployment...");
 
         // Check if contract address is in context
         if let Some(contract_address) = context.get("multicall3_address") {
-            println!(
-                "      {} Multicall3 address: {}",
-                "✓".green(),
-                contract_address.as_str().cyan().bold()
-            );
+            info!("      ✓ Multicall3 address: {}", contract_address);
         } else {
-            println!(
-                "      {} Multicall3 address not found in context",
-                "✗".red()
-            );
             return Err("Multicall3 deployment failed - no address in context".into());
         }
 
-        println!(
-            "\n    {} Multicall3 deployment step completed!",
-            "✓".green().bold()
-        );
-        println!("      Contract is ready for use.");
+        info!("    ✓ Multicall3 deployment step completed!");
+        info!("      Contract is ready for use.");
 
         Ok(())
     }

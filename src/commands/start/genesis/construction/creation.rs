@@ -3,10 +3,10 @@
 //! This module handles creating the initial genesis file using lotus-seed.
 
 use crate::commands::start::genesis::constants;
-use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_genesis};
-use crossterm::style::Stylize;
+use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes_cache, foc_localnet_genesis};
 use std::fs;
 use std::process::Command;
+use tracing::info;
 
 /// Create the initial genesis file.
 ///
@@ -16,9 +16,9 @@ use std::process::Command;
 /// Note: This function assumes the genesis file does not already exist.
 /// The caller should check for existence first.
 pub fn create_genesis_file(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let genesis_dir = foc_localnet_genesis();
+    let genesis_dir = foc_localnet_genesis(run_id);
 
-    println!("  {} Creating genesis file...", "📜".cyan());
+    info!("  📜 Creating genesis file...");
 
     // Ensure genesis directory exists
     fs::create_dir_all(&genesis_dir)?;
@@ -31,7 +31,7 @@ pub fn create_genesis_file(run_id: &str) -> Result<(), Box<dyn std::error::Error
 
     // Run lotus-seed genesis new in builder container
     let bin_dir = foc_localnet_bin();
-    let builder_volumes_dir = foc_localnet_docker_volumes().join("builder");
+    let builder_volumes_dir = foc_localnet_docker_volumes_cache().join("foc-builder");
 
     // Build docker args with network environment variables
     let mut docker_args = vec![
@@ -68,6 +68,6 @@ pub fn create_genesis_file(run_id: &str) -> Result<(), Box<dyn std::error::Error
         .into());
     }
 
-    println!("  {} Genesis file created successfully", "✓".green());
+    info!("  ✓ Genesis file created successfully");
     Ok(())
 }

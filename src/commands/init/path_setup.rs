@@ -3,11 +3,11 @@
 //! This module handles the setup of PATH environment variables in shell
 //! configuration files (.bashrc and .zshrc).
 
-use crossterm::style::Stylize;
 use dirs;
 use std::env;
 use std::fs;
 use std::path::Path;
+use tracing::{info, warn};
 
 use crate::paths::foc_localnet_bin;
 
@@ -24,25 +24,25 @@ pub fn setup_path_variables() -> Result<(), Box<dyn std::error::Error>> {
     let bin_path_str = bin_path.to_string_lossy().to_string();
 
     if is_path_in_env(&bin_path_str) {
-        println!("  {} PATH already includes: {}", "✓".green(), bin_path_str);
+        info!("  PATH already includes: {}", bin_path_str);
         return Ok(());
     }
 
-    println!("{}", "Setting up PATH variables...".bold());
+    info!("Setting up PATH variables...");
 
     if let Some(home) = dirs::home_dir() {
         let bashrc = home.join(".bashrc");
         if let Err(e) = add_path_to_shell_config(&bashrc, &bin_path_str) {
-            println!("  {} Failed to update .bashrc: {}", "⚠".yellow(), e);
+            warn!("  Failed to update .bashrc: {}", e);
         } else {
-            println!("  {} Updated .bashrc", "✓".green());
+            info!("  Updated .bashrc");
         }
 
         let zshrc = home.join(".zshrc");
         if let Err(e) = add_path_to_shell_config(&zshrc, &bin_path_str) {
-            println!("  {} Failed to update .zshrc: {}", "⚠".yellow(), e);
+            warn!("  Failed to update .zshrc: {}", e);
         } else {
-            println!("  {} Updated .zshrc", "✓".green());
+            info!("  Updated .zshrc");
         }
     }
 

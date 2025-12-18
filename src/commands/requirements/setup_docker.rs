@@ -2,8 +2,8 @@
 //!
 //! This module contains functions for installing Docker on various platforms.
 
-use crossterm::style::Stylize;
 use std::process::Command;
+use tracing::{error, info, warn};
 
 pub mod linux;
 pub mod macos;
@@ -12,46 +12,30 @@ pub mod macos;
 pub fn install_docker() -> Result<(), Box<dyn std::error::Error>> {
     // On macOS, use brew to install Docker Desktop
     if cfg!(target_os = "macos") {
-        println!("{}", "📦 Installing Docker Desktop via Homebrew...".blue());
+        info!("Installing Docker Desktop via Homebrew...");
         let status = Command::new("brew")
             .args(["install", "--cask", "docker"])
             .status()?;
         if status.success() {
-            println!("{}", "✅ Docker Desktop installed successfully.".green());
-            println!(
-                "{}",
-                "🚀 Please start Docker Desktop manually if it's not already running.".yellow()
-            );
+            info!("Docker Desktop installed successfully.");
+            warn!("Please start Docker Desktop manually if it's not already running.");
             return Ok(());
         } else {
-            eprintln!("{}", "❌ Failed to install Docker via Homebrew.".red());
+            error!("Failed to install Docker via Homebrew.");
         }
     } else if cfg!(target_os = "linux") {
         // Try to detect the Linux distribution
         if linux::is_ubuntu_or_debian()? {
-            println!("{}", "📦 Installing Docker CE on Ubuntu/Debian...".blue());
+            info!("Installing Docker CE on Ubuntu/Debian...");
             linux::install_docker_ubuntu()?;
             return Ok(());
         } else {
-            eprintln!(
-                "{}",
-                "❌ Automatic Docker installation is not supported on this Linux distribution."
-                    .red()
-            );
-            eprintln!(
-                "{}",
-                "Please install Docker manually for your platform.".cyan()
-            );
+            error!("Automatic Docker installation is not supported on this Linux distribution.");
+            info!("Please install Docker manually for your platform.");
         }
     } else {
-        eprintln!(
-            "{}",
-            "❌ Automatic Docker installation is only supported on macOS and Ubuntu/Debian.".red()
-        );
-        eprintln!(
-            "{}",
-            "Please install Docker manually for your platform.".cyan()
-        );
+        error!("Automatic Docker installation is only supported on macOS and Ubuntu/Debian.");
+        info!("Please install Docker manually for your platform.");
     }
     Err("Failed to install Docker".into())
 }

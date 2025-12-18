@@ -6,6 +6,7 @@
 use crate::config::{Config, Location};
 use crate::paths::foc_localnet_config;
 use std::fs;
+use tracing::info;
 
 /// Configure the Lotus source location in the config file.
 ///
@@ -74,7 +75,7 @@ fn update_config_location(
     fs::write(&config_path, updated_content)
         .map_err(|e| format!("Failed to write config file: {}", e))?;
 
-    println!(
+    info!(
         "Successfully updated {} configuration to: {}",
         field, source
     );

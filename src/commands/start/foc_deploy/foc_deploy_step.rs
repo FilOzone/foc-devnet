@@ -7,17 +7,17 @@ use super::deployment::{check_existing_deployment, perform_deployment, post_exec
 use super::helpers::{
     check_lotus_running, check_required_addresses, get_filecoin_services_repo_path,
 };
-use crate::commands::start::step::{Step, StepContext};
-use crossterm::style::Stylize;
+use crate::commands::start::step::{SetupContext, Step};
 use std::error::Error;
 use std::path::PathBuf;
+use tracing::info;
 
 /// Step for deploying FOC service contracts
 pub struct FOCDeployStep {
     #[allow(dead_code)]
     volumes_dir: PathBuf,
     #[allow(dead_code)]
-    logs_dir: PathBuf,
+    run_dir: PathBuf,
 }
 
 impl FOCDeployStep {
@@ -25,11 +25,11 @@ impl FOCDeployStep {
     ///
     /// # Arguments
     /// * `volumes_dir` - Directory for Docker volumes
-    /// * `logs_dir` - Directory for log files
-    pub fn new(volumes_dir: PathBuf, logs_dir: PathBuf) -> Self {
+    /// * `run_dir` - Directory for run-specific data and logs
+    pub fn new(volumes_dir: PathBuf, run_dir: PathBuf) -> Self {
         Self {
             volumes_dir,
-            logs_dir,
+            run_dir,
         }
     }
 }
@@ -41,9 +41,9 @@ impl Step for FOCDeployStep {
     }
 
     /// Perform pre-execution checks
-    fn pre_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
+    fn pre_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         check_lotus_running(context)?;
-        println!("    {} Lotus is running", "✓".green());
+        info!("    Lotus is running");
 
         let services_repo = get_filecoin_services_repo_path()?;
         if !services_repo.exists() {
@@ -54,7 +54,7 @@ impl Step for FOCDeployStep {
             )
             .into());
         }
-        println!("    {} filecoin-services repository found", "✓".green());
+        info!("    filecoin-services repository found");
 
         // Check if deployment script exists
         let deploy_script = services_repo
@@ -67,27 +67,19 @@ impl Step for FOCDeployStep {
                 format!("Deployment script not found at {}", deploy_script.display()).into(),
             );
         }
-        println!("    {} Deployment script found", "✓".green());
+        info!("    Deployment script found");
 
         // Check if required addresses are available
         let (_foc_deployer, foc_deployer_eth, mock_usdfc, _global_faucet) =
             check_required_addresses(context)?;
-        println!(
-            "    {} DEPLOYER_FOC Ethereum address: {}",
-            "✓".green(),
-            foc_deployer_eth
-        );
-        println!(
-            "    {} MockUSDFC token address: {}",
-            "✓".green(),
-            mock_usdfc
-        );
+        info!("    DEPLOYER_FOC Ethereum address: {}", foc_deployer_eth);
+        info!("    MockUSDFC token address: {}", mock_usdfc);
 
         Ok(())
     }
 
     /// Execute the FOC deployment process
-    fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
+    fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         if check_existing_deployment(context)? {
             return Ok(());
         }
@@ -97,7 +89,7 @@ impl Step for FOCDeployStep {
     }
 
     /// Perform post-execution verification for FOC deployment
-    fn post_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
+    fn post_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         post_execute_verification(context)
     }
 }

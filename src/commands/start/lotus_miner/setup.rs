@@ -17,8 +17,8 @@ pub fn setup_miner_directories(volumes_dir: &PathBuf) -> Result<(), Box<dyn Erro
 }
 
 /// Find the pre-seal metadata and key files for the Lotus miner (t01000)
-pub fn find_preseal_files() -> Result<(String, String), Box<dyn Error>> {
-    let sectors_dir = foc_localnet_genesis_sectors_lotus_miner();
+pub fn find_preseal_files(run_id: &str) -> Result<(String, String), Box<dyn Error>> {
+    let sectors_dir = foc_localnet_genesis_sectors_lotus_miner(run_id);
 
     let preseal_file = "pre-seal-t01000.json";
     let preseal_key_file = "pre-seal-t01000.key";

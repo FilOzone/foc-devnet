@@ -1,6 +1,6 @@
-use crossterm::style::Stylize;
 use std::fs;
 use std::path::PathBuf;
+use tracing::{info, warn};
 
 use crate::paths::foc_localnet_state;
 
@@ -19,26 +19,17 @@ pub fn check_and_recover_poison() -> Result<(), Box<dyn std::error::Error>> {
     let poison_path = poison_file_path()?;
 
     if poison_path.exists() {
-        println!(
-            "{}",
-            format!("Poison file detected at: {}", poison_path.display()).yellow()
-        );
+        warn!("Poison file detected at: {}", poison_path.display());
 
         display_poison_contents(&poison_path)?;
 
-        println!(
-            "{}",
-            "This indicates a previous command may have failed. Attempting recovery...".yellow()
-        );
+        warn!("This indicates a previous command may have failed. Attempting recovery...");
 
         perform_recovery()?;
 
         // Remove the poison file after warning
         fs::remove_file(&poison_path)?;
-        println!(
-            "{}",
-            "Poison file removed. Proceeding with caution.".green()
-        );
+        info!("Poison file removed. Proceeding with caution.");
     }
 
     Ok(())
@@ -48,18 +39,15 @@ pub fn check_and_recover_poison() -> Result<(), Box<dyn std::error::Error>> {
 fn display_poison_contents(poison_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     match fs::read_to_string(poison_path) {
         Ok(contents) => {
-            println!("{}", "Poison file contents:".yellow());
+            warn!("Poison file contents:");
             for line in contents.lines() {
                 if !line.trim().is_empty() {
-                    println!("  {}", line.yellow());
+                    warn!("  {}", line);
                 }
             }
         }
         Err(e) => {
-            println!(
-                "{}",
-                format!("Could not read poison file contents: {}", e).yellow()
-            );
+            warn!("Could not read poison file contents: {}", e);
         }
     }
     Ok(())
@@ -70,14 +58,8 @@ fn display_poison_contents(poison_path: &PathBuf) -> Result<(), Box<dyn std::err
 /// Currently a placeholder for future recovery logic.
 fn perform_recovery() -> Result<(), Box<dyn std::error::Error>> {
     // TODO: Implement actual recovery logic when more details are available
-    println!(
-        "{}",
-        "Recovery logic not yet implemented. Please check system state manually.".yellow()
-    );
-    println!(
-        "{}",
-        "You may need to manually clean up any running containers or inconsistent state.".yellow()
-    );
+    warn!("Recovery logic not yet implemented. Please check system state manually.");
+    warn!("You may need to manually clean up any running containers or inconsistent state.");
     Ok(())
 }
 
@@ -89,10 +71,7 @@ pub fn create_poison(command: &str) -> Result<(), Box<dyn std::error::Error>> {
     let log_entry = format!("{} invoked at {}\n", command, timestamp);
 
     fs::write(&poison_path, log_entry)?;
-    println!(
-        "{}",
-        format!("Poison file created at: {}", poison_path.display()).cyan()
-    );
+    info!("Poison file created at: {}", poison_path.display());
     Ok(())
 }
 

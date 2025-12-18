@@ -7,13 +7,13 @@ use crate::paths::{
     foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_proof_parameters,
     CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
 };
-use crossterm::style::Stylize;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::fs;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
+use tracing::info;
 
 /// Ensure Filecoin proof parameters are downloaded.
 ///
@@ -24,18 +24,14 @@ pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
 
     // Check if parameters already exist and are valid
     if params_dir.exists() && validate_proof_parameters(&params_dir)? {
-        println!(
-            "  {} Proof parameters already exist at {}",
-            "✓".green(),
+        info!(
+            "  ✓ Proof parameters already exist at {}",
             params_dir.display()
         );
         return Ok(());
     }
 
-    println!(
-        "  {} Downloading proof parameters (this may take a while)...",
-        "⬇".cyan()
-    );
+    info!("  ⬇ Downloading proof parameters (this may take a while)...");
 
     // Create the directory
     fs::create_dir_all(&params_dir)?;
@@ -88,7 +84,7 @@ pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let mut child = Command::new("docker")
+    let child = Command::new("docker")
         .args([
             "run",
             "--rm",
@@ -122,16 +118,20 @@ pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
         .stderr(Stdio::null())
         .spawn()?;
 
-    let status = child.wait()?;
+    let output = child.wait_with_output()?;
 
     pb.finish_and_clear();
     drop(update_handle);
 
-    if !status.success() {
-        return Err("Failed to download proof parameters. Check Docker logs for details.".into());
+    if !output.status.success() {
+        return Err(format!(
+            "Failed to download proof parameters: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
     }
 
-    println!("  {} Proof parameters downloaded successfully", "✓".green());
+    info!("  ✓ Proof parameters downloaded successfully");
     Ok(())
 }
 

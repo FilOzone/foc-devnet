@@ -8,20 +8,22 @@ use crate::commands::start::foc_deployer::deploy_foc_contracts;
 use crate::paths::{contract_addresses_file, foc_metadata_file};
 use crossterm::style::Stylize;
 use std::error::Error;
+use tracing::{info, warn};
 
 /// Check if FOC contracts are already deployed
 ///
 /// # Arguments
-/// * `context` - The step context to store contract addresses
+/// * `context` - The setup context to store contract addresses
 ///
 /// # Returns
 /// true if contracts are already deployed, false otherwise
 pub fn check_existing_deployment(
-    context: &crate::commands::start::step::StepContext,
+    context: &crate::commands::start::step::SetupContext,
 ) -> Result<bool, Box<dyn Error>> {
-    if let Ok(existing_addresses) = ContractAddresses::load() {
+    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    if let Ok(existing_addresses) = ContractAddresses::load(run_id) {
         if !existing_addresses.foc_contracts.is_empty() {
-            println!(
+            info!(
                 "    {} FOC contracts already deployed, skipping deployment...",
                 "✓".green()
             );
@@ -39,11 +41,11 @@ pub fn check_existing_deployment(
 /// Perform the FOC contract deployment process
 ///
 /// # Arguments
-/// * `context` - The step context containing required addresses
+/// * `context` - The setup context containing required addresses
 pub fn perform_deployment(
-    context: &crate::commands::start::step::StepContext,
+    context: &crate::commands::start::step::SetupContext,
 ) -> Result<(), Box<dyn Error>> {
-    println!("    Deploying FOC service contracts...");
+    info!("    Deploying FOC service contracts...");
 
     // Get required addresses from context
     let (foc_deployer, foc_deployer_eth, mock_usdfc_address, _global_faucet) =
@@ -74,25 +76,25 @@ pub fn perform_deployment(
 
     // Load existing addresses and update with FOC contracts
     let mut addresses_struct =
-        ContractAddresses::load().unwrap_or_else(|_| ContractAddresses::default());
+        ContractAddresses::load(run_id).unwrap_or_else(|_| ContractAddresses::default());
 
     addresses_struct.foc_contracts = contract_addresses.addresses.clone();
     addresses_struct.filbeam_controller = contract_addresses.filbeam_controller.clone();
     addresses_struct.filbeam_beneficiary = contract_addresses.filbeam_beneficiary.clone();
 
-    addresses_struct.save()?;
-    println!(
+    addresses_struct.save(run_id)?;
+    info!(
         "      {} Contract addresses saved to {}",
         "✓".green(),
-        contract_addresses_file().display()
+        contract_addresses_file(run_id).display()
     );
 
     // Save network metadata
-    contract_addresses.metadata.save()?;
-    println!(
+    contract_addresses.metadata.save(run_id)?;
+    info!(
         "      {} Network metadata saved to {}",
         "✓".green(),
-        foc_metadata_file().display()
+        foc_metadata_file(run_id).display()
     );
 
     Ok(())
@@ -103,29 +105,22 @@ pub fn perform_deployment(
 /// # Arguments
 /// * `context` - The step context to verify
 pub fn post_execute_verification(
-    context: &crate::commands::start::step::StepContext,
+    context: &crate::commands::start::step::SetupContext,
 ) -> Result<(), Box<dyn Error>> {
-    println!("    Verifying FOC deployment...");
+    info!("    Verifying FOC deployment...");
 
     // Check if contracts were deployed
     let contract_keys = context.get_keys_matching(|k| k.starts_with("foc_contract_"));
     let contract_count = contract_keys.len();
 
     if contract_count > 0 {
-        println!(
-            "      {} {} contracts verified in context",
-            "✓".green(),
-            contract_count
-        );
+        info!("      ✓ {} contracts verified in context", contract_count);
     } else {
-        println!("      {} No contracts found in context", "⚠".yellow());
+        warn!("      ⚠ No contracts found in context");
     }
 
-    println!(
-        "\n    {} FOC deployment step completed!",
-        "✓".green().bold()
-    );
-    println!("      All FOC service contracts are deployed and ready.");
+    info!("    ✓ FOC deployment step completed!");
+    info!("      All FOC service contracts are deployed and ready.");
 
     Ok(())
 }

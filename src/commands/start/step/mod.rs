@@ -6,20 +6,21 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use tabular::{Row, Table};
+use tracing::{info, warn};
 
 use crate::port_allocator::PortAllocator;
 
 /// Context shared across all steps during execution.
 ///
-/// A single `StepContext` instance is created at the start of the step execution sequence
+/// A single `SetupContext` instance is created at the start of the step execution sequence
 /// and can be safely shared across threads. Internal locks protect mutable state.
 ///
 /// # Thread Safety
 ///
-/// StepContext uses internal synchronization (Arc + Mutex) for thread-safe access:
+/// SetupContext uses internal synchronization (Arc + Mutex) for thread-safe access:
 /// - `state`: Protected by Arc<Mutex<>> for concurrent reads/writes
 /// - `port_allocator`: Protected by Arc<Mutex<>> for atomic port allocation
-/// - `run_id` and `logs_dir`: Immutable, safe to access from multiple threads
+/// - `run_id` and `run_dir`: Immutable, safe to access from multiple threads
 ///
 /// # Shared State Pattern
 ///
@@ -31,45 +32,45 @@ use crate::port_allocator::PortAllocator;
 ///
 /// ```rust
 /// // Step 1: ETHAccFundingStep creates an address and stores it
-/// fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
+/// fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
 ///     let deployer_address = create_deployer_address()?;
 ///     context.set("deployer_mockusdfc_eth_address", &deployer_address);
 ///     Ok(())
 /// }
 ///
 /// // Step 2: USDFCDeployStep reads the address and uses it
-/// fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
+/// fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
 ///     let deployer_address = context
 ///         .get("deployer_mockusdfc_eth_address")
 ///         .ok_or("Deployer address not found")?;
 ///     
 ///     let contract_address = deploy_contract(&deployer_address)?;
-///     context.set("mock_usdfc_address", &contract_address);
+///     context.set("mockusdfc_contract_address", &contract_address);
 ///     Ok(())
 /// }
 /// ```
 #[derive(Debug, Clone)]
-pub struct StepContext {
+pub struct SetupContext {
     /// Shared state that can be passed between steps (thread-safe)
     state: Arc<Mutex<HashMap<String, String>>>,
 
     /// Run ID for this execution (e.g., "251203-1246-thirsty-wolf")
     run_id: Option<String>,
 
-    /// Run-specific logs directory (e.g., ~/.foc-localnet/logs/251203-1246-thirsty-wolf)
-    logs_dir: Option<PathBuf>,
+    /// Run-specific directory (e.g., ~/.foc-localnet/run/251203-1246-thirsty-wolf)
+    run_dir: Option<PathBuf>,
 
     /// Port allocator for dynamic port assignment (thread-safe)
     port_allocator: Arc<Mutex<PortAllocator>>,
 }
 
-impl Default for StepContext {
+impl Default for SetupContext {
     fn default() -> Self {
         // Default to a safe port range (will be overridden by actual config)
         Self {
             state: Arc::new(Mutex::new(HashMap::new())),
             run_id: None,
-            logs_dir: None,
+            run_dir: None,
             port_allocator: Arc::new(Mutex::new(
                 PortAllocator::new(5700, 300).expect("Failed to create default port allocator"),
             )),
@@ -77,32 +78,32 @@ impl Default for StepContext {
     }
 }
 
-impl StepContext {
-    /// Create a new StepContext
+impl SetupContext {
+    /// Create a new SetupContext
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Create a StepContext with run ID, logs directory, and port allocator
+    /// Create a SetupContext with run ID, run directory, and port allocator
     pub fn with_run_id_and_ports(
         run_id: String,
-        logs_dir: PathBuf,
+        run_dir: PathBuf,
         port_allocator: PortAllocator,
     ) -> Self {
         Self {
             state: Arc::new(Mutex::new(HashMap::new())),
             run_id: Some(run_id),
-            logs_dir: Some(logs_dir),
+            run_dir: Some(run_dir),
             port_allocator: Arc::new(Mutex::new(port_allocator)),
         }
     }
 
-    /// Create a StepContext with run ID and logs directory (using default port allocator)
-    pub fn with_run_id(run_id: String, logs_dir: PathBuf) -> Self {
+    /// Create a SetupContext with run ID and run directory (using default port allocator)
+    pub fn with_run_id(run_id: String, run_dir: PathBuf) -> Self {
         Self {
             state: Arc::new(Mutex::new(HashMap::new())),
             run_id: Some(run_id),
-            logs_dir: Some(logs_dir),
+            run_dir: Some(run_dir),
             port_allocator: Arc::new(Mutex::new(
                 PortAllocator::new(5700, 300).expect("Failed to create default port allocator"),
             )),
@@ -135,9 +136,9 @@ impl StepContext {
         self.run_id.as_deref()
     }
 
-    /// Get the logs directory for this run
-    pub fn logs_dir(&self) -> Option<&PathBuf> {
-        self.logs_dir.as_ref()
+    /// Get the run directory for this run
+    pub fn run_dir(&self) -> Option<&PathBuf> {
+        self.run_dir.as_ref()
     }
 
     /// Allocate a port from the port allocator (thread-safe)
@@ -161,8 +162,9 @@ impl StepContext {
     /// Save the shared state to a JSON file
     pub fn save_to_file(&self) -> Result<(), Box<dyn Error>> {
         let state = self.state.lock().expect("Failed to lock state");
-        let path = crate::paths::step_context_file();
-        
+        let run_id = self.run_id().ok_or("Run ID not set in context")?;
+        let path = crate::paths::step_context_file(run_id);
+
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -170,7 +172,7 @@ impl StepContext {
 
         let file = std::fs::File::create(&path)?;
         serde_json::to_writer_pretty(file, &*state)?;
-        
+
         Ok(())
     }
 }
@@ -188,7 +190,7 @@ pub trait Step: Send + Sync {
     /// For example: checking if ports are available, checking if required files exist, etc.
     ///
     /// Returns Ok(()) if all checks pass, or an error describing what failed.
-    fn pre_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
+    fn pre_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         let _ = context; // Default implementation does nothing
         Ok(())
     }
@@ -199,7 +201,7 @@ pub trait Step: Send + Sync {
     /// For example: starting a docker container, running a command, etc.
     ///
     /// Returns Ok(()) if execution was successful, or an error describing what failed.
-    fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>>;
+    fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>>;
 
     /// Post-execution verification
     ///
@@ -207,7 +209,7 @@ pub trait Step: Send + Sync {
     /// For example: checking if ports are accessible, verifying a service is responding, etc.
     ///
     /// Returns Ok(()) if verification passes, or an error describing what failed.
-    fn post_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
+    fn post_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         let _ = context; // Default implementation does nothing
         Ok(())
     }
@@ -215,37 +217,27 @@ pub trait Step: Send + Sync {
     /// Run the complete step (pre, execute, post)
     ///
     /// Returns the duration of the step execution.
-    fn run(&self, context: &StepContext) -> Result<Duration, Box<dyn Error>> {
+    fn run(&self, context: &SetupContext) -> Result<Duration, Box<dyn Error>> {
         let start_time = Instant::now();
+        let step_name = self.name();
 
-        println!(
-            "{}",
-            format!("Starting step: {}", self.name()).blue().bold()
-        );
+        info!("=== Step: {} ===", step_name);
 
-        println!("{}", "  Running pre-execution checks...".cyan());
+        info!("  Running pre-execution checks...");
         self.pre_execute(context)?;
-        println!("{}", "  ✓ Pre-execution checks passed".green());
+        info!("  ✓ Pre-execution checks passed");
 
-        println!("{}", "  Executing...".cyan());
+        info!("  Executing...");
         self.execute(context)?;
-        println!("{}", "  ✓ Execution completed".green());
+        info!("  ✓ Execution completed");
 
-        println!("{}", "  Running post-execution verification...".cyan());
+        info!("  Running post-execution verification...");
         self.post_execute(context)?;
-        println!("{}", "  ✓ Post-execution verification passed".green());
+        info!("  ✓ Post-execution verification passed");
 
         let duration = start_time.elapsed();
-        println!(
-            "{}",
-            format!(
-                "Step completed: {} ({:.2}s)",
-                self.name(),
-                duration.as_secs_f64()
-            )
-            .green()
-            .bold()
-        );
+        info!("Step '{}' completed in {:?}", step_name, duration);
+
         Ok(duration)
     }
 }
@@ -258,14 +250,14 @@ pub trait Step: Send + Sync {
 ///
 /// * `steps` - Vector of steps to execute
 /// * `run_id` - Unique identifier for this run
-/// * `logs_dir` - Directory for storing logs
+/// * `run_dir` - Directory for storing run-specific data and logs
 /// * `port_start` - Starting port for the contiguous port range
 /// * `port_count` - Number of ports in the range
 /// * `portainer_port` - Optional port already allocated for Portainer
 pub fn execute_steps(
     steps: Vec<&dyn Step>,
     run_id: String,
-    logs_dir: PathBuf,
+    run_dir: PathBuf,
     port_start: u16,
     port_count: u16,
     portainer_port: Option<u16>,
@@ -273,15 +265,11 @@ pub fn execute_steps(
     // Create port allocator and verify all ports are available
     let mut port_allocator = PortAllocator::new(port_start, port_count)?;
 
-    println!(
-        "{}",
-        format!(
-            "Port range check: {}-{} ({} ports)",
-            port_start,
-            port_start + port_count - 1,
-            port_count
-        )
-        .cyan()
+    info!(
+        "Port range check: {}-{} ({} ports)",
+        port_start,
+        port_start + port_count - 1,
+        port_count
     );
 
     // If Portainer is using a port in our range, we don't want to fail the availability check
@@ -299,102 +287,21 @@ pub fn execute_steps(
             return Err(format!("Port {} is already in use", port).into());
         }
     }
-    println!("{}", "  ✓ All ports in range are available".green());
-    println!();
+    info!("  All ports in range are available");
 
-    // Mark portainer port as allocated if provided
-    if let Some(port) = portainer_port {
-        port_allocator.mark_allocated(port)?;
-    }
-
-    let overall_start = Instant::now();
-    let mut context = StepContext::with_run_id_and_ports(run_id, logs_dir, port_allocator);
-    let mut step_timings: Vec<(String, Duration)> = Vec::new();
-
-    for step in steps.iter() {
-        println!(
-            "\n{}",
-            format!("=== Step: {} ===", step.name()).blue().bold()
-        );
-        let duration = step.run(&mut context)?;
-        step_timings.push((step.name().to_string(), duration));
-    }
-
-    let overall_duration = overall_start.elapsed();
-
-    // Step timing table
-    println!("{}", "Step Execution Times:".cyan().bold());
-    let mut timing_table = Table::new("{:<}  {:>}  {:>}");
-    timing_table.add_row(
-        Row::new()
-            .with_ansi_cell("Step".bold().dark_grey())
-            .with_ansi_cell("Duration".bold().dark_grey())
-            .with_ansi_cell("% of Total".bold().dark_grey()),
-    );
-
-    for (step_name, duration) in &step_timings {
-        let percentage = (duration.as_secs_f64() / overall_duration.as_secs_f64()) * 100.0;
-        timing_table.add_row(
-            Row::new()
-                .with_ansi_cell(step_name.clone())
-                .with_ansi_cell(format!("{:.2}s", duration.as_secs_f64()).green())
-                .with_ansi_cell(format!("{:.1}%", percentage).cyan()),
-        );
-    }
-
-    // Add total row
-    timing_table.add_row(
-        Row::new()
-            .with_ansi_cell("TOTAL TIME".bold())
-            .with_ansi_cell(
-                format!("{:.2}s", overall_duration.as_secs_f64())
-                    .green()
-                    .bold(),
-            )
-            .with_ansi_cell("100.0%".cyan()),
-    );
-
-    print!("{}", timing_table);
-    println!();
-
-    // Print StepContext state variables
-    let state = context
-        .state
-        .lock()
-        .expect("Failed to lock state for display");
-    if !state.is_empty() {
-        println!("{}", "Step Context Variables:".cyan().bold());
-        let mut context_table = Table::new("{:<}  {:<}");
-        context_table.add_row(
-            Row::new()
-                .with_ansi_cell("Key".bold().dark_grey())
-                .with_ansi_cell("Value".bold().dark_grey()),
-        );
-
-        // Sort keys alphabetically
-        let mut keys: Vec<&String> = state.keys().collect();
-        keys.sort();
-
-        for key in keys {
-            let value = state.get(key).unwrap();
-            context_table.add_row(
-                Row::new()
-                    .with_ansi_cell(key.clone().yellow())
-                    .with_ansi_cell(value.clone().dim()),
-            );
+    // If Portainer port was provided, mark it as allocated in our allocator
+    if let Some(p_port) = portainer_port {
+        if p_port >= port_start && p_port < (port_start + port_count) {
+            port_allocator.mark_allocated(p_port)?;
         }
-
-        print!("{}", context_table);
-        println!();
-    }
-    drop(state); // Release lock before final output
-
-    // Save context at the end
-    if let Err(e) = context.save_to_file() {
-        eprintln!("Warning: Failed to save step context: {}", e);
     }
 
-    println!("\n{}", "All steps completed successfully!".green().bold());
+    let context = SetupContext::with_run_id_and_ports(run_id, run_dir, port_allocator);
+
+    for step in steps {
+        step.run(&context)?;
+    }
+
     Ok(())
 }
 
@@ -407,7 +314,7 @@ pub fn execute_steps(
 ///
 /// * `step_epochs` - Vector of epochs, where each epoch is a vector of steps to run in parallel
 /// * `run_id` - Unique identifier for this run
-/// * `logs_dir` - Directory for storing logs
+/// * `run_dir` - Directory for storing run-specific data and logs
 /// * `port_start` - Starting port for the contiguous port range
 /// * `port_count` - Number of ports in the range
 /// * `portainer_port` - Optional port already allocated for Portainer
@@ -418,7 +325,7 @@ pub fn execute_steps(
 pub fn execute_steps_parallel(
     step_epochs: Vec<Vec<&dyn Step>>,
     run_id: String,
-    logs_dir: PathBuf,
+    run_dir: PathBuf,
     port_start: u16,
     port_count: u16,
     portainer_port: Option<u16>,
@@ -426,15 +333,11 @@ pub fn execute_steps_parallel(
     // Create port allocator and verify all ports are available
     let mut port_allocator = PortAllocator::new(port_start, port_count)?;
 
-    println!(
-        "{}",
-        format!(
-            "Port range check: {}-{} ({} ports)",
-            port_start,
-            port_start + port_count - 1,
-            port_count
-        )
-        .cyan()
+    info!(
+        "Port range check: {}-{} ({} ports)",
+        port_start,
+        port_start + port_count - 1,
+        port_count
     );
 
     // If Portainer is using a port in our range, we don't want to fail the availability check
@@ -449,20 +352,20 @@ pub fn execute_steps_parallel(
             return Err(format!("Port {} is already in use", port).into());
         }
     }
-    println!("{}", "  ✓ All ports in range are available".green());
-    println!();
+    info!("  ✓ All ports in range are available");
 
     // Mark portainer port as allocated if provided
     if let Some(port) = portainer_port {
         port_allocator.mark_allocated(port)?;
     }
 
-    let overall_start = Instant::now();
-    let context = Arc::new(StepContext::with_run_id_and_ports(
+    let context = Arc::new(SetupContext::with_run_id_and_ports(
         run_id,
-        logs_dir,
+        run_dir,
         port_allocator,
     ));
+
+    let overall_start = Instant::now();
     let mut all_step_timings: Vec<(String, Duration)> = Vec::new();
 
     for (epoch_index, epoch_steps) in step_epochs.iter().enumerate() {
@@ -474,7 +377,7 @@ pub fn execute_steps_parallel(
 
     // Save context at the end
     if let Err(e) = context.save_to_file() {
-        eprintln!("Warning: Failed to save step context: {}", e);
+        warn!("Failed to save step context: {}", e);
     }
 
     Ok(())
@@ -484,18 +387,12 @@ pub fn execute_steps_parallel(
 fn execute_epoch(
     epoch_index: usize,
     epoch_steps: &[&dyn Step],
-    context: &Arc<StepContext>,
+    context: &Arc<SetupContext>,
 ) -> Result<Vec<(String, Duration)>, Box<dyn Error>> {
-    println!(
-        "\n{}\n",
-        format!(
-            "EPOCH {}: Running {} step(s) in parallel",
-            epoch_index + 1,
-            epoch_steps.len(),
-        )
-        .white()
-        .on_dark_magenta()
-        .bold()
+    info!(
+        "EPOCH {}: Running {} step(s) in parallel",
+        epoch_index + 1,
+        epoch_steps.len(),
     );
 
     let step_timings = if epoch_steps.len() == 1 {
@@ -506,12 +403,7 @@ fn execute_epoch(
         execute_steps_in_parallel(epoch_steps, context)?
     };
 
-    println!(
-        "\n{}",
-        format!("✓ Epoch {} completed successfully", epoch_index + 1)
-            .green()
-            .bold()
-    );
+    info!("✓ Epoch {} completed successfully", epoch_index + 1);
 
     Ok(step_timings)
 }
@@ -519,13 +411,8 @@ fn execute_epoch(
 /// Execute a single step sequentially
 fn execute_single_step(
     step: &dyn Step,
-    context: &Arc<StepContext>,
+    context: &Arc<SetupContext>,
 ) -> Result<Vec<(String, Duration)>, Box<dyn Error>> {
-    println!(
-        "\n{}",
-        format!("=== Step: {} ===", step.name()).blue().bold()
-    );
-
     let duration = step.run(context)?;
     Ok(vec![(step.name().to_string(), duration)])
 }
@@ -533,7 +420,7 @@ fn execute_single_step(
 /// Execute multiple steps in parallel using scoped threads
 fn execute_steps_in_parallel(
     steps: &[&dyn Step],
-    context: &Arc<StepContext>,
+    context: &Arc<SetupContext>,
 ) -> Result<Vec<(String, Duration)>, Box<dyn Error>> {
     let mut thread_results: Vec<Result<(String, Duration), String>> = Vec::new();
 
@@ -586,59 +473,36 @@ fn execute_steps_in_parallel(
 /// Execute a single step with timing and error handling
 fn execute_step_with_timing(
     step: &dyn Step,
-    context: &StepContext,
+    context: &SetupContext,
     step_name: &str,
 ) -> Result<Duration, String> {
     let start_time = Instant::now();
 
-    println!(
-        "{}",
-        format!("  [{}] Starting in parallel...", step_name).blue()
-    );
+    info!("  [{}] Starting in parallel...", step_name);
 
     // Pre-execute
-    println!(
-        "{}",
-        format!("  [{}] Running pre-execution checks...", step_name).cyan()
-    );
+    info!("  [{}] Running pre-execution checks...", step_name);
     step.pre_execute(context)
         .map_err(|e| format!("Pre-execution failed for {}: {}", step_name, e))?;
-    println!(
-        "{}",
-        format!("  [{}] ✓ Pre-execution checks passed", step_name).green()
-    );
+    info!("  [{}] ✓ Pre-execution checks passed", step_name);
 
     // Execute
-    println!("{}", format!("  [{}] Executing...", step_name).cyan());
+    info!("  [{}] Executing...", step_name);
     step.execute(context)
         .map_err(|e| format!("Execution failed for {}: {}", step_name, e))?;
-    println!(
-        "{}",
-        format!("  [{}] ✓ Execution completed", step_name).green()
-    );
+    info!("  [{}] ✓ Execution completed", step_name);
 
     // Post-execute
-    println!(
-        "{}",
-        format!("  [{}] Running post-execution verification...", step_name).cyan()
-    );
+    info!("  [{}] Running post-execution verification...", step_name);
     step.post_execute(context)
         .map_err(|e| format!("Post-execution failed for {}: {}", step_name, e))?;
-    println!(
-        "{}",
-        format!("  [{}] ✓ Post-execution verification passed", step_name).green()
-    );
+    info!("  [{}] ✓ Post-execution verification passed", step_name);
 
     let duration = start_time.elapsed();
-    println!(
-        "{}",
-        format!(
-            "  [{}] Completed in {:.2}s",
-            step_name,
-            duration.as_secs_f64()
-        )
-        .green()
-        .bold()
+    info!(
+        "  [{}] Completed in {:.2}s",
+        step_name,
+        duration.as_secs_f64()
     );
 
     Ok(duration)
@@ -648,10 +512,10 @@ fn execute_step_with_timing(
 fn print_execution_summary(
     all_step_timings: &[(String, Duration)],
     overall_duration: Duration,
-    context: &Arc<StepContext>,
+    context: &Arc<SetupContext>,
 ) -> Result<(), Box<dyn Error>> {
     // Step timing table
-    println!("{}", "Step Execution Times:".cyan().bold());
+    info!("Step Execution Times:");
     let mut timing_table = Table::new("{:<}  {:>}  {:>}");
     timing_table.add_row(
         Row::new()
@@ -682,8 +546,7 @@ fn print_execution_summary(
             .with_ansi_cell("100.0%".cyan()),
     );
 
-    print!("{}", timing_table);
-    println!();
+    info!("\n{}", timing_table);
 
     // Print StepContext state variables
     let state = context
@@ -691,7 +554,7 @@ fn print_execution_summary(
         .lock()
         .expect("Failed to lock state for display");
     if !state.is_empty() {
-        println!("{}", "Step Context Variables:".cyan().bold());
+        info!("Step Context Variables:");
         let mut context_table = Table::new("{:<}  {:<}");
         context_table.add_row(
             Row::new()
@@ -712,11 +575,10 @@ fn print_execution_summary(
             );
         }
 
-        print!("{}", context_table);
-        println!();
+        info!("\n{}", context_table);
     }
     drop(state); // Release lock before final output
 
-    println!("\n{}", "All steps completed successfully!".green().bold());
+    info!("All steps completed successfully!");
     Ok(())
 }

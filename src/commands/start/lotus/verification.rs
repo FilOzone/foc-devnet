@@ -3,15 +3,15 @@
 //! This module contains functions that verify the Lotus daemon is properly
 //! started and all services are accessible.
 
-use super::super::step::StepContext;
+use super::super::step::SetupContext;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::wait_for_port;
-use crossterm::style::Stylize;
 use std::error::Error;
 use std::path::PathBuf;
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
+use tracing::{info, warn};
 
 // Timing constants
 const PORT_CHECK_TIMEOUT_SECS: u64 = 30;
@@ -20,13 +20,13 @@ const PORT_CHECK_INTERVAL_MS: u64 = 500;
 const DAEMON_INIT_WAIT_SECS: u64 = 5;
 
 /// Get the Lotus container name from context
-fn get_container_name(context: &StepContext) -> Result<String, Box<dyn Error>> {
+fn get_container_name(context: &SetupContext) -> Result<String, Box<dyn Error>> {
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     Ok(lotus_container_name(run_id))
 }
 
 /// Check if lotus daemon is responsive via API
-pub fn check_lotus_api(context: &StepContext) -> Result<(), Box<dyn Error>> {
+pub fn check_lotus_api(context: &SetupContext) -> Result<(), Box<dyn Error>> {
     let container_name = get_container_name(context)?;
 
     // Try to execute a simple lotus command via docker exec
@@ -51,7 +51,7 @@ pub fn check_lotus_api(context: &StepContext) -> Result<(), Box<dyn Error>> {
 }
 
 /// Verify that all required ports are accessible
-pub fn verify_ports(context: &StepContext) -> Result<(), Box<dyn Error>> {
+pub fn verify_ports(context: &SetupContext) -> Result<(), Box<dyn Error>> {
     // Read allocated ports from context
     let lotus_api_port: u16 = context
         .get("lotus_api_port")
@@ -65,13 +65,12 @@ pub fn verify_ports(context: &StepContext) -> Result<(), Box<dyn Error>> {
     let ports = [(lotus_api_port, "Lotus API"), (lotus_p2p_port, "Lotus P2P")];
 
     // Check all ports are accessible
-    println!("    Verifying port accessibility...");
+    info!("    Verifying port accessibility...");
     for &(port, description) in &ports {
-        print!("      Checking port {} ({})... ", port, description);
         match wait_for_port(port, PORT_CHECK_TIMEOUT_SECS) {
-            Ok(_) => println!("{}", "✓".green()),
+            Ok(_) => info!("      ✓ Port {} ({}) is accessible", port, description),
             Err(e) => {
-                println!("{}", "✗".red());
+                warn!("      ✗ Port {} ({}) is not accessible", port, description);
                 return Err(format!("Port {} is not accessible: {}", port, e).into());
             }
         }
@@ -82,7 +81,7 @@ pub fn verify_ports(context: &StepContext) -> Result<(), Box<dyn Error>> {
 /// Wait for the Lotus API file to be created
 pub fn wait_for_api_file(volumes_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
     // Wait for Lotus API file to exist and daemon to be fully initialized
-    println!("    Waiting for Lotus API to be ready (this may take 1-2 minutes)...");
+    info!("    Waiting for Lotus API to be ready (this may take 1-2 minutes)...");
     let lotus_data_dir = volumes_dir.join("lotus-data");
     let api_file = lotus_data_dir.join("api");
 
@@ -95,23 +94,20 @@ pub fn wait_for_api_file(volumes_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
         }
         thread::sleep(Duration::from_millis(PORT_CHECK_INTERVAL_MS));
     }
-    println!("    {} Lotus API file created", "✓".green());
+    info!("    ✓ Lotus API file created");
 
     // Wait a bit more for daemon to fully initialize
     thread::sleep(Duration::from_secs(DAEMON_INIT_WAIT_SECS));
 
     // FEVM is already configured in config.toml before container start
-    println!(
-        "    {} FEVM and ChainIndexer enabled via config.toml",
-        "✓".green()
-    );
+    info!("    ✓ FEVM and ChainIndexer enabled via config.toml");
     Ok(())
 }
 
 /// Check if Ethereum RPC is available via the Lotus API
 ///
 /// This verifies that FEVM is properly enabled by testing a basic eth_* RPC call.
-pub fn check_ethereum_rpc(context: &StepContext) -> Result<(), Box<dyn Error>> {
+pub fn check_ethereum_rpc(context: &SetupContext) -> Result<(), Box<dyn Error>> {
     let container_name = get_container_name(context)?;
 
     // Read allocated API port from context
@@ -157,53 +153,43 @@ pub fn check_ethereum_rpc(context: &StepContext) -> Result<(), Box<dyn Error>> {
 }
 
 /// Verify Lotus API and Ethereum RPC connectivity
-pub fn verify_api_connectivity(context: &StepContext) -> Result<(), Box<dyn Error>> {
+pub fn verify_api_connectivity(context: &SetupContext) -> Result<(), Box<dyn Error>> {
     // Verify Lotus API is responsive
-    println!("    Verifying Lotus API connectivity...");
+    info!("    Verifying Lotus API connectivity...");
     match check_lotus_api(context) {
         Ok(_) => {
-            println!(
-                "    {} Lotus daemon is ready and responding to API calls",
-                "✓".green()
-            );
+            info!("    ✓ Lotus daemon is ready and responding to API calls");
         }
         Err(e) => {
-            println!("    {} Lotus API verification failed: {}", "⚠".yellow(), e);
-            println!(
+            warn!("    ⚠ Lotus API verification failed: {}", e);
+            info!(
                 "    Note: Lotus may still be initializing. This is usually not a critical error."
             );
         }
     }
 
     // Verify FEVM/Ethereum RPC is available
-    println!("    Verifying FEVM Ethereum RPC...");
+    info!("    Verifying FEVM Ethereum RPC...");
     match check_ethereum_rpc(context) {
         Ok(_) => {
-            println!(
-                "    {} Ethereum RPC is available and responding",
-                "✓".green()
-            );
+            info!("    ✓ Ethereum RPC is available and responding");
         }
         Err(e) => {
-            println!(
-                "    {} Ethereum RPC verification failed: {}",
-                "⚠".yellow(),
-                e
-            );
-            println!(
+            warn!("    ⚠ Ethereum RPC verification failed: {}", e);
+            info!(
                 "    Note: This may indicate FEVM is not fully initialized. Check logs if needed."
             );
         }
     }
 
-    println!("\n    {} Lotus daemon is ready!", "✓".green().bold());
+    info!("    ✓ Lotus daemon is ready!");
 
     // Display endpoint information with dynamic port
     let lotus_api_port: u16 = context
         .get("lotus_api_port")
         .ok_or("Lotus API port not found in context")?
         .parse()?;
-    println!("      API endpoint: http://localhost:{}", lotus_api_port);
-    println!("      Ethereum RPC: Available via Lotus API");
+    info!("      API endpoint: http://localhost:{}", lotus_api_port);
+    info!("      Ethereum RPC: Available via Lotus API");
     Ok(())
 }

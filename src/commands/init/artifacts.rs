@@ -3,15 +3,15 @@
 //! This module handles the downloading and extraction of required artifacts,
 //! primarily the Yugabyte database.
 
-use crossterm::style::Stylize;
 use downloader::Downloader;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use tracing::info;
 
 use crate::config::Config;
-use crate::paths::{foc_localnet_artifacts, foc_localnet_config};
+use crate::paths::{foc_localnet_artifacts, foc_localnet_config, foc_localnet_proof_parameters};
 
 /// Download required artifacts for foc-localnet.
 ///
@@ -28,7 +28,7 @@ pub fn download_artifacts(
     yugabyte_archive: Option<String>,
     proof_params_dir: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("{}", "Downloading artifacts...".bold());
+    info!("Downloading artifacts...");
 
     // Ensure artifacts directory exists
     let artifacts_dir = foc_localnet_artifacts();
@@ -52,7 +52,7 @@ pub fn download_artifacts(
         copy_proof_params_from_local(&params_path)?;
     }
 
-    println!("  {} Artifacts downloaded successfully.", "✓".green());
+    info!("  Artifacts downloaded successfully.");
     Ok(())
 }
 
@@ -92,6 +92,14 @@ fn download_yugabyte_tarball(
         .ok_or("Invalid URL: no filename")?;
     let tarball_path = artifacts_dir.join(filename);
 
+    if tarball_path.exists() {
+        info!(
+            "  Yugabyte tarball already exists at {}",
+            tarball_path.display()
+        );
+        return Ok(tarball_path);
+    }
+
     // Create progress bar
     let pb = ProgressBar::new_spinner();
     pb.set_style(
@@ -130,15 +138,17 @@ fn extract_yugabyte_tarball(
     tarball_path: &Path,
     artifacts_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Check if yugabyte directory already exists
     let yugabyte_dir = artifacts_dir.join("yugabyte");
+
     if yugabyte_dir.exists() {
-        println!(
-            "  {} Yugabyte directory already exists, skipping extraction",
-            "✓".green()
+        info!(
+            "  Yugabyte directory already exists at {}",
+            yugabyte_dir.display()
         );
         return Ok(());
     }
+
+    info!("  Extracting Yugabyte tarball...");
 
     // Extract the tarball
     let pb_extract = ProgressBar::new_spinner();
@@ -155,7 +165,6 @@ fn extract_yugabyte_tarball(
         .status()?;
 
     if !status.success() {
-        pb_extract.finish_with_message("❌ Failed to extract Yugabyte");
         return Err("Failed to extract Yugabyte tarball".to_string().into());
     }
 
@@ -182,10 +191,8 @@ fn extract_yugabyte_tarball(
 
     pb_extract.finish_with_message("✓ Extracted Yugabyte");
 
-    println!(
-        "  {} Yugabyte downloaded and installed successfully.",
-        "✓".green()
-    );
+    info!("  Yugabyte downloaded and installed successfully.");
+
     Ok(())
 }
 
@@ -203,19 +210,21 @@ fn copy_yugabyte_from_local(
     archive_path: &str,
     artifacts_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let archive_path_buf = PathBuf::from(archive_path);
-
-    if !archive_path_buf.exists() {
-        return Err(format!("Yugabyte archive not found at: {}", archive_path).into());
+    let archive_path = Path::new(archive_path);
+    if !archive_path.exists() {
+        return Err(format!(
+            "Local Yugabyte archive not found: {}",
+            archive_path.display()
+        )
+        .into());
     }
 
-    println!(
-        "  {} Using local Yugabyte archive from {}",
-        "📦".cyan(),
-        archive_path
+    info!(
+        "  Copying Yugabyte from local archive: {}",
+        archive_path.display()
     );
 
-    extract_yugabyte_tarball(&archive_path_buf, artifacts_dir)?;
+    extract_yugabyte_tarball(archive_path, artifacts_dir)?;
     Ok(())
 }
 
@@ -229,25 +238,21 @@ fn copy_yugabyte_from_local(
 /// # Returns
 /// Returns `Ok(())` if copy succeeds, or an error if it fails.
 fn copy_proof_params_from_local(params_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    use crate::paths::foc_localnet_proof_parameters;
-
-    let source_path = PathBuf::from(params_path);
-
-    if !source_path.exists() {
-        return Err(format!("Proof parameters directory not found at: {}", params_path).into());
+    let params_path = Path::new(params_path);
+    if !params_path.exists() {
+        return Err(format!(
+            "Local proof parameters not found: {}",
+            params_path.display()
+        )
+        .into());
     }
 
-    if !source_path.is_dir() {
-        return Err(format!("Path is not a directory: {}", params_path).into());
-    }
+    info!(
+        "  Copying proof parameters from local directory: {}",
+        params_path.display()
+    );
 
     let dest_path = foc_localnet_proof_parameters();
-
-    println!(
-        "  {} Copying proof parameters from {}",
-        "📦".cyan(),
-        params_path
-    );
 
     // Create destination directory
     fs::create_dir_all(&dest_path)?;
@@ -261,11 +266,11 @@ fn copy_proof_params_from_local(params_path: &str) -> Result<(), Box<dyn std::er
     );
     pb.set_message("Copying proof parameters...");
 
-    copy_dir_recursive(&source_path, &dest_path)?;
+    copy_dir_recursive(params_path, &dest_path)?;
 
     pb.finish_with_message("✓ Proof parameters copied");
 
-    println!("  {} Proof parameters copied successfully", "✓".green());
+    info!("  Proof parameters copied successfully");
     Ok(())
 }
 

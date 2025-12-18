@@ -5,9 +5,8 @@
 //! - File upload via pdptool
 //! - File download and content verification
 
-use super::super::step::StepContext;
+use super::super::step::SetupContext;
 use super::constants::TEST_FILE_SIZE_BYTES;
-use crossterm::style::Stylize;
 use rand::Rng;
 use std::error::Error;
 use std::fs;
@@ -16,6 +15,7 @@ use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
 use tempfile::TempDir;
+use tracing::info;
 
 /// Verify a single Curio PDP SP is functioning correctly.
 ///
@@ -25,7 +25,7 @@ use tempfile::TempDir;
 /// 3. Can download the file and verify contents match
 #[allow(unused_variables)]
 pub fn verify_single_curio_sp(
-    context: &StepContext,
+    context: &SetupContext,
     sp_index: usize,
 ) -> Result<(), Box<dyn Error>> {
     // Step 1: Ping PDP subsystem
@@ -38,8 +38,8 @@ pub fn verify_single_curio_sp(
 }
 
 /// Verify PDP subsystem responds to ping.
-fn verify_pdp_ping(context: &StepContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
-    println!("      {} Pinging PDP subsystem...", "✓".green());
+fn verify_pdp_ping(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
+    info!("      Pinging PDP subsystem...");
 
     // Get dynamically allocated PDP port from context
     let port: u16 = context
@@ -55,17 +55,14 @@ fn verify_pdp_ping(context: &StepContext, sp_index: usize) -> Result<(), Box<dyn
         return Err(format!("PDP ping failed with status: {}", response.status()).into());
     }
 
-    println!("      {} PDP subsystem responding", "✓".green());
+    info!("      PDP subsystem responding");
 
     Ok(())
 }
 
 /// Verify file upload and download works correctly.
-fn verify_upload_download(context: &StepContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
-    println!(
-        "      {} Testing upload/download functionality...",
-        "✓".green()
-    );
+fn verify_upload_download(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
+    info!("      Testing upload/download functionality...");
 
     // Create temporary directory for test files
     let temp_dir = TempDir::new()?;
@@ -86,7 +83,7 @@ fn verify_upload_download(context: &StepContext, sp_index: usize) -> Result<(), 
         return Err("Downloaded data does not match original".into());
     }
 
-    println!("      {} Upload/download verified", "✓".green());
+    info!("      Upload/download verified");
 
     Ok(())
 }
@@ -104,7 +101,7 @@ fn create_random_test_file(temp_dir: &TempDir) -> Result<PathBuf, Box<dyn Error>
 
 /// Upload test file using pdptool.
 fn upload_test_file(
-    context: &StepContext,
+    context: &SetupContext,
     file_path: &PathBuf,
     sp_index: usize,
 ) -> Result<String, Box<dyn Error>> {
@@ -139,7 +136,7 @@ fn upload_test_file(
         .into());
     }
 
-    println!("      {} File uploaded via pdptool", "✓".green(),);
+    info!("      File uploaded via pdptool");
 
     // Extract piece CID from output
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -156,7 +153,7 @@ fn extract_piece_cid(output: &str) -> Result<String, Box<dyn Error>> {
             let cid_part = &line[prefix_pos + "Piece CID:".len()..];
             let cid = cid_part.trim();
 
-            println!("      {} Extracted Piece CID: {}", "✓".green(), cid);
+            info!("      Extracted Piece CID: {}", cid);
             if !cid.is_empty() {
                 return Ok(cid.to_string());
             }
@@ -172,7 +169,7 @@ fn extract_piece_cid(output: &str) -> Result<String, Box<dyn Error>> {
 
 /// Download piece via HTTP.
 fn download_piece(
-    context: &StepContext,
+    context: &SetupContext,
     piece_cid: &str,
     sp_index: usize,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
@@ -194,9 +191,8 @@ fn download_piece(
         }
 
         if attempt < 5 {
-            println!(
-                "      {} Download attempt {} failed with status: {}, retrying...",
-                "✓".green(),
+            info!(
+                "      Download attempt {} failed with status: {}, retrying...",
                 attempt,
                 response.status()
             );

@@ -28,8 +28,8 @@ pub struct FOCMetadata {
 impl FOCMetadata {
     /// Load FOC metadata from the state file
     #[allow(dead_code)]
-    pub fn load() -> Result<Self, Box<dyn Error>> {
-        let path = foc_metadata_file();
+    pub fn load(run_id: &str) -> Result<Self, Box<dyn Error>> {
+        let path = foc_metadata_file(run_id);
         if !path.exists() {
             return Err("FOC metadata file not found".into());
         }
@@ -39,8 +39,8 @@ impl FOCMetadata {
     }
 
     /// Save FOC metadata to the state file
-    pub fn save(&self) -> Result<(), Box<dyn Error>> {
-        let path = foc_metadata_file();
+    pub fn save(&self, run_id: &str) -> Result<(), Box<dyn Error>> {
+        let path = foc_metadata_file(run_id);
         // Ensure the state directory exists
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;

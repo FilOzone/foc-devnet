@@ -2,10 +2,10 @@
 //!
 //! Verifies that all Curio PDP SPs are working correctly.
 
-use super::super::step::StepContext;
+use super::super::step::SetupContext;
 use super::verification;
-use crossterm::style::Stylize;
 use std::error::Error;
+use tracing::info;
 
 /// Verify all Curio PDP Service Providers are functioning correctly.
 ///
@@ -13,30 +13,18 @@ use std::error::Error;
 /// 1. Ping PDP subsystem endpoint
 /// 2. Upload a test file
 /// 3. Download the file and verify contents
-pub fn verify_all_curio_sps(context: &StepContext, sp_count: usize) -> Result<(), Box<dyn Error>> {
-    println!(
-        "  {} Verifying all {} Curio PDP SP(s)...",
-        "✓".green(),
-        sp_count
-    );
+pub fn verify_all_curio_sps(context: &SetupContext, sp_count: usize) -> Result<(), Box<dyn Error>> {
+    info!("  Verifying all {} Curio PDP SP(s)...", sp_count);
 
     for sp_index in 1..=sp_count {
-        println!("    {} Verifying PDP SP {}...", "✓".green(), sp_index);
+        info!("    Verifying PDP SP {}...", sp_index);
 
         verification::verify_single_curio_sp(context, sp_index)?;
 
-        println!(
-            "    {} PDP SP {} verification complete",
-            "✓".green(),
-            sp_index
-        );
+        info!("    PDP SP {} verification complete", sp_index);
     }
 
-    println!(
-        "  {} All {} Curio PDP SP(s) verified successfully",
-        "✓".green(),
-        sp_count
-    );
+    info!("  All {} Curio PDP SP(s) verified successfully", sp_count);
 
     Ok(())
 }

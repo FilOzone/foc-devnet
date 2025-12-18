@@ -3,25 +3,25 @@
 //! This module provides utilities for importing keys into Lotus wallet,
 //! creating FEVM addresses, and exporting private keys.
 
-use crossterm::style::Stylize;
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use tracing::info;
 
-use crate::commands::start::step::StepContext;
+use crate::commands::start::step::SetupContext;
 use crate::docker::containers::lotus_container_name;
 use crate::paths::foc_localnet_lotus_keys;
 
 /// Import the GLOBAL_FIL_FAUCET key into Lotus wallet
 pub fn import_faucet_key(
     keyinfo_path: &PathBuf,
-    context: &StepContext,
+    context: &SetupContext,
 ) -> Result<String, Box<dyn Error>> {
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let container_name = lotus_container_name(run_id);
 
-    println!("      Importing GLOBAL_FIL_FAUCET key into Lotus wallet...");
+    info!("      Importing GLOBAL_FIL_FAUCET key into Lotus wallet...");
 
     // Read the JSON content from the keyinfo file
     let json_content = fs::read_to_string(keyinfo_path)
@@ -37,7 +37,7 @@ pub fn import_faucet_key(
         .map_err(|e| format!("Failed to write hex key file: {}", e))?;
 
     // Get the container path for the temp file
-    let keys_dir = foc_localnet_lotus_keys();
+    let keys_dir = foc_localnet_lotus_keys(run_id);
     let relative_path = temp_key_file
         .strip_prefix(&keys_dir)
         .map_err(|_| "Failed to get relative path for hex key file")?;
@@ -63,7 +63,7 @@ pub fn import_faucet_key(
 
         // If key already exists, that's fine - just get the existing address
         if stderr.contains("key already exists") {
-            println!("      {} Key already exists in wallet", "ℹ".cyan());
+            info!("      Key already exists in wallet");
 
             // Extract the address from the error message
             // Error format: "...checking key before put 'wallet-<address>': key already exists"
@@ -74,7 +74,7 @@ pub fn import_faucet_key(
                 .ok_or("Failed to extract existing address from error")?
                 .to_string();
 
-            println!("      {} Using existing key: {}", "✓".green(), address);
+            info!("      Using existing key: {}", address);
             return Ok(address);
         }
 
@@ -90,80 +90,6 @@ pub fn import_faucet_key(
         .ok_or("Failed to extract imported address")?
         .to_string();
 
-    println!("      {} Key imported: {}", "✓".green(), address);
+    info!("      Key imported: {}", address);
     Ok(address)
-}
-
-/// Get the Ethereum address corresponding to an f4 address
-#[allow(dead_code)]
-pub fn get_eth_address(f4_address: &str, context: &StepContext) -> Result<String, Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
-    let container_name = lotus_container_name(run_id);
-
-    let output = Command::new("docker")
-        .args([
-            "exec",
-            &container_name,
-            "/usr/local/bin/lotus-bins/lotus",
-            "evm",
-            "stat",
-            f4_address,
-        ])
-        .output()?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to get Ethereum address: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
-
-    let output_str = String::from_utf8_lossy(&output.stdout);
-    let eth_addr = output_str
-        .lines()
-        .find(|line| line.contains("Eth address:"))
-        .and_then(|line| line.split_whitespace().nth(2))
-        .ok_or("Failed to extract Ethereum address")?
-        .to_string();
-
-    Ok(eth_addr)
-}
-
-/// Export private key for an f4 address to use with forge/cast
-#[allow(dead_code)]
-pub fn export_private_key(
-    f4_address: &str,
-    output_file: &PathBuf,
-    context: &StepContext,
-) -> Result<(), Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
-    let container_name = lotus_container_name(run_id);
-
-    println!("      Exporting private key for contract deployment...");
-
-    let output = Command::new("docker")
-        .args([
-            "exec",
-            &container_name,
-            "/usr/local/bin/lotus-bins/lotus",
-            "wallet",
-            "export",
-            f4_address,
-        ])
-        .output()?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to export private key: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
-
-    // Write the keyinfo to a file
-    fs::write(output_file, &output.stdout)?;
-    println!("      {} Private key exported", "✓".green());
-
-    Ok(())
 }

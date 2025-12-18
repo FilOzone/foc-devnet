@@ -3,6 +3,7 @@
 //! This module handles displaying version and build information.
 
 use foc_localnet::version_info::VersionInfo;
+use tracing::info;
 
 /// Execute the version command
 pub fn handle_version() -> Result<(), Box<dyn std::error::Error>> {
@@ -14,9 +15,9 @@ pub fn handle_version() -> Result<(), Box<dyn std::error::Error>> {
         "-dirty"
     };
 
-    println!("foc-localnet {}", version_info.version);
-    println!("Commit: {}{}", version_info.commit, dirty_suffix);
-    println!("Branch: {}", version_info.branch);
+    info!("foc-localnet {}", version_info.version);
+    info!("Commit: {}{}", version_info.commit, dirty_suffix);
+    info!("Branch: {}", version_info.branch);
 
     // Calculate relative time
     let now = chrono::Utc::now().timestamp();
@@ -32,10 +33,10 @@ pub fn handle_version() -> Result<(), Box<dyn std::error::Error>> {
         format!("({} days ago)", diff_seconds / 86400)
     };
 
-    println!(
+    info!(
         "Built (UTC): {} {}",
         version_info.build_time_utc, relative_time
     );
-    println!("Built (Local): {}", version_info.build_time_local);
+    info!("Built (Local): {}", version_info.build_time_local);
     Ok(())
 }

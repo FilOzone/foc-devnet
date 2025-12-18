@@ -43,6 +43,7 @@ cargo run -- build curio
 This will:
 - Compile Lotus and Curio binaries inside Docker containers
 - Cache build artifacts for faster subsequent builds
+- You can run them in parallel as well for faster builds, if you have a powerful PC.
 
 ### Step 3: Start the Network
 

@@ -5,8 +5,8 @@
 use std::error::Error;
 use std::fs;
 
-use super::step::StepContext;
-use crate::paths::foc_localnet_docker_volumes;
+use super::step::SetupContext;
+use crate::paths::foc_localnet_docker_volumes_run_specific;
 
 /// Read the Lotus API token from the lotus-data directory.
 ///
@@ -15,8 +15,8 @@ use crate::paths::foc_localnet_docker_volumes;
 ///
 /// # Returns
 /// The token string if found, or an error if the token file doesn't exist or can't be read.
-pub fn read_lotus_token() -> Result<String, Box<dyn Error>> {
-    let token_path = foc_localnet_docker_volumes()
+pub fn read_lotus_token(run_id: &str) -> Result<String, Box<dyn Error>> {
+    let token_path = foc_localnet_docker_volumes_run_specific(run_id)
         .join("lotus-data")
         .join("token");
 
@@ -56,7 +56,7 @@ pub fn build_fullnode_api_info(token: &str, lotus_container_name: &str) -> Strin
 ///
 /// # Arguments
 ///
-/// * `context` - The StepContext containing the allocated lotus_api_port
+/// * `context` - The SetupContext containing the allocated lotus_api_port
 ///
 /// # Returns
 ///
@@ -65,7 +65,7 @@ pub fn build_fullnode_api_info(token: &str, lotus_container_name: &str) -> Strin
 /// # Errors
 ///
 /// Returns an error if the lotus_api_port is not found in context or cannot be parsed
-pub fn get_lotus_rpc_url(context: &StepContext) -> Result<String, Box<dyn Error>> {
+pub fn get_lotus_rpc_url(context: &SetupContext) -> Result<String, Box<dyn Error>> {
     let lotus_api_port: u16 = context
         .get("lotus_api_port")
         .ok_or("Lotus API port not found in context")?

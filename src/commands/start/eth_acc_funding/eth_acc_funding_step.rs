@@ -7,9 +7,8 @@ use super::key_operations::import_faucet_key;
 use super::lotus_checks::{check_lotus_running, get_global_faucet_address};
 use crate::commands::init::keys::load_keys;
 use crate::commands::start::eth_acc_funding::constants::FEVM_ACCOUNTS_PREFUNDED;
-use crate::commands::start::step::{Step, StepContext};
+use crate::commands::start::step::{SetupContext, Step};
 use crate::docker::containers::lotus_container_name;
-use crossterm::style::Stylize;
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
@@ -17,25 +16,26 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use tracing::info;
 
 /// Step for funding Ethereum accounts required for FOC deployment
 pub struct ETHAccFundingStep {
     #[allow(dead_code)]
-    logs_dir: PathBuf,
+    run_dir: PathBuf,
     active_pdp_sp_count: usize,
 }
 
 impl ETHAccFundingStep {
     /// Create a new ETHAccFundingStep
-    pub fn new(logs_dir: PathBuf, active_pdp_sp_count: usize) -> Self {
+    pub fn new(run_dir: PathBuf, active_pdp_sp_count: usize) -> Self {
         Self {
-            logs_dir,
+            run_dir,
             active_pdp_sp_count,
         }
     }
 
     /// Check if account funding has already been completed
-    fn check_existing_funding(&self, context: &StepContext) -> Result<bool, Box<dyn Error>> {
+    fn check_existing_funding(&self, context: &SetupContext) -> Result<bool, Box<dyn Error>> {
         // Check if we have the required addresses in context
         let has_global_faucet = context.get("global_faucet_address").is_some();
 
@@ -56,18 +56,18 @@ impl ETHAccFundingStep {
         });
 
         if has_global_faucet && has_all_prefunded_accounts {
-            println!(
-                "    {} Account funding already completed, skipping...",
-                "✓".green()
-            );
+            info!("    Account funding already completed, skipping...");
             return Ok(true);
         }
 
         Ok(false)
     }
 
-    fn import_global_faucet_key(context: &StepContext) -> Result<String, Box<dyn Error + 'static>> {
-        let keys_dir = crate::paths::foc_localnet_lotus_keys();
+    fn import_global_faucet_key(
+        context: &SetupContext,
+    ) -> Result<String, Box<dyn Error + 'static>> {
+        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let keys_dir = crate::paths::foc_localnet_lotus_keys(run_id);
         let faucet_key_dir = keys_dir.join(GLOBAL_FIL_FAUCET_KEY);
         let keyinfo_files: Vec<_> = fs::read_dir(&faucet_key_dir)?
             .filter_map(|e| e.ok())
@@ -86,43 +86,13 @@ impl ETHAccFundingStep {
         Ok(global_faucet)
     }
 
-    /// Export key for use with Foundry (without importing to Lotus)
-    fn export_key_for_foundry_direct(
-        private_key: &str,
-        volumes_dir: &PathBuf,
-        key_file_name: &str,
-    ) -> Result<(), Box<dyn Error>> {
-        use base64::{engine::general_purpose, Engine as _};
-
-        // Remove 0x prefix if present
-        let pk_hex = private_key.strip_prefix("0x").unwrap_or(private_key);
-        let pk_bytes = hex::decode(pk_hex)?;
-
-        // Create a keyinfo structure for secp256k1 (Ethereum-compatible) keys
-        let keyinfo = serde_json::json!({
-            "Type": "secp256k1",
-            "PrivateKey": general_purpose::STANDARD.encode(&pk_bytes)
-        });
-
-        let keyinfo_json = serde_json::to_string(&keyinfo)?;
-        let hex_encoded = hex::encode(keyinfo_json);
-
-        let key_file = volumes_dir.join(format!("{}.key", key_file_name));
-        fs::write(&key_file, hex_encoded)?;
-        Ok(())
-    }
-
     /// Perform the account funding process using pre-generated keys from keys.rs
     ///
     /// Account funding goes as follows:
     /// GLOBAL_FIL_FAUCET (has FIL from genesis, imported from BLS key)
     ///  → All pre-funded FEVM accounts (using addresses from keys.rs, NOT imported to Lotus)
-    fn perform_account_funding(
-        &self,
-        context: &StepContext,
-        volumes_dir: &PathBuf,
-    ) -> Result<(), Box<dyn Error>> {
-        println!("    Setting up Ethereum accounts for FOC deployment...");
+    fn perform_account_funding(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
+        info!("    Setting up Ethereum accounts for FOC deployment...");
 
         // Load pre-generated keys from keys.rs
         let keys = load_keys()?;
@@ -162,12 +132,9 @@ impl ETHAccFundingStep {
                 .as_ref()
                 .ok_or(format!("No Ethereum address for {}", account_name))?;
 
-            println!(
-                "      {} {}: {} (ETH: {})",
-                "✓".green(),
-                account_name,
-                f4_address,
-                eth_address
+            info!(
+                "      {}: {} (ETH: {})",
+                account_name, f4_address, eth_address
             );
 
             // Store in context using snake_case
@@ -175,16 +142,6 @@ impl ETHAccFundingStep {
             let eth_key = format!("{}_eth_address", account_name.to_lowercase());
             context.set(&address_key, f4_address);
             context.set(&eth_key, eth_address);
-
-            // Export key for Foundry (for deployers only) - no Lotus needed!
-            if account_name.starts_with("DEPLOYER_") {
-                let key_file_name = account_name.to_lowercase().replace('_', "-");
-                Self::export_key_for_foundry_direct(
-                    &key_info.private_key,
-                    volumes_dir,
-                    &key_file_name,
-                )?;
-            }
 
             // Collect transfer info for parallel execution
             account_transfers.push((account_name.to_string(), f4_address.to_string(), *amount));
@@ -204,12 +161,12 @@ impl ETHAccFundingStep {
         &self,
         from: &str,
         transfers: Vec<(String, String, u64)>,
-        context: &StepContext,
+        context: &SetupContext,
     ) -> Result<(), Box<dyn Error>> {
         use super::constants::TRANSACTION_CONFIRMATION_WAIT_SECS;
 
         let num_transfers = transfers.len();
-        println!(
+        info!(
             "      Executing {} FIL transfers in parallel...",
             num_transfers
         );
@@ -229,7 +186,7 @@ impl ETHAccFundingStep {
 
             let handle = thread::spawn(move || {
                 let description = format!("GLOBAL_FIL_FAUCET → {}", account_name);
-                println!("      Transferring {} FIL: {}...", amount, description);
+                info!("      Transferring {} FIL: {}...", amount, description);
 
                 let output = Command::new("docker")
                     .args([
@@ -246,11 +203,7 @@ impl ETHAccFundingStep {
 
                 match output {
                     Ok(out) if out.status.success() => {
-                        println!(
-                            "      ✓ Transferred {} FIL: {}",
-                            amount,
-                            description.dark_green().bold()
-                        );
+                        info!("      Transferred {} FIL: {}", amount, description);
                     }
                     Ok(out) => {
                         let error_msg = format!(
@@ -259,13 +212,13 @@ impl ETHAccFundingStep {
                             account_name,
                             String::from_utf8_lossy(&out.stderr)
                         );
-                        eprintln!("      ✗ {}", error_msg.clone().red());
+                        tracing::error!("      {}", error_msg);
                         errors_clone.lock().unwrap().push(error_msg);
                     }
                     Err(e) => {
                         let error_msg =
                             format!("Failed to execute transfer to {}: {}", account_name, e);
-                        eprintln!("      ✗ {}", error_msg.clone().red());
+                        tracing::error!("      {}", error_msg);
                         errors_clone.lock().unwrap().push(error_msg);
                     }
                 }
@@ -282,7 +235,7 @@ impl ETHAccFundingStep {
         }
 
         // Wait for transaction confirmation and address activation
-        println!("      Waiting for transaction confirmations and address activations...");
+        info!("      Waiting for transaction confirmations and address activations...");
         thread::sleep(Duration::from_secs(TRANSACTION_CONFIRMATION_WAIT_SECS * 2));
 
         // Check if any errors occurred
@@ -292,9 +245,8 @@ impl ETHAccFundingStep {
             return Err(format!("One or more transfers failed:\n{}", combined_error).into());
         }
 
-        println!(
-            "      {} All {} transfers completed successfully!",
-            "✓".green().bold(),
+        info!(
+            "      All {} transfers completed successfully!",
             num_transfers
         );
 
@@ -305,7 +257,7 @@ impl ETHAccFundingStep {
     fn verify_balances_parallel(
         &self,
         accounts: Vec<(String, String, u64)>,
-        context: &StepContext,
+        context: &SetupContext,
     ) -> Result<(), Box<dyn Error>> {
         let run_id = context.run_id().ok_or("Run ID not found in context")?;
         let container_name = lotus_container_name(run_id);
@@ -341,19 +293,16 @@ impl ETHAccFundingStep {
                                 Ok(balance) => {
                                     let expected = expected_amount as f64;
                                     if balance >= expected {
-                                        println!(
-                                            "      {} {}: {} FIL (expected: {} FIL)",
-                                            "✓".green(),
-                                            account_name,
-                                            balance,
-                                            expected
+                                        info!(
+                                            "      {}: {} FIL (expected: {} FIL)",
+                                            account_name, balance, expected
                                         );
                                     } else {
                                         let error_msg = format!(
                                             "{}: Insufficient balance. Expected at least {} FIL, got {} FIL",
                                             account_name, expected, balance
                                         );
-                                        eprintln!("      ✗ {}", error_msg.clone().red());
+                                        tracing::error!("      {}", error_msg);
                                         errors_clone.lock().unwrap().push(error_msg);
                                     }
                                 }
@@ -362,7 +311,7 @@ impl ETHAccFundingStep {
                                         "{}: Failed to parse balance '{}': {}",
                                         account_name, balance_fil, e
                                     );
-                                    eprintln!("      ✗ {}", error_msg.clone().red());
+                                    tracing::error!("      {}", error_msg);
                                     errors_clone.lock().unwrap().push(error_msg);
                                 }
                             }
@@ -371,7 +320,7 @@ impl ETHAccFundingStep {
                                 "{}: Unexpected balance format: {}",
                                 account_name, balance_str
                             );
-                            eprintln!("      ✗ {}", error_msg.clone().red());
+                            tracing::error!("      {}", error_msg);
                             errors_clone.lock().unwrap().push(error_msg);
                         }
                     }
@@ -381,13 +330,13 @@ impl ETHAccFundingStep {
                             account_name,
                             String::from_utf8_lossy(&out.stderr)
                         );
-                        eprintln!("      ✗ {}", error_msg.clone().red());
+                        tracing::error!("      {}", error_msg);
                         errors_clone.lock().unwrap().push(error_msg);
                     }
                     Err(e) => {
                         let error_msg =
                             format!("{}: Failed to execute balance check: {}", account_name, e);
-                        eprintln!("      ✗ {}", error_msg.clone().red());
+                        tracing::error!("      {}", error_msg);
                         errors_clone.lock().unwrap().push(error_msg);
                     }
                 }
@@ -420,44 +369,36 @@ impl Step for ETHAccFundingStep {
         "Fund Ethereum Accounts"
     }
 
-    fn pre_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
+    fn pre_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
+        // Check if already funded
+        if self.check_existing_funding(context)? {
+            return Ok(());
+        }
+
         // Check if Lotus is running
         check_lotus_running(context)?;
-        println!("    {} Lotus is running", "✓".green());
 
-        // Check if GLOBAL_FIL_FAUCET key exists
-        let faucet_addr = get_global_faucet_address()?;
-        println!(
-            "    {} GLOBAL_FIL_FAUCET address: {}",
-            "✓".green(),
-            faucet_addr
-        );
-
-        // Check if keys.rs keys are available
-        let keys = load_keys()?;
-        println!(
-            "    {} Loaded {} pre-generated keys",
-            "✓".green(),
-            keys.len()
-        );
+        // Get global faucet address
+        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let global_faucet = get_global_faucet_address(run_id)?;
+        context.set("global_faucet_address", &global_faucet);
 
         Ok(())
     }
 
     /// Execute the account funding process
-    fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
+    fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         if self.check_existing_funding(context)? {
             return Ok(());
         }
 
-        let volumes_dir = crate::paths::foc_localnet_docker_volumes();
-        self.perform_account_funding(context, &volumes_dir)?;
+        self.perform_account_funding(context)?;
         Ok(())
     }
 
     /// Perform post-execution verification for account funding
-    fn post_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
-        println!("    Verifying account funding...");
+    fn post_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
+        info!("    Verifying account funding...");
 
         // First, verify all addresses are in context
         let mut accounts_to_verify = Vec::new();
@@ -484,26 +425,16 @@ impl Step for ETHAccFundingStep {
                 .get(&eth_key)
                 .ok_or(format!("Missing ETH address for: {}", account_name))?;
 
-            println!(
-                "      {} {}: {} (ETH: {})",
-                "✓".green(),
-                account_name,
-                addr,
-                eth_addr
-            );
+            info!("      {}: {} (ETH: {})", account_name, addr, eth_addr);
 
             accounts_to_verify.push((account_name.to_string(), addr.to_string(), *expected_amount));
         }
 
         // Verify balances in parallel
-        println!("\n    Verifying account balances with Lotus node...");
+        info!("    Verifying account balances with Lotus node...");
         self.verify_balances_parallel(accounts_to_verify, context)?;
 
-        println!(
-            "\n    {} Account funding step completed!",
-            "✓".green().bold()
-        );
-        println!("      All Ethereum accounts are funded and ready for contract deployment.");
+        info!("    Ethereum account funding verified successfully!");
 
         Ok(())
     }

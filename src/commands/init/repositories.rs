@@ -3,11 +3,10 @@
 //! This module handles the downloading and setup of Git repositories
 //! for Lotus and Curio components.
 
-use crossterm::style::Stylize;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::fs;
-use std::path::Path;
 use std::process::Command;
+use tracing::info;
 
 use crate::config::{Config, Location};
 use crate::paths::{foc_localnet_code, foc_localnet_config};
@@ -21,7 +20,7 @@ use crate::paths::{foc_localnet_code, foc_localnet_config};
 /// # Returns
 /// Returns `Ok(())` if repositories are downloaded successfully, or an error if any step fails.
 pub fn download_code_repositories() -> Result<(), Box<dyn std::error::Error>> {
-    println!("{}", "Downloading code repositories...".bold());
+    info!("Downloading code repositories...");
 
     // Load configuration
     let config_path = foc_localnet_config();
@@ -45,7 +44,7 @@ pub fn download_code_repositories() -> Result<(), Box<dyn std::error::Error>> {
     // Download synapse-sdk repository if Git-based
     download_repository("synapse-sdk", &config.synapse_sdk)?;
 
-    println!("  {} Code repositories are now available.", "✓".green());
+    info!("  Code repositories are now available.");
     Ok(())
 }
 
@@ -66,11 +65,7 @@ pub fn download_code_repositories() -> Result<(), Box<dyn std::error::Error>> {
 fn download_repository(name: &str, location: &Location) -> Result<(), Box<dyn std::error::Error>> {
     match location {
         Location::LocalSource { .. } => {
-            println!(
-                "  {} {} using local source, skipping download",
-                "✓".green(),
-                name
-            );
+            info!("  {} using local source, skipping download", name);
             Ok(())
         }
         Location::GitCommit { url, commit } => {
@@ -109,153 +104,76 @@ fn clone_and_checkout(
     let repo_dir = foc_localnet_code().join(name);
 
     if repo_dir.exists() {
-        println!(
-            "  {} {} repository already exists at {}",
-            "✓".green(),
+        info!(
+            "  {} repository already exists at {}",
             name,
             repo_dir.display()
         );
         return Ok(());
     }
 
-    clone_repo(name, url, &repo_dir)?;
-    let checkout_ref = determine_checkout_ref(commit, tag, branch);
-    checkout_to_ref(name, &repo_dir, &checkout_ref)?;
-    update_submodules(name, &repo_dir)?;
-
-    println!(
-        "{} Cloned and checked out {} to {}",
-        "✓".green(),
-        name,
-        checkout_ref
-    );
-    Ok(())
-}
-
-/// Clone the repository from the given URL to the specified directory.
-///
-/// # Arguments
-/// * `name` - Name of the repository for progress messages
-/// * `url` - Git repository URL
-/// * `repo_dir` - Directory to clone into
-///
-/// # Returns
-/// Returns `Ok(())` if cloning succeeds, or an error if cloning fails.
-fn clone_repo(name: &str, url: &str, repo_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    println!("  {} Cloning {} from {}...", "📥".bold(), name, url);
-
     let pb = ProgressBar::new_spinner();
     pb.set_style(
         ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg}")
+            .template("{spinner:.green} [{elapsed_precise}] {msg}")
             .unwrap(),
     );
-    pb.set_message(format!("Cloning {} repository...", name));
+    pb.set_message(format!("Cloning {}...", name));
 
-    // Clone the repository
     let status = Command::new("git")
-        .args(["clone", url, &repo_dir.to_string_lossy()])
+        .args(["clone", url, repo_dir.to_str().unwrap()])
         .status()?;
 
     if !status.success() {
-        pb.finish_with_message(format!("❌ Failed to clone {} repository", name));
-        return Err(format!("Failed to clone {} repository", name).into());
+        pb.finish_with_message(format!("Failed to clone {}", name));
+        return Err(format!("Failed to clone repository from {}", url).into());
     }
 
-    pb.finish();
-    Ok(())
-}
-
-/// Determine the reference to checkout based on the provided options.
-///
-/// Priority order: commit > tag > branch > "main"
-///
-/// # Arguments
-/// * `commit` - Optional commit hash
-/// * `tag` - Optional tag name
-/// * `branch` - Optional branch name
-///
-/// # Returns
-/// Returns the reference string to checkout.
-fn determine_checkout_ref(commit: Option<&str>, tag: Option<&str>, branch: Option<&str>) -> String {
-    if let Some(commit) = commit {
-        commit.to_string()
-    } else if let Some(tag) = tag {
-        tag.to_string()
-    } else if let Some(branch) = branch {
-        branch.to_string()
-    } else {
-        "main".to_string()
-    }
-}
-
-/// Checkout to the specified reference in the repository.
-///
-/// # Arguments
-/// * `name` - Name of the repository for progress messages
-/// * `repo_dir` - Repository directory
-/// * `checkout_ref` - Reference to checkout (commit, tag, or branch)
-///
-/// # Returns
-/// Returns `Ok(())` if checkout succeeds, or an error if checkout fails.
-fn checkout_to_ref(
-    name: &str,
-    repo_dir: &Path,
-    checkout_ref: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg}")
-            .unwrap(),
-    );
-    pb.set_message(format!("Checking out {}...", name));
-
-    let status = Command::new("git")
-        .args(["checkout", checkout_ref])
-        .current_dir(repo_dir)
-        .status()?;
-
-    if !status.success() {
-        pb.finish_with_message(format!(
-            "❌ Failed to checkout {} to {}",
-            name, checkout_ref
-        ));
-        return Err(format!("Failed to checkout {} to {}", name, checkout_ref).into());
+    // Checkout to specific ref if provided
+    if let Some(c) = commit {
+        pb.set_message(format!("Checking out commit {} for {}...", c, name));
+        let status = Command::new("git")
+            .args(["checkout", c])
+            .current_dir(&repo_dir)
+            .status()?;
+        if !status.success() {
+            pb.finish_with_message(format!("Failed to checkout commit {} for {}", c, name));
+            return Err(format!("Failed to checkout commit {}", c).into());
+        }
+    } else if let Some(t) = tag {
+        pb.set_message(format!("Checking out tag {} for {}...", t, name));
+        let status = Command::new("git")
+            .args(["checkout", &format!("tags/{}", t)])
+            .current_dir(&repo_dir)
+            .status()?;
+        if !status.success() {
+            pb.finish_with_message(format!("Failed to checkout tag {} for {}", t, name));
+            return Err(format!("Failed to checkout tag {}", t).into());
+        }
+    } else if let Some(b) = branch {
+        pb.set_message(format!("Checking out branch {} for {}...", b, name));
+        let status = Command::new("git")
+            .args(["checkout", b])
+            .current_dir(&repo_dir)
+            .status()?;
+        if !status.success() {
+            pb.finish_with_message(format!("Failed to checkout branch {} for {}", b, name));
+            return Err(format!("Failed to checkout branch {}", b).into());
+        }
     }
 
-    pb.finish();
-    Ok(())
-}
-
-/// Update submodules in the repository.
-///
-/// # Arguments
-/// * `name` - Name of the repository for progress messages
-/// * `repo_dir` - Repository directory
-///
-/// # Returns
-/// Returns `Ok(())` if submodule update succeeds, or an error if it fails.
-fn update_submodules(name: &str, repo_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg}")
-            .unwrap(),
-    );
+    // Update submodules
     pb.set_message(format!("Updating submodules for {}...", name));
-
-    // Update submodules recursively
     let status = Command::new("git")
         .args(["submodule", "update", "--init", "--recursive"])
-        .current_dir(repo_dir)
+        .current_dir(&repo_dir)
         .status()?;
 
     if !status.success() {
-        pb.finish_with_message(format!("❌ Failed to update submodules for {}", name));
+        pb.finish_with_message(format!("Failed to update submodules for {}", name));
         return Err(format!("Failed to update submodules for {}", name).into());
     }
 
-    pb.finish();
+    pb.finish_with_message(format!("{} repository ready", name));
     Ok(())
 }

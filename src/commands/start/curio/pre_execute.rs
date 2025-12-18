@@ -3,14 +3,14 @@
 //! Verifies that Lotus is running and blocks are being generated before
 //! attempting to start Curio.
 
-use super::super::step::StepContext;
+use super::super::step::SetupContext;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::{container_exists, container_is_running};
-use crossterm::style::Stylize;
 use std::error::Error;
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
+use tracing::info;
 
 /// Verify prerequisites for Curio setup.
 ///
@@ -18,11 +18,8 @@ use std::time::Duration;
 /// 1. Lotus container is running
 /// 2. Lotus-Miner container is running
 /// 3. Chain is progressing (blocks are being generated)
-pub fn verify_prerequisites(context: &StepContext, sp_count: usize) -> Result<(), Box<dyn Error>> {
-    println!(
-        "  {} Verifying Lotus is running and producing blocks...",
-        "✓".green()
-    );
+pub fn verify_prerequisites(context: &SetupContext, sp_count: usize) -> Result<(), Box<dyn Error>> {
+    info!("  Verifying Lotus is running and producing blocks...");
 
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let lotus_container = lotus_container_name(run_id);
@@ -47,31 +44,64 @@ pub fn verify_prerequisites(context: &StepContext, sp_count: usize) -> Result<()
     // Verify chain is progressing
     verify_chain_progressing(&lotus_container)?;
 
-    println!(
-        "  {} Prerequisites verified: Lotus is running and producing blocks",
-        "✓".green()
-    );
-    println!(
-        "  {} Will activate {} PDP Service Provider(s)",
-        "✓".green(),
+    info!(
+        "  Allocating and verifying ports for {} Curio instance(s)...",
         sp_count
     );
+    for sp_index in 1..=sp_count {
+        let api_port = context.allocate_port()?;
+        let api_port_alt = context.allocate_port()?;
+        let gui_port = context.allocate_port()?;
+        let pdp_port = context.allocate_port()?;
+
+        context.set(
+            format!("curio_sp_{}_api_port", sp_index),
+            api_port.to_string(),
+        );
+        context.set(
+            format!("curio_sp_{}_api_port_alt", sp_index),
+            api_port_alt.to_string(),
+        );
+        context.set(
+            format!("curio_sp_{}_gui_port", sp_index),
+            gui_port.to_string(),
+        );
+        context.set(
+            format!("curio_sp_{}_pdp_port", sp_index),
+            pdp_port.to_string(),
+        );
+
+        for (port, desc) in [
+            (api_port, "API"),
+            (api_port_alt, "API Alt"),
+            (gui_port, "GUI"),
+            (pdp_port, "PDP"),
+        ] {
+            if !crate::docker::is_port_available(port) {
+                return Err(format!(
+                    "Port {} ({}) for Curio SP {} is already in use",
+                    port, desc, sp_index
+                )
+                .into());
+            }
+        }
+    }
+
+    info!("  Prerequisites verified: Lotus is running and producing blocks");
+    info!("  Will activate {} PDP Service Provider(s)", sp_count);
 
     Ok(())
 }
 
 /// Verify that the Filecoin chain is progressing (blocks are being generated).
 fn verify_chain_progressing(lotus_container: &str) -> Result<(), Box<dyn Error>> {
-    println!("    {} Checking chain is progressing...", "✓".green());
+    info!("    Checking chain is progressing...");
 
     // Get initial block height
     let height1 = get_chain_head_height(lotus_container)?;
 
     // Wait 6 seconds (should be enough for at least 1 block with 4s block time)
-    println!(
-        "    {} Waiting 6 seconds to verify block production...",
-        "✓".green()
-    );
+    info!("    Waiting 6 seconds to verify block production...");
     thread::sleep(Duration::from_secs(6));
 
     // Get new block height
@@ -86,11 +116,9 @@ fn verify_chain_progressing(lotus_container: &str) -> Result<(), Box<dyn Error>>
         .into());
     }
 
-    println!(
-        "    {} Chain is progressing (height {} → {})",
-        "✓".green(),
-        height1,
-        height2
+    info!(
+        "    Chain is progressing (height {} → {})",
+        height1, height2
     );
 
     Ok(())

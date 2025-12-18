@@ -5,10 +5,10 @@
 
 use crate::docker::core::{docker_command, get_current_gid, get_current_uid, image_exists};
 use crate::embedded_assets;
-use crossterm::style::Stylize;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::fs;
 use std::path::{Path, PathBuf};
+use tracing::{error, info};
 
 /// Build a Docker image from embedded Dockerfile.
 ///
@@ -21,9 +21,8 @@ pub fn build_image_from_embedded(name: &str) -> Result<(), Box<dyn std::error::E
     let image_tag = format!("foc-{}", name);
 
     if image_exists(&image_tag)? {
-        println!(
-            "    {} Docker image {} already exists, skipping build",
-            "✓".green(),
+        info!(
+            "    Docker image {} already exists, skipping build",
             image_tag
         );
     } else {
@@ -53,12 +52,10 @@ pub fn perform_build_from_embedded(
 }
 
 /// Print build information for standard image.
-fn print_build_info(name: &str, image_tag: &str) {
-    println!(
-        "    {} Building Docker image: {} from embedded Dockerfile.{}",
-        "🔨".bold(),
-        image_tag,
-        name
+fn print_build_info(_name: &str, image_tag: &str) {
+    info!(
+        "    Building Docker image: {} from embedded Dockerfile",
+        image_tag
     );
 }
 
@@ -111,10 +108,9 @@ pub fn build_yugabyte_image(name: &str) -> Result<(), Box<dyn std::error::Error>
     let image_tag = format!("foc-{}", name);
 
     if image_exists(&image_tag)? {
-        println!(
-            "    {} Docker image {} already exists, skipping build",
-            "✓".green(),
-            image_tag.blue()
+        info!(
+            "    Docker image {} already exists, skipping build",
+            image_tag
         );
         return Ok(());
     }
@@ -149,7 +145,7 @@ fn perform_yugabyte_build(name: &str, image_tag: &str) -> Result<(), Box<dyn std
 
     let artifacts_dir = foc_localnet_artifacts();
 
-    print_yugabyte_build_info(name, image_tag, &artifacts_dir);
+    print_yugabyte_build_info(image_tag, &artifacts_dir);
 
     let pb = setup_build_progress_bar(image_tag);
     let (uid, gid) = get_build_user_ids()?;
@@ -164,18 +160,12 @@ fn perform_yugabyte_build(name: &str, image_tag: &str) -> Result<(), Box<dyn std
 }
 
 /// Print build information for YugabyteDB image.
-fn print_yugabyte_build_info(name: &str, image_tag: &str, artifacts_dir: &Path) {
-    println!(
-        "    {} Building Docker image: {} from embedded Dockerfile.{}",
-        "🔨".bold(),
-        image_tag,
-        name
+fn print_yugabyte_build_info(image_tag: &str, artifacts_dir: &Path) {
+    info!(
+        "    Building Docker image: {} from embedded Dockerfile (Yugabyte)",
+        image_tag
     );
-    println!(
-        "    {} Using build context: {}",
-        "📁".bold(),
-        artifacts_dir.display()
-    );
+    info!("    Using build context: {}", artifacts_dir.display());
 }
 
 /// Set up progress bar for Docker build.
@@ -238,10 +228,12 @@ fn finalize_build_progress(
     match result {
         Ok(()) => {
             pb.finish_with_message(format!("✓ Built image: {}", image_tag));
+            info!("    Successfully built Docker image: {}", image_tag);
             Ok(())
         }
         Err(e) => {
             pb.finish_with_message(format!("❌ Failed to build Docker image: {}", image_tag));
+            error!("    Failed to build Docker image {}: {}", image_tag, e);
             Err(e)
         }
     }
@@ -256,14 +248,12 @@ fn finalize_build_progress(
 /// - foc-yugabyte (Database)
 /// - foc-curio (Second-generation miner)
 pub fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>> {
-    use crossterm::style::Stylize;
-
-    println!("{}", "Building and caching Docker images...".bold());
+    info!("Building and caching Docker images...");
 
     let images = ["builder", "lotus", "lotus-miner", "yugabyte", "curio"];
 
     for image_name in &images {
-        println!("  {} Building image: foc-{}", "🔨".bold(), image_name);
+        info!("  Building image: foc-{}", image_name);
         // Yugabyte requires special handling with artifacts directory as build context
         if image_name == &"yugabyte" {
             build_yugabyte_image(image_name)?;
@@ -272,7 +262,7 @@ pub fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>>
         }
     }
 
-    println!("{}", "✓ All Docker images built and cached".green());
+    info!("✓ All Docker images built and cached");
     Ok(())
 }
 

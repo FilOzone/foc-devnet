@@ -26,19 +26,8 @@ pub struct ContractAddresses {
 
 impl ContractAddresses {
     /// Load contract addresses from the state file
-    ///
-    /// # Returns
-    /// The loaded contract addresses or an error if the file doesn't exist or is invalid
-    ///
-    /// # Examples
-    /// ```rust
-    /// use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
-    ///
-    /// let addresses = ContractAddresses::load()?;
-    /// println!("Contracts: {:?}", addresses.contracts);
-    /// ```
-    pub fn load() -> Result<Self, Box<dyn Error>> {
-        let path = contract_addresses_file();
+    pub fn load(run_id: &str) -> Result<Self, Box<dyn Error>> {
+        let path = contract_addresses_file(run_id);
         if !path.exists() {
             return Err("Contract addresses file not found".into());
         }
@@ -48,23 +37,8 @@ impl ContractAddresses {
     }
 
     /// Save contract addresses to the state file
-    ///
-    /// # Examples
-    /// ```rust
-    /// use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
-    /// use std::collections::HashMap;
-    ///
-    /// let mut contracts = HashMap::new();
-    /// contracts.insert("multicall".to_string(), "0x123...".to_string());
-    ///
-    /// let addresses = ContractAddresses {
-    ///     contracts,
-    ///     foc_contracts: HashMap::new(),
-    /// };
-    /// addresses.save()?;
-    /// ```
-    pub fn save(&self) -> Result<(), Box<dyn Error>> {
-        let path = contract_addresses_file();
+    pub fn save(&self, run_id: &str) -> Result<(), Box<dyn Error>> {
+        let path = contract_addresses_file(run_id);
         // Ensure the state directory exists
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;

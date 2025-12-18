@@ -6,8 +6,8 @@ use crate::commands::init::keys::load_keys;
 use crate::commands::start::genesis::constants;
 use crate::commands::start::genesis::keys::get_bls_addresses;
 use crate::paths::foc_localnet_genesis;
-use crossterm::style::Stylize;
 use std::fs;
+use tracing::info;
 
 /// Initial balance for FOC-specific accounts in FIL (without decimals).
 pub const PREFUNDED_ACCOUNTS_INIT_FIL: u64 = 10_000_000; // 10 million FIL
@@ -16,14 +16,14 @@ pub const PREFUNDED_ACCOUNTS_INIT_FIL: u64 = 10_000_000; // 10 million FIL
 ///
 /// Since lotus-seed doesn't have an `add-actor` command, we modify the genesis JSON
 /// directly to add the GLOBAL_FIL_FAUCET pre-funded account.
-pub fn add_global_fil_faucet_account() -> Result<(), Box<dyn std::error::Error>> {
-    println!("  {} Adding pre-funded accounts to genesis...", "💰".cyan());
+pub fn add_global_fil_faucet_account(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    info!("  💰 Adding pre-funded accounts to genesis...");
 
-    let genesis_dir = foc_localnet_genesis();
+    let genesis_dir = foc_localnet_genesis(run_id);
     let genesis_file_path = genesis_dir.join(constants::GENESIS_FILE);
 
     // Get GLOBAL_FIL_FAUCET BLS address
-    let addresses = get_bls_addresses("GLOBAL_FIL_FAUCET", 0)?;
+    let addresses = get_bls_addresses("GLOBAL_FIL_FAUCET", 0, run_id)?;
     let global_fil_faucet_addr = &addresses[0];
 
     // Read the genesis file
@@ -42,11 +42,7 @@ pub fn add_global_fil_faucet_account() -> Result<(), Box<dyn std::error::Error>>
         });
 
         accounts.push(account);
-        println!(
-            "      {} GLOBAL_FIL_FAUCET: {}",
-            "✓".green(),
-            global_fil_faucet_addr
-        );
+        info!("      ✓ GLOBAL_FIL_FAUCET: {}", global_fil_faucet_addr);
     } else {
         return Err("Genesis file does not have an 'Accounts' array".into());
     }
@@ -55,17 +51,17 @@ pub fn add_global_fil_faucet_account() -> Result<(), Box<dyn std::error::Error>>
     let updated_content = serde_json::to_string_pretty(&genesis)?;
     fs::write(&genesis_file_path, updated_content)?;
 
-    println!("  {} Pre-funded accounts added successfully", "✓".green());
+    info!("  ✓ Pre-funded accounts added successfully");
     Ok(())
 }
 
 /// Add FOC-specific accounts to the genesis file.
 ///
 /// This includes GLOBAL_FIL_FAUCET as a t3 account and FEVM addresses as evm actors.
-pub fn add_foc_accounts() -> Result<(), Box<dyn std::error::Error>> {
-    println!("  {} Adding FOC accounts to genesis...", "💰".cyan());
+pub fn add_foc_accounts(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    info!("  💰 Adding FOC accounts to genesis...");
 
-    let genesis_dir = foc_localnet_genesis();
+    let genesis_dir = foc_localnet_genesis(run_id);
     let genesis_file_path = genesis_dir.join(constants::GENESIS_FILE);
 
     // Load keys
@@ -89,7 +85,7 @@ pub fn add_foc_accounts() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     });
                     accounts.push(account);
-                    println!("      {} Added {}: {}", "✓".green(), key.name, fil_addr);
+                    info!("      ✓ Added {}: {}", key.name, fil_addr);
                 }
             }
         }
@@ -101,6 +97,6 @@ pub fn add_foc_accounts() -> Result<(), Box<dyn std::error::Error>> {
     let updated_content = serde_json::to_string_pretty(&genesis)?;
     fs::write(&genesis_file_path, updated_content)?;
 
-    println!("  {} FOC accounts added successfully", "✓".green());
+    info!("  ✓ FOC accounts added successfully");
     Ok(())
 }

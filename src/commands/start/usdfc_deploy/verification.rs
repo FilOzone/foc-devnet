@@ -3,23 +3,24 @@
 //! This module handles the verification of deployed MockUSDFC contracts.
 
 use super::foundry_setup::get_mockusdfc_project_dir;
-use crossterm::style::Stylize;
 use std::error::Error;
 use std::process::Command;
+use tracing::{info, warn};
 
 /// Verify the deployed MockUSDFC contract
 pub fn verify_mock_usdfc(
     private_key: &str,
     contract_address: &str,
     lotus_rpc_url: &str,
+    run_id: &str,
 ) -> Result<(), Box<dyn Error>> {
-    println!("      Verifying MockUSDFC contract functions...");
+    info!("      Verifying MockUSDFC contract functions...");
 
     // Get the contract directory from embedded assets
-    let contract_dir = get_mockusdfc_project_dir()?;
+    let contract_dir = get_mockusdfc_project_dir(run_id)?;
 
     // Wait a bit for transaction confirmation
-    println!("        Waiting for transaction confirmation...");
+    info!("        Waiting for transaction confirmation...");
     std::thread::sleep(std::time::Duration::from_secs(6));
 
     let verify_cmd = format!(
@@ -51,20 +52,17 @@ pub fn verify_mock_usdfc(
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     if !output.status.success() {
-        println!("        {} Verification failed", "⚠".yellow());
+        warn!("        Verification failed");
         if !stderr.is_empty() {
-            println!("        Error output:");
+            warn!("        Error output:");
             for line in stderr.lines() {
-                println!("          {}", line);
+                warn!("          {}", line);
             }
         }
         // Don't fail the step, just warn
-        println!(
-            "        {} Continuing despite verification warning",
-            "→".cyan()
-        );
+        warn!("        Continuing despite verification warning");
     } else {
-        println!("        {} All contract functions verified", "✓".green());
+        info!("        All contract functions verified");
     }
 
     Ok(())

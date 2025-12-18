@@ -13,10 +13,10 @@ pub mod pre_execute;
 pub mod storage;
 pub mod verification;
 
-use super::step::{Step, StepContext};
-use crossterm::style::Stylize;
+use super::step::{SetupContext, Step};
 use std::error::Error;
 use std::path::PathBuf;
+use tracing::info;
 
 /// Step for setting up Curio PDP Service Providers.
 ///
@@ -32,17 +32,17 @@ pub struct CurioStep {
     #[allow(dead_code)]
     volumes_dir: PathBuf,
     #[allow(dead_code)]
-    logs_dir: PathBuf,
+    run_dir: PathBuf,
     /// Number of PDP SPs to activate (1-5)
     active_sp_count: usize,
 }
 
 impl CurioStep {
     /// Create a new CurioStep
-    pub fn new(volumes_dir: PathBuf, logs_dir: PathBuf, active_sp_count: usize) -> Self {
+    pub fn new(volumes_dir: PathBuf, run_dir: PathBuf, active_sp_count: usize) -> Self {
         Self {
             volumes_dir,
-            logs_dir,
+            run_dir,
             active_sp_count,
         }
     }
@@ -58,38 +58,30 @@ impl Step for CurioStep {
         "Curio PDP Service Providers"
     }
 
-    fn pre_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
-        println!(
-            "{}",
-            format!("Pre-checks for {}", self.name()).blue().bold()
-        );
+    fn pre_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
+        info!("Pre-checks for {}...", self.name());
         pre_execute::verify_prerequisites(context, self.active_sp_count)?;
         Ok(())
     }
 
-    fn execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
-        println!("{}", format!("Executing {}", self.name()).blue().bold());
+    fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
+        info!("Executing {}...", self.name());
         execute::setup_all_curio_sps(context, self)?;
         Ok(())
     }
 
-    fn post_execute(&self, context: &StepContext) -> Result<(), Box<dyn Error>> {
-        println!("{}", format!("Verifying {}", self.name()).blue().bold());
+    fn post_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
+        info!("Verifying {}...", self.name());
         post_execute::verify_all_curio_sps(context, self.active_sp_count)?;
         Ok(())
     }
 
-    fn run(&self, context: &StepContext) -> Result<std::time::Duration, Box<dyn Error>> {
+    fn run(&self, context: &SetupContext) -> Result<std::time::Duration, Box<dyn Error>> {
         let start = std::time::Instant::now();
         self.pre_execute(context)?;
         self.execute(context)?;
         self.post_execute(context)?;
-        println!(
-            "{}",
-            format!("✓ {} completed successfully", self.name())
-                .green()
-                .bold()
-        );
+        info!("✓ {} completed successfully", self.name());
         Ok(start.elapsed())
     }
 }

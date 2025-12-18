@@ -3,14 +3,20 @@
 //! This module provides the main application entry point with command routing.
 
 use clap::Parser;
-use crossterm::style::Stylize;
 use foc_localnet::cli::{Cli, Commands};
+use foc_localnet::logger::init_logging;
 use foc_localnet::poison;
+use foc_localnet::run_id::generate_run_id;
+use tracing::error;
 
 mod main_app;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
+
+    // Generate a run ID for this execution and initialize logging
+    let run_id = generate_run_id();
+    init_logging(&run_id)?;
 
     // Check for poison file and attempt recovery
     poison::check_and_recover_poison()?;
@@ -19,9 +25,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = match cli.command {
         Commands::Start {
             volumes_dir,
-            logs_dir,
+            run_dir,
             parallel,
-        } => main_app::command_handlers::handle_start(volumes_dir, logs_dir, parallel),
+        } => main_app::command_handlers::handle_start(volumes_dir, run_dir, parallel, run_id),
         Commands::Stop => main_app::command_handlers::handle_stop(),
         Commands::Init {
             curio,
@@ -60,9 +66,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             // Leave poison file in place on error
-            eprintln!(
-                "{}",
-                "Command failed, poison file left in place for safety".red()
+            error!(
+                "Command failed, poison file left in place for safety: {}",
+                e
             );
             Err(e)
         }
