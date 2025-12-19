@@ -41,8 +41,6 @@ pub fn format_location_info(
     git_info: &GitInfo,
     _repo_path: &std::path::Path,
 ) -> (String, String, String, String) {
-    use crossterm::style::Stylize;
-
     let is_ready = match (location, git_info) {
         // LocalSource is ready if it has any git info
         (
@@ -83,9 +81,9 @@ pub fn format_location_info(
     };
 
     let status = if is_ready {
-        "Ready".green().to_string()
+        "Ready".to_string()
     } else {
-        "Not Ready".red().to_string()
+        "Not Ready".to_string()
     };
 
     let (source_type, version, commit) = match location {

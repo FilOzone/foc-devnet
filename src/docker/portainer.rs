@@ -7,11 +7,10 @@ use super::containers::portainer_container_name;
 use super::core::{
     container_exists, container_is_running, docker_command, stop_and_remove_container,
 };
-use crossterm::style::Stylize;
 use std::error::Error;
+use tracing::info;
 
 const PORTAINER_IMAGE: &str = "portainer/portainer-ce:latest";
-const PORTAINER_PORT: u16 = 9009;
 const PORTAINER_DATA_VOLUME: &str = "portainer_data";
 
 /// Find an existing Portainer container (from any run)
@@ -23,7 +22,7 @@ fn find_existing_portainer() -> Result<Option<String>, Box<dyn Error>> {
     let output = docker_command(&[
         "ps",
         "--filter",
-        "name=^portainer*",
+        "name=^foc-.*-portainer$",
         "--format",
         "{{.Names}}",
     ])?;
@@ -44,57 +43,49 @@ fn find_existing_portainer() -> Result<Option<String>, Box<dyn Error>> {
 
 /// Start a Portainer instance for the cluster run
 ///
-/// Portainer will be accessible at http://localhost:9009
-/// If any Portainer instance already exists, it will be reused instead of creating a new one.
+/// Portainer will be accessible at http://localhost:<port>
 ///
 /// # Arguments
 /// * `run_id` - The run ID for this cluster
+/// * `port` - The port to use for Portainer
 ///
 /// # Returns
 /// Ok(()) on success, error on failure
-pub fn start_portainer(run_id: &str) -> Result<(), Box<dyn Error>> {
+pub fn start_portainer(run_id: &str, port: u16) -> Result<(), Box<dyn Error>> {
     let container_name = portainer_container_name(run_id);
 
-    println!("{}", "Starting Portainer...".blue().bold());
-    println!("  Container: {}", container_name);
+    info!("{}", "Starting Portainer...");
+    info!("Container: {}", container_name);
 
-    // Check if any Portainer container already exists (from any run)
+    // Check if any Portainer container already exists (from any run) and remove it
+    // to ensure we use the new port and follow the new naming convention
     let existing_portainer = find_existing_portainer()?;
     if let Some(existing_name) = existing_portainer {
-        println!(
-            "  {} Reusing existing Portainer container: {}",
-            "ℹ".cyan(),
-            existing_name
-        );
-        println!(
-            "  {} Access at: {}",
-            "ℹ".cyan(),
-            format!("http://localhost:{}", PORTAINER_PORT)
-                .yellow()
-                .underlined()
-        );
-        return Ok(());
+        if existing_name != container_name {
+            info!("Removing existing Portainer container: {}", existing_name);
+            stop_and_remove_container(&existing_name)?;
+        }
     }
 
     // Check if our specific container is already running
     if container_is_running(&container_name)? {
-        println!("  {} Portainer already running", "ℹ".cyan());
+        info!("Portainer already running");
         return Ok(());
     }
 
     // Stop and remove if exists but not running
     if container_exists(&container_name)? {
-        println!("  Cleaning up existing container...");
+        info!("Cleaning up existing container...");
         stop_and_remove_container(&container_name)?;
     }
 
     // Pull latest Portainer image
-    println!("  Pulling Portainer image...");
+    info!("Pulling Portainer image...");
     docker_command(&["pull", PORTAINER_IMAGE])?;
 
     // Start Portainer container
-    println!("  Starting container...");
-    let port_mapping = format!("{}:9000", PORTAINER_PORT);
+    info!("Starting container...");
+    let port_mapping = format!("{}:9000", port);
     let volume_mapping = format!("{}:/data", PORTAINER_DATA_VOLUME);
     docker_command(&[
         "run",
@@ -112,14 +103,8 @@ pub fn start_portainer(run_id: &str) -> Result<(), Box<dyn Error>> {
         PORTAINER_IMAGE,
     ])?;
 
-    println!("  {} Portainer started", "✓".green());
-    println!(
-        "  {} Access at: {}",
-        "ℹ".cyan(),
-        format!("http://localhost:{}", PORTAINER_PORT)
-            .yellow()
-            .underlined()
-    );
+    info!("ℹ Portainer started");
+    info!("Access at: {}", format!("http://localhost:{}", port));
 
     Ok(())
 }
@@ -134,15 +119,15 @@ pub fn start_portainer(run_id: &str) -> Result<(), Box<dyn Error>> {
 pub fn stop_portainer(run_id: &str) -> Result<(), Box<dyn Error>> {
     let container_name = portainer_container_name(run_id);
 
-    println!("{}", "Stopping Portainer...".blue().bold());
+    println!("{}", "Stopping Portainer...");
 
     if !container_exists(&container_name)? {
-        println!("  {} Portainer container does not exist", "ℹ".cyan());
+        println!(" Portainer container does not exist");
         return Ok(());
     }
 
     stop_and_remove_container(&container_name)?;
-    println!("  {} Portainer stopped and removed", "✓".green());
+    println!(" Portainer stopped and removed");
 
     Ok(())
 }

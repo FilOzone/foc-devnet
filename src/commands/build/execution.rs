@@ -6,11 +6,11 @@ use super::docker;
 use super::logging;
 use super::Project;
 use crate::docker::core::{get_current_gid, get_current_uid};
-use crossterm::style::Stylize;
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
+use tracing::{error, info};
 
 /// Run the build process inside the Docker container.
 pub fn run_build_in_container(
@@ -19,7 +19,7 @@ pub fn run_build_in_container(
     project: &Project,
     image_tag: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("{} Building {} in container...", "🚀".bold(), project);
+    info!("Building {} in container...", project);
 
     // Create log file for this build
     let log_path = logging::create_build_log_path()?;
@@ -30,11 +30,7 @@ pub fn run_build_in_container(
             .to_str()
             .ok_or("Invalid log path")?,
     )?;
-    println!(
-        "{} Logs will be saved to: {}",
-        "📝".bold(),
-        log_path.display()
-    );
+    info!("Logs will be saved to: {}", log_path.display());
 
     let container_source_dir = "/workspace/source";
     let container_output_dir = "/workspace/output";
@@ -46,11 +42,7 @@ pub fn run_build_in_container(
 
     execute_build_process(docker_run_args, build_script, &log_path, project)?;
 
-    println!(
-        "{} Build logs saved to: {}",
-        "✓".green(),
-        log_path.display()
-    );
+    info!("Build logs saved to: {}", log_path.display());
 
     Ok(())
 }
@@ -87,7 +79,7 @@ pub fn execute_build_process(
         move || {
             let reader = BufReader::new(stdout);
             for line in reader.lines().flatten() {
-                println!("{}", line);
+                info!("{}", line);
                 writeln!(log_file, "{}", line).ok();
             }
         }
@@ -102,7 +94,7 @@ pub fn execute_build_process(
         move || {
             let reader = BufReader::new(stderr);
             for line in reader.lines().flatten() {
-                eprintln!("{}", line);
+                error!("{}", line);
                 writeln!(log_file, "{}", line).ok();
             }
         }

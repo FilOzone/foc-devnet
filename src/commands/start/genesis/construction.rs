@@ -9,7 +9,7 @@ pub mod miner;
 pub mod signers;
 
 use crate::paths::foc_localnet_genesis;
-use crossterm::style::Stylize;
+use tracing::info;
 
 /// Construct the complete genesis configuration.
 ///
@@ -27,29 +27,31 @@ use crossterm::style::Stylize;
 ///
 /// # Returns
 /// Returns `Ok(())` if genesis is constructed or already exists.
-pub fn construct_genesis(active_pdp_sp_count: usize) -> Result<(), Box<dyn std::error::Error>> {
-    let genesis_dir = foc_localnet_genesis();
+pub fn construct_genesis(
+    active_pdp_sp_count: usize,
+    run_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let genesis_dir = foc_localnet_genesis(run_id);
     let genesis_file_path = genesis_dir.join(super::constants::GENESIS_FILE);
 
     // Check if genesis file already exists - if so, skip all construction
     if genesis_file_path.exists() {
-        println!(
-            "  {} Genesis file already exists at {}",
-            "✓".green(),
+        info!(
+            "✓ Genesis file already exists at {}",
             genesis_file_path.display()
         );
-        println!("{}", "✓ Genesis construction complete".green().bold());
+        info!("✓ Genesis construction complete");
         return Ok(());
     }
 
-    println!("{}", "Constructing genesis configuration...".blue().bold());
+    info!("Constructing genesis configuration...");
 
-    creation::create_genesis_file()?;
-    signers::add_signers_to_genesis()?;
-    miner::add_miner_to_genesis(active_pdp_sp_count)?;
-    accounts::add_global_fil_faucet_account()?;
-    accounts::add_foc_accounts()?;
+    creation::create_genesis_file(run_id)?;
+    signers::add_signers_to_genesis(run_id)?;
+    miner::add_miner_to_genesis(active_pdp_sp_count, run_id)?;
+    accounts::add_global_fil_faucet_account(run_id)?;
+    accounts::add_foc_accounts(run_id)?;
 
-    println!("{}", "✓ Genesis construction complete".green().bold());
+    info!("✓ Genesis construction complete");
     Ok(())
 }

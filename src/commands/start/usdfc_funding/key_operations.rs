@@ -8,7 +8,7 @@ use std::fs;
 
 /// Load addresses from the state/addresses.json file
 fn load_state_addresses() -> Result<Vec<KeyInfo>, Box<dyn Error>> {
-    let state_file = crate::paths::foc_localnet_state().join("addresses.json");
+    let state_file = crate::paths::foc_localnet_keys().join("addresses.json");
     if !state_file.exists() {
         return Err(format!("State addresses file not found: {}", state_file.display()).into());
     }

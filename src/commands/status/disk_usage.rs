@@ -7,14 +7,14 @@
 //! - Display formatted size information
 //! - Show breakdown by directory type
 
+use tracing::info;
+
 use crate::paths::{
     foc_localnet_artifacts, foc_localnet_bin, foc_localnet_code, foc_localnet_docker_volumes,
     foc_localnet_home, foc_localnet_logs, foc_localnet_state, foc_localnet_tmp,
 };
-use crossterm::style::Stylize;
-use tabular::{Row, Table};
 
-use super::utils::{format_size, get_directory_size, get_terminal_width};
+use super::utils::{format_size, get_directory_size};
 
 /// Print disk usage information for foc-localnet directories.
 ///
@@ -33,88 +33,70 @@ use super::utils::{format_size, get_directory_size, get_terminal_width};
 ///
 /// Returns an error if directory size calculations fail.
 pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
-    let width = get_terminal_width().min(120);
-    let header_text = format!("{} {}", "💾".blue(), "Disk Usage");
-    // Display width: 💾 (2) + space (1) + "Disk Usage" (10) + space (1) = 14
-    let header_display_width = 2 + 1 + 10 + 1;
-    let padding_len = width.saturating_sub(header_display_width);
-    let padding = "░".repeat(padding_len).dark_grey();
-    println!("\n{} {}", header_text.bold().blue(), padding);
-    let width = get_terminal_width().min(120);
-    println!("{}", "─".repeat(width).blue());
+    info!("Disk Usage");
 
     let home_dir = foc_localnet_home();
 
-    // Get disk usage for main directories
-    let mut table = Table::new("{:<}  {:<}  {:<}");
-    table.add_row(
-        Row::new()
-            .with_ansi_cell("Directory".bold().dark_grey())
-            .with_ansi_cell("Size".bold().dark_grey())
-            .with_ansi_cell("Path".bold().dark_grey()),
-    );
+    // Print header
+    info!("{:<25}  {:<10}  {:<40}", "Directory", "Size", "Path");
+    info!("{:-<25}  {:-<10}  {:-<40}", "", "", "");
 
     // Main directories
     let directories = vec![
-        ("Code", foc_localnet_code()),
-        ("Binaries", foc_localnet_bin()),
+        ("Home", foc_localnet_home()),
         ("Logs", foc_localnet_logs()),
         ("State", foc_localnet_state()),
-        ("Temp", foc_localnet_tmp()),
+        ("Tmp", foc_localnet_tmp()),
+        ("Code", foc_localnet_code()),
+        ("Binaries", foc_localnet_bin()),
     ];
 
-    for (name, path) in directories {
-        let size = get_directory_size(&path)?;
-        table.add_row(
-            Row::new()
-                .with_cell(name)
-                .with_ansi_cell(format_size(size))
-                .with_ansi_cell(path.display().to_string().dim()),
-        );
+    for (name, path) in &directories {
+        if path.exists() {
+            let size = get_directory_size(path)?;
+            info!(
+                "{:<25}  {:<10}  {:<40}",
+                name,
+                format_size(size),
+                path.display()
+            );
+        }
     }
 
     // Artifacts breakdown
     let artifacts_dir = foc_localnet_artifacts();
     let artifacts_size = get_directory_size(&artifacts_dir)?;
 
-    table.add_row(
-        Row::new()
-            .with_ansi_cell("Artifacts (Overall)".bold())
-            .with_ansi_cell(format_size(artifacts_size).bold())
-            .with_ansi_cell(artifacts_dir.display().to_string().dim()),
+    info!(
+        "{:<25}  {:<10}  {:<40}",
+        "Artifacts (Overall)",
+        format_size(artifacts_size),
+        artifacts_dir.display()
     );
 
     // Docker volumes
     let docker_volumes_dir = foc_localnet_docker_volumes();
     let docker_volumes_size = get_directory_size(&docker_volumes_dir)?;
-    table.add_row(
-        Row::new()
-            .with_cell("  └─ Docker Volumes")
-            .with_ansi_cell(format_size(docker_volumes_size))
-            .with_ansi_cell(docker_volumes_dir.display().to_string().dim()),
+    info!(
+        "{:<25}  {:<10}  {:<40}",
+        "└─ Docker Volumes",
+        format_size(docker_volumes_size),
+        docker_volumes_dir.display()
     );
 
     // Other artifacts (total - docker volumes)
     let other_artifacts_size = artifacts_size.saturating_sub(docker_volumes_size);
     let other_artifacts_path = artifacts_dir.display().to_string();
-    table.add_row(
-        Row::new()
-            .with_cell("  └─ Other Artifacts")
-            .with_ansi_cell(format_size(other_artifacts_size))
-            .with_ansi_cell(format!("{}/(other files)", other_artifacts_path).dim()),
+    info!(
+        "{:<25}  {:<10}  {:<40}",
+        "└─ Other Artifacts",
+        format_size(other_artifacts_size),
+        format!("{}/(other files)", other_artifacts_path)
     );
-
-    print!("{}", table);
 
     // Total size
     let total_size = get_directory_size(&home_dir)?;
-    let width = get_terminal_width().min(120);
-    println!("{}", "─".repeat(width).blue());
-    println!(
-        "{} {}",
-        "Total foc-localnet size:".blue().bold(),
-        format_size(total_size).blue().bold()
-    );
+    info!("Total foc-localnet size: {}", format_size(total_size));
 
     Ok(())
 }

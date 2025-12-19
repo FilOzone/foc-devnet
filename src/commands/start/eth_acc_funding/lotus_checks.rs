@@ -4,27 +4,31 @@
 
 use std::error::Error;
 use std::fs;
-use std::process::Command;
 
 use crate::commands::start::eth_acc_funding::constants::GLOBAL_FIL_FAUCET_KEY;
-use crate::commands::start::step::StepContext;
+use crate::commands::start::step::SetupContext;
+use crate::docker::command_logger::run_and_log_command;
 use crate::docker::containers::lotus_container_name;
 use crate::paths::foc_localnet_lotus_keys;
 
 /// Check if Lotus is running and accessible
-pub fn check_lotus_running(context: &StepContext) -> Result<(), Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+pub fn check_lotus_running(context: &SetupContext) -> Result<(), Box<dyn Error>> {
+    let run_id = context.run_id();
     let container_name = lotus_container_name(run_id);
 
-    let output = Command::new("docker")
-        .args([
+    let key = format!("eth_acc_lotus_check_{}", container_name);
+    let output = run_and_log_command(
+        "docker",
+        &[
             "ps",
             "--filter",
             &format!("name=^{}$", container_name),
             "--format",
             "{{.Names}}",
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
     if !String::from_utf8_lossy(&output.stdout)
         .trim()
@@ -40,8 +44,8 @@ pub fn check_lotus_running(context: &StepContext) -> Result<(), Box<dyn Error>> 
 }
 
 /// Get the global faucet address from the prefunded key
-pub fn get_global_faucet_address() -> Result<String, Box<dyn Error>> {
-    let keys_dir = foc_localnet_lotus_keys();
+pub fn get_global_faucet_address(run_id: &str) -> Result<String, Box<dyn Error>> {
+    let keys_dir = foc_localnet_lotus_keys(run_id);
     let faucet_key_dir = keys_dir.join(GLOBAL_FIL_FAUCET_KEY);
 
     if !faucet_key_dir.exists() {

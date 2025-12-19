@@ -2,15 +2,15 @@
 //!
 //! Handles attaching fast-storage and long-term-storage locations.
 
-use super::super::step::StepContext;
+use super::super::step::SetupContext;
 use super::constants::{
     CURIO_FAST_STORAGE_PATH, CURIO_LONG_TERM_STORAGE_PATH, STORAGE_ATTACH_WAIT_SECS,
 };
-use crossterm::style::Stylize;
+use crate::docker::command_logger::run_and_log_command;
 use std::error::Error;
-use std::process::Command;
 use std::thread;
 use std::time::Duration;
+use tracing::info;
 
 /// Attach storage locations for a specific PDP SP.
 ///
@@ -18,42 +18,36 @@ use std::time::Duration;
 /// 1. Fast storage (seal)
 /// 2. Long-term storage (store)
 pub fn attach_storage_locations(
-    context: &StepContext,
+    context: &SetupContext,
     sp_index: usize,
 ) -> Result<(), Box<dyn Error>> {
-    println!(
-        "    {} Attaching storage locations for PDP SP {}...",
-        "💿".cyan(),
-        sp_index
-    );
+    info!("Attaching storage locations for PDP SP {}...", sp_index);
 
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let container_name = format!("foc-{}-curio-{}", run_id, sp_index);
 
     // Attach fast storage
-    attach_fast_storage(&container_name)?;
+    attach_fast_storage(context, &container_name)?;
 
     // Attach long-term storage
-    attach_long_term_storage(&container_name)?;
+    attach_long_term_storage(context, &container_name)?;
 
-    println!(
-        "    {} Storage locations attached for PDP SP {}",
-        "✓".green(),
-        sp_index
-    );
+    info!("Storage locations attached for PDP SP {}", sp_index);
 
     Ok(())
 }
 
 /// Attach fast storage for sealing operations.
-fn attach_fast_storage(container_name: &str) -> Result<(), Box<dyn Error>> {
-    println!("      {} Attaching fast storage...", "⚙".cyan());
+fn attach_fast_storage(context: &SetupContext, container_name: &str) -> Result<(), Box<dyn Error>> {
+    info!("Attaching fast storage...");
 
     // Use container DNS name for --machine flag so it works in Docker networks
     let machine_addr = format!("{}:12300", container_name);
 
-    let output = Command::new("docker")
-        .args([
+    let key = format!("curio_storage_attach_fast_{}", container_name);
+    let output = run_and_log_command(
+        "docker",
+        &[
             "exec",
             container_name,
             "/usr/local/bin/lotus-bins/curio",
@@ -65,8 +59,10 @@ fn attach_fast_storage(container_name: &str) -> Result<(), Box<dyn Error>> {
             "--init",
             "--seal",
             CURIO_FAST_STORAGE_PATH,
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
     if !output.status.success() {
         return Err(format!(
@@ -78,20 +74,25 @@ fn attach_fast_storage(container_name: &str) -> Result<(), Box<dyn Error>> {
 
     thread::sleep(Duration::from_secs(STORAGE_ATTACH_WAIT_SECS));
 
-    println!("      {} Fast storage attached", "✓".green());
+    info!("Fast storage attached");
 
     Ok(())
 }
 
 /// Attach long-term storage for storing sealed sectors.
-fn attach_long_term_storage(container_name: &str) -> Result<(), Box<dyn Error>> {
-    println!("      {} Attaching long-term storage...", "⚙".cyan());
+fn attach_long_term_storage(
+    context: &SetupContext,
+    container_name: &str,
+) -> Result<(), Box<dyn Error>> {
+    info!("Attaching long-term storage...");
 
     // Use container DNS name for --machine flag so it works in Docker networks
     let machine_addr = format!("{}:12300", container_name);
 
-    let output = Command::new("docker")
-        .args([
+    let key = format!("curio_storage_attach_long_term_{}", container_name);
+    let output = run_and_log_command(
+        "docker",
+        &[
             "exec",
             container_name,
             "/usr/local/bin/lotus-bins/curio",
@@ -103,8 +104,10 @@ fn attach_long_term_storage(container_name: &str) -> Result<(), Box<dyn Error>> 
             "--init",
             "--store",
             CURIO_LONG_TERM_STORAGE_PATH,
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
     if !output.status.success() {
         return Err(format!(
@@ -116,7 +119,7 @@ fn attach_long_term_storage(container_name: &str) -> Result<(), Box<dyn Error>> 
 
     thread::sleep(Duration::from_secs(STORAGE_ATTACH_WAIT_SECS));
 
-    println!("      {} Long-term storage attached", "✓".green());
+    info!("Long-term storage attached");
 
     Ok(())
 }

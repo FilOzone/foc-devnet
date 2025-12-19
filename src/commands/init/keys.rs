@@ -5,13 +5,13 @@
 
 use crate::{
     commands::start::FEVM_ACCOUNTS_PREFUNDED, crypto::mnemonic::store_mnemonic,
-    paths::foc_localnet_state,
+    paths::foc_localnet_keys,
 };
 use bip39::{Language, Mnemonic};
-use crossterm::style::Stylize;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fs;
+use tracing::info;
 
 /// Information about a generated key and its addresses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,12 +30,12 @@ impl fmt::Display for KeyInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Key: {}", self.name)?;
         if let Some(filecoin_addr) = &self.filecoin_address {
-            writeln!(f, "  Filecoin Address: {}", filecoin_addr)?;
+            writeln!(f, "Filecoin Address: {}", filecoin_addr)?;
         }
         if let Some(eth_addr) = &self.eth_address {
-            writeln!(f, "  Ethereum Address:  {}", eth_addr)?;
+            writeln!(f, "Ethereum Address:  {}", eth_addr)?;
         }
-        writeln!(f, "  Private Key:       {}", self.private_key)?;
+        writeln!(f, "Private Key:       {}", self.private_key)?;
         Ok(())
     }
 }
@@ -59,18 +59,12 @@ pub const NATIVE_KEYS: [&str; 3] = ["BLS_SIGNER_1", "BLS_SIGNER_2", "GLOBAL_FIL_
 pub fn generate_keys(use_random: bool) -> Result<Vec<KeyInfo>, Box<dyn std::error::Error>> {
     let mnemonic_entropy = match use_random {
         true => {
-            println!(
-                "  {} Using system randomness for generating mnemonic for deterministic addresses",
-                "🔑".cyan()
-            );
+            info!("Using system randomness for generating mnemonic for deterministic addresses");
             let entropy: [u8; 32] = rand::random();
             entropy
         }
         false => {
-            println!(
-                "  {} Using deterministic mnemonic for addresses",
-                "🔑".cyan()
-            );
+            info!("Using deterministic mnemonic for addresses");
             STATIC_MNEMONIC_ENTROPY
         }
     };
@@ -78,7 +72,7 @@ pub fn generate_keys(use_random: bool) -> Result<Vec<KeyInfo>, Box<dyn std::erro
     let mnemonic = Mnemonic::from_entropy_in(Language::English, &mnemonic_entropy)?;
     store_mnemonic(&mnemonic)?;
     let seed = mnemonic.to_seed("");
-    println!("  {} Mnemonic: {}", "🔑".cyan(), mnemonic);
+    info!("Mnemonic: {}", mnemonic);
 
     let mut keys = Vec::with_capacity(NATIVE_KEYS.len() + FEVM_ACCOUNTS_PREFUNDED.len());
 
@@ -103,10 +97,10 @@ pub fn generate_keys(use_random: bool) -> Result<Vec<KeyInfo>, Box<dyn std::erro
     }
 
     // Pretty print all generated keys
-    println!("  {} Generated Keys:", "🔑".cyan());
+    info!("Generated Keys:");
     for key in &keys {
-        println!(
-            "    - {}: {} private key: ({})",
+        info!(
+            "- {}: {} private key: ({})",
             key.name,
             key.filecoin_address.as_deref().unwrap_or("N/A"),
             key.private_key
@@ -119,21 +113,22 @@ pub fn generate_keys(use_random: bool) -> Result<Vec<KeyInfo>, Box<dyn std::erro
     Ok(keys)
 }
 
-/// Save keys to JSON file.
+/// Save generated keys to ~/.foc-localnet/keys/addresses.json
 fn save_keys(keys: &[KeyInfo]) -> Result<(), Box<dyn std::error::Error>> {
-    let state_dir = foc_localnet_state();
-    fs::create_dir_all(&state_dir)?;
-    let keys_file = state_dir.join("addresses.json");
+    let keys_dir = foc_localnet_keys();
+    fs::create_dir_all(&keys_dir)?;
+    let keys_file = keys_dir.join("addresses.json");
     let json = serde_json::to_string_pretty(keys)?;
     fs::write(keys_file, json)?;
-    println!("  {} Keys saved to {}", "✓".green(), state_dir.display());
+    info!("Keys saved to {}", keys_dir.display());
     Ok(())
 }
 
-/// Load keys from file.
+/// Load keys from ~/.foc-localnet/keys/addresses.json
 pub fn load_keys() -> Result<Vec<KeyInfo>, Box<dyn std::error::Error>> {
-    let state_dir = foc_localnet_state().join("addresses.json");
-    let json = fs::read_to_string(state_dir)?;
+    let keys_dir = foc_localnet_keys();
+    let keys_file = keys_dir.join("addresses.json");
+    let json = fs::read_to_string(keys_file)?;
     let keys: Vec<KeyInfo> = serde_json::from_str(&json)?;
     Ok(keys)
 }

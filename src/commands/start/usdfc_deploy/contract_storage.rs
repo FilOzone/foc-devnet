@@ -3,13 +3,17 @@
 //! This module handles saving deployed contract addresses to persistent storage.
 
 use crate::paths::contract_addresses_file;
-use crossterm::style::Stylize;
 use std::error::Error;
 use std::fs;
+use tracing::info;
 
 /// Save contract address to the contract addresses file
-pub fn save_contract_address(name: &str, address: &str) -> Result<(), Box<dyn Error>> {
-    let file_path = contract_addresses_file();
+pub fn save_contract_address(
+    run_id: &str,
+    name: &str,
+    address: &str,
+) -> Result<(), Box<dyn Error>> {
+    let file_path = contract_addresses_file(run_id);
 
     // Ensure parent directory exists
     if let Some(parent) = file_path.parent() {
@@ -42,11 +46,7 @@ pub fn save_contract_address(name: &str, address: &str) -> Result<(), Box<dyn Er
     let content = serde_json::to_string_pretty(&addresses)?;
     fs::write(&file_path, content)?;
 
-    println!(
-        "        {} Contract address saved to {}",
-        "✓".green(),
-        file_path.display()
-    );
+    info!("Contract address saved to {}", file_path.display());
 
     Ok(())
 }

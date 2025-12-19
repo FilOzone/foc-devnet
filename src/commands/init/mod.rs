@@ -16,6 +16,8 @@ pub mod keys;
 pub mod path_setup;
 pub mod repositories;
 
+use tracing::{info, warn};
+
 /// Clean up previous foc-localnet installation.
 ///
 /// This function removes the entire ~/.foc-localnet directory and all
@@ -25,29 +27,22 @@ pub mod repositories;
 /// Returns `Ok(())` if cleanup succeeds, or an error if cleanup fails.
 fn cleanup_previous_installation() -> Result<(), Box<dyn std::error::Error>> {
     use crate::paths::foc_localnet_home;
-    use crossterm::style::Stylize;
     use std::process::Command;
 
-    println!("{}", "Cleaning up previous installation...".bold());
+    info!("Cleaning up previous installation...");
 
     // Remove the entire foc-localnet home directory
     let home_dir = foc_localnet_home();
     if home_dir.exists() {
-        println!("  {} Removing {}", "🗑️".yellow(), home_dir.display());
+        info!("Removing {}", home_dir.display());
         std::fs::remove_dir_all(&home_dir)?;
-        println!(
-            "  {} Removed previous foc-localnet installation",
-            "✓".green()
-        );
+        info!("Removed previous foc-localnet installation");
     } else {
-        println!("  {} No previous installation found", "✓".green());
+        info!("No previous installation found");
     }
 
     // Remove all foc-localnet Docker images
-    println!(
-        "  {} Removing existing foc-localnet Docker images",
-        "🗑️".yellow()
-    );
+    info!("Removing existing foc-localnet Docker images");
     let output = Command::new("docker")
         .args(["images", "--format", "{{.Repository}}:{{.Tag}}"])
         .output()?;
@@ -68,19 +63,12 @@ fn cleanup_previous_installation() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         if removed_count > 0 {
-            println!(
-                "  {} Removed {} Docker image(s)",
-                "✓".green(),
-                removed_count
-            );
+            info!("Removed {} Docker image(s)", removed_count);
         } else {
-            println!("  {} No foc-localnet Docker images found", "✓".green());
+            info!("No foc-localnet Docker images found");
         }
     } else {
-        println!(
-            "  {} Could not list Docker images (Docker may not be running)",
-            "⚠".yellow()
-        );
+        warn!("Could not list Docker images (Docker may not be running)");
     }
 
     Ok(())
@@ -120,9 +108,7 @@ pub fn init_environment(
     force: bool,
     use_random_mnemonic: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    use crossterm::style::Stylize;
-
-    println!("{}", "Initializing foc-localnet environment...".bold());
+    info!("Initializing foc-localnet environment...");
 
     // Clean up previous installation
     cleanup_previous_installation()?;
@@ -155,10 +141,8 @@ pub fn init_environment(
     // Build and cache Docker images
     crate::docker::build::build_and_cache_docker_images()?;
 
-    println!("{}", "✓ Initialization completed successfully".green());
-    println!(
-        "{}",
-        "You may need to restart your shell or run 'source ~/.bashrc' (or ~/.zshrc) to use the updated PATH".cyan()
-    );
+    info!("✓ Initialization completed successfully");
+    info!("You can now start the localnet with 'foc-localnet start'");
+
     Ok(())
 }

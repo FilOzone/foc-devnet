@@ -8,7 +8,6 @@ pub const CURIO_FAST_STORAGE_PATH: &str = "/home/foc-user/curio/fast-storage";
 /// Curio storage path inside container (long-term)
 pub const CURIO_LONG_TERM_STORAGE_PATH: &str = "/home/foc-user/curio/long-term-storage";
 
-/// Curio layers configuration
 pub const CURIO_LAYERS: &str = "seal,post,pdp-only,gui";
 
 /// PDP layer configuration template
@@ -27,7 +26,6 @@ EnableParkPiece = true
 
 /// Wait times (in seconds)
 pub const DB_SETUP_WAIT_SECS: u64 = 10;
-pub const DAEMON_STARTUP_WAIT_SECS: u64 = 15;
 pub const STORAGE_ATTACH_WAIT_SECS: u64 = 5;
 pub const PDP_KEY_IMPORT_WAIT_SECS: u64 = 5;
 

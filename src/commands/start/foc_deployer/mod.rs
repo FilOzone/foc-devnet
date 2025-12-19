@@ -7,9 +7,9 @@
 use super::foc_metadata::FOCMetadata;
 use crate::constants::*;
 use crate::docker::core::docker_command;
-use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes};
-use crossterm::style::Stylize;
+use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes_cache};
 use std::error::Error;
+use tracing::{info, warn};
 
 /// Deployment result containing contract addresses and network metadata
 pub struct DeploymentResult {
@@ -48,8 +48,9 @@ pub fn deploy_foc_contracts(
     services_repo_path: &std::path::Path,
     lotus_container: &str,
     lotus_rpc_url: &str,
+    run_id: &str,
 ) -> Result<DeploymentResult, Box<dyn Error>> {
-    println!("      Running deploy-all-warm-storage.sh...");
+    info!("Running deploy-all-warm-storage.sh...");
 
     // Resolve symlinks to get the real path for Docker mounting
     let services_repo = services_repo_path
@@ -65,74 +66,88 @@ pub fn deploy_foc_contracts(
     }
 
     let bin_dir = foc_localnet_bin();
-    let builder_volumes_dir = foc_localnet_docker_volumes().join("builder");
+    let builder_volumes_dir = foc_localnet_docker_volumes_cache().join("foc-builder");
 
     // Get the private key from lotus for the deployer address
     let private_key = get_private_key(foc_deployer, lotus_container)?;
 
     // Prepare environment variables for the deployment script
-    let env_vars = format!(
-        r#"export ETH_RPC_URL='{}'
-export USDFC_TOKEN_ADDRESS='{}'
-export SERVICE_NAME='FOC LocalNet Warm Storage'
-export SERVICE_DESCRIPTION='Warm storage service for FOC local development network'
-export DRY_RUN=false
-export CHAIN={}
-export DEPLOYER_ADDRESS='{}'
-export AUTO_VERIFY=false
-export ETH_PRIVATE_KEY='{}'
-export PASSWORD=''"#,
-        lotus_rpc_url, mock_usdfc_address, LOCAL_NETWORK_CHAIN_ID, deployer_eth_addr, private_key
-    );
+    let env_vars = [
+        ("ETH_RPC_URL", lotus_rpc_url.to_string()),
+        ("USDFC_TOKEN_ADDRESS", mock_usdfc_address.to_string()),
+        ("SERVICE_NAME", "FOC LocalNet Warm Storage".to_string()),
+        (
+            "SERVICE_DESCRIPTION",
+            "Warm storage service for FOC local development network".to_string(),
+        ),
+        ("DRY_RUN", "false".to_string()),
+        ("CHAIN", LOCAL_NETWORK_CHAIN_ID.to_string()),
+        ("DEPLOYER_ADDRESS", deployer_eth_addr.to_string()),
+        ("AUTO_VERIFY", "false".to_string()),
+        ("ETH_PRIVATE_KEY", private_key.clone()),
+        ("PASSWORD", "".to_string()),
+        (
+            "ETH_KEYSTORE",
+            "/home/foc-user/.foundry/keystores/foc-deployer".to_string(),
+        ),
+    ];
 
     // Run the deployment script
     // First, create a keystore from the private key with empty password
     let deploy_cmd = format!(
         r#"set -e
 cast wallet import foc-deployer --private-key {} --unsafe-password ''
-export ETH_KEYSTORE="$HOME/.foundry/keystores/foc-deployer"
-{}
 cd /service_contracts
 bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-deploy.log"#,
-        private_key, env_vars
+        private_key
     );
 
-    println!("        This may take several minutes...");
+    info!("This may take several minutes...");
 
-    let output = docker_command(&[
-        "run",
-        "--rm",
-        "--network",
-        "host",
-        "-v",
-        &format!("{}:/opt/bin", bin_dir.display()),
-        "-v",
-        &format!(
-            "{}:/home/foc-user/.cargo",
-            builder_volumes_dir.join("cargo").display()
-        ),
-        "-v",
-        &format!("{}:/service_contracts", contracts_dir.display()),
-        BUILDER_CONTAINER,
-        "/bin/bash",
-        "-c",
-        &deploy_cmd,
-    ])?;
+    let mut docker_args = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
+        "--name".to_string(),
+        format!("foc-{}-foc-deploy", run_id),
+        "--network".to_string(),
+        "host".to_string(),
+    ];
+
+    // Add environment variables
+    for (key, value) in env_vars {
+        docker_args.push("-e".to_string());
+        docker_args.push(format!("{}={}", key, value));
+    }
+
+    // Add volumes
+    docker_args.push("-v".to_string());
+    docker_args.push(format!("{}:/opt/bin", bin_dir.display()));
+    docker_args.push("-v".to_string());
+    docker_args.push(format!(
+        "{}:/home/foc-user/.cargo",
+        builder_volumes_dir.join("cargo").display()
+    ));
+    docker_args.push("-v".to_string());
+    docker_args.push(format!("{}:/service_contracts", contracts_dir.display()));
+
+    // Add image and command
+    docker_args.push(BUILDER_CONTAINER.to_string());
+    docker_args.push("/bin/bash".to_string());
+    docker_args.push("-c".to_string());
+    docker_args.push(deploy_cmd);
+
+    let args_ref: Vec<&str> = docker_args.iter().map(|s| s.as_str()).collect();
+    let output = docker_command(&args_ref)?;
 
     let output_str = String::from_utf8_lossy(&output.stdout);
 
-    // Print output for debugging
-    // println!("\n        Deployment output:");
-    // for line in output_str.lines() {
-    //     println!("          {}", line);
-    // }
-
     if !output.status.success() {
-        println!("        {} Deployment script failed", "✗".red());
+        warn!("Deployment script failed");
         let stderr_str = String::from_utf8_lossy(&output.stderr);
-        println!("        Error output:");
         for line in stderr_str.lines() {
-            println!("          {}", line);
+            warn!("{}", line);
         }
         return Err("FOC contract deployment failed".into());
     }
@@ -156,18 +171,16 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
     let mut service_name = String::new();
     let mut service_description = String::new();
 
-    println!("        Parsing deployment output for contract addresses...");
+    info!("Parsing deployment output for contract addresses...");
 
     // Look for "DEPLOYMENT SUMMARY" section
     let mut in_summary = false;
     let mut in_network_config = false;
 
     for line in output_str.lines() {
-        // println!("        Line: {}", line); // Debug: print each line
-
         if line.contains("DEPLOYMENT SUMMARY") {
             in_summary = true;
-            println!("        Found DEPLOYMENT SUMMARY section");
+            info!("Found DEPLOYMENT SUMMARY section");
             continue;
         }
 
@@ -180,14 +193,14 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
                 if addr.starts_with("0x") && !addr.is_empty() {
                     // Convert name to snake_case for consistency
                     let snake_case_name = to_snake_case(name);
-                    println!("        Found contract: {} -> {}", snake_case_name, addr);
+                    info!("Found contract: {} -> {}", snake_case_name, addr);
                     addresses.insert(snake_case_name, addr.to_string());
                 } else {
-                    println!("        Skipping line with invalid address: {}", addr);
+                    info!("Skipping line with invalid address: {}", addr);
                 }
             } else {
-                println!(
-                    "        Skipping line that doesn't split into exactly 2 parts: {}",
+                info!(
+                    "Skipping line that doesn't split into exactly 2 parts: {}",
                     line
                 );
             }
@@ -197,13 +210,13 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
         if line.contains("Network Configuration") {
             in_network_config = true;
             in_summary = false;
-            println!("        Found Network Configuration section");
+            info!("Found Network Configuration section");
 
             // Extract network name from "Network Configuration (localnet):"
             if let Some(start) = line.find('(') {
                 if let Some(end) = line.find(')') {
                     network_name = line[start + 1..end].to_string();
-                    println!("        Network name: {}", network_name);
+                    info!("Network name: {}", network_name);
                 }
             }
             continue;
@@ -218,35 +231,35 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
                 match key {
                     "Challenge finality" => {
                         challenge_finality = value.replace(" epochs", "").trim().to_string();
-                        println!("        Challenge finality: {}", challenge_finality);
+                        info!("Challenge finality: {}", challenge_finality);
                     }
                     "Max proving period" => {
                         max_proving_period = value.replace(" epochs", "").trim().to_string();
-                        println!("        Max proving period: {}", max_proving_period);
+                        info!("Max proving period: {}", max_proving_period);
                     }
                     "Challenge window size" => {
                         challenge_window_size = value.replace(" epochs", "").trim().to_string();
-                        println!("        Challenge window size: {}", challenge_window_size);
+                        info!("Challenge window size: {}", challenge_window_size);
                     }
                     "USDFC token address" => {
                         // Already captured in addresses
-                        println!("        USDFC token address: {}", value);
+                        info!("USDFC token address: {}", value);
                     }
                     "FilBeam controller address" => {
                         filbeam_controller = Some(value.clone());
-                        println!("        FilBeam controller: {}", value);
+                        info!("FilBeam controller: {}", value);
                     }
                     "FilBeam beneficiary address" => {
                         filbeam_beneficiary = Some(value.clone());
-                        println!("        FilBeam beneficiary: {}", value);
+                        info!("FilBeam beneficiary: {}", value);
                     }
                     "Service name" => {
                         service_name = value.clone();
-                        println!("        Service name: {}", value);
+                        info!("Service name: {}", value);
                     }
                     "Service description" => {
                         service_description = value.clone();
-                        println!("        Service description: {}", value);
+                        info!("Service description: {}", value);
                     }
                     _ => {}
                 }
@@ -255,19 +268,15 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
     }
 
     if addresses.is_empty() {
-        println!(
-            "        {} No contract addresses found in output",
-            "⚠".yellow()
-        );
-        println!("        Full output:");
+        warn!("No contract addresses found in output");
+        info!("Full output:");
         for line in output_str.lines() {
-            println!("          {}", line);
+            info!("{}", line);
         }
-        println!("        Deployment may have failed or output format changed");
+        info!("Deployment may have failed or output format changed");
     } else {
-        println!(
-            "        {} Successfully parsed {} contracts from output",
-            "✓".green(),
+        info!(
+            "Successfully parsed {} contracts from output",
             addresses.len()
         );
     }
@@ -295,7 +304,8 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
 /// - "ServiceProviderRegistry Proxy" -> "service_provider_registry_proxy"
 /// - "FilecoinPayV1 Contract" -> "filecoin_pay_v1_contract"
 fn to_snake_case(name: &str) -> String {
-    name.chars()
+    let mut result = name
+        .chars()
         .enumerate()
         .fold(String::new(), |mut acc, (i, c)| {
             if c.is_uppercase() && i > 0 {
@@ -304,5 +314,12 @@ fn to_snake_case(name: &str) -> String {
             acc.push(c.to_lowercase().next().unwrap());
             acc
         })
-        .replace(" ", "_")
+        .replace(" ", "_");
+
+    // Replace multiple consecutive underscores with single underscore
+    while result.contains("__") {
+        result = result.replace("__", "_");
+    }
+
+    result
 }

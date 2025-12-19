@@ -3,23 +3,26 @@
 //! This module handles the verification of deployed MockUSDFC contracts.
 
 use super::foundry_setup::get_mockusdfc_project_dir;
-use crossterm::style::Stylize;
+use crate::commands::start::step::SetupContext;
+use crate::docker::command_logger::run_and_log_command;
 use std::error::Error;
-use std::process::Command;
+use tracing::{info, warn};
 
 /// Verify the deployed MockUSDFC contract
 pub fn verify_mock_usdfc(
+    context: &SetupContext,
     private_key: &str,
     contract_address: &str,
     lotus_rpc_url: &str,
+    run_id: &str,
 ) -> Result<(), Box<dyn Error>> {
-    println!("      Verifying MockUSDFC contract functions...");
+    info!("Verifying MockUSDFC contract functions...");
 
     // Get the contract directory from embedded assets
-    let contract_dir = get_mockusdfc_project_dir()?;
+    let contract_dir = get_mockusdfc_project_dir(run_id)?;
 
     // Wait a bit for transaction confirmation
-    println!("        Waiting for transaction confirmation...");
+    info!("Waiting for transaction confirmation...");
     std::thread::sleep(std::time::Duration::from_secs(6));
 
     let verify_cmd = format!(
@@ -32,10 +35,14 @@ pub fn verify_mock_usdfc(
         lotus_rpc_url, private_key, contract_address
     );
 
-    let output = Command::new("docker")
-        .args([
+    let key = format!("usdfc_verify_{}", run_id);
+    let output = run_and_log_command(
+        "docker",
+        &[
             "run",
             "--rm",
+            "-u",
+            "foc-user",
             "--network",
             "host",
             "-v",
@@ -44,35 +51,26 @@ pub fn verify_mock_usdfc(
             "bash",
             "-c",
             &verify_cmd,
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let _stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
-    // Print verification output
-    if !stdout.is_empty() {
-        println!("        Verification output:");
-        for line in stdout.lines() {
-            println!("          {}", line);
-        }
-    }
-
     if !output.status.success() {
-        println!("        {} Verification failed", "⚠".yellow());
+        warn!("Verification failed");
         if !stderr.is_empty() {
-            println!("        Error output:");
+            warn!("Error output:");
             for line in stderr.lines() {
-                println!("          {}", line);
+                warn!("{}", line);
             }
         }
         // Don't fail the step, just warn
-        println!(
-            "        {} Continuing despite verification warning",
-            "→".cyan()
-        );
+        warn!("Continuing despite verification warning");
     } else {
-        println!("        {} All contract functions verified", "✓".green());
+        info!("All contract functions verified");
     }
 
     Ok(())

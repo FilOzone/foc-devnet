@@ -3,21 +3,22 @@
 //! This module handles the setup and preparation of the Foundry project
 //! for deploying the MockUSDFC contract.
 
+use crate::commands::start::step::SetupContext;
+use crate::docker::command_logger::run_and_log_command;
 use crate::embedded_assets;
-use crate::paths::foc_localnet_tmp;
-use crossterm::style::Stylize;
+use crate::paths::foc_localnet_run_dir;
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
+use tracing::info;
 
 /// Get or create the MockUSDFC project directory from embedded assets
 ///
 /// Extracts the embedded MockUSDFC Foundry project to a temporary directory
 /// and returns the path to that directory.
-pub fn get_mockusdfc_project_dir() -> Result<PathBuf, Box<dyn Error>> {
-    let tmp_dir = foc_localnet_tmp();
-    let extract_target = tmp_dir.join("mockusdfc-extract");
+pub fn get_mockusdfc_project_dir(run_id: &str) -> Result<PathBuf, Box<dyn Error>> {
+    let run_dir = foc_localnet_run_dir(run_id);
+    let extract_target = run_dir.join("mockusdfc-extract");
 
     // Always clean and re-extract to ensure we have the latest embedded version
     if extract_target.exists() {
@@ -42,28 +43,38 @@ pub fn get_mockusdfc_project_dir() -> Result<PathBuf, Box<dyn Error>> {
 }
 
 /// Setup the Foundry project (install dependencies if needed)
-pub fn setup_foundry_project(contract_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
+pub fn setup_foundry_project(
+    context: &SetupContext,
+    contract_dir: &PathBuf,
+    run_id: &str,
+) -> Result<(), Box<dyn Error>> {
     let openzeppelin_path = contract_dir.join("lib/openzeppelin-contracts");
 
     if !openzeppelin_path.exists() {
-        println!("      Installing OpenZeppelin contracts...");
+        info!("Installing OpenZeppelin contracts...");
 
         // First, initialize git repo if it doesn't exist
         let git_dir = contract_dir.join(".git");
         if !git_dir.exists() {
-            println!("        Initializing git repository...");
-            let output = Command::new("docker")
-                .args([
+            info!("Initializing git repository...");
+            let key = format!("usdfc_setup_git_init_{}", run_id);
+            let output = run_and_log_command(
+                "docker",
+                &[
                     "run",
                     "--rm",
+                    "-u",
+                    "foc-user",
                     "-v",
                     &format!("{}:/workspace", contract_dir.display()),
                     "foc-builder",
                     "bash",
                     "-c",
                     "cd /workspace && git init && git config user.email 'foc@localnet' && git config user.name 'FOC Localnet'",
-                ])
-                .output()?;
+                ],
+                context,
+                &key,
+            )?;
 
             if !output.status.success() {
                 return Err(format!(
@@ -75,10 +86,14 @@ pub fn setup_foundry_project(contract_dir: &PathBuf) -> Result<(), Box<dyn Error
         }
 
         // Install dependencies
-        let output = Command::new("docker")
-            .args([
+        let key = format!("usdfc_setup_install_deps_{}", run_id);
+        let output = run_and_log_command(
+            "docker",
+            &[
                 "run",
                 "--rm",
+                "-u",
+                "foc-user",
                 "-v",
                 &format!("{}:/workspace", contract_dir.display()),
                 "foc-builder",
@@ -87,8 +102,10 @@ pub fn setup_foundry_project(contract_dir: &PathBuf) -> Result<(), Box<dyn Error
                 "cd /workspace && \
                  forge install OpenZeppelin/openzeppelin-contracts@v5.0.0 && \
                  forge install foundry-rs/forge-std",
-            ])
-            .output()?;
+            ],
+            context,
+            &key,
+        )?;
 
         if !output.status.success() {
             return Err(format!(
@@ -98,13 +115,15 @@ pub fn setup_foundry_project(contract_dir: &PathBuf) -> Result<(), Box<dyn Error
             .into());
         }
 
-        println!("        {} Dependencies installed", "✓".green());
+        info!("Dependencies installed");
     }
 
     // Build contracts
-    println!("      Building MockUSDFC contract...");
-    let output = Command::new("docker")
-        .args([
+    info!("Building MockUSDFC contract...");
+    let key = format!("usdfc_setup_build_{}", run_id);
+    let output = run_and_log_command(
+        "docker",
+        &[
             "run",
             "--rm",
             "-v",
@@ -113,8 +132,10 @@ pub fn setup_foundry_project(contract_dir: &PathBuf) -> Result<(), Box<dyn Error
             "bash",
             "-c",
             "cd /workspace && forge build",
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
     if !output.status.success() {
         return Err(format!(
@@ -124,6 +145,6 @@ pub fn setup_foundry_project(contract_dir: &PathBuf) -> Result<(), Box<dyn Error
         .into());
     }
 
-    println!("        {} Contracts built", "✓".green());
+    info!("Contracts built");
     Ok(())
 }

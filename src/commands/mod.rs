@@ -16,6 +16,15 @@ pub use build::build_project;
 pub use config::{config_curio, config_lotus};
 pub use init::init_environment;
 pub use requirements::check_requirements;
-pub use start::start_cluster;
 pub use status::status;
 pub use stop::stop_cluster;
+
+pub fn start_cluster(
+    volumes_dir: Option<String>,
+    run_dir: Option<String>,
+    parallel: bool,
+    run_id: String,
+    notest: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    start::start_cluster(volumes_dir, run_dir, parallel, run_id, notest)
+}

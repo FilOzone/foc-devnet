@@ -9,9 +9,9 @@ pub mod repository;
 
 use crate::config::Config;
 use crate::paths::foc_localnet_bin;
-use crossterm::style::Stylize;
 use repository::prepare_repository;
 use std::fs;
+use tracing::info;
 
 use self::docker::build_builder_image;
 use self::execution::run_build_in_container;
@@ -22,7 +22,7 @@ use self::execution::run_build_in_container;
 /// 1. Prepares the repository (clone/checkout or symlink) based on config
 /// 2. Builds the project in a Docker container
 pub fn build_project(project: &Project, config: &Config) -> Result<(), Box<dyn std::error::Error>> {
-    println!("{} Building {}...", "🔨".bold(), project);
+    info!("Building {}...", project);
 
     // Get the location configuration for this project
     let location = match project {
@@ -43,9 +43,8 @@ pub fn build_project(project: &Project, config: &Config) -> Result<(), Box<dyn s
         project,
     )?;
 
-    println!(
-        "{} {} built successfully. Binaries available in {}",
-        "✓".green(),
+    info!(
+        "{} built successfully. Binaries available in {}",
         project,
         output_dir.display()
     );

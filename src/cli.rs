@@ -18,9 +18,15 @@ pub enum Commands {
         /// Directory where docker volumes to be loaded will be stored
         #[arg(long)]
         volumes_dir: Option<String>,
-        /// Directory where logs of running docker instances will be stored
+        /// Directory where run-specific data and logs will be stored
         #[arg(long)]
-        logs_dir: Option<String>,
+        run_dir: Option<String>,
+        /// Run steps in parallel where possible (experimental)
+        #[arg(long)]
+        parallel: bool,
+        /// Skip the end-to-end tests
+        #[arg(long)]
+        notest: bool,
     },
     /// Stop the local cluster
     Stop,

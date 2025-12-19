@@ -45,8 +45,10 @@ pub fn get_filecoin_services_repo_path() -> Result<PathBuf, Box<dyn Error>> {
 ///
 /// # Returns
 /// Ok(()) if Lotus is running, error otherwise
-pub fn check_lotus_running(context: &super::super::step::StepContext) -> Result<(), Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+pub fn check_lotus_running(
+    context: &super::super::step::SetupContext,
+) -> Result<(), Box<dyn Error>> {
+    let run_id = context.run_id();
     let lotus_name = lotus_container_name(run_id);
 
     if !container_is_running(&lotus_name)? {
@@ -66,7 +68,7 @@ pub fn check_lotus_running(context: &super::super::step::StepContext) -> Result<
 /// # Returns
 /// Tuple of (foc_deployer, foc_deployer_eth, mock_usdfc, global_faucet) addresses
 pub fn check_required_addresses(
-    context: &crate::commands::start::step::StepContext,
+    context: &crate::commands::start::step::SetupContext,
 ) -> Result<(String, String, String, String), Box<dyn Error>> {
     let foc_deployer = context.get("deployer_foc_address").ok_or(
         "DEPLOYER_FOC address not found in context. Ensure ETHAccFunding step has been completed.",
@@ -76,7 +78,7 @@ pub fn check_required_addresses(
         .get("deployer_foc_eth_address")
         .ok_or("DEPLOYER_FOC Ethereum address not found in context. Ensure ETHAccFunding step has been completed.")?;
 
-    let mock_usdfc = context.get("mock_usdfc_address").ok_or(
+    let mock_usdfc = context.get("mockusdfc_contract_address").ok_or(
         "MockUSDFC address not found in context. Ensure USDFCDeploy step has been completed.",
     )?;
 

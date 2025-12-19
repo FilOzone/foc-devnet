@@ -1,4 +1,3 @@
-use crossterm::style::Stylize;
 use std::fs;
 use std::process::Command;
 use tempfile;
@@ -114,13 +113,13 @@ fn test_curio_build_valid_path() {
             match child.try_wait() {
                 Ok(Some(status)) => {
                     if status.success() {
-                        println!("{}", "Build process completed successfully".green());
+                        println!("{}", "Build process completed successfully");
                     } else {
                         println!("Build process completed with status: {}", status);
                     }
                 }
                 Ok(None) => {
-                    println!("{}", "Build process is still running, killing it".yellow());
+                    println!("{}", "Build process is still running, killing it");
                     // Kill the process since we don't want it to run indefinitely
                     let _ = child.kill();
                 }
@@ -138,15 +137,15 @@ fn test_curio_build_valid_path() {
     let curio_binary = output_dir.join("curio");
 
     // List contents of output directory for debugging
-    println!("{}", "Contents of output directory:".bold());
+    println!("{}", "Contents of output directory:");
     if let Ok(entries) = fs::read_dir(&output_dir) {
         for entry in entries {
             if let Ok(entry) = entry {
-                println!("  {}", entry.path().display());
+                println!("{}", entry.path().display());
             }
         }
     } else {
-        println!("{}", "  Could not read output directory".red());
+        println!("{}", "Could not read output directory");
     }
 
     // The build should create the expected binary
@@ -166,7 +165,7 @@ fn test_curio_build_valid_path() {
 
     println!(
         "{}",
-        "Curio binary was created successfully and is executable".green()
+        "Curio binary was created successfully and is executable"
     );
 
     // At minimum, verify that the foc-localnet-builder Docker image was created

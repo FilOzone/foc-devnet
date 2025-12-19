@@ -9,10 +9,9 @@
 
 use crate::paths::foc_localnet_bin;
 use chrono::{DateTime, Utc};
-use crossterm::style::Stylize;
-use tabular::{Row, Table};
+use tracing::info;
 
-use super::utils::{format_time_ago, get_terminal_width};
+use super::utils::format_time_ago;
 
 /// Print build status of artifacts in tabular format.
 ///
@@ -31,73 +30,40 @@ use super::utils::{format_time_ago, get_terminal_width};
 ///
 /// Returns an error if file system operations fail.
 pub fn print_build_status() -> Result<(), Box<dyn std::error::Error>> {
-    let width = get_terminal_width().min(120);
-    let header_text = format!("{} {}", "🔨".yellow(), "Build Status");
-    // Display width: 🔨 (2) + space (1) + "Build Status" (12) + space (1) = 16
-    let header_display_width = 2 + 1 + 12 + 1;
-    let padding_len = width.saturating_sub(header_display_width);
-    let padding = "░".repeat(padding_len).dark_grey();
-    println!("\n{} {}", header_text.bold().yellow(), padding);
-    let width = get_terminal_width().min(120);
-    println!("{}", "─".repeat(width).yellow());
+    info!("Build Status");
 
     let bin_dir = foc_localnet_bin();
 
     // Check for expected binaries
     let expected_binaries = vec!["lotus", "lotus-miner", "lotus-shed", "lotus-seed", "curio"];
 
-    // Create tabular output
-    let mut table = Table::new("{:<}  {:<}  {:<}  {:<}");
-    table.add_row(
-        Row::new()
-            .with_ansi_cell("Binary".bold().dark_grey())
-            .with_ansi_cell("Status".bold().dark_grey())
-            .with_ansi_cell("Path".bold().dark_grey())
-            .with_ansi_cell("Time of Build".bold().dark_grey()),
+    // Print header
+    info!(
+        "{:<15}  {:<10}  {:<40}  {:<20}",
+        "Binary", "Status", "Path", "Time of Build"
     );
+    info!("{:-<15}  {:-<10}  {:-<40}  {:-<20}", "", "", "", "");
 
     for binary in expected_binaries {
         let binary_path = bin_dir.join(binary);
-        let status = if binary_path.exists() {
-            "Built".green().to_string()
+        let (status, path_display, time_display) = if binary_path.exists() {
+            let metadata = std::fs::metadata(&binary_path)?;
+            let modified: DateTime<Utc> = metadata.modified()?.into();
+            let time_ago = format_time_ago(Utc::now() - modified);
+            (
+                "Ready",
+                binary_path.display().to_string(),
+                format!("{} ({})", modified.format("%Y-%m-%d %H:%M"), time_ago),
+            )
         } else {
-            "Not built".red().to_string()
-        };
-        let location = if binary_path.exists() {
-            binary_path.display().to_string()
-        } else {
-            format!("{}/{}", bin_dir.display(), binary)
-        };
-
-        let build_time = if binary_path.exists() {
-            match std::fs::metadata(&binary_path) {
-                Ok(metadata) => match metadata.modified() {
-                    Ok(modified) => {
-                        let datetime: DateTime<Utc> = modified.into();
-                        let now = Utc::now();
-                        let duration = now.signed_duration_since(datetime);
-
-                        let ago_str = format_time_ago(duration);
-                        format!("{} ({})", datetime.format("%Y-%m-%d %H:%M"), ago_str)
-                    }
-                    Err(_) => "Unknown".to_string(),
-                },
-                Err(_) => "Unknown".to_string(),
-            }
-        } else {
-            "N/A".to_string()
+            ("Missing", "N/A".to_string(), "N/A".to_string())
         };
 
-        table.add_row(
-            Row::new()
-                .with_cell(binary)
-                .with_ansi_cell(&status)
-                .with_ansi_cell(location.dim())
-                .with_ansi_cell(build_time.dim()),
+        info!(
+            "{:<15}  {:<10}  {:<40}  {:<20}",
+            binary, status, path_display, time_display
         );
     }
-
-    print!("{}", table);
 
     Ok(())
 }

@@ -9,7 +9,8 @@ mod lotus_miner;
 mod lotus_utils;
 mod multicall3_deploy;
 mod pdp_service_provider;
-mod step;
+pub mod step;
+mod synapse_test_e2e;
 mod usdfc_deploy;
 mod usdfc_funding;
 mod yugabyte;
@@ -22,7 +23,8 @@ use lotus::LotusStep;
 use lotus_miner::LotusMinerStep;
 use multicall3_deploy::MultiCall3DeployStep;
 use pdp_service_provider::PdpSpRegistrationStep;
-pub use step::{execute_steps, Step, StepContext};
+pub use step::{execute_steps, execute_steps_parallel, SetupContext, Step};
+use synapse_test_e2e::SynapseTestE2EStep;
 use usdfc_deploy::USDFCDeployStep;
 use yugabyte::YugabyteStep;
 
@@ -30,42 +32,29 @@ use crate::commands::start::usdfc_funding::USDFCFundingStep;
 use crate::config::Config;
 use crate::docker::core::{container_is_running, remove_container, stop_container};
 use crate::docker::{create_all_networks, start_portainer};
-use crate::paths::{
-    contract_addresses_file, foc_localnet_config, foc_localnet_docker_volumes,
-    foc_localnet_run_logs,
-};
-use crate::run_id::{generate_run_id, save_current_run_id};
+use crate::paths::{foc_localnet_config, foc_localnet_run_dir};
+use crate::run_id::save_current_run_id;
 use crate::version_info::write_version_file;
-use crossterm::style::Stylize;
 pub use eth_acc_funding::constants::FEVM_ACCOUNTS_PREFUNDED;
 use std::path::PathBuf;
+use tracing::{info, warn};
 
 /// Stop any existing cluster before starting a new one.
 fn stop_existing_cluster() -> Result<(), Box<dyn std::error::Error>> {
-    println!(
-        "{}",
-        "Ensuring clean state by stopping any existing cluster...".yellow()
-    );
+    info!("Ensuring clean state by stopping any existing cluster...");
     if let Err(e) = crate::commands::stop::stop_cluster() {
-        println!(
-            "  {} Warning: Failed to stop existing cluster: {}",
-            "⚠".yellow(),
-            e
-        );
-        println!("  Continuing with startup...");
+        warn!("Warning: Failed to stop existing cluster: {}", e);
+        info!("Continuing with startup...");
     }
-    println!();
     Ok(())
 }
 
 /// Setup directories, run ID, and version information for the cluster startup.
 fn setup_directories_and_run_id(
     volumes_dir: Option<String>,
-    logs_dir: Option<String>,
+    _run_dir: Option<String>,
+    run_id: String,
 ) -> Result<(PathBuf, PathBuf, String), Box<dyn std::error::Error>> {
-    // Generate run ID for this execution
-    let run_id = generate_run_id();
-
     // Save run ID to persistent storage
     save_current_run_id(&run_id)?;
 
@@ -73,74 +62,98 @@ fn setup_directories_and_run_id(
     let volumes_dir = if let Some(dir) = volumes_dir {
         PathBuf::from(dir)
     } else {
-        // Create a temporary directory for volumes
-        foc_localnet_docker_volumes()
+        crate::paths::foc_localnet_docker_volumes_run_specific(&run_id)
     };
 
-    // Determine logs directory - use run-specific directory
-    let logs_dir = if let Some(dir) = logs_dir {
-        PathBuf::from(dir)
-    } else {
-        foc_localnet_run_logs(&run_id)
-    };
+    // Determine run directory
+    let run_dir = foc_localnet_run_dir(&run_id);
 
     // Create directories if they don't exist
     std::fs::create_dir_all(&volumes_dir)?;
-    std::fs::create_dir_all(&logs_dir)?;
+    std::fs::create_dir_all(&run_dir)?;
 
     // Write version information to the run directory
     let version_info = crate::version_info::VersionInfo::from_env();
-    write_version_file(&logs_dir, &version_info)?;
+    write_version_file(&run_dir, &version_info)?;
 
-    Ok((volumes_dir, logs_dir, run_id))
+    Ok((volumes_dir, run_dir, run_id))
 }
 
 /// Perform a full regenesis reset, deleting all genesis-related files and keys.
 fn perform_regenesis() -> Result<(), Box<dyn std::error::Error>> {
-    println!("{}", "Performing regenesis (full reset)...".yellow().bold());
+    info!("Performing regenesis (full reset)...");
 
     // First, stop any running containers to ensure clean state
-    println!("  Stopping any running containers...");
+    info!("Stopping any running containers...");
     let containers = vec!["foc-lotus-miner", "foc-lotus", "foc-curio", "foc-yugabyte"];
     for container in containers {
         if container_is_running(container)? {
-            println!("    Stopping container '{}'...", container);
+            info!("Stopping container '{}'...", container);
             stop_container(container)?;
             remove_container(container)?;
         }
     }
 
-    let base_volumes = foc_localnet_docker_volumes();
+    let run_specific_volumes_root = crate::paths::foc_localnet_docker_volumes_run_specific_root();
+    let runs_dir = crate::paths::foc_localnet_runs();
 
     // Files and directories to delete
-    let paths_to_delete = vec![
-        base_volumes.join("lotus-keys"),
-        base_volumes.join("genesis-sectors"),
-        base_volumes.join("genesis").join("foc-localnet.json"),
-        base_volumes.join("lotus-data"),
-        base_volumes.join("lotus-miner-data"),
-        crate::paths::foc_localnet_curio_volumes(),
-        base_volumes.join("yugabyte-data"),
-        contract_addresses_file(),
-        base_volumes.join("state").join("pdp_sps"),
-    ];
+    let paths_to_delete = vec![run_specific_volumes_root, runs_dir];
 
     for path in paths_to_delete {
         if path.exists() {
-            if path.is_dir() {
-                std::fs::remove_dir_all(&path)?;
-                println!("  {} {}", "Removed directory:".red(), path.display());
+            let result = if path.is_dir() {
+                std::fs::remove_dir_all(&path)
             } else {
-                std::fs::remove_file(&path)?;
-                println!("  {} {}", "Removed file:".red(), path.display());
+                std::fs::remove_file(&path)
+            };
+
+            if let Err(e) = result {
+                if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    warn!(
+                        "Permission denied removing {}, trying with Docker...",
+                        path.display()
+                    );
+                    // Fallback to Docker
+                    let parent = path.parent().unwrap_or_else(|| std::path::Path::new("/"));
+                    let file_name = path.file_name().unwrap().to_string_lossy();
+
+                    let status = std::process::Command::new("docker")
+                        .args(&[
+                            "run",
+                            "--rm",
+                            "-u",
+                            "root",
+                            "-v",
+                            &format!("{}:/work", parent.display()),
+                            "foc-builder",
+                            "rm",
+                            "-rf",
+                            &format!("/work/{}", file_name),
+                        ])
+                        .status()?;
+
+                    if status.success() {
+                        info!("Removed with Docker: {}", path.display());
+                    } else {
+                        return Err(format!(
+                            "Failed to remove {} even with Docker",
+                            path.display()
+                        )
+                        .into());
+                    }
+                } else {
+                    return Err(e.into());
+                }
+            } else {
+                info!("Removed: {}", path.display());
             }
         } else {
-            println!("  {} {}", "Skipped (not found):".dim(), path.display());
+            info!("Skipped (not found): {}", path.display());
         }
     }
 
-    println!("{}", "Regenesis complete.".green().bold());
-    println!();
+    info!("Regenesis complete.");
     Ok(())
 }
 
@@ -161,43 +174,44 @@ fn load_and_validate_config() -> Result<Config, Box<dyn std::error::Error>> {
     config.validate()?;
 
     // Display PDP SP configuration
-    println!("{}", "PDP Service Provider Configuration:".cyan().bold());
-    println!("  • Active PDP SPs: {}", config.active_pdp_sp_count);
-    println!("  • Approved PDP SPs: {}", config.approved_pdp_sp_count);
-    println!();
+    info!("PDP Service Provider Configuration:");
+    info!("• Active PDP SPs: {}", config.active_pdp_sp_count);
+    info!("• Approved PDP SPs: {}", config.approved_pdp_sp_count);
 
     Ok(config)
 }
 
 /// Create all the step instances for the cluster startup sequence.
-fn create_steps(volumes_dir: &PathBuf, logs_dir: &PathBuf, config: &Config) -> Vec<Box<dyn Step>> {
-    let lotus_step = LotusStep::new(volumes_dir.clone(), logs_dir.clone());
-    let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), logs_dir.clone());
-    let eth_acc_funding_step = ETHAccFundingStep::new(logs_dir.clone());
-    let usdfc_deploy_step = USDFCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
-    let usdfc_funding_step = USDFCFundingStep::new(
-        volumes_dir.clone(),
-        logs_dir.clone(),
-        config.active_pdp_sp_count,
-    );
-    let multicall3_deploy_step = MultiCall3DeployStep::new(volumes_dir.clone(), logs_dir.clone());
-    let foc_deploy_step = FOCDeployStep::new(volumes_dir.clone(), logs_dir.clone());
+fn create_steps(
+    volumes_dir: &PathBuf,
+    run_dir: &PathBuf,
+    config: &Config,
+    notest: bool,
+) -> Vec<Box<dyn Step>> {
+    let lotus_step = LotusStep::new(volumes_dir.clone(), run_dir.clone());
+    let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), run_dir.clone());
+    let eth_acc_funding_step = ETHAccFundingStep::new(run_dir.clone(), config.active_pdp_sp_count);
+    let usdfc_deploy_step = USDFCDeployStep::new(volumes_dir.clone(), run_dir.clone());
+    let usdfc_funding_step = USDFCFundingStep::new(run_dir.clone(), config.active_pdp_sp_count);
+    let multicall3_deploy_step = MultiCall3DeployStep::new(volumes_dir.clone(), run_dir.clone());
+    let foc_deploy_step = FOCDeployStep::new(volumes_dir.clone(), run_dir.clone());
     let pdp_sp_reg_step = PdpSpRegistrationStep::new(
         volumes_dir.clone(),
-        logs_dir.clone(),
+        run_dir.clone(),
         config.active_pdp_sp_count,
         config.approved_pdp_sp_count,
     );
     let yugabyte_step = YugabyteStep::new(
         volumes_dir.clone(),
-        logs_dir.clone(),
+        run_dir.clone(),
         config.active_pdp_sp_count,
     );
     let curio_step = CurioStep::new(
         volumes_dir.clone(),
-        logs_dir.clone(),
+        run_dir.clone(),
         config.active_pdp_sp_count,
     );
+    let synapse_test_step = SynapseTestE2EStep::new(volumes_dir.clone(), run_dir.clone(), notest);
 
     // Execute all steps
     // Note: PDP SP registration MUST happen after Curio because it needs
@@ -213,107 +227,197 @@ fn create_steps(volumes_dir: &PathBuf, logs_dir: &PathBuf, config: &Config) -> V
         Box::new(yugabyte_step),
         Box::new(curio_step),
         Box::new(pdp_sp_reg_step),
+        Box::new(synapse_test_step),
+    ]
+}
+
+/// Create step epochs for parallel execution.
+///
+/// Each epoch contains steps that can be executed in parallel.
+/// All steps in an epoch must complete before the next epoch begins.
+///
+/// # Parallelization Strategy
+///
+/// - Epoch 1: Lotus + Yugabyte (independent services)
+/// - Epoch 2: Lotus Miner (depends on Lotus)
+/// - Epoch 3: ETH Account Funding (needs blockchain running)
+/// - Epoch 4: MockUSDFC Deploy + MultiCall3 Deploy + FOC Deploy (can be parallelized)
+/// - Epoch 5: MockUSDFC Funding + Curio daemons (can be parallelized, needs FOC Deploy)
+/// - Epoch 6: PDP SP Registration (needs Curio daemons started)
+fn create_step_epochs(
+    volumes_dir: &PathBuf,
+    run_dir: &PathBuf,
+    config: &Config,
+    notest: bool,
+) -> Vec<Vec<Box<dyn Step>>> {
+    let lotus_step = LotusStep::new(volumes_dir.clone(), run_dir.clone());
+    let yugabyte_step = YugabyteStep::new(
+        volumes_dir.clone(),
+        run_dir.clone(),
+        config.active_pdp_sp_count,
+    );
+    let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), run_dir.clone());
+    let eth_acc_funding_step = ETHAccFundingStep::new(run_dir.clone(), config.active_pdp_sp_count);
+    let usdfc_deploy_step = USDFCDeployStep::new(volumes_dir.clone(), run_dir.clone());
+    let multicall3_deploy_step = MultiCall3DeployStep::new(volumes_dir.clone(), run_dir.clone());
+    let foc_deploy_step = FOCDeployStep::new(volumes_dir.clone(), run_dir.clone());
+    let usdfc_funding_step = USDFCFundingStep::new(run_dir.clone(), config.active_pdp_sp_count);
+    let curio_step = CurioStep::new(
+        volumes_dir.clone(),
+        run_dir.clone(),
+        config.active_pdp_sp_count,
+    );
+    let pdp_sp_reg_step = PdpSpRegistrationStep::new(
+        volumes_dir.clone(),
+        run_dir.clone(),
+        config.active_pdp_sp_count,
+        config.approved_pdp_sp_count,
+    );
+    let synapse_test_step = SynapseTestE2EStep::new(volumes_dir.clone(), run_dir.clone(), notest);
+
+    vec![
+        // Epoch 1: Start Lotus
+        vec![Box::new(lotus_step)],
+        // Epoch 2: Start Lotus Miner (depends on Lotus)
+        vec![Box::new(lotus_miner_step)],
+        // Epoch 3: ETH Account Funding (needs blockchain running)
+        vec![Box::new(eth_acc_funding_step)],
+        // Epoch 4: Deploy contracts (can be parallelized)
+        vec![
+            Box::new(usdfc_deploy_step),
+            Box::new(multicall3_deploy_step),
+        ],
+        // Epoch 5: Fund accounts with USDFC, deploy foc (needs usdfc deployed), start yugabyte for curio later
+        vec![
+            Box::new(foc_deploy_step),
+            Box::new(usdfc_funding_step),
+            Box::new(yugabyte_step),
+        ],
+        // Epoch 6: Start Curio daemons
+        vec![Box::new(curio_step)],
+        // Epoch 7: Register PDP SPs (needs Curio running, for port information)
+        vec![Box::new(pdp_sp_reg_step)],
+        // Epoch 8: Run Synapse E2E Test
+        vec![Box::new(synapse_test_step)],
     ]
 }
 
 /// Execute the cluster startup steps.
 fn execute_cluster_steps(
     volumes_dir: &PathBuf,
-    logs_dir: &PathBuf,
+    run_dir: &PathBuf,
     run_id: &str,
     config: &Config,
+    parallel: bool,
+    portainer_port: u16,
+    notest: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Ensure genesis prerequisites are ready (one-time setup, needs config for sector count)
-    ensure_genesis_prerequisites(config.active_pdp_sp_count)?;
-    println!();
+    ensure_genesis_prerequisites(config.active_pdp_sp_count, run_id)?;
 
     // Validate configuration
     config
         .validate()
         .map_err(|e| format!("Configuration validation failed: {}", e))?;
 
-    println!(
-        "{}",
-        format!(
-            "Port allocation: {}-{} ({} ports total)",
-            config.port_range_start,
-            config.port_range_start + config.port_range_count - 1,
-            config.port_range_count
-        )
-        .cyan()
-    );
-
-    println!(
-        "{}",
-        format!(
-            "PDP SPs: {} active ({} approved)",
-            config.active_pdp_sp_count, config.approved_pdp_sp_count
-        )
-        .cyan()
-    );
-
-    let steps = create_steps(volumes_dir, logs_dir, config);
-
-    // TODO:
-    // In case of parallelization needs, we can do as follows:
-    // -------------------------------------------------------
-    // PAR 1: Start Lotus, Start Yugabyte (can be parallelized)
-    // PAR 2: Start Lotus Miner (since it depends on Lotus)
-    // PAR 3: ETH Account Funding (needs blockchain running)
-    // PAR 4: MockUSDFC Deploy + MultiCall3 Deploy + FOC Deploy (can be parallelized)
-    // PAR 5: MockUSDFC Funding, Start Curio daemons (can be parallelized, needs FOC Deploy)
-    // PAR 6: PDP SP Registration (needs Curio daemons started)
-    // PAR 7: End to End tests (needs everything else)
-
-    execute_steps(
-        steps.iter().map(|s| s.as_ref()).collect::<Vec<_>>(),
-        run_id.to_string(),
-        logs_dir.clone(),
+    info!(
+        "Port allocation: {}-{} ({} ports total)",
         config.port_range_start,
-        config.port_range_count,
-    )?;
+        config.port_range_start + config.port_range_count - 1,
+        config.port_range_count
+    );
 
-    println!("\n{}", "Local cluster started successfully!".green().bold());
+    info!(
+        "PDP SPs: {} active ({} approved)",
+        config.active_pdp_sp_count, config.approved_pdp_sp_count
+    );
+
+    if parallel {
+        info!("Execution mode: PARALLEL (experimental)");
+        let step_epochs = create_step_epochs(volumes_dir, run_dir, config, notest);
+
+        // Convert Vec<Vec<Box<dyn Step>>> to Vec<Vec<&dyn Step>>
+        let epoch_refs: Vec<Vec<&dyn Step>> = step_epochs
+            .iter()
+            .map(|epoch| epoch.iter().map(|s| s.as_ref()).collect())
+            .collect();
+
+        execute_steps_parallel(
+            epoch_refs,
+            run_id.to_string(),
+            run_dir.clone(),
+            config.port_range_start,
+            config.port_range_count,
+            Some(portainer_port),
+            config.active_pdp_sp_count,
+            config.approved_pdp_sp_count,
+        )?;
+    } else {
+        info!("Execution mode: SEQUENTIAL");
+        let steps = create_steps(volumes_dir, run_dir, config, notest);
+
+        execute_steps(
+            steps.iter().map(|s| s.as_ref()).collect::<Vec<_>>(),
+            run_id.to_string(),
+            run_dir.clone(),
+            config.port_range_start,
+            config.port_range_count,
+            Some(portainer_port),
+            config.active_pdp_sp_count,
+            config.approved_pdp_sp_count,
+        )?;
+    }
+
     Ok(())
 }
 
-/// Execute the start command.
-///
-/// This function handles starting the local Filecoin cluster.
+/// Start the local Filecoin network cluster.
 pub fn start_cluster(
     volumes_dir: Option<String>,
-    logs_dir: Option<String>,
+    run_dir: Option<String>,
+    parallel: bool,
+    run_id: String,
+    notest: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     stop_existing_cluster()?;
 
-    let (volumes_dir, logs_dir, run_id) = setup_directories_and_run_id(volumes_dir, logs_dir)?;
+    let (volumes_dir, run_dir, run_id) =
+        setup_directories_and_run_id(volumes_dir, run_dir, run_id)?;
 
     // Always perform regenesis (full reset) before starting
     perform_regenesis()?;
 
-    println!("{}", "Starting local cluster...".green().bold());
-    println!("{}", format!("Run ID: {}", run_id).cyan().bold());
-    println!(
-        "{}",
-        format!("Volumes directory: {}", volumes_dir.display()).cyan()
-    );
-    println!(
-        "{}",
-        format!("Logs directory: {}", logs_dir.display()).cyan()
-    );
-    println!();
-
-    // Step 0: Create Docker networks for this run
-    create_all_networks(&run_id)?;
-    println!();
-
-    // Step 0.5: Start Portainer for web UI management
-    start_portainer(&run_id)?;
-    println!();
+    info!("Starting local cluster...");
+    info!("Run ID: {}", run_id);
+    info!("Volumes directory: {}", volumes_dir.display());
+    info!("Run directory: {}", run_dir.display());
 
     let config = load_and_validate_config()?;
 
-    execute_cluster_steps(&volumes_dir, &logs_dir, &run_id, &config)?;
+    // Allocate port for Portainer (first port in dynamic range)
+    let mut port_allocator = crate::port_allocator::PortAllocator::new(
+        config.port_range_start,
+        config.port_range_count,
+    )?;
+    let portainer_port = port_allocator.allocate()?;
 
+    // Start Portainer
+    start_portainer(&run_id, portainer_port)?;
+
+    // Create networks
+    create_all_networks(&run_id, config.active_pdp_sp_count)?;
+
+    // Execute steps
+    execute_cluster_steps(
+        &volumes_dir,
+        &run_dir,
+        &run_id,
+        &config,
+        parallel,
+        portainer_port,
+        notest,
+    )?;
+
+    info!("Cluster started successfully!");
     Ok(())
 }

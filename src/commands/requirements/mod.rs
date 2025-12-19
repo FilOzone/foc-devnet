@@ -2,14 +2,14 @@
 //!
 //! This module checks if all system requirements are met to run the foc-localnet system.
 
-use crossterm::style::Stylize;
 use std::process::{Command, Stdio};
+use tracing::{error, info, warn};
 
 pub mod setup_docker;
 
 /// Check system requirements
 pub fn check_requirements(setup: bool) -> Result<(), Box<dyn std::error::Error>> {
-    println!("{}", "🔍 Checking system requirements...".bold());
+    info!("Checking system requirements...");
 
     // Check platform-specific requirements
     check_homebrew_requirement(setup)?;
@@ -17,7 +17,7 @@ pub fn check_requirements(setup: bool) -> Result<(), Box<dyn std::error::Error>>
     // Check Docker requirement
     check_docker_requirement(setup)?;
 
-    println!("{}", "🎉 All requirements met!".green().bold());
+    info!("All requirements met!");
     Ok(())
 }
 
@@ -28,37 +28,23 @@ fn check_homebrew_requirement(setup: bool) -> Result<(), Box<dyn std::error::Err
     }
 
     if is_command_available("brew") {
-        println!("{}", "✅ Homebrew is available.".green());
+        info!("Homebrew is available.");
         return Ok(());
     }
 
     if setup {
-        println!(
-            "{}",
-            "❌ Homebrew not found. Attempting to install Homebrew...".yellow()
-        );
+        warn!("Homebrew not found. Attempting to install Homebrew...");
         install_homebrew()?;
         // Check again after installation
         if !is_command_available("brew") {
-            eprintln!("{}", "❌ Homebrew installation may have failed. Please restart your terminal and try again.".red());
+            error!("Homebrew installation may have failed. Please restart your terminal and try again.");
             return Err("Homebrew not available".into());
         }
     } else {
-        eprintln!(
-            "{}",
-            "❌ Error: Homebrew is not installed or not available in PATH."
-                .red()
-                .bold()
-        );
-        eprintln!(
-            "{}",
-            "Homebrew is required for automatic Docker installation on macOS.".cyan()
-        );
-        eprintln!("{}", "Please install Homebrew from https://brew.sh/".cyan());
-        eprintln!(
-            "{}",
-            "Or run with --setup flag to attempt automatic installation.".cyan()
-        );
+        error!("Error: Homebrew is not installed or not available in PATH.");
+        info!("Homebrew is required for automatic Docker installation on macOS.");
+        info!("Please install Homebrew from https://brew.sh/");
+        info!("Or run with --setup flag to attempt automatic installation.");
         return Err("Homebrew not available".into());
     }
 
@@ -78,32 +64,25 @@ fn install_homebrew() -> Result<(), Box<dyn std::error::Error>> {
 /// Check Docker requirement
 fn check_docker_requirement(setup: bool) -> Result<(), Box<dyn std::error::Error>> {
     if is_command_available("docker") {
-        println!("{}", "✅ Docker is available.".green());
+        info!("Docker is available.");
         return Ok(());
     }
 
     if setup {
-        println!(
-            "{}",
-            "❌ Docker not found. Attempting to install Docker...".yellow()
-        );
+        warn!("Docker not found. Attempting to install Docker...");
         install_docker()?;
+        // Check again after installation
+        if !is_command_available("docker") {
+            error!(
+                "Docker installation may have failed. Please restart your terminal and try again."
+            );
+            return Err("Docker not available".into());
+        }
     } else {
-        eprintln!(
-            "{}",
-            "❌ Error: Docker is not installed or not available in PATH."
-                .red()
-                .bold()
-        );
-        eprintln!(
-            "{}",
-            "Please install Docker Desktop from https://www.docker.com/products/docker-desktop"
-                .cyan()
-        );
-        eprintln!(
-            "{}",
-            "Or run with --setup flag to attempt automatic installation.".cyan()
-        );
+        error!("Error: Docker is not installed or not available in PATH.");
+        info!("Docker is required to run the Filecoin localnet.");
+        info!("Please install Docker from https://www.docker.com/");
+        info!("Or run with --setup flag to attempt automatic installation.");
         return Err("Docker not available".into());
     }
 
@@ -118,25 +97,22 @@ fn install_docker() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             eprintln!(
                 "{}",
-                "❌ Automatic Docker installation is only supported on Ubuntu/Debian Linux.".red()
+                "❌ Automatic Docker installation is only supported on Ubuntu/Debian Linux."
             );
             return Err("Unsupported Linux distribution".into());
         }
     } else if cfg!(target_os = "macos") {
         // On macOS, Docker installation is handled by Homebrew
+        eprintln!("{}", "❌ Please install Docker Desktop manually on macOS.");
         eprintln!(
             "{}",
-            "❌ Please install Docker Desktop manually on macOS.".red()
-        );
-        eprintln!(
-            "{}",
-            "Download from: https://www.docker.com/products/docker-desktop".cyan()
+            "Download from: https://www.docker.com/products/docker-desktop"
         );
         return Err("Manual Docker installation required on macOS".into());
     } else {
         eprintln!(
             "{}",
-            "❌ Automatic Docker installation is not supported on this platform.".red()
+            "❌ Automatic Docker installation is not supported on this platform."
         );
         return Err("Unsupported platform".into());
     }

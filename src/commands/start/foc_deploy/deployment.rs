@@ -6,25 +6,23 @@
 use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
 use crate::commands::start::foc_deployer::deploy_foc_contracts;
 use crate::paths::{contract_addresses_file, foc_metadata_file};
-use crossterm::style::Stylize;
 use std::error::Error;
+use tracing::{info, warn};
 
 /// Check if FOC contracts are already deployed
 ///
 /// # Arguments
-/// * `context` - The step context to store contract addresses
+/// * `context` - The setup context to store contract addresses
 ///
 /// # Returns
 /// true if contracts are already deployed, false otherwise
 pub fn check_existing_deployment(
-    context: &mut crate::commands::start::step::StepContext,
+    context: &crate::commands::start::step::SetupContext,
 ) -> Result<bool, Box<dyn Error>> {
-    if let Ok(existing_addresses) = ContractAddresses::load() {
+    let run_id = context.run_id();
+    if let Ok(existing_addresses) = ContractAddresses::load(run_id) {
         if !existing_addresses.foc_contracts.is_empty() {
-            println!(
-                "    {} FOC contracts already deployed, skipping deployment...",
-                "✓".green()
-            );
+            info!("✓ FOC contracts already deployed, skipping deployment...");
 
             // Store contract addresses in context
             for (name, addr) in &existing_addresses.foc_contracts {
@@ -39,11 +37,11 @@ pub fn check_existing_deployment(
 /// Perform the FOC contract deployment process
 ///
 /// # Arguments
-/// * `context` - The step context containing required addresses
+/// * `context` - The setup context containing required addresses
 pub fn perform_deployment(
-    context: &mut crate::commands::start::step::StepContext,
+    context: &crate::commands::start::step::SetupContext,
 ) -> Result<(), Box<dyn Error>> {
-    println!("    Deploying FOC service contracts...");
+    info!("Deploying FOC service contracts...");
 
     // Get required addresses from context
     let (foc_deployer, foc_deployer_eth, mock_usdfc_address, _global_faucet) =
@@ -52,7 +50,7 @@ pub fn perform_deployment(
     let services_repo = super::helpers::get_filecoin_services_repo_path()?;
 
     // Get Lotus container name and RPC URL
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let lotus_container = crate::docker::containers::lotus_container_name(run_id);
     let lotus_rpc_url = crate::commands::start::lotus_utils::get_lotus_rpc_url(context)?;
 
@@ -64,6 +62,7 @@ pub fn perform_deployment(
         &services_repo,
         &lotus_container,
         &lotus_rpc_url,
+        run_id,
     )?;
 
     // Store contract addresses in context
@@ -73,25 +72,23 @@ pub fn perform_deployment(
 
     // Load existing addresses and update with FOC contracts
     let mut addresses_struct =
-        ContractAddresses::load().unwrap_or_else(|_| ContractAddresses::default());
+        ContractAddresses::load(run_id).unwrap_or_else(|_| ContractAddresses::default());
 
     addresses_struct.foc_contracts = contract_addresses.addresses.clone();
     addresses_struct.filbeam_controller = contract_addresses.filbeam_controller.clone();
     addresses_struct.filbeam_beneficiary = contract_addresses.filbeam_beneficiary.clone();
 
-    addresses_struct.save()?;
-    println!(
-        "      {} Contract addresses saved to {}",
-        "✓".green(),
-        contract_addresses_file().display()
+    addresses_struct.save(run_id)?;
+    info!(
+        "✓ Contract addresses saved to {}",
+        contract_addresses_file(run_id).display()
     );
 
     // Save network metadata
-    contract_addresses.metadata.save()?;
-    println!(
-        "      {} Network metadata saved to {}",
-        "✓".green(),
-        foc_metadata_file().display()
+    contract_addresses.metadata.save(run_id)?;
+    info!(
+        "✓ Network metadata saved to {}",
+        foc_metadata_file(run_id).display()
     );
 
     Ok(())
@@ -102,33 +99,22 @@ pub fn perform_deployment(
 /// # Arguments
 /// * `context` - The step context to verify
 pub fn post_execute_verification(
-    context: &crate::commands::start::step::StepContext,
+    context: &crate::commands::start::step::SetupContext,
 ) -> Result<(), Box<dyn Error>> {
-    println!("    Verifying FOC deployment...");
+    info!("Verifying FOC deployment...");
 
     // Check if contracts were deployed
-    let mut contract_count = 0;
-    for key in context.state.keys() {
-        if key.starts_with("foc_contract_") {
-            contract_count += 1;
-        }
-    }
+    let contract_keys = context.get_keys_matching(|k| k.starts_with("foc_contract_"));
+    let contract_count = contract_keys.len();
 
     if contract_count > 0 {
-        println!(
-            "      {} {} contracts verified in context",
-            "✓".green(),
-            contract_count
-        );
+        info!("✓ {} contracts verified in context", contract_count);
     } else {
-        println!("      {} No contracts found in context", "⚠".yellow());
+        warn!("⚠ No contracts found in context");
     }
 
-    println!(
-        "\n    {} FOC deployment step completed!",
-        "✓".green().bold()
-    );
-    println!("      All FOC service contracts are deployed and ready.");
+    info!("✓ FOC deployment step completed!");
+    info!("All FOC service contracts are deployed and ready.");
 
     Ok(())
 }

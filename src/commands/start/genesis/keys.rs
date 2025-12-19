@@ -4,17 +4,17 @@
 //! including signer keys and additional pre-funded accounts.
 
 use crate::paths::foc_localnet_lotus_keys;
-use crossterm::style::Stylize;
 use std::fs;
 use std::path::Path;
+use tracing::info;
 
 /// Ensure BLS keys are generated for lotus.
 ///
 /// Generates signer keys and additional pre-funded keys using pre-generated keys from init.
-pub fn ensure_bls_keys() -> Result<(), Box<dyn std::error::Error>> {
+pub fn ensure_bls_keys(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
     use crate::commands::init::keys::load_keys;
 
-    let keys_dir = foc_localnet_lotus_keys();
+    let keys_dir = foc_localnet_lotus_keys(run_id);
     let all_keys = load_keys()?;
 
     // Filter BLS keys
@@ -63,23 +63,14 @@ fn ensure_bls_key_from_info(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Check if key already exists
     if key_dir.exists() && key_dir.read_dir()?.next().is_some() {
-        println!(
-            "  {} BLS {} key {} already exists at {}",
-            "✓".green(),
+        info!(
+            "✓ BLS {} key {} already exists at {}",
             key_type,
             key_num,
             key_dir.display()
         );
         return Ok(());
     }
-
-    println!(
-        "  {} Using pre-generated BLS {} key {} ({})",
-        "🔑".cyan(),
-        key_type,
-        key_num,
-        key_info.name
-    );
 
     // Create the directory
     fs::create_dir_all(key_dir)?;
@@ -112,13 +103,7 @@ fn ensure_bls_key_from_info(
     let json_str = serde_json::to_string(&keyinfo_json)?;
     fs::write(&keyinfo_path, json_str)?;
 
-    println!(
-        "  {} BLS {} key {} created successfully at {}",
-        "✓".green(),
-        key_type,
-        key_num,
-        address
-    );
+    info!("BLS {} key {} created successfully", key_type, key_num);
     Ok(())
 }
 
@@ -136,8 +121,9 @@ fn ensure_bls_key_from_info(
 pub fn get_bls_addresses(
     key_prefix: &str,
     count: usize,
+    run_id: &str,
 ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let keys_dir = foc_localnet_lotus_keys();
+    let keys_dir = foc_localnet_lotus_keys(run_id);
     let mut keys_subdirs = Vec::with_capacity(count);
     let mut addresses = Vec::with_capacity(count);
 

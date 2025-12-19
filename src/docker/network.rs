@@ -7,8 +7,8 @@
 use crate::constants::MAX_PDP_SP_COUNT;
 
 use super::core::docker_command;
-use crossterm::style::Stylize;
 use std::error::Error;
+use tracing::info;
 
 /// Network names (suffixes)
 const LOTUS_NET_SUFFIX: &str = "lot-net";
@@ -54,15 +54,15 @@ pub fn network_exists(network_name: &str) -> Result<bool, Box<dyn Error>> {
 /// # Returns
 /// Ok(()) on success, error on failure
 pub fn create_network(network_name: &str) -> Result<(), Box<dyn Error>> {
-    println!("  Creating network '{}'...", network_name.cyan());
+    info!("Creating network '{}'...", network_name);
 
     if network_exists(network_name)? {
-        println!("    {} Network already exists", "ℹ".cyan());
+        info!("Network already exists");
         return Ok(());
     }
 
     docker_command(&["network", "create", "--driver", "bridge", network_name])?;
-    println!("    {} Network created", "✓".green());
+    info!("Network created");
 
     Ok(())
 }
@@ -75,15 +75,15 @@ pub fn create_network(network_name: &str) -> Result<(), Box<dyn Error>> {
 /// # Returns
 /// Ok(()) on success, error on failure
 pub fn delete_network(network_name: &str) -> Result<(), Box<dyn Error>> {
-    println!("  Removing network '{}'...", network_name.cyan());
+    info!("Removing network '{}'...", network_name);
 
     if !network_exists(network_name)? {
-        println!("    {} Network does not exist", "ℹ".cyan());
+        info!("Network does not exist");
         return Ok(());
     }
 
     docker_command(&["network", "rm", network_name])?;
-    println!("    {} Network removed", "✓".green());
+    info!("Network removed");
 
     Ok(())
 }
@@ -97,19 +97,25 @@ pub fn delete_network(network_name: &str) -> Result<(), Box<dyn Error>> {
 ///
 /// # Arguments
 /// * `run_id` - The run ID for this cluster
+/// * `active_pdp_sp_count` - The number of active PDP SPs
 ///
 /// # Returns
 /// Ok(()) on success, error on failure
-pub fn create_all_networks(run_id: &str) -> Result<(), Box<dyn Error>> {
-    println!("{}", "Creating Docker networks...".blue().bold());
+pub fn create_all_networks(run_id: &str, active_pdp_sp_count: usize) -> Result<(), Box<dyn Error>> {
+    info!("Creating Docker networks...");
 
+    // 1. Lotus network
     create_network(&lotus_network_name(run_id))?;
+
+    // 2. Lotus miner network
     create_network(&lotus_miner_network_name(run_id))?;
-    for sp_idx in 1..=MAX_PDP_SP_COUNT {
-        create_network(&pdp_miner_network_name(run_id, sp_idx))?;
+
+    // 3. PDP miner networks
+    for i in 1..=active_pdp_sp_count {
+        create_network(&pdp_miner_network_name(run_id, i))?;
     }
 
-    println!("{}", "  All networks created successfully".green());
+    info!("All networks created successfully");
     Ok(())
 }
 
@@ -121,19 +127,24 @@ pub fn create_all_networks(run_id: &str) -> Result<(), Box<dyn Error>> {
 /// # Returns
 /// Ok(()) on success, error on failure
 pub fn delete_all_networks(run_id: &str) -> Result<(), Box<dyn Error>> {
-    println!("{}", "Removing Docker networks...".blue().bold());
+    info!("Removing Docker networks...");
 
-    // Delete in reverse order of creation
-    for sp_idx in (1..=MAX_PDP_SP_COUNT).rev() {
-        let pdp_network = pdp_miner_network_name(run_id, sp_idx);
-        if network_exists(&pdp_network)? {
-            delete_network(&pdp_network)?;
-        }
-    }
-    delete_network(&lotus_miner_network_name(run_id))?;
+    // 1. Lotus network
     delete_network(&lotus_network_name(run_id))?;
 
-    println!("{}", "  All networks removed successfully".green());
+    // 2. Lotus miner network
+    delete_network(&lotus_miner_network_name(run_id))?;
+
+    // 3. PDP miner networks
+    // We don't know the exact count, so we'll try up to MAX_PDP_SP_COUNT
+    for i in 1..=MAX_PDP_SP_COUNT {
+        let net_name = pdp_miner_network_name(run_id, i);
+        if network_exists(&net_name)? {
+            delete_network(&net_name)?;
+        }
+    }
+
+    info!("All networks removed successfully");
     Ok(())
 }
 

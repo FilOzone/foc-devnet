@@ -7,11 +7,11 @@ use std::path::PathBuf;
 
 use super::constants::{IMAGE_NAME, LOTUS_API_WAIT_SLEEP_SECS};
 use crate::commands::start::lotus_utils::{build_fullnode_api_info, read_lotus_token};
-use crate::commands::start::step::StepContext;
+use crate::commands::start::step::SetupContext;
 use crate::docker::containers::{lotus_container_name, lotus_miner_container_name};
 use crate::docker::network::lotus_network_name;
 use crate::paths::{
-    foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_genesis_sectors_lotus_miner,
+    foc_localnet_bin, foc_localnet_docker_volumes_cache, foc_localnet_genesis_sectors_lotus_miner,
     foc_localnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
 };
 
@@ -19,10 +19,10 @@ use crate::paths::{
 pub fn build_miner_docker_command(
     volumes_dir: &PathBuf,
     preseal_files: &(String, String),
-    context: &StepContext,
+    context: &SetupContext,
 ) -> Result<Vec<String>, Box<dyn Error>> {
     let (preseal_file, preseal_key_file) = preseal_files;
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let container_name = lotus_miner_container_name(run_id);
     let filecoin_network = lotus_network_name(run_id);
     let lotus_name = lotus_container_name(run_id);
@@ -31,13 +31,13 @@ pub fn build_miner_docker_command(
     let lotus_data_dir = volumes_dir.join("lotus-data");
 
     // Read Lotus API token from host
-    let lotus_token = read_lotus_token()?;
+    let lotus_token = read_lotus_token(run_id)?;
     let fullnode_api_info = build_fullnode_api_info(&lotus_token, &lotus_name);
 
     // Get paths
     let bin_dir = foc_localnet_bin();
-    let sectors_dir = foc_localnet_genesis_sectors_lotus_miner();
-    let builder_volumes_dir = foc_localnet_docker_volumes().join("foc-builder");
+    let sectors_dir = foc_localnet_genesis_sectors_lotus_miner(run_id);
+    let builder_volumes_dir = foc_localnet_docker_volumes_cache().join("foc-builder");
     let params_dir = foc_localnet_proof_parameters();
 
     // Get allocated miner API port from context

@@ -40,6 +40,12 @@ RUN curl -L https://foundry.paradigm.xyz | bash
 ENV PATH=$PATH:/home/foc-user/.foundry/bin
 RUN /home/foc-user/.foundry/bin/foundryup
 
+# Install Node.js and pnpm
+USER root
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
+    apt-get install -y nodejs && \
+    npm install -g pnpm
+
 # Set working directory
 WORKDIR /workspace
 

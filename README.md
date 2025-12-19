@@ -43,6 +43,7 @@ cargo run -- build curio
 This will:
 - Compile Lotus and Curio binaries inside Docker containers
 - Cache build artifacts for faster subsequent builds
+- You can run them in parallel as well for faster builds, if you have a powerful PC.
 
 ### Step 3: Start the Network
 
@@ -56,6 +57,8 @@ This will:
 - Deploy FOC smart contracts (including MockUSDFC)
 - Start storage provider(s)
 - Launch Portainer UI for container management
+
+**If you are feeling adventurous**: Use `cargo run -- start --parallel`, an experimental feature that attempts to parallelize setup steps as much as possible. 
 
 **That's it!** Your local Filecoin network is running.
 

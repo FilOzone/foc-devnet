@@ -5,20 +5,21 @@
 use crate::commands::start::genesis::constants;
 use crate::commands::start::genesis::keys::get_bls_addresses;
 use crate::paths::{
-    foc_localnet_bin, foc_localnet_docker_volumes, foc_localnet_genesis, foc_localnet_lotus_keys,
+    foc_localnet_bin, foc_localnet_docker_volumes_cache, foc_localnet_genesis,
+    foc_localnet_lotus_keys,
 };
-use crossterm::style::Stylize;
 use std::process::Command;
+use tracing::info;
 
 /// Add signers to the genesis file.
 ///
 /// Runs `lotus-seed genesis set-signers` to add the BLS signer keys
 /// with the configured threshold.
-pub fn add_signers_to_genesis() -> Result<(), Box<dyn std::error::Error>> {
-    println!("  {} Adding signers to genesis...", "🔑".cyan());
+pub fn add_signers_to_genesis(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    info!("🔑 Adding signers to genesis...");
 
-    let genesis_dir = foc_localnet_genesis();
-    let keys_dir = foc_localnet_lotus_keys();
+    let genesis_dir = foc_localnet_genesis(run_id);
+    let keys_dir = foc_localnet_lotus_keys(run_id);
 
     // Get signer BLS addresses
     let addresses = get_bls_addresses(
@@ -26,6 +27,7 @@ pub fn add_signers_to_genesis() -> Result<(), Box<dyn std::error::Error>> {
         constants::NUM_SIGNER_KEYS
             .try_into()
             .expect("cannot cast NUM_SIGNER_KEYS into usize"),
+        run_id,
     )?;
 
     if addresses.len() != constants::NUM_SIGNER_KEYS as usize {
@@ -36,17 +38,29 @@ pub fn add_signers_to_genesis() -> Result<(), Box<dyn std::error::Error>> {
         )
         .into());
     }
-    println!("    Using signers:");
+    info!("Using signers:");
     for (i, addr) in addresses.iter().enumerate() {
-        println!("      {} {}", format!("Key {}:", i + 1).dim(), addr);
+        info!(
+            "Key {}: {}...{}",
+            i + 1,
+            &addr[..6],
+            &addr[addr.len() - 4..]
+        );
     }
 
     // Run lotus-seed genesis set-signers in builder container
     let bin_dir = foc_localnet_bin();
-    let builder_volumes_dir = foc_localnet_docker_volumes().join("builder");
+    let builder_volumes_dir = foc_localnet_docker_volumes_cache().join("foc-builder");
 
     // Build docker args with network environment variables
-    let mut docker_args = vec!["run".to_string(), "--rm".to_string()];
+    let mut docker_args = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
+        "--name".to_string(),
+        format!("foc-{}-genesis-signers", run_id),
+    ];
 
     // Add volume mounts and command
     docker_args.extend(vec![
@@ -77,6 +91,6 @@ pub fn add_signers_to_genesis() -> Result<(), Box<dyn std::error::Error>> {
         .into());
     }
 
-    println!("  {} Signers added successfully", "✓".green());
+    info!("✓ Signers added successfully");
     Ok(())
 }

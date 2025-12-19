@@ -40,7 +40,7 @@ pub mod running_status;
 pub mod uptime;
 pub mod utils;
 
-use crossterm::style::Stylize;
+use tracing::info;
 
 /// Execute the status command.
 ///
@@ -64,18 +64,7 @@ use crossterm::style::Stylize;
 /// - Docker command execution failures
 /// - File system access problems
 pub fn status() -> Result<(), Box<dyn std::error::Error>> {
-    let width = utils::get_terminal_width().min(120);
-    let header_text = "🚀 FOC LocalNet Status";
-    // Display width: 🚀 (2) + space (1) + "FOC LocalNet Status" (19) + space (1) = 23
-    let header_display_width = 2 + 1 + 19 + 1;
-    let padding_len = width.saturating_sub(header_display_width);
-    let padding = "░".repeat(padding_len).dark_grey();
-    println!(
-        "\n{} {}",
-        header_text.bold().cyan().underlined(),
-        padding
-    );
-    println!("{}", "═".repeat(width).cyan());
+    info!("FOC LocalNet Status");
 
     // Code version information
     code_version::print_code_version()?;

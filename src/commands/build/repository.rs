@@ -6,10 +6,10 @@
 use crate::commands::build::Project;
 use crate::config::Location;
 use crate::paths::{foc_localnet_curio_repo, foc_localnet_lotus_repo};
-use crossterm::style::Stylize;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use tracing::info;
 
 /// Prepare a repository for building based on the Location configuration.
 ///
@@ -28,9 +28,8 @@ pub fn prepare_repository(
         Project::Curio => foc_localnet_curio_repo(),
     };
 
-    println!(
-        "{} Preparing {} repository at {}...",
-        "📦".bold(),
+    info!(
+        "Preparing {} repository at {}...",
         project,
         repo_path.display()
     );
@@ -53,7 +52,7 @@ pub fn prepare_repository(
         }
     }
 
-    println!("{}", "Repository prepared successfully".green());
+    info!("Repository prepared successfully");
     Ok(repo_path)
 }
 
@@ -79,7 +78,7 @@ fn prepare_local_source(
     }
 
     // Create symlink
-    println!(
+    info!(
         "Creating symlink from {} to {}",
         repo_path.display(),
         source_dir
@@ -117,7 +116,7 @@ fn handle_existing_repo_path(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Check if it's a symlink - if so, remove it
     if repo_path.is_symlink() {
-        println!(
+        info!(
             "Removing symlink at {} to replace with Git repository",
             repo_path.display()
         );
@@ -128,7 +127,7 @@ fn handle_existing_repo_path(
         update_existing_repo(repo_path)?;
     } else {
         // Path exists but is not a Git repo or symlink, remove it
-        println!(
+        info!(
             "Removing existing non-Git directory at {}",
             repo_path.display()
         );
@@ -140,7 +139,7 @@ fn handle_existing_repo_path(
 
 /// Update an existing Git repository by fetching latest changes.
 fn update_existing_repo(repo_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    println!(
+    info!(
         "Updating existing Git repository at {}",
         repo_path.display()
     );
@@ -168,7 +167,7 @@ fn clone_fresh_repo(repo_path: &Path, url: &str) -> Result<(), Box<dyn std::erro
         fs::create_dir_all(parent)?;
     }
 
-    println!("Cloning repository from {} to {}", url, repo_path.display());
+    info!("Cloning repository from {} to {}", url, repo_path.display());
 
     let status = Command::new("git")
         .args(["clone", url, repo_path.to_str().unwrap()])
@@ -188,13 +187,13 @@ fn cleanup_repo_path(path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if path.is_symlink() {
-        println!("Removing existing symlink at {}", path.display());
+        info!("Removing existing symlink at {}", path.display());
         fs::remove_file(path)?;
     } else if path.is_dir() {
-        println!("Removing existing directory at {}", path.display());
+        info!("Removing existing directory at {}", path.display());
         fs::remove_dir_all(path)?;
     } else {
-        println!("Removing existing file at {}", path.display());
+        info!("Removing existing file at {}", path.display());
         fs::remove_file(path)?;
     }
 
@@ -203,7 +202,7 @@ fn cleanup_repo_path(path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
 
 /// Checkout a specific commit in a Git repository.
 fn checkout_commit(repo_path: &PathBuf, commit: &str) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Checking out commit: {}", commit);
+    info!("Checking out commit: {}", commit);
 
     let status = Command::new("git")
         .args(["checkout", commit])
@@ -219,7 +218,7 @@ fn checkout_commit(repo_path: &PathBuf, commit: &str) -> Result<(), Box<dyn std:
 
 /// Checkout a specific tag in a Git repository.
 fn checkout_tag(repo_path: &PathBuf, tag: &str) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Checking out tag: {}", tag);
+    info!("Checking out tag: {}", tag);
 
     let status = Command::new("git")
         .args(["checkout", &format!("tags/{}", tag)])
@@ -235,7 +234,7 @@ fn checkout_tag(repo_path: &PathBuf, tag: &str) -> Result<(), Box<dyn std::error
 
 /// Checkout a specific branch in a Git repository.
 fn checkout_branch(repo_path: &PathBuf, branch: &str) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Checking out branch: {}", branch);
+    info!("Checking out branch: {}", branch);
 
     // First try to checkout the branch if it exists locally
     let status = Command::new("git")
@@ -256,7 +255,7 @@ fn checkout_branch(repo_path: &PathBuf, branch: &str) -> Result<(), Box<dyn std:
     }
 
     // Pull latest changes for the branch
-    println!("Pulling latest changes for branch: {}", branch);
+    info!("Pulling latest changes for branch: {}", branch);
     let status = Command::new("git")
         .args(["pull", "origin", branch])
         .current_dir(repo_path)

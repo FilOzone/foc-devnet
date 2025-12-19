@@ -44,9 +44,7 @@ fn main() {
     }
 
     // Check if working directory is dirty (has uncommitted changes)
-    let is_dirty = if let Ok(output) = Command::new("git")
-        .args(["status", "--porcelain"])
-        .output()
+    let is_dirty = if let Ok(output) = Command::new("git").args(["status", "--porcelain"]).output()
     {
         output.status.success() && !output.stdout.is_empty()
     } else {

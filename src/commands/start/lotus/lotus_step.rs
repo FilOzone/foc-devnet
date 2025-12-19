@@ -3,7 +3,7 @@
 //! This module contains the LotusStep struct and its implementation
 //! of the Step trait for starting the Lotus daemon.
 
-use super::super::step::{Step, StepContext};
+use super::super::step::{SetupContext, Step};
 use super::container_management::{
     check_existing_container, start_container, wait_for_container_init,
 };
@@ -17,70 +17,65 @@ use std::path::PathBuf;
 pub struct LotusStep {
     volumes_dir: PathBuf,
     #[allow(dead_code)]
-    logs_dir: PathBuf,
+    run_dir: PathBuf,
 }
 
 impl LotusStep {
     /// Create a new LotusStep
-    pub fn new(volumes_dir: PathBuf, logs_dir: PathBuf) -> Self {
+    pub fn new(volumes_dir: PathBuf, run_dir: PathBuf) -> Self {
         Self {
             volumes_dir,
-            logs_dir,
+            run_dir,
         }
     }
 }
 
 impl Step for LotusStep {
-    /// Returns the name of this step
+    /// Get the name of this step
     fn name(&self) -> &str {
-        "Start Lotus Daemon"
+        "Lotus Daemon"
     }
 
-    /// Performs pre-execution checks before starting the Lotus daemon
-    ///
-    /// This includes checking for existing containers, verifying port availability,
-    /// ensuring required Docker images and binaries exist, and validating
-    /// genesis and proof parameter files.
-    fn pre_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        check_existing_container(context)?;
+    /// Perform pre-execution checks
+    fn pre_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
+        let run_id = context.run_id();
         check_image_and_binary()?;
-        check_genesis_and_params()?;
+        check_genesis_and_params(run_id)?;
+
+        // Allocate ports for Lotus
+        let api_port = context.allocate_port()?;
+        let p2p_port = context.allocate_port()?;
+
+        context.set("lotus_api_port", api_port.to_string());
+        context.set("lotus_p2p_port", p2p_port.to_string());
+
+        // Check availability
+        if !crate::docker::is_port_available(api_port) {
+            return Err(format!("Port {} for Lotus API is already in use", api_port).into());
+        }
+        if !crate::docker::is_port_available(p2p_port) {
+            return Err(format!("Port {} for Lotus P2P is already in use", p2p_port).into());
+        }
+
         Ok(())
     }
 
-    /// Executes the main logic to start the Lotus daemon container
-    ///
-    /// This allocates ports, creates necessary directories, builds the Docker run command with
-    /// appropriate volume mounts and port mappings, and starts the container.
-    fn execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        // Allocate ports first
-        let lotus_api_port = context.port_allocator.allocate()?;
-        let lotus_p2p_port = context.port_allocator.allocate()?;
+    /// Execute the Lotus daemon startup process
+    fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
+        check_existing_container(context)?;
 
-        // Store ports in context for later steps to use
-        context.set("lotus_api_port", lotus_api_port.to_string());
-        context.set("lotus_p2p_port", lotus_p2p_port.to_string());
-
-        // Setup directories (creates config.toml with fixed internal port 1234)
         setup_directories(&self.volumes_dir)?;
-
-        // Build docker command (it will read ports from context)
         let docker_args = build_docker_command(&self.volumes_dir, context)?;
-
         start_container(docker_args, context)?;
+        wait_for_container_init(context)?;
+        wait_for_api_file(&self.volumes_dir)?;
+
         Ok(())
     }
 
-    /// Performs post-execution verification after the Lotus daemon starts
-    ///
-    /// This waits for the container to initialize, verifies port accessibility,
-    /// waits for the Lotus API file to be created, and checks API connectivity
-    /// including FEVM/Ethereum RPC availability.
-    fn post_execute(&self, context: &mut StepContext) -> Result<(), Box<dyn Error>> {
-        wait_for_container_init(context)?;
+    /// Perform post-execution verification for Lotus
+    fn post_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         verify_ports(context)?;
-        wait_for_api_file(&self.volumes_dir)?;
-        verify_api_connectivity(context)?;
-        Ok(())
+        verify_api_connectivity(context)
     }
 }

@@ -1,10 +1,12 @@
 //! Provider registration contract interactions.
 
+use tracing::info;
+
 use super::constants::*;
+use crate::commands::start::step::SetupContext;
 use crate::constants::BUILDER_CONTAINER;
-use crossterm::style::Stylize;
+use crate::docker::command_logger::run_and_log_command_strings;
 use std::error::Error;
-use std::process::Command;
 
 /// Register a single provider in ServiceProviderRegistry contract
 ///
@@ -18,12 +20,13 @@ pub fn register_single_provider(
     lotus_rpc_url: &str,
     service_url: &str,
     sp_index: usize,
+    context: &SetupContext,
 ) -> Result<u64, Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
     let label = format!("PDP_SP_{}", sp_index);
 
-    println!("  Registering {} in ServiceProviderRegistry...", label);
+    info!("Registering {} in ServiceProviderRegistry...", label);
 
     // Get private key for this PDP SP
     let pdp_sp_private_key =
@@ -40,40 +43,45 @@ pub fn register_single_provider(
 
     // Execute registerProvider transaction with high gas limit for FEVM
     // FEVM consistently requires much higher gas than Ethereum, so we use a large fixed limit
-    let output = Command::new("docker")
-        .args([
-            "run",
-            "--rm",
-            "--network",
-            "host",
-            BUILDER_CONTAINER,
-            "bash",
-            "-c",
-            &format!(
-                r#"cast send {} \
-                "registerProvider(address,string,string,uint8,string[],bytes[])" \
-                {} \
-                "{}" \
-                "{}" \
-                0 \
-                {} \
-                {} \
-                --value {} \
-                --rpc-url {} \
-                --private-key {} \
-                --gas-limit 10000000000"#,
-                registry_address,
-                pdp_sp_eth_address,
-                label,
-                PROVIDER_DESCRIPTION,
-                cap_keys,
-                cap_values,
-                registration_fee_wei,
-                lotus_rpc_url,
-                pdp_sp_private_key
-            ),
-        ])
-        .output()?;
+    let cast_cmd = format!(
+        r#"cast send {} \
+        "registerProvider(address,string,string,uint8,string[],bytes[])" \
+        {} \
+        "{}" \
+        "{}" \
+        0 \
+        {} \
+        {} \
+        --value {} \
+        --rpc-url {} \
+        --private-key {} \
+        --gas-limit 10000000000"#,
+        registry_address,
+        pdp_sp_eth_address,
+        label,
+        PROVIDER_DESCRIPTION,
+        cap_keys,
+        cap_values,
+        registration_fee_wei,
+        lotus_rpc_url,
+        pdp_sp_private_key,
+    );
+
+    let args: Vec<String> = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
+        "--network".to_string(),
+        "host".to_string(),
+        BUILDER_CONTAINER.to_string(),
+        "bash".to_string(),
+        "-c".to_string(),
+        cast_cmd,
+    ];
+
+    let key = format!("pdp_register_provider_sp{}", sp_index);
+    let output = run_and_log_command_strings("docker", &args, context, &key)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -81,7 +89,7 @@ pub fn register_single_provider(
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    // println!("  Registration output:\n{}", stdout);
+    // println!("Registration output:\n{}", stdout);
 
     // Check if transaction was successful by looking for "status" field
     if stdout.contains("status               0") || stdout.contains("status               (failed)")
@@ -93,9 +101,10 @@ pub fn register_single_provider(
     wait_for_confirmation();
 
     // Query provider ID
-    let provider_id = query_provider_id(registry_address, pdp_sp_eth_address, lotus_rpc_url)?;
+    let provider_id =
+        query_provider_id(registry_address, pdp_sp_eth_address, lotus_rpc_url, context)?;
 
-    println!("  {} {} Provider ID: {}", "✓".green(), label, provider_id);
+    info!("✓ {} Provider ID: {}", label, provider_id);
     Ok(provider_id)
 }
 
@@ -107,11 +116,13 @@ pub fn add_to_approved_list(
     deployer_foc_address: &str,
     _deployer_foc_eth_address: &str,
     lotus_rpc_url: &str,
+    _sp_index: usize,
+    context: &SetupContext,
 ) -> Result<(), Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
-    println!(
-        "  Adding provider {} to WarmStorage approved list...",
+    info!(
+        "Adding provider {} to WarmStorage approved list...",
         provider_id
     );
 
@@ -120,26 +131,30 @@ pub fn add_to_approved_list(
         crate::commands::start::foc_deployer::get_private_key(deployer_foc_address, "")?;
 
     // Use high gas limit for FEVM (cast send doesn't support gas-estimate-multiplier)
-    let output = Command::new("docker")
-        .args([
-            "run",
-            "--rm",
-            "--network",
-            "host",
-            BUILDER_CONTAINER,
-            "cast",
-            "send",
-            warm_storage_address,
-            "addApprovedProvider(uint256)",
-            &provider_id.to_string(),
-            "--rpc-url",
-            lotus_rpc_url,
-            "--private-key",
-            &deployer_foc_private_key,
-            "--gas-limit",
-            "10000000000",
-        ])
-        .output()?;
+    let provider_id_str = provider_id.to_string();
+    let args: Vec<String> = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
+        "--network".to_string(),
+        "host".to_string(),
+        BUILDER_CONTAINER.to_string(),
+        "cast".to_string(),
+        "send".to_string(),
+        warm_storage_address.to_string(),
+        "addApprovedProvider(uint256)".to_string(),
+        provider_id_str,
+        "--rpc-url".to_string(),
+        lotus_rpc_url.to_string(),
+        "--private-key".to_string(),
+        deployer_foc_private_key,
+        "--gas-limit".to_string(),
+        "10000000000".to_string(),
+    ];
+
+    let key = format!("pdp_add_approved_provider_{}", provider_id);
+    let output = run_and_log_command_strings("docker", &args, context, &key)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -151,11 +166,11 @@ pub fn add_to_approved_list(
     // Check if transaction was successful
     if stdout.contains("status               0") || stdout.contains("status               (failed)")
     {
-        println!("  Transaction output:\n{}", stdout);
+        info!("Transaction output:\n{}", stdout);
         return Err("Add approved provider transaction failed (status 0). Check transaction logs for details.".into());
     }
 
-    println!("  {} Provider added to approved list", "✓".green());
+    info!("✓ Provider added to approved list");
     wait_for_confirmation();
 
     Ok(())
@@ -225,23 +240,27 @@ fn query_provider_id(
     registry_address: &str,
     pdp_sp_eth_address: &str,
     lotus_rpc_url: &str,
+    context: &SetupContext,
 ) -> Result<u64, Box<dyn Error>> {
-    let output = Command::new("docker")
-        .args([
-            "run",
-            "--rm",
-            "--network",
-            "host",
-            BUILDER_CONTAINER,
-            "cast",
-            "call",
-            registry_address,
-            "getProviderIdByAddress(address)(uint256)",
-            pdp_sp_eth_address,
-            "--rpc-url",
-            lotus_rpc_url,
-        ])
-        .output()?;
+    let args: Vec<String> = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
+        "--network".to_string(),
+        "host".to_string(),
+        BUILDER_CONTAINER.to_string(),
+        "cast".to_string(),
+        "call".to_string(),
+        registry_address.to_string(),
+        "getProviderIdByAddress(address)(uint256)".to_string(),
+        pdp_sp_eth_address.to_string(),
+        "--rpc-url".to_string(),
+        lotus_rpc_url.to_string(),
+    ];
+
+    let key = format!("pdp_query_provider_id_{}", pdp_sp_eth_address);
+    let output = run_and_log_command_strings("docker", &args, context, &key)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -260,8 +279,8 @@ fn query_provider_id(
 
 /// Wait for transaction confirmation
 fn wait_for_confirmation() {
-    println!(
-        "  Waiting {} seconds for transaction confirmation...",
+    info!(
+        "Waiting {} seconds for transaction confirmation...",
         TRANSACTION_CONFIRMATION_WAIT_SECS
     );
     std::thread::sleep(std::time::Duration::from_secs(
@@ -276,24 +295,28 @@ pub fn verify_provider_count(
     run_id: &str,
     registry_address: &str,
     lotus_rpc_url: &str,
+    context: &SetupContext,
 ) -> Result<u64, Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
-    let output = Command::new("docker")
-        .args([
-            "run",
-            "--rm",
-            "--network",
-            "host",
-            BUILDER_CONTAINER,
-            "cast",
-            "call",
-            registry_address,
-            "getProviderCount()(uint256)",
-            "--rpc-url",
-            lotus_rpc_url,
-        ])
-        .output()?;
+    let args: Vec<String> = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
+        "--network".to_string(),
+        "host".to_string(),
+        BUILDER_CONTAINER.to_string(),
+        "cast".to_string(),
+        "call".to_string(),
+        registry_address.to_string(),
+        "getProviderCount()(uint256)".to_string(),
+        "--rpc-url".to_string(),
+        lotus_rpc_url.to_string(),
+    ];
+
+    let key = "pdp_verify_provider_count".to_string();
+    let output = run_and_log_command_strings("docker", &args, context, &key)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -314,25 +337,29 @@ pub fn verify_provider_id_by_address(
     registry_address: &str,
     provider_address: &str,
     lotus_rpc_url: &str,
+    context: &SetupContext,
 ) -> Result<u64, Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
-    let output = Command::new("docker")
-        .args([
-            "run",
-            "--rm",
-            "--network",
-            "host",
-            BUILDER_CONTAINER,
-            "cast",
-            "call",
-            registry_address,
-            "getProviderIdByAddress(address)(uint256)",
-            provider_address,
-            "--rpc-url",
-            lotus_rpc_url,
-        ])
-        .output()?;
+    let args: Vec<String> = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
+        "--network".to_string(),
+        "host".to_string(),
+        BUILDER_CONTAINER.to_string(),
+        "cast".to_string(),
+        "call".to_string(),
+        registry_address.to_string(),
+        "getProviderIdByAddress(address)(uint256)".to_string(),
+        provider_address.to_string(),
+        "--rpc-url".to_string(),
+        lotus_rpc_url.to_string(),
+    ];
+
+    let key = format!("pdp_verify_provider_id_{}", provider_address);
+    let output = run_and_log_command_strings("docker", &args, context, &key)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -354,26 +381,31 @@ pub fn verify_approved_provider(
     state_view_address: &str,
     provider_id: u64,
     lotus_rpc_url: &str,
+    context: &SetupContext,
 ) -> Result<bool, Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
     // Use isProviderApproved function on StateView contract
-    let output = Command::new("docker")
-        .args([
-            "run",
-            "--rm",
-            "--network",
-            "host",
-            BUILDER_CONTAINER,
-            "cast",
-            "call",
-            state_view_address,
-            "isProviderApproved(uint256)(bool)",
-            &provider_id.to_string(),
-            "--rpc-url",
-            lotus_rpc_url,
-        ])
-        .output()?;
+    let provider_id_str = provider_id.to_string();
+    let args: Vec<String> = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
+        "--network".to_string(),
+        "host".to_string(),
+        BUILDER_CONTAINER.to_string(),
+        "cast".to_string(),
+        "call".to_string(),
+        state_view_address.to_string(),
+        "isProviderApproved(uint256)(bool)".to_string(),
+        provider_id_str,
+        "--rpc-url".to_string(),
+        lotus_rpc_url.to_string(),
+    ];
+
+    let key = format!("pdp_verify_approved_provider_{}", provider_id);
+    let output = run_and_log_command_strings("docker", &args, context, &key)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

@@ -4,31 +4,32 @@
 //! - Base layer migration (curio config new-cluster)
 //! - PDP layer configuration (curio config create)
 
-use super::super::step::StepContext;
+use super::super::step::SetupContext;
 use super::constants::{DB_SETUP_WAIT_SECS, PDP_LAYER_CONFIG_TEMPLATE};
 use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
 use crate::commands::start::genesis::constants::PDP_SP_MINER_ID_START;
 use crate::commands::start::lotus_utils::{build_fullnode_api_info, read_lotus_token};
+use crate::docker::command_logger::run_and_log_command;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::core::docker_command;
 use crate::docker::network::{lotus_network_name, pdp_miner_network_name};
 use crate::paths::foc_localnet_bin;
 use crate::paths::foc_localnet_docker_volumes;
-use crossterm::style::Stylize;
 use std::error::Error;
-use std::process::Command;
 use std::thread;
 use std::time::Duration;
+use tracing::info;
 
 /// Build FOC contract environment variables from contract addresses file
 ///
-/// Reads deployed contract addresses from ~/.foc-localnet/state/contract_addresses.json
+/// Reads deployed contract addresses from the run directory
 /// and builds environment variables for Curio to use.
-pub fn build_foc_contract_env_vars(_context: &StepContext) -> Result<Vec<String>, Box<dyn Error>> {
+pub fn build_foc_contract_env_vars(context: &SetupContext) -> Result<Vec<String>, Box<dyn Error>> {
     let mut env_vars = Vec::new();
 
     // Load contract addresses from file
-    let addresses = ContractAddresses::load()?;
+    let run_id = context.run_id();
+    let addresses = ContractAddresses::load(run_id)?;
 
     // Get standard contracts
     if let Some(usdfc) = addresses.contracts.get("usdfc") {
@@ -45,7 +46,7 @@ pub fn build_foc_contract_env_vars(_context: &StepContext) -> Result<Vec<String>
     if let Some(multicall) = addresses.contracts.get("multicall") {
         env_vars.push(format!("FOC_CONTRACT_MULTICALL={}", multicall));
     }
-    if let Some(pay) = addresses.foc_contracts.get("filecoin_pay_v1__contract") {
+    if let Some(pay) = addresses.foc_contracts.get("filecoin_pay_v1_contract") {
         env_vars.push(format!("FOC_CONTRACT_PAY={}", pay));
     }
     if let Some(pdp) = addresses.foc_contracts.get("p_d_p_verifier_proxy") {
@@ -60,10 +61,10 @@ pub fn build_foc_contract_env_vars(_context: &StepContext) -> Result<Vec<String>
 
 /// Build Curio database environment variables for a specific PDP SP.
 pub fn build_db_env_vars(
-    context: &StepContext,
+    context: &SetupContext,
     sp_index: usize,
 ) -> Result<Vec<String>, Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let yugabyte_name = format!("foc-{}-yugabyte-{}", run_id, sp_index);
 
     Ok(vec![
@@ -82,12 +83,12 @@ pub fn build_db_env_vars(
 /// Sets:
 /// - FULLNODE_API_INFO: JWT token and multiaddr to Lotus API (dns4 for Docker networking)
 /// - LOTUS_PATH: Path to lotus-data directory (host-side shared volume)
-pub fn build_lotus_env_vars(context: &StepContext) -> Result<Vec<String>, Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+pub fn build_lotus_env_vars(context: &SetupContext) -> Result<Vec<String>, Box<dyn Error>> {
+    let run_id = context.run_id();
     let lotus_name = lotus_container_name(run_id);
 
     // Read Lotus API token from host
-    let lotus_token = read_lotus_token()?;
+    let lotus_token = read_lotus_token(run_id)?;
 
     // Build FULLNODE_API_INFO with dns4 addressing for Docker network
     let fullnode_api_info = build_fullnode_api_info(&lotus_token, &lotus_name);
@@ -106,12 +107,8 @@ pub fn build_lotus_env_vars(context: &StepContext) -> Result<Vec<String>, Box<dy
 /// Steps:
 /// 1. Run `curio config new-cluster t0XXXX` for base layer migration
 /// 2. Run `curio config create --title pdp-only` with PDP layer config
-pub fn setup_curio_database(context: &StepContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
-    println!(
-        "    {} Setting up database for PDP SP {}...",
-        "💾".cyan(),
-        sp_index
-    );
+pub fn setup_curio_database(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
+    info!("Setting up database for PDP SP {}...", sp_index);
 
     // Calculate miner ID for this PDP SP
     let miner_id = format!("t0{}", PDP_SP_MINER_ID_START + (sp_index as u32) - 1);
@@ -122,11 +119,7 @@ pub fn setup_curio_database(context: &StepContext, sp_index: usize) -> Result<()
     // Step 2: PDP layer configuration
     create_pdp_layer(context, sp_index)?;
 
-    println!(
-        "    {} Database setup complete for PDP SP {}",
-        "✓".green(),
-        sp_index
-    );
+    info!("Database setup complete for PDP SP {}", sp_index);
 
     Ok(())
 }
@@ -135,17 +128,16 @@ pub fn setup_curio_database(context: &StepContext, sp_index: usize) -> Result<()
 ///
 /// Runs: `curio config new-cluster <miner_id>` in a temporary container
 fn create_base_cluster(
-    context: &StepContext,
+    context: &SetupContext,
     sp_index: usize,
     miner_id: &str,
 ) -> Result<(), Box<dyn Error>> {
-    println!(
-        "      {} Creating base cluster for miner {}...",
-        "⚙".cyan(),
+    info!(
+        "Running DB migrations and setting up base layer for miner {}...",
         miner_id
     );
 
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let pdp_network = pdp_miner_network_name(run_id, sp_index);
     let lotus_network = lotus_network_name(run_id);
 
@@ -201,7 +193,9 @@ fn create_base_cluster(
     );
     docker_args.extend_from_slice(&["foc-curio", "/bin/bash", "-c", &bash_cmd]);
 
-    let output = Command::new("docker").args(&docker_args).output()?;
+    let docker_args_str: Vec<&str> = docker_args.iter().map(|s| s.as_ref()).collect();
+    let key = format!("curio_new_cluster_sp_{}", sp_index);
+    let output = run_and_log_command("docker", &docker_args_str, context, &key)?;
 
     if !output.status.success() {
         // Clean up container on failure
@@ -234,11 +228,7 @@ fn create_base_cluster(
     // Wait for DB changes to propagate
     thread::sleep(Duration::from_secs(DB_SETUP_WAIT_SECS));
 
-    println!(
-        "      {} Base cluster created for miner {}",
-        "✓".green(),
-        miner_id
-    );
+    info!("Base cluster created for miner {}", miner_id);
 
     Ok(())
 }
@@ -246,10 +236,10 @@ fn create_base_cluster(
 /// Create PDP layer configuration.
 ///
 /// Runs: `curio config create --title pdp-only` with PDP layer config in a temporary container
-fn create_pdp_layer(context: &StepContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
-    println!("      {} Creating PDP layer configuration...", "⚙".cyan());
+fn create_pdp_layer(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
+    info!("Creating PDP layer configuration...");
 
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let pdp_network = pdp_miner_network_name(run_id, sp_index);
     let lotus_network = lotus_network_name(run_id);
 
@@ -309,7 +299,9 @@ fn create_pdp_layer(context: &StepContext, sp_index: usize) -> Result<(), Box<dy
 
     docker_args.extend_from_slice(&["foc-curio", "/bin/bash", "-c", &bash_cmd]);
 
-    let output = Command::new("docker").args(&docker_args).output()?;
+    let docker_args_str: Vec<&str> = docker_args.iter().map(|s| s.as_ref()).collect();
+    let key = format!("curio_pdp_layer_config_sp_{}", sp_index);
+    let output = run_and_log_command("docker", &docker_args_str, context, &key)?;
 
     if !output.status.success() {
         // Clean up container on failure
@@ -334,7 +326,7 @@ fn create_pdp_layer(context: &StepContext, sp_index: usize) -> Result<(), Box<dy
         return Err("Failed to create PDP layer configuration: command failed".into());
     }
 
-    println!("      {} PDP layer configuration created", "✓".green());
+    info!("PDP layer configuration created");
 
     Ok(())
 }

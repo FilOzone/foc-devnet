@@ -3,7 +3,7 @@
 //! This module contains functions that prepare the environment
 //! for starting the Lotus daemon container.
 
-use super::super::step::StepContext;
+use super::super::step::SetupContext;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::network::lotus_network_name;
 use std::error::Error;
@@ -62,7 +62,7 @@ pub fn setup_directories(volumes_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
 /// Build the Docker run command for starting Lotus daemon
 pub fn build_docker_command(
     volumes_dir: &PathBuf,
-    context: &StepContext,
+    context: &SetupContext,
 ) -> Result<Vec<String>, Box<dyn Error>> {
     use super::super::genesis::constants::GENESIS_FILE;
     use crate::paths::{
@@ -82,16 +82,16 @@ pub fn build_docker_command(
         .parse()?;
 
     // Get run-specific container name and network
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let container_name = lotus_container_name(run_id);
     let network_name = lotus_network_name(run_id);
 
     // Get paths
     let bin_dir = foc_localnet_bin();
     let params_dir = foc_localnet_proof_parameters();
-    let genesis_dir = foc_localnet_genesis();
-    let sectors_dir = foc_localnet_genesis_sectors();
-    let keys_dir = foc_localnet_lotus_keys();
+    let genesis_dir = foc_localnet_genesis(run_id);
+    let sectors_dir = foc_localnet_genesis_sectors(run_id);
+    let keys_dir = foc_localnet_lotus_keys(run_id);
     let genesis_file = genesis_dir.join(GENESIS_FILE);
 
     // Build docker run command
