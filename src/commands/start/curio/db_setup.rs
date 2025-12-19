@@ -108,7 +108,7 @@ pub fn build_lotus_env_vars(context: &SetupContext) -> Result<Vec<String>, Box<d
 /// 1. Run `curio config new-cluster t0XXXX` for base layer migration
 /// 2. Run `curio config create --title pdp-only` with PDP layer config
 pub fn setup_curio_database(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
-    info!("    Setting up database for PDP SP {}...", sp_index);
+    info!("Setting up database for PDP SP {}...", sp_index);
 
     // Calculate miner ID for this PDP SP
     let miner_id = format!("t0{}", PDP_SP_MINER_ID_START + (sp_index as u32) - 1);
@@ -119,7 +119,7 @@ pub fn setup_curio_database(context: &SetupContext, sp_index: usize) -> Result<(
     // Step 2: PDP layer configuration
     create_pdp_layer(context, sp_index)?;
 
-    info!("    Database setup complete for PDP SP {}", sp_index);
+    info!("Database setup complete for PDP SP {}", sp_index);
 
     Ok(())
 }
@@ -132,7 +132,7 @@ fn create_base_cluster(
     sp_index: usize,
     miner_id: &str,
 ) -> Result<(), Box<dyn Error>> {
-    info!("      Creating base cluster for miner {}...", miner_id);
+    info!("Creating base cluster for miner {}...", miner_id);
 
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let pdp_network = pdp_miner_network_name(run_id, sp_index);
@@ -223,7 +223,7 @@ fn create_base_cluster(
     // Wait for DB changes to propagate
     thread::sleep(Duration::from_secs(DB_SETUP_WAIT_SECS));
 
-    info!("      Base cluster created for miner {}", miner_id);
+    info!("Base cluster created for miner {}", miner_id);
 
     Ok(())
 }
@@ -232,7 +232,7 @@ fn create_base_cluster(
 ///
 /// Runs: `curio config create --title pdp-only` with PDP layer config in a temporary container
 fn create_pdp_layer(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
-    info!("      Creating PDP layer configuration...");
+    info!("Creating PDP layer configuration...");
 
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let pdp_network = pdp_miner_network_name(run_id, sp_index);
@@ -319,7 +319,7 @@ fn create_pdp_layer(context: &SetupContext, sp_index: usize) -> Result<(), Box<d
         return Err("Failed to create PDP layer configuration: command failed".into());
     }
 
-    info!("      PDP layer configuration created");
+    info!("PDP layer configuration created");
 
     Ok(())
 }

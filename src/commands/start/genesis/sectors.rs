@@ -101,7 +101,7 @@ fn preseal_miner_sectors(
     miner_dir: &PathBuf,
     run_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    info!("    ⚙ Pre-sealing sectors for miner {}...", miner_id,);
+    info!("⚙ Pre-sealing sectors for miner {}...", miner_id,);
 
     // Create miner directory
     fs::create_dir_all(miner_dir)?;

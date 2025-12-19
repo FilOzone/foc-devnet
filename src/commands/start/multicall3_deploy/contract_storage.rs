@@ -47,7 +47,7 @@ pub fn save_contract_address(
     let content = serde_json::to_string_pretty(&addresses)?;
     fs::write(&file_path, content)?;
 
-    info!("        Contract address saved to {}", file_path.display());
+    info!("Contract address saved to {}", file_path.display());
 
     Ok(())
 }

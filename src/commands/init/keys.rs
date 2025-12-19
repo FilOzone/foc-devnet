@@ -59,12 +59,12 @@ pub const NATIVE_KEYS: [&str; 3] = ["BLS_SIGNER_1", "BLS_SIGNER_2", "GLOBAL_FIL_
 pub fn generate_keys(use_random: bool) -> Result<Vec<KeyInfo>, Box<dyn std::error::Error>> {
     let mnemonic_entropy = match use_random {
         true => {
-            info!("  Using system randomness for generating mnemonic for deterministic addresses");
+            info!("Using system randomness for generating mnemonic for deterministic addresses");
             let entropy: [u8; 32] = rand::random();
             entropy
         }
         false => {
-            info!("  Using deterministic mnemonic for addresses");
+            info!("Using deterministic mnemonic for addresses");
             STATIC_MNEMONIC_ENTROPY
         }
     };
@@ -72,7 +72,7 @@ pub fn generate_keys(use_random: bool) -> Result<Vec<KeyInfo>, Box<dyn std::erro
     let mnemonic = Mnemonic::from_entropy_in(Language::English, &mnemonic_entropy)?;
     store_mnemonic(&mnemonic)?;
     let seed = mnemonic.to_seed("");
-    info!("  Mnemonic: {}", mnemonic);
+    info!("Mnemonic: {}", mnemonic);
 
     let mut keys = Vec::with_capacity(NATIVE_KEYS.len() + FEVM_ACCOUNTS_PREFUNDED.len());
 
@@ -97,7 +97,7 @@ pub fn generate_keys(use_random: bool) -> Result<Vec<KeyInfo>, Box<dyn std::erro
     }
 
     // Pretty print all generated keys
-    info!("  Generated Keys:");
+    info!("Generated Keys:");
     for key in &keys {
         info!(
             "    - {}: {} private key: ({})",
@@ -120,7 +120,7 @@ fn save_keys(keys: &[KeyInfo]) -> Result<(), Box<dyn std::error::Error>> {
     let keys_file = keys_dir.join("addresses.json");
     let json = serde_json::to_string_pretty(keys)?;
     fs::write(keys_file, json)?;
-    info!("  Keys saved to {}", keys_dir.display());
+    info!("Keys saved to {}", keys_dir.display());
     Ok(())
 }
 

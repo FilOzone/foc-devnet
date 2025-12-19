@@ -17,7 +17,7 @@ pub fn deploy_multicall3(
     lotus_rpc_url: &str,
     run_id: &str,
 ) -> Result<String, Box<dyn Error>> {
-    info!("      Deploying Multicall3 contract...");
+    info!("Deploying Multicall3 contract...");
 
     // Get the multicall3 repository path
     let multicall3_repo = foc_localnet_multicall3_repo();
@@ -36,7 +36,7 @@ pub fn deploy_multicall3(
         return Err(format!("Multicall3.sol not found at: {}", contract_file.display()).into());
     }
 
-    info!("      Compiling and deploying contract...");
+    info!("Compiling and deploying contract...");
 
     // Deploy using forge create with explicit gas limit for FEVM
     let deploy_cmd = format!(
@@ -73,18 +73,18 @@ pub fn deploy_multicall3(
 
     // Print output for debugging
     if !stdout.is_empty() {
-        info!("        Deployment output:");
+        info!("Deployment output:");
         for line in stdout.lines() {
-            info!("          {}", line);
+            info!("{}", line);
         }
     }
 
     if !output.status.success() {
-        error!("        ✗ Deployment failed");
+        error!("   ✗ Deployment failed");
         if !stderr.is_empty() {
-            error!("        Error output:");
+            error!("   Error output:");
             for line in stderr.lines() {
-                error!("          {}", line);
+                error!("     {}", line);
             }
         }
         return Err("Multicall3 deployment failed".into());
@@ -98,7 +98,7 @@ pub fn deploy_multicall3(
         .and_then(|line| line.split_whitespace().last())
         .ok_or("Failed to extract contract address from deployment output")?;
 
-    info!("        ✓ Multicall3 deployed at: {}", contract_address);
+    info!("✓ Multicall3 deployed at: {}", contract_address);
 
     Ok(contract_address.to_string())
 }
@@ -108,7 +108,7 @@ pub fn perform_deployment(
     _volumes_dir: &std::path::PathBuf,
     context: &super::super::step::SetupContext,
 ) -> Result<(), Box<dyn Error>> {
-    info!("    Deploying Multicall3 contract...");
+    info!("Deploying Multicall3 contract...");
 
     // Get required addresses from context
     let (multicall3_deployer, multicall3_deployer_eth) = check_required_addresses(context)?;

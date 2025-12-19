@@ -39,7 +39,7 @@ pub fn verify_single_curio_sp(
 
 /// Verify PDP subsystem responds to ping.
 fn verify_pdp_ping(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
-    info!("      Pinging PDP subsystem...");
+    info!("Pinging PDP subsystem...");
 
     // Get dynamically allocated PDP port from context
     let port: u16 = context
@@ -55,14 +55,14 @@ fn verify_pdp_ping(context: &SetupContext, sp_index: usize) -> Result<(), Box<dy
         return Err(format!("PDP ping failed with status: {}", response.status()).into());
     }
 
-    info!("      PDP subsystem responding");
+    info!("PDP subsystem responding");
 
     Ok(())
 }
 
 /// Verify file upload and download works correctly.
 fn verify_upload_download(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
-    info!("      Testing upload/download functionality...");
+    info!("Testing upload/download functionality...");
 
     // Create temporary directory for test files
     let temp_dir = TempDir::new()?;
@@ -83,7 +83,7 @@ fn verify_upload_download(context: &SetupContext, sp_index: usize) -> Result<(),
         return Err("Downloaded data does not match original".into());
     }
 
-    info!("      Upload/download verified");
+    info!("Upload/download verified");
 
     Ok(())
 }
@@ -136,7 +136,7 @@ fn upload_test_file(
         .into());
     }
 
-    info!("      File uploaded via pdptool");
+    info!("File uploaded via pdptool");
 
     // Extract piece CID from output
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -153,7 +153,7 @@ fn extract_piece_cid(output: &str) -> Result<String, Box<dyn Error>> {
             let cid_part = &line[prefix_pos + "Piece CID:".len()..];
             let cid = cid_part.trim();
 
-            info!("      Extracted Piece CID: {}", cid);
+            info!("Extracted Piece CID: {}", cid);
             if !cid.is_empty() {
                 return Ok(cid.to_string());
             }

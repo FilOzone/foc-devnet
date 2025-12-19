@@ -21,7 +21,7 @@ pub fn import_faucet_key(
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let container_name = lotus_container_name(run_id);
 
-    info!("      Importing GLOBAL_FIL_FAUCET key into Lotus wallet...");
+    info!("Importing GLOBAL_FIL_FAUCET key into Lotus wallet...");
 
     // Read the JSON content from the keyinfo file
     let json_content = fs::read_to_string(keyinfo_path)
@@ -63,7 +63,7 @@ pub fn import_faucet_key(
 
         // If key already exists, that's fine - just get the existing address
         if stderr.contains("key already exists") {
-            info!("      Key already exists in wallet");
+            info!("Key already exists in wallet");
 
             // Extract the address from the error message
             // Error format: "...checking key before put 'wallet-<address>': key already exists"
@@ -74,7 +74,7 @@ pub fn import_faucet_key(
                 .ok_or("Failed to extract existing address from error")?
                 .to_string();
 
-            info!("      Using existing key: {}", address);
+            info!("Using existing key: {}", address);
             return Ok(address);
         }
 
@@ -90,6 +90,6 @@ pub fn import_faucet_key(
         .ok_or("Failed to extract imported address")?
         .to_string();
 
-    info!("      Key imported: {}", address);
+    info!("Key imported: {}", address);
     Ok(address)
 }

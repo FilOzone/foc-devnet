@@ -26,7 +26,7 @@ pub fn add_miner_to_genesis(
     active_pdp_sp_count: usize,
     run_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    info!("  ⛏ Adding miners to genesis...");
+    info!("⛏ Adding miners to genesis...");
 
     // Build list of all miners to add: lotus-miner + PDP SPs
     let mut miner_configs: Vec<(String, PathBuf)> = vec![(

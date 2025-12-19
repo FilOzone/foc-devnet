@@ -31,7 +31,7 @@ pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    info!("  ⬇ Downloading proof parameters (this may take a while)...");
+    info!("⬇ Downloading proof parameters (this may take a while)...");
 
     // Create the directory
     fs::create_dir_all(&params_dir)?;
@@ -131,7 +131,7 @@ pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
         .into());
     }
 
-    info!("  ✓ Proof parameters downloaded successfully");
+    info!("✓ Proof parameters downloaded successfully");
     Ok(())
 }
 

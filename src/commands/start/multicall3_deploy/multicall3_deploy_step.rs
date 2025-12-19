@@ -38,11 +38,11 @@ impl Step for MultiCall3DeployStep {
     fn pre_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         // Check if Lotus is running
         check_lotus_running(context)?;
-        info!("    ✓ Lotus is running");
+        info!("✓ Lotus is running");
 
         // Check if required addresses are available
         let (multicall3_deployer, multicall3_deployer_eth) = check_required_addresses(context)?;
-        info!("    ✓ DEPLOYER_MULTICALL3 address: {}", multicall3_deployer);
+        info!("✓ DEPLOYER_MULTICALL3 address: {}", multicall3_deployer);
         info!(
             "    ✓ DEPLOYER_MULTICALL3 Ethereum address: {}",
             multicall3_deployer_eth
@@ -54,7 +54,7 @@ impl Step for MultiCall3DeployStep {
     /// Execute the contract deployment process
     fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         if check_existing_deployment(context) {
-            info!("    ✓ Multicall3 contract already deployed, skipping...");
+            info!("✓ Multicall3 contract already deployed, skipping...");
             return Ok(());
         }
 
@@ -64,17 +64,17 @@ impl Step for MultiCall3DeployStep {
 
     /// Perform post-execution verification for contract deployment
     fn post_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
-        info!("    Verifying Multicall3 deployment...");
+        info!("Verifying Multicall3 deployment...");
 
         // Check if contract address is in context
         if let Some(contract_address) = context.get("multicall3_address") {
-            info!("      ✓ Multicall3 address: {}", contract_address);
+            info!("✓ Multicall3 address: {}", contract_address);
         } else {
             return Err("Multicall3 deployment failed - no address in context".into());
         }
 
-        info!("    ✓ Multicall3 deployment step completed!");
-        info!("      Contract is ready for use.");
+        info!("✓ Multicall3 deployment step completed!");
+        info!("Contract is ready for use.");
 
         Ok(())
     }

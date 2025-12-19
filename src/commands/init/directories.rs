@@ -35,9 +35,9 @@ pub fn create_directories() -> Result<(), Box<dyn std::error::Error>> {
     for dir in directories {
         if !dir.exists() {
             fs::create_dir_all(&dir)?;
-            info!("  Created: {}", dir.display());
+            info!("Created: {}", dir.display());
         } else {
-            info!("  Exists : {}", dir.display());
+            info!("Exists : {}", dir.display());
         }
     }
 

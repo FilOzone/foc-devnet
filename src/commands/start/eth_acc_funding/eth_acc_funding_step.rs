@@ -56,7 +56,7 @@ impl ETHAccFundingStep {
         });
 
         if has_global_faucet && has_all_prefunded_accounts {
-            info!("    Account funding already completed, skipping...");
+            info!("Account funding already completed, skipping...");
             return Ok(true);
         }
 
@@ -92,7 +92,7 @@ impl ETHAccFundingStep {
     /// GLOBAL_FIL_FAUCET (has FIL from genesis, imported from BLS key)
     ///  → All pre-funded FEVM accounts (using addresses from keys.rs, NOT imported to Lotus)
     fn perform_account_funding(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
-        info!("    Setting up Ethereum accounts for FOC deployment...");
+        info!("Setting up Ethereum accounts for FOC deployment...");
 
         // Load pre-generated keys from keys.rs
         let keys = load_keys()?;
@@ -186,7 +186,7 @@ impl ETHAccFundingStep {
 
             let handle = thread::spawn(move || {
                 let description = format!("GLOBAL_FIL_FAUCET → {}", account_name);
-                info!("      Transferring {} FIL: {}...", amount, description);
+                info!("Transferring {} FIL: {}...", amount, description);
 
                 let output = Command::new("docker")
                     .args([
@@ -203,7 +203,7 @@ impl ETHAccFundingStep {
 
                 match output {
                     Ok(out) if out.status.success() => {
-                        info!("      Transferred {} FIL: {}", amount, description);
+                        info!("Transferred {} FIL: {}", amount, description);
                     }
                     Ok(out) => {
                         let error_msg = format!(
@@ -212,13 +212,13 @@ impl ETHAccFundingStep {
                             account_name,
                             String::from_utf8_lossy(&out.stderr)
                         );
-                        tracing::error!("      {}", error_msg);
+                        tracing::error!(" {}", error_msg);
                         errors_clone.lock().unwrap().push(error_msg);
                     }
                     Err(e) => {
                         let error_msg =
                             format!("Failed to execute transfer to {}: {}", account_name, e);
-                        tracing::error!("      {}", error_msg);
+                        tracing::error!(" {}", error_msg);
                         errors_clone.lock().unwrap().push(error_msg);
                     }
                 }
@@ -235,7 +235,7 @@ impl ETHAccFundingStep {
         }
 
         // Wait for transaction confirmation and address activation
-        info!("      Waiting for transaction confirmations and address activations...");
+        info!("Waiting for transaction confirmations and address activations...");
         thread::sleep(Duration::from_secs(TRANSACTION_CONFIRMATION_WAIT_SECS * 2));
 
         // Check if any errors occurred
@@ -302,7 +302,7 @@ impl ETHAccFundingStep {
                                             "{}: Insufficient balance. Expected at least {} FIL, got {} FIL",
                                             account_name, expected, balance
                                         );
-                                        tracing::error!("      {}", error_msg);
+                                        tracing::error!(" {}", error_msg);
                                         errors_clone.lock().unwrap().push(error_msg);
                                     }
                                 }
@@ -311,7 +311,7 @@ impl ETHAccFundingStep {
                                         "{}: Failed to parse balance '{}': {}",
                                         account_name, balance_fil, e
                                     );
-                                    tracing::error!("      {}", error_msg);
+                                    tracing::error!(" {}", error_msg);
                                     errors_clone.lock().unwrap().push(error_msg);
                                 }
                             }
@@ -320,7 +320,7 @@ impl ETHAccFundingStep {
                                 "{}: Unexpected balance format: {}",
                                 account_name, balance_str
                             );
-                            tracing::error!("      {}", error_msg);
+                            tracing::error!(" {}", error_msg);
                             errors_clone.lock().unwrap().push(error_msg);
                         }
                     }
@@ -330,13 +330,13 @@ impl ETHAccFundingStep {
                             account_name,
                             String::from_utf8_lossy(&out.stderr)
                         );
-                        tracing::error!("      {}", error_msg);
+                        tracing::error!(" {}", error_msg);
                         errors_clone.lock().unwrap().push(error_msg);
                     }
                     Err(e) => {
                         let error_msg =
                             format!("{}: Failed to execute balance check: {}", account_name, e);
-                        tracing::error!("      {}", error_msg);
+                        tracing::error!(" {}", error_msg);
                         errors_clone.lock().unwrap().push(error_msg);
                     }
                 }
@@ -398,7 +398,7 @@ impl Step for ETHAccFundingStep {
 
     /// Perform post-execution verification for account funding
     fn post_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
-        info!("    Verifying account funding...");
+        info!("Verifying account funding...");
 
         // First, verify all addresses are in context
         let mut accounts_to_verify = Vec::new();
@@ -425,16 +425,16 @@ impl Step for ETHAccFundingStep {
                 .get(&eth_key)
                 .ok_or(format!("Missing ETH address for: {}", account_name))?;
 
-            info!("      {}: {} (ETH: {})", account_name, addr, eth_addr);
+            info!("{}: {} (ETH: {})", account_name, addr, eth_addr);
 
             accounts_to_verify.push((account_name.to_string(), addr.to_string(), *expected_amount));
         }
 
         // Verify balances in parallel
-        info!("    Verifying account balances with Lotus node...");
+        info!("Verifying account balances with Lotus node...");
         self.verify_balances_parallel(accounts_to_verify, context)?;
 
-        info!("    Ethereum account funding verified successfully!");
+        info!("Ethereum account funding verified successfully!");
 
         Ok(())
     }

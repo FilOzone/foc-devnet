@@ -44,7 +44,7 @@ pub fn download_code_repositories() -> Result<(), Box<dyn std::error::Error>> {
     // Download synapse-sdk repository if Git-based
     download_repository("synapse-sdk", &config.synapse_sdk)?;
 
-    info!("  Code repositories are now available.");
+    info!("Code repositories are now available.");
     Ok(())
 }
 
@@ -65,7 +65,7 @@ pub fn download_code_repositories() -> Result<(), Box<dyn std::error::Error>> {
 fn download_repository(name: &str, location: &Location) -> Result<(), Box<dyn std::error::Error>> {
     match location {
         Location::LocalSource { .. } => {
-            info!("  {} using local source, skipping download", name);
+            info!("{} using local source, skipping download", name);
             Ok(())
         }
         Location::GitCommit { url, commit } => {

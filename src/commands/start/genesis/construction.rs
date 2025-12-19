@@ -40,7 +40,7 @@ pub fn construct_genesis(
             "  ✓ Genesis file already exists at {}",
             genesis_file_path.display()
         );
-        info!("  ✓ Genesis construction complete");
+        info!("✓ Genesis construction complete");
         return Ok(());
     }
 
@@ -52,6 +52,6 @@ pub fn construct_genesis(
     accounts::add_global_fil_faucet_account(run_id)?;
     accounts::add_foc_accounts(run_id)?;
 
-    info!("  ✓ Genesis construction complete");
+    info!("✓ Genesis construction complete");
     Ok(())
 }

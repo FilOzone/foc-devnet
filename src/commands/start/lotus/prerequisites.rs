@@ -38,7 +38,7 @@ pub fn check_image_and_binary() -> Result<(), Box<dyn Error>> {
         )
         .into());
     }
-    info!("    ✓ Docker image '{}' found", IMAGE_NAME);
+    info!("✓ Docker image '{}' found", IMAGE_NAME);
 
     // Verify lotus binary exists
     let lotus_bin = foc_localnet_bin().join("lotus");
@@ -46,7 +46,7 @@ pub fn check_image_and_binary() -> Result<(), Box<dyn Error>> {
         return Err("Lotus binary not found. Please run 'foc-localnet build lotus' first.".into());
     }
 
-    info!("    ✓ Lotus binary found");
+    info!("✓ Lotus binary found");
     Ok(())
 }
 
@@ -54,7 +54,7 @@ pub fn check_image_and_binary() -> Result<(), Box<dyn Error>> {
 pub fn check_genesis_and_params(run_id: &str) -> Result<(), Box<dyn Error>> {
     // Verify genesis file exists
     let genesis_file = verify_genesis_file(run_id)?;
-    info!("    ✓ Genesis file found at {}", genesis_file.display());
+    info!("✓ Genesis file found at {}", genesis_file.display());
 
     // Verify proof parameters exist
     let params_dir = foc_localnet_proof_parameters();
@@ -64,7 +64,7 @@ pub fn check_genesis_and_params(run_id: &str) -> Result<(), Box<dyn Error>> {
         );
     }
 
-    info!("    ✓ Proof parameters found");
+    info!("✓ Proof parameters found");
 
     // Verify pre-sealed sectors exist
     let sectors_dir = foc_localnet_genesis_sectors(run_id);
@@ -74,6 +74,6 @@ pub fn check_genesis_and_params(run_id: &str) -> Result<(), Box<dyn Error>> {
         );
     }
 
-    info!("    ✓ Pre-sealed sectors found");
+    info!("✓ Pre-sealed sectors found");
     Ok(())
 }

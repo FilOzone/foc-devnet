@@ -129,7 +129,7 @@ impl USDFCFundingStep {
 
                 let handle = thread::spawn(move || {
                     let description = format!("DEPLOYER_MOCKUSDFC → {}", account_name);
-                    info!("      Transferring {} USDFC: {}...", amount, description);
+                    info!("Transferring {} USDFC: {}...", amount, description);
 
                     match transfer_mock_usdfc(
                         &pk,
@@ -144,14 +144,14 @@ impl USDFCFundingStep {
                         &rpc,
                     ) {
                         Ok(_) => {
-                            info!("      Transferred {} USDFC: {}", amount, description);
+                            info!("Transferred {} USDFC: {}", amount, description);
                         }
                         Err(e) => {
                             let error_msg = format!(
                                 "Failed to transfer {} USDFC to {}: {}",
                                 amount, account_name, e
                             );
-                            tracing::error!("      {}", error_msg);
+                            tracing::error!(" {}", error_msg);
                             errors_clone.lock().unwrap().push(error_msg);
                         }
                     }
@@ -167,11 +167,11 @@ impl USDFCFundingStep {
                     .map_err(|_| "Thread panicked during transfer")?;
             }
 
-            info!("      Batch {}/{} completed", batch_num, total_batches);
+            info!("Batch {}/{} completed", batch_num, total_batches);
 
             // Wait for batch to be mined before starting next batch
             if batch_num < total_batches {
-                info!("      Waiting for batch to be mined...");
+                info!("Waiting for batch to be mined...");
                 thread::sleep(std::time::Duration::from_secs(
                     TRANSACTION_CONFIRMATION_WAIT_SECS,
                 ));
@@ -179,7 +179,7 @@ impl USDFCFundingStep {
         }
 
         // Wait for final batch confirmation
-        info!("      Waiting for final transaction confirmations...");
+        info!("Waiting for final transaction confirmations...");
         thread::sleep(std::time::Duration::from_secs(
             TRANSACTION_CONFIRMATION_WAIT_SECS,
         ));
@@ -207,33 +207,33 @@ impl Step for USDFCFundingStep {
     fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         use super::super::lotus_utils::get_lotus_rpc_url;
 
-        info!("    - Distributing MockUSDFC tokens...");
+        info!("- Distributing MockUSDFC tokens...");
 
         // Check if Lotus is running
         let run_id = context.run_id().ok_or("Run ID not found")?;
         if !container_is_running(&lotus_container_name(run_id))? {
             return Err("Lotus container is not running".into());
         }
-        info!("    Lotus is running");
+        info!("Lotus is running");
 
         // Get MockUSDFC contract address
         let mockusdfc_address = context
             .get("mockusdfc_contract_address")
             .ok_or("MockUSDFC contract address not found in context")?;
-        info!("    MockUSDFC contract deployed");
+        info!("MockUSDFC contract deployed");
 
         // Get deployer address
         let deployer_mockusdfc_eth = context
             .get("deployer_mockusdfc_eth_address")
             .ok_or("DEPLOYER_MOCKUSDFC ETH address not found in context")?;
-        info!("    DEPLOYER_MOCKUSDFC address available");
+        info!("DEPLOYER_MOCKUSDFC address available");
 
         // Get Lotus RPC URL
         let lotus_rpc_url = get_lotus_rpc_url(context)?;
 
         // Check if distribution is already done
         if self.check_existing_balances(&mockusdfc_address, &lotus_rpc_url)? {
-            info!("    MockUSDFC distribution already completed, skipping...");
+            info!("MockUSDFC distribution already completed, skipping...");
             return Ok(());
         }
 
@@ -277,7 +277,7 @@ impl Step for USDFCFundingStep {
     fn post_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         use super::super::lotus_utils::get_lotus_rpc_url;
 
-        info!("    Verifying MockUSDFC distribution...");
+        info!("Verifying MockUSDFC distribution...");
 
         // Get Lotus RPC URL
         let lotus_rpc_url = get_lotus_rpc_url(context)?;
@@ -323,7 +323,7 @@ impl Step for USDFCFundingStep {
             }
         }
 
-        info!("    MockUSDFC distribution step completed!");
+        info!("MockUSDFC distribution step completed!");
         Ok(())
     }
 }

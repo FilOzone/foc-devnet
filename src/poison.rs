@@ -42,7 +42,7 @@ fn display_poison_contents(poison_path: &PathBuf) -> Result<(), Box<dyn std::err
             warn!("Poison file contents:");
             for line in contents.lines() {
                 if !line.trim().is_empty() {
-                    warn!("  {}", line);
+                    warn!("{}", line);
                 }
             }
         }

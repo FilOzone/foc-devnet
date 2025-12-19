@@ -21,7 +21,7 @@ pub fn attach_storage_locations(
     context: &SetupContext,
     sp_index: usize,
 ) -> Result<(), Box<dyn Error>> {
-    info!("    Attaching storage locations for PDP SP {}...", sp_index);
+    info!("Attaching storage locations for PDP SP {}...", sp_index);
 
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let container_name = format!("foc-{}-curio-{}", run_id, sp_index);
@@ -32,14 +32,14 @@ pub fn attach_storage_locations(
     // Attach long-term storage
     attach_long_term_storage(&container_name)?;
 
-    info!("    Storage locations attached for PDP SP {}", sp_index);
+    info!("Storage locations attached for PDP SP {}", sp_index);
 
     Ok(())
 }
 
 /// Attach fast storage for sealing operations.
 fn attach_fast_storage(container_name: &str) -> Result<(), Box<dyn Error>> {
-    info!("      Attaching fast storage...");
+    info!("Attaching fast storage...");
 
     // Use container DNS name for --machine flag so it works in Docker networks
     let machine_addr = format!("{}:12300", container_name);
@@ -70,14 +70,14 @@ fn attach_fast_storage(container_name: &str) -> Result<(), Box<dyn Error>> {
 
     thread::sleep(Duration::from_secs(STORAGE_ATTACH_WAIT_SECS));
 
-    info!("      Fast storage attached");
+    info!("Fast storage attached");
 
     Ok(())
 }
 
 /// Attach long-term storage for storing sealed sectors.
 fn attach_long_term_storage(container_name: &str) -> Result<(), Box<dyn Error>> {
-    info!("      Attaching long-term storage...");
+    info!("Attaching long-term storage...");
 
     // Use container DNS name for --machine flag so it works in Docker networks
     let machine_addr = format!("{}:12300", container_name);
@@ -108,7 +108,7 @@ fn attach_long_term_storage(container_name: &str) -> Result<(), Box<dyn Error>> 
 
     thread::sleep(Duration::from_secs(STORAGE_ATTACH_WAIT_SECS));
 
-    info!("      Long-term storage attached");
+    info!("Long-term storage attached");
 
     Ok(())
 }

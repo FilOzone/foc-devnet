@@ -19,7 +19,7 @@ pub fn transfer_mock_usdfc(
     nonce: Option<u64>,
     lotus_rpc_url: &str,
 ) -> Result<(), Box<dyn Error>> {
-    info!("      Transferring MockUSDFC tokens: {}...", description);
+    info!("Transferring MockUSDFC tokens: {}...", description);
 
     let mut cast_cmd = format!(
         "cd /workspace && cast send {} \
@@ -55,7 +55,7 @@ pub fn transfer_mock_usdfc(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        tracing::error!("        Transfer failed");
+        tracing::error!("   Transfer failed");
         return Err(format!("Failed to transfer MockUSDFC: {}", stderr).into());
     }
 
@@ -68,7 +68,7 @@ pub fn check_mock_usdfc_balance(
     token_address: &str,
     lotus_rpc_url: &str,
 ) -> Result<U256, Box<dyn Error>> {
-    // info!("      Checking MockUSDFC balance for {}...", eth_address);
+    // info!("Checking MockUSDFC balance for {}...", eth_address);
 
     let output = Command::new("docker")
         .args([

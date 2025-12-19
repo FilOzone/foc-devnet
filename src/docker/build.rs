@@ -165,7 +165,7 @@ fn print_yugabyte_build_info(image_tag: &str, artifacts_dir: &Path) {
         "    Building Docker image: {} from embedded Dockerfile (Yugabyte)",
         image_tag
     );
-    info!("    Using build context: {}", artifacts_dir.display());
+    info!("Using build context: {}", artifacts_dir.display());
 }
 
 /// Set up progress bar for Docker build.
@@ -228,12 +228,12 @@ fn finalize_build_progress(
     match result {
         Ok(()) => {
             pb.finish_with_message(format!("✓ Built image: {}", image_tag));
-            info!("    Successfully built Docker image: {}", image_tag);
+            info!("Successfully built Docker image: {}", image_tag);
             Ok(())
         }
         Err(e) => {
             pb.finish_with_message(format!("❌ Failed to build Docker image: {}", image_tag));
-            error!("    Failed to build Docker image {}: {}", image_tag, e);
+            error!("Failed to build Docker image {}: {}", image_tag, e);
             Err(e)
         }
     }
@@ -253,7 +253,7 @@ pub fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>>
     let images = ["builder", "lotus", "lotus-miner", "yugabyte", "curio"];
 
     for image_name in &images {
-        info!("  Building image: foc-{}", image_name);
+        info!("Building image: foc-{}", image_name);
         // Yugabyte requires special handling with artifacts directory as build context
         if image_name == &"yugabyte" {
             build_yugabyte_image(image_name)?;

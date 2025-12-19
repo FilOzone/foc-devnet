@@ -24,7 +24,7 @@ pub fn setup_path_variables() -> Result<(), Box<dyn std::error::Error>> {
     let bin_path_str = bin_path.to_string_lossy().to_string();
 
     if is_path_in_env(&bin_path_str) {
-        info!("  PATH already includes: {}", bin_path_str);
+        info!("PATH already includes: {}", bin_path_str);
         return Ok(());
     }
 
@@ -33,16 +33,16 @@ pub fn setup_path_variables() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(home) = dirs::home_dir() {
         let bashrc = home.join(".bashrc");
         if let Err(e) = add_path_to_shell_config(&bashrc, &bin_path_str) {
-            warn!("  Failed to update .bashrc: {}", e);
+            warn!("Failed to update .bashrc: {}", e);
         } else {
-            info!("  Updated .bashrc");
+            info!("Updated .bashrc");
         }
 
         let zshrc = home.join(".zshrc");
         if let Err(e) = add_path_to_shell_config(&zshrc, &bin_path_str) {
-            warn!("  Failed to update .zshrc: {}", e);
+            warn!("Failed to update .zshrc: {}", e);
         } else {
-            info!("  Updated .zshrc");
+            info!("Updated .zshrc");
         }
     }
 

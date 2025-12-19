@@ -82,11 +82,11 @@ fn perform_regenesis() -> Result<(), Box<dyn std::error::Error>> {
     info!("Performing regenesis (full reset)...");
 
     // First, stop any running containers to ensure clean state
-    info!("  Stopping any running containers...");
+    info!("Stopping any running containers...");
     let containers = vec!["foc-lotus-miner", "foc-lotus", "foc-curio", "foc-yugabyte"];
     for container in containers {
         if container_is_running(container)? {
-            info!("    Stopping container '{}'...", container);
+            info!("Stopping container '{}'...", container);
             stop_container(container)?;
             remove_container(container)?;
         }
@@ -102,13 +102,13 @@ fn perform_regenesis() -> Result<(), Box<dyn std::error::Error>> {
         if path.exists() {
             if path.is_dir() {
                 std::fs::remove_dir_all(&path)?;
-                info!("  Removed directory: {}", path.display());
+                info!("Removed directory: {}", path.display());
             } else {
                 std::fs::remove_file(&path)?;
-                info!("  Removed file: {}", path.display());
+                info!("Removed file: {}", path.display());
             }
         } else {
-            info!("  Skipped (not found): {}", path.display());
+            info!("Skipped (not found): {}", path.display());
         }
     }
 
@@ -134,8 +134,8 @@ fn load_and_validate_config() -> Result<Config, Box<dyn std::error::Error>> {
 
     // Display PDP SP configuration
     info!("PDP Service Provider Configuration:");
-    info!("  • Active PDP SPs: {}", config.active_pdp_sp_count);
-    info!("  • Approved PDP SPs: {}", config.approved_pdp_sp_count);
+    info!("• Active PDP SPs: {}", config.active_pdp_sp_count);
+    info!("• Approved PDP SPs: {}", config.approved_pdp_sp_count);
 
     Ok(config)
 }

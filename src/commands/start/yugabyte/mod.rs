@@ -230,7 +230,7 @@ impl Step for YugabyteStep {
             )
             .into());
         }
-        info!("    ✓ Docker image '{}' found", IMAGE_NAME);
+        info!("✓ Docker image '{}' found", IMAGE_NAME);
 
         // Check if ports are available
         let sp_count = context
@@ -293,13 +293,13 @@ impl Step for YugabyteStep {
             let ports = self.get_instance_ports(context, i + 1)?;
             for (port, desc) in ports.iter().zip(port_descriptions.iter()) {
                 if !crate::docker::is_port_available(*port) {
-                    warn!("    ⚠ Port {} ({}) is already in use", port, desc);
+                    warn!("⚠ Port {} ({}) is already in use", port, desc);
                     return Err(format!("Port {} is already in use", port).into());
                 }
             }
         }
 
-        info!("    ✓ All required ports are available");
+        info!("✓ All required ports are available");
         Ok(())
     }
 
@@ -309,7 +309,7 @@ impl Step for YugabyteStep {
             .and_then(|v| v.parse::<usize>().ok())
             .unwrap_or(1);
 
-        info!("    Starting {} YugabyteDB instance(s)...", sp_count);
+        info!("Starting {} YugabyteDB instance(s)...", sp_count);
 
         // Get ports for all instances from context (already allocated in pre_execute)
         let mut all_ports: Vec<(usize, Vec<u16>)> = Vec::new();
@@ -354,12 +354,12 @@ impl Step for YugabyteStep {
         // Wait for all threads to complete
         for handle in handles {
             if let Err(e) = handle.join() {
-                error!("    Yugabyte spawn thread panicked: {:?}", e);
+                error!("Yugabyte spawn thread panicked: {:?}", e);
                 return Err("Thread panicked".into());
             }
         }
 
-        info!("    ✓ All YugabyteDB instances started");
+        info!("✓ All YugabyteDB instances started");
 
         Ok(())
     }
@@ -368,7 +368,7 @@ impl Step for YugabyteStep {
         let num_instances = self.active_sp_count;
         let run_id = context.run_id().ok_or("Run ID not found")?;
 
-        info!("    Waiting for YugabyteDB instance(s) to start...");
+        info!("Waiting for YugabyteDB instance(s) to start...");
         thread::sleep(Duration::from_secs(5));
 
         // Verify all instances
@@ -381,7 +381,7 @@ impl Step for YugabyteStep {
                     format!("Yugabyte instance{} stopped unexpectedly", container_name).into(),
                 );
             }
-            info!("    Yugabyte instance {} is running", container_name);
+            info!("Yugabyte instance {} is running", container_name);
 
             // Check all ports are accessible for this instance
             let prefix = format!("yugabyte_{}", instance_index);
@@ -427,7 +427,7 @@ impl Step for YugabyteStep {
                 .into());
             }
 
-            info!("    ✓ PostgreSQL is ready for {}", container_name);
+            info!("✓ PostgreSQL is ready for {}", container_name);
         }
 
         info!(
@@ -436,7 +436,7 @@ impl Step for YugabyteStep {
         );
 
         // Show connection info
-        info!("    ✓ All YugabyteDB instance(s) ready!");
+        info!("✓ All YugabyteDB instance(s) ready!");
 
         for instance_index in 1..=num_instances {
             let prefix = format!("yugabyte_{}", instance_index);

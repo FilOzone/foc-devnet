@@ -17,7 +17,7 @@ pub const PREFUNDED_ACCOUNTS_INIT_FIL: u64 = 10_000_000; // 10 million FIL
 /// Since lotus-seed doesn't have an `add-actor` command, we modify the genesis JSON
 /// directly to add the GLOBAL_FIL_FAUCET pre-funded account.
 pub fn add_global_fil_faucet_account(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
-    info!("  💰 Adding pre-funded accounts to genesis...");
+    info!("💰 Adding pre-funded accounts to genesis...");
 
     let genesis_dir = foc_localnet_genesis(run_id);
     let genesis_file_path = genesis_dir.join(constants::GENESIS_FILE);
@@ -42,7 +42,7 @@ pub fn add_global_fil_faucet_account(run_id: &str) -> Result<(), Box<dyn std::er
         });
 
         accounts.push(account);
-        info!("      ✓ GLOBAL_FIL_FAUCET: {}", global_fil_faucet_addr);
+        info!("✓ GLOBAL_FIL_FAUCET: {}", global_fil_faucet_addr);
     } else {
         return Err("Genesis file does not have an 'Accounts' array".into());
     }
@@ -51,7 +51,7 @@ pub fn add_global_fil_faucet_account(run_id: &str) -> Result<(), Box<dyn std::er
     let updated_content = serde_json::to_string_pretty(&genesis)?;
     fs::write(&genesis_file_path, updated_content)?;
 
-    info!("  ✓ Pre-funded accounts added successfully");
+    info!("✓ Pre-funded accounts added successfully");
     Ok(())
 }
 
@@ -59,7 +59,7 @@ pub fn add_global_fil_faucet_account(run_id: &str) -> Result<(), Box<dyn std::er
 ///
 /// This includes GLOBAL_FIL_FAUCET as a t3 account and FEVM addresses as evm actors.
 pub fn add_foc_accounts(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
-    info!("  💰 Adding FOC accounts to genesis...");
+    info!("💰 Adding FOC accounts to genesis...");
 
     let genesis_dir = foc_localnet_genesis(run_id);
     let genesis_file_path = genesis_dir.join(constants::GENESIS_FILE);
@@ -85,7 +85,7 @@ pub fn add_foc_accounts(run_id: &str) -> Result<(), Box<dyn std::error::Error>> 
                         }
                     });
                     accounts.push(account);
-                    info!("      ✓ Added {}: {}", key.name, fil_addr);
+                    info!("✓ Added {}: {}", key.name, fil_addr);
                 }
             }
         }
@@ -97,6 +97,6 @@ pub fn add_foc_accounts(run_id: &str) -> Result<(), Box<dyn std::error::Error>> 
     let updated_content = serde_json::to_string_pretty(&genesis)?;
     fs::write(&genesis_file_path, updated_content)?;
 
-    info!("  ✓ FOC accounts added successfully");
+    info!("✓ FOC accounts added successfully");
     Ok(())
 }

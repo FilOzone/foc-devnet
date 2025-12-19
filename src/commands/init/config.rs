@@ -38,16 +38,16 @@ pub fn generate_default_config(
     let config_path = foc_localnet_config();
 
     if config_path.exists() && !force {
-        info!("  Config file already exists: {}", config_path.display());
+        info!("Config file already exists: {}", config_path.display());
         return Ok(());
     }
 
     if config_path.exists() && force {
-        warn!("  Removing existing config file due to --force");
+        warn!("Removing existing config file due to --force");
         std::fs::remove_file(&config_path)?;
     }
 
-    info!("  Generating default config: {:?}", config_path);
+    info!("Generating default config: {:?}", config_path);
 
     // Start with default config
     let mut config = Config::default();
@@ -83,7 +83,7 @@ pub fn generate_default_config(
         .map_err(|e| format!("Failed to serialize default config: {}", e))?;
 
     fs::write(&config_path, default_config)?;
-    info!("  Created default config: {}", config_path.display());
+    info!("Created default config: {}", config_path.display());
 
     Ok(())
 }

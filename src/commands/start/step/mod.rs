@@ -223,17 +223,17 @@ pub trait Step: Send + Sync {
 
         info!("=== Step: {} ===", step_name);
 
-        info!("  Running pre-execution checks...");
+        info!("Running pre-execution checks...");
         self.pre_execute(context)?;
-        info!("  ✓ Pre-execution checks passed");
+        info!("✓ Pre-execution checks passed");
 
-        info!("  Executing...");
+        info!("Executing...");
         self.execute(context)?;
-        info!("  ✓ Execution completed");
+        info!("✓ Execution completed");
 
-        info!("  Running post-execution verification...");
+        info!("Running post-execution verification...");
         self.post_execute(context)?;
-        info!("  ✓ Post-execution verification passed");
+        info!("✓ Post-execution verification passed");
 
         let duration = start_time.elapsed();
         info!("Step '{}' completed in {:?}", step_name, duration);
@@ -287,7 +287,7 @@ pub fn execute_steps(
             return Err(format!("Port {} is already in use", port).into());
         }
     }
-    info!("  All ports in range are available");
+    info!("All ports in range are available");
 
     // If Portainer port was provided, mark it as allocated in our allocator
     if let Some(p_port) = portainer_port {
@@ -352,7 +352,7 @@ pub fn execute_steps_parallel(
             return Err(format!("Port {} is already in use", port).into());
         }
     }
-    info!("  ✓ All ports in range are available");
+    info!("✓ All ports in range are available");
 
     // Mark portainer port as allocated if provided
     if let Some(port) = portainer_port {
@@ -478,25 +478,25 @@ fn execute_step_with_timing(
 ) -> Result<Duration, String> {
     let start_time = Instant::now();
 
-    info!("  [{}] Starting in parallel...", step_name);
+    info!("[{}] Starting in parallel...", step_name);
 
     // Pre-execute
-    info!("  [{}] Running pre-execution checks...", step_name);
+    info!("[{}] Running pre-execution checks...", step_name);
     step.pre_execute(context)
         .map_err(|e| format!("Pre-execution failed for {}: {}", step_name, e))?;
-    info!("  [{}] ✓ Pre-execution checks passed", step_name);
+    info!("[{}] ✓ Pre-execution checks passed", step_name);
 
     // Execute
-    info!("  [{}] Executing...", step_name);
+    info!("[{}] Executing...", step_name);
     step.execute(context)
         .map_err(|e| format!("Execution failed for {}: {}", step_name, e))?;
-    info!("  [{}] ✓ Execution completed", step_name);
+    info!("[{}] ✓ Execution completed", step_name);
 
     // Post-execute
-    info!("  [{}] Running post-execution verification...", step_name);
+    info!("[{}] Running post-execution verification...", step_name);
     step.post_execute(context)
         .map_err(|e| format!("Post-execution failed for {}: {}", step_name, e))?;
-    info!("  [{}] ✓ Post-execution verification passed", step_name);
+    info!("[{}] ✓ Post-execution verification passed", step_name);
 
     let duration = start_time.elapsed();
     info!(

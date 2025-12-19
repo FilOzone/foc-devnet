@@ -46,12 +46,12 @@ pub fn setup_foundry_project(contract_dir: &PathBuf) -> Result<(), Box<dyn Error
     let openzeppelin_path = contract_dir.join("lib/openzeppelin-contracts");
 
     if !openzeppelin_path.exists() {
-        info!("      Installing OpenZeppelin contracts...");
+        info!("Installing OpenZeppelin contracts...");
 
         // First, initialize git repo if it doesn't exist
         let git_dir = contract_dir.join(".git");
         if !git_dir.exists() {
-            info!("        Initializing git repository...");
+            info!("Initializing git repository...");
             let output = Command::new("docker")
                 .args([
                     "run",
@@ -98,11 +98,11 @@ pub fn setup_foundry_project(contract_dir: &PathBuf) -> Result<(), Box<dyn Error
             .into());
         }
 
-        info!("        Dependencies installed");
+        info!("Dependencies installed");
     }
 
     // Build contracts
-    info!("      Building MockUSDFC contract...");
+    info!("Building MockUSDFC contract...");
     let output = Command::new("docker")
         .args([
             "run",
@@ -124,6 +124,6 @@ pub fn setup_foundry_project(contract_dir: &PathBuf) -> Result<(), Box<dyn Error
         .into());
     }
 
-    info!("        Contracts built");
+    info!("Contracts built");
     Ok(())
 }

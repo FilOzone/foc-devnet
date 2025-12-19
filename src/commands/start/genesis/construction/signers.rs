@@ -16,7 +16,7 @@ use tracing::info;
 /// Runs `lotus-seed genesis set-signers` to add the BLS signer keys
 /// with the configured threshold.
 pub fn add_signers_to_genesis(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
-    info!("  🔑 Adding signers to genesis...");
+    info!("🔑 Adding signers to genesis...");
 
     let genesis_dir = foc_localnet_genesis(run_id);
     let keys_dir = foc_localnet_lotus_keys(run_id);
@@ -38,9 +38,9 @@ pub fn add_signers_to_genesis(run_id: &str) -> Result<(), Box<dyn std::error::Er
         )
         .into());
     }
-    info!("    Using signers:");
+    info!("Using signers:");
     for (i, addr) in addresses.iter().enumerate() {
-        info!("      Key {}: {}", i + 1, addr);
+        info!("Key {}: {}", i + 1, addr);
     }
 
     // Run lotus-seed genesis set-signers in builder container
@@ -84,6 +84,6 @@ pub fn add_signers_to_genesis(run_id: &str) -> Result<(), Box<dyn std::error::Er
         .into());
     }
 
-    info!("  ✓ Signers added successfully");
+    info!("✓ Signers added successfully");
     Ok(())
 }

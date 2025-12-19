@@ -12,10 +12,10 @@ pub fn verify_multicall3(
     contract_address: &str,
     lotus_rpc_url: &str,
 ) -> Result<(), Box<dyn Error>> {
-    info!("      Verifying Multicall3 contract functions...");
+    info!("Verifying Multicall3 contract functions...");
 
     // Wait a bit for transaction confirmation
-    info!("        Waiting for transaction confirmation...");
+    info!("Waiting for transaction confirmation...");
     std::thread::sleep(std::time::Duration::from_secs(6));
 
     // Verify that the contract exists at the address using cast
@@ -38,14 +38,14 @@ pub fn verify_multicall3(
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     if !output.status.success() {
-        warn!("        ⚠ Verification failed");
+        warn!("⚠ Verification failed");
         if !stderr.is_empty() {
-            info!("        Error output:");
+            info!("Error output:");
             for line in stderr.lines() {
-                info!("          {}", line);
+                info!("{}", line);
             }
         }
-        info!("        → Continuing despite verification warning");
+        info!("→ Continuing despite verification warning");
         return Ok(());
     }
 
@@ -54,7 +54,7 @@ pub fn verify_multicall3(
             "        ⚠ No contract code found at address {}",
             contract_address
         );
-        info!("        → Continuing despite verification warning");
+        info!("→ Continuing despite verification warning");
         return Ok(());
     }
 

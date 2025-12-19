@@ -30,12 +30,12 @@ pub fn stop_cluster() -> Result<(), Box<dyn Error>> {
     // Load the current run ID
     let run_id = match load_current_run_id() {
         Ok(id) => {
-            info!("  ℹ Run ID: {}", id);
+            info!("ℹ Run ID: {}", id);
             id
         }
         Err(_) => {
             warn!("Warning: No active run ID found.");
-            info!("  Attempting to stop all foc-* containers...");
+            info!("Attempting to stop all foc-* containers...");
             // Continue without run ID - will try to clean up any foc-* containers
             String::new()
         }
@@ -57,7 +57,7 @@ pub fn stop_cluster() -> Result<(), Box<dyn Error>> {
     }
 
     // Note: Portainer is not stopped to allow persistent access across runs
-    info!("  ℹ Portainer will remain running for persistent access");
+    info!("ℹ Portainer will remain running for persistent access");
 
     // Force kill any remaining foc* containers (including stopped ones)
     force_kill_foc_containers()?;
@@ -65,8 +65,8 @@ pub fn stop_cluster() -> Result<(), Box<dyn Error>> {
     // Delete Docker networks (now that all containers are stopped/removed)
     if !run_id.is_empty() {
         if let Err(e) = delete_all_networks(&run_id) {
-            warn!("  Failed to remove run-specific networks: {}", e);
-            info!("  Will attempt force removal of all foc* networks");
+            warn!("Failed to remove run-specific networks: {}", e);
+            info!("Will attempt force removal of all foc* networks");
         }
     }
 
@@ -90,7 +90,7 @@ fn stop_and_remove_service_container(
     // Check if container exists
     let exists = container_exists(container_name)?;
     if !exists {
-        info!("  ℹ Container '{}' does not exist", container_name);
+        info!("ℹ Container '{}' does not exist", container_name);
         return Ok(());
     }
 
@@ -98,7 +98,7 @@ fn stop_and_remove_service_container(
     let is_running = container_is_running(container_name)?;
 
     if is_running {
-        info!("  Stopping container '{}'...", container_name);
+        info!("Stopping container '{}'...", container_name);
         let output = docker_command(&["stop", container_name])?;
 
         if !output.status.success() {
@@ -109,7 +109,7 @@ fn stop_and_remove_service_container(
             )
             .into());
         }
-        info!("  ✓ Container stopped");
+        info!("✓ Container stopped");
 
         // Verify container is stopped
         if container_is_running(container_name)? {
@@ -120,11 +120,11 @@ fn stop_and_remove_service_container(
             .into());
         }
     } else {
-        info!("  ℹ Container '{}' is not running", container_name);
+        info!("ℹ Container '{}' is not running", container_name);
     }
 
     // Remove the container
-    info!("  Removing container '{}'...", container_name);
+    info!("Removing container '{}'...", container_name);
     let output = docker_command(&["rm", container_name])?;
 
     if !output.status.success() {
@@ -135,7 +135,7 @@ fn stop_and_remove_service_container(
         )
         .into());
     }
-    info!("  ✓ Container removed");
+    info!("✓ Container removed");
 
     if container_exists(container_name)? {
         return Err(format!("Container '{}' still exists after removal", container_name).into());
@@ -168,22 +168,22 @@ fn force_kill_foc_containers() -> Result<(), Box<dyn Error>> {
         .collect();
 
     if container_ids.is_empty() {
-        info!("  No remaining foc* containers found");
+        info!("No remaining foc* containers found");
         return Ok(());
     }
 
-    info!("  Found {} remaining container(s)", container_ids.len());
+    info!("Found {} remaining container(s)", container_ids.len());
 
     for container_id in container_ids {
-        info!("  Force removing container {}...", container_id);
+        info!("Force removing container {}...", container_id);
         let result = docker_command(&["rm", "-f", container_id]);
         match result {
-            Ok(_) => info!("    Removed"),
-            Err(e) => warn!("    Failed: {}", e),
+            Ok(_) => info!("Removed"),
+            Err(e) => warn!("Failed: {}", e),
         }
     }
 
-    info!("  Force remove containers complete");
+    info!("Force remove containers complete");
     Ok(())
 }
 
@@ -208,21 +208,21 @@ fn force_remove_foc_networks() -> Result<(), Box<dyn Error>> {
         .collect();
 
     if network_names.is_empty() {
-        info!("  No remaining foc-* networks found");
+        info!("No remaining foc-* networks found");
         return Ok(());
     }
 
-    info!("  Found {} remaining network(s)", network_names.len());
+    info!("Found {} remaining network(s)", network_names.len());
 
     for network_name in network_names {
-        info!("  Removing network {}...", network_name);
+        info!("Removing network {}...", network_name);
         let result = docker_command(&["network", "rm", network_name]);
         match result {
-            Ok(_) => info!("    Removed"),
-            Err(e) => warn!("    Failed: {}", e),
+            Ok(_) => info!("Removed"),
+            Err(e) => warn!("Failed: {}", e),
         }
     }
 
-    info!("  Force remove networks complete");
+    info!("Force remove networks complete");
     Ok(())
 }

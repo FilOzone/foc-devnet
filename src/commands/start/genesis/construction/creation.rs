@@ -18,7 +18,7 @@ use tracing::info;
 pub fn create_genesis_file(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
     let genesis_dir = foc_localnet_genesis(run_id);
 
-    info!("  📜 Creating genesis file...");
+    info!("📜 Creating genesis file...");
 
     // Ensure genesis directory exists
     fs::create_dir_all(&genesis_dir)?;
@@ -68,6 +68,6 @@ pub fn create_genesis_file(run_id: &str) -> Result<(), Box<dyn std::error::Error
         .into());
     }
 
-    info!("  ✓ Genesis file created successfully");
+    info!("✓ Genesis file created successfully");
     Ok(())
 }

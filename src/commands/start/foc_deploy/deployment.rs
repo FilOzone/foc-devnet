@@ -45,7 +45,7 @@ pub fn check_existing_deployment(
 pub fn perform_deployment(
     context: &crate::commands::start::step::SetupContext,
 ) -> Result<(), Box<dyn Error>> {
-    info!("    Deploying FOC service contracts...");
+    info!("Deploying FOC service contracts...");
 
     // Get required addresses from context
     let (foc_deployer, foc_deployer_eth, mock_usdfc_address, _global_faucet) =
@@ -107,20 +107,20 @@ pub fn perform_deployment(
 pub fn post_execute_verification(
     context: &crate::commands::start::step::SetupContext,
 ) -> Result<(), Box<dyn Error>> {
-    info!("    Verifying FOC deployment...");
+    info!("Verifying FOC deployment...");
 
     // Check if contracts were deployed
     let contract_keys = context.get_keys_matching(|k| k.starts_with("foc_contract_"));
     let contract_count = contract_keys.len();
 
     if contract_count > 0 {
-        info!("      ✓ {} contracts verified in context", contract_count);
+        info!("✓ {} contracts verified in context", contract_count);
     } else {
-        warn!("      ⚠ No contracts found in context");
+        warn!("⚠ No contracts found in context");
     }
 
-    info!("    ✓ FOC deployment step completed!");
-    info!("      All FOC service contracts are deployed and ready.");
+    info!("✓ FOC deployment step completed!");
+    info!("All FOC service contracts are deployed and ready.");
 
     Ok(())
 }

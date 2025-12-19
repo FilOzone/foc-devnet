@@ -16,7 +16,7 @@ pub fn deploy_mock_usdfc_foundry(
     lotus_rpc_url: &str,
     run_id: &str,
 ) -> Result<String, Box<dyn Error>> {
-    info!("      Deploying MockUSDFC using Foundry project...");
+    info!("Deploying MockUSDFC using Foundry project...");
 
     // Get the contract directory from embedded assets
     let contract_dir = get_mockusdfc_project_dir(run_id)?;
@@ -25,7 +25,7 @@ pub fn deploy_mock_usdfc_foundry(
     setup_foundry_project(&contract_dir)?;
 
     // Deploy using forge script with explicit gas limit for FEVM
-    info!("      Executing deployment script...");
+    info!("Executing deployment script...");
 
     let deploy_cmd = format!(
         "cd /workspace && \
@@ -68,11 +68,11 @@ pub fn deploy_mock_usdfc_foundry(
     // }
 
     if !output.status.success() {
-        error!("        ✗ Deployment failed");
+        error!("   ✗ Deployment failed");
         if !stderr.is_empty() {
-            error!("        Error output:");
+            error!("   Error output:");
             for line in stderr.lines() {
-                error!("          {}", line);
+                error!("     {}", line);
             }
         }
         return Err("MockUSDFC deployment failed".into());
@@ -86,7 +86,7 @@ pub fn deploy_mock_usdfc_foundry(
         .and_then(|line| line.split_whitespace().last())
         .ok_or("Failed to extract contract address from deployment output")?;
 
-    info!("        ✓ MockUSDFC deployed at: {}", contract_address);
+    info!("✓ MockUSDFC deployed at: {}", contract_address);
 
     Ok(contract_address.to_string())
 }
@@ -96,7 +96,7 @@ pub fn perform_token_deployment(
     _volumes_dir: &std::path::PathBuf,
     context: &super::super::step::SetupContext,
 ) -> Result<(), Box<dyn Error>> {
-    info!("    Deploying MockUSDFC token using Foundry project...");
+    info!("Deploying MockUSDFC token using Foundry project...");
 
     // Get required addresses from context
     let (mockusdfc_deployer, mockusdfc_deployer_eth) = check_required_addresses(context)?;
@@ -104,7 +104,7 @@ pub fn perform_token_deployment(
     // Get deployer private key from addresses.json
     let private_key = get_deployer_private_key(&mockusdfc_deployer)?;
 
-    info!("      Deployer ETH address: {}", mockusdfc_deployer_eth);
+    info!("Deployer ETH address: {}", mockusdfc_deployer_eth);
 
     // Get Lotus RPC URL
     let lotus_rpc_url = get_lotus_rpc_url(context)?;
@@ -127,13 +127,13 @@ pub fn perform_token_deployment(
         run_id,
     )?;
 
-    info!("    ✓ MockUSDFC token deployed successfully!");
-    info!("      Token Address: {}", mock_usdfc_address);
+    info!("✓ MockUSDFC token deployed successfully!");
+    info!("Token Address: {}", mock_usdfc_address);
     info!(
         "      Initial Supply: {} tokens",
         super::usdfc_deploy_step::MOCK_USDFC_INITIAL_SUPPLY
     );
-    info!("      Decimals: 18");
+    info!("Decimals: 18");
 
     Ok(())
 }

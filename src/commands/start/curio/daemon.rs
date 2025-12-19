@@ -30,14 +30,14 @@ pub fn start_curio_daemon(
     _step: &CurioStep,
     sp_index: usize,
 ) -> Result<(), Box<dyn Error>> {
-    info!("    Starting Curio daemon for PDP SP {}...", sp_index);
+    info!("Starting Curio daemon for PDP SP {}...", sp_index);
 
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let container_name = format!("foc-{}-curio-{}", run_id, sp_index);
 
     // Clean up existing container if any
     if container_exists(&container_name)? {
-        info!("      Removing existing container {}...", container_name);
+        info!("Removing existing container {}...", container_name);
         stop_and_remove_container(&container_name)?;
     }
 
@@ -75,7 +75,7 @@ fn start_curio_container(
     container_name: &str,
     docker_args: Vec<String>,
 ) -> Result<(), Box<dyn Error>> {
-    info!("      Creating container {}...", container_name);
+    info!("Creating container {}...", container_name);
 
     // Execute docker run
     let output = Command::new("docker").args(&docker_args).output()?;
@@ -94,7 +94,7 @@ fn start_curio_container(
         .args(["network", "connect", &lotus_network, container_name])
         .output(); // Ignore errors if already connected
 
-    info!("      Container created");
+    info!("Container created");
 
     Ok(())
 }

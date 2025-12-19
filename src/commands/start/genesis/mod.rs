@@ -45,6 +45,6 @@ pub fn ensure_genesis_prerequisites(
     // Construct genesis configuration
     construction::construct_genesis(active_pdp_sp_count, run_id)?;
 
-    info!("  ✓ All genesis prerequisites are ready");
+    info!("✓ All genesis prerequisites are ready");
     Ok(())
 }

@@ -26,7 +26,7 @@ pub fn start_miner_container(
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let porep_network = lotus_miner_network_name(run_id);
 
-    info!("    Starting Lotus-Miner container '{}'...", container_name);
+    info!("Starting Lotus-Miner container '{}'...", container_name);
     let output = Command::new("docker").args(&docker_args).output()?;
 
     if !output.status.success() {
@@ -47,9 +47,9 @@ pub fn start_miner_container(
 
     // Connect to porep-miner network for miner operations
     // (Container already on filecoin network for Lotus access)
-    info!("    Connecting to porep-miner network...");
+    info!("Connecting to porep-miner network...");
     connect_container_to_network(&container_name, &porep_network)?;
-    info!("    ✓ Connected to porep-miner network");
+    info!("✓ Connected to porep-miner network");
 
     Ok(())
 }

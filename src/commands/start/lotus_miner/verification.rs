@@ -124,7 +124,7 @@ pub fn perform_post_execution_verification(
     context: &SetupContext,
     volumes_dir: &std::path::Path,
 ) -> Result<(), Box<dyn Error>> {
-    info!("    Verifying Lotus-Miner startup...");
+    info!("Verifying Lotus-Miner startup...");
 
     // 1. Wait for API port to be available
     let miner_api_port: u16 = context
@@ -137,22 +137,22 @@ pub fn perform_post_execution_verification(
         miner_api_port
     );
     wait_for_port(miner_api_port, PORT_WAIT_TIMEOUT_SECS)?;
-    info!("      ✓ Lotus-Miner API port is open");
+    info!("✓ Lotus-Miner API port is open");
 
     // 2. Wait for API file to be created (this is the critical step)
     wait_for_miner_api_file(volumes_dir)?;
 
     // 3. Check API responsiveness
-    info!("      Checking Lotus-Miner API responsiveness...");
+    info!("Checking Lotus-Miner API responsiveness...");
     check_miner_api(context)?;
-    info!("      ✓ Lotus-Miner API is responsive");
+    info!("✓ Lotus-Miner API is responsive");
 
     // 4. Check tipset generation
-    info!("      Checking tipset generation...");
+    info!("Checking tipset generation...");
     check_tipset_generation(context)?;
-    info!("      ✓ Tipset generation verified");
+    info!("✓ Tipset generation verified");
 
-    info!("    ✓ Lotus-Miner verification complete");
+    info!("✓ Lotus-Miner verification complete");
     Ok(())
 }
 
@@ -173,7 +173,7 @@ fn parse_chain_height(output: &str) -> Result<u64, Box<dyn Error>> {
 
 /// Wait for the Lotus-Miner API file to be created
 fn wait_for_miner_api_file(volumes_dir: &std::path::Path) -> Result<(), Box<dyn Error>> {
-    info!("      Waiting for Lotus-Miner API file to be created...");
+    info!("Waiting for Lotus-Miner API file to be created...");
 
     let miner_data_dir = volumes_dir.join("lotus-miner-data");
     let api_file = miner_data_dir.join("api");
@@ -192,7 +192,7 @@ fn wait_for_miner_api_file(volumes_dir: &std::path::Path) -> Result<(), Box<dyn 
         thread::sleep(Duration::from_millis(API_FILE_CHECK_INTERVAL_MS));
     }
 
-    info!("      ✓ Lotus-Miner API file created");
+    info!("✓ Lotus-Miner API file created");
 
     // Wait a bit more for the API to fully initialize
     thread::sleep(Duration::from_secs(MINER_API_CHECK_DELAY_SECS));

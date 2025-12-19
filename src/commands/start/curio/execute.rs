@@ -20,11 +20,11 @@ use tracing::info;
 /// 4. Import PDP private key
 pub fn setup_all_curio_sps(context: &SetupContext, step: &CurioStep) -> Result<(), Box<dyn Error>> {
     for sp_index in 1..=step.active_sp_count() {
-        info!("  Setting up Curio PDP SP {}...", sp_index);
+        info!("Setting up Curio PDP SP {}...", sp_index);
 
         setup_single_curio_sp(context, step, sp_index)?;
 
-        info!("  Curio PDP SP {} setup complete", sp_index);
+        info!("Curio PDP SP {} setup complete", sp_index);
     }
 
     info!(

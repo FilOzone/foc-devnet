@@ -103,7 +103,7 @@ fn ensure_bls_key_from_info(
     let json_str = serde_json::to_string(&keyinfo_json)?;
     fs::write(&keyinfo_path, json_str)?;
 
-    info!("  BLS {} key {} created successfully", key_type, key_num);
+    info!("BLS {} key {} created successfully", key_type, key_num);
     Ok(())
 }
 

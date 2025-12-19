@@ -14,13 +14,13 @@ pub fn verify_mock_usdfc(
     lotus_rpc_url: &str,
     run_id: &str,
 ) -> Result<(), Box<dyn Error>> {
-    info!("      Verifying MockUSDFC contract functions...");
+    info!("Verifying MockUSDFC contract functions...");
 
     // Get the contract directory from embedded assets
     let contract_dir = get_mockusdfc_project_dir(run_id)?;
 
     // Wait a bit for transaction confirmation
-    info!("        Waiting for transaction confirmation...");
+    info!("Waiting for transaction confirmation...");
     std::thread::sleep(std::time::Duration::from_secs(6));
 
     let verify_cmd = format!(
@@ -52,17 +52,17 @@ pub fn verify_mock_usdfc(
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     if !output.status.success() {
-        warn!("        Verification failed");
+        warn!("Verification failed");
         if !stderr.is_empty() {
-            warn!("        Error output:");
+            warn!("Error output:");
             for line in stderr.lines() {
-                warn!("          {}", line);
+                warn!("{}", line);
             }
         }
         // Don't fail the step, just warn
-        warn!("        Continuing despite verification warning");
+        warn!("Continuing despite verification warning");
     } else {
-        info!("        All contract functions verified");
+        info!("All contract functions verified");
     }
 
     Ok(())

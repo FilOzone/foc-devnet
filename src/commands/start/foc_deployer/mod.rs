@@ -128,7 +128,7 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
         warn!("Deployment script failed");
         let stderr_str = String::from_utf8_lossy(&output.stderr);
         for line in stderr_str.lines() {
-            warn!("  {}", line);
+            warn!("{}", line);
         }
         return Err("FOC contract deployment failed".into());
     }
@@ -152,7 +152,7 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
     let mut service_name = String::new();
     let mut service_description = String::new();
 
-    info!("        Parsing deployment output for contract addresses...");
+    info!("Parsing deployment output for contract addresses...");
 
     // Look for "DEPLOYMENT SUMMARY" section
     let mut in_summary = false;
@@ -161,7 +161,7 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
     for line in output_str.lines() {
         if line.contains("DEPLOYMENT SUMMARY") {
             in_summary = true;
-            info!("        Found DEPLOYMENT SUMMARY section");
+            info!("Found DEPLOYMENT SUMMARY section");
             continue;
         }
 
@@ -174,10 +174,10 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
                 if addr.starts_with("0x") && !addr.is_empty() {
                     // Convert name to snake_case for consistency
                     let snake_case_name = to_snake_case(name);
-                    info!("        Found contract: {} -> {}", snake_case_name, addr);
+                    info!("Found contract: {} -> {}", snake_case_name, addr);
                     addresses.insert(snake_case_name, addr.to_string());
                 } else {
-                    info!("        Skipping line with invalid address: {}", addr);
+                    info!("Skipping line with invalid address: {}", addr);
                 }
             } else {
                 info!(
@@ -191,13 +191,13 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
         if line.contains("Network Configuration") {
             in_network_config = true;
             in_summary = false;
-            info!("        Found Network Configuration section");
+            info!("Found Network Configuration section");
 
             // Extract network name from "Network Configuration (localnet):"
             if let Some(start) = line.find('(') {
                 if let Some(end) = line.find(')') {
                     network_name = line[start + 1..end].to_string();
-                    info!("        Network name: {}", network_name);
+                    info!("Network name: {}", network_name);
                 }
             }
             continue;
@@ -212,35 +212,35 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
                 match key {
                     "Challenge finality" => {
                         challenge_finality = value.replace(" epochs", "").trim().to_string();
-                        info!("        Challenge finality: {}", challenge_finality);
+                        info!("Challenge finality: {}", challenge_finality);
                     }
                     "Max proving period" => {
                         max_proving_period = value.replace(" epochs", "").trim().to_string();
-                        info!("        Max proving period: {}", max_proving_period);
+                        info!("Max proving period: {}", max_proving_period);
                     }
                     "Challenge window size" => {
                         challenge_window_size = value.replace(" epochs", "").trim().to_string();
-                        info!("        Challenge window size: {}", challenge_window_size);
+                        info!("Challenge window size: {}", challenge_window_size);
                     }
                     "USDFC token address" => {
                         // Already captured in addresses
-                        info!("        USDFC token address: {}", value);
+                        info!("USDFC token address: {}", value);
                     }
                     "FilBeam controller address" => {
                         filbeam_controller = Some(value.clone());
-                        info!("        FilBeam controller: {}", value);
+                        info!("FilBeam controller: {}", value);
                     }
                     "FilBeam beneficiary address" => {
                         filbeam_beneficiary = Some(value.clone());
-                        info!("        FilBeam beneficiary: {}", value);
+                        info!("FilBeam beneficiary: {}", value);
                     }
                     "Service name" => {
                         service_name = value.clone();
-                        info!("        Service name: {}", value);
+                        info!("Service name: {}", value);
                     }
                     "Service description" => {
                         service_description = value.clone();
-                        info!("        Service description: {}", value);
+                        info!("Service description: {}", value);
                     }
                     _ => {}
                 }
@@ -249,12 +249,12 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
     }
 
     if addresses.is_empty() {
-        warn!("        No contract addresses found in output");
-        info!("        Full output:");
+        warn!("No contract addresses found in output");
+        info!("Full output:");
         for line in output_str.lines() {
-            info!("          {}", line);
+            info!("{}", line);
         }
-        info!("        Deployment may have failed or output format changed");
+        info!("Deployment may have failed or output format changed");
     } else {
         info!(
             "        Successfully parsed {} contracts from output",

@@ -43,7 +43,7 @@ impl Step for FOCDeployStep {
     /// Perform pre-execution checks
     fn pre_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         check_lotus_running(context)?;
-        info!("    Lotus is running");
+        info!("Lotus is running");
 
         let services_repo = get_filecoin_services_repo_path()?;
         if !services_repo.exists() {
@@ -54,7 +54,7 @@ impl Step for FOCDeployStep {
             )
             .into());
         }
-        info!("    filecoin-services repository found");
+        info!("filecoin-services repository found");
 
         // Check if deployment script exists
         let deploy_script = services_repo
@@ -67,13 +67,13 @@ impl Step for FOCDeployStep {
                 format!("Deployment script not found at {}", deploy_script.display()).into(),
             );
         }
-        info!("    Deployment script found");
+        info!("Deployment script found");
 
         // Check if required addresses are available
         let (_foc_deployer, foc_deployer_eth, mock_usdfc, _global_faucet) =
             check_required_addresses(context)?;
-        info!("    DEPLOYER_FOC Ethereum address: {}", foc_deployer_eth);
-        info!("    MockUSDFC token address: {}", mock_usdfc);
+        info!("DEPLOYER_FOC Ethereum address: {}", foc_deployer_eth);
+        info!("MockUSDFC token address: {}", mock_usdfc);
 
         Ok(())
     }

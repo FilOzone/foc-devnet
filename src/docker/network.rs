@@ -54,15 +54,15 @@ pub fn network_exists(network_name: &str) -> Result<bool, Box<dyn Error>> {
 /// # Returns
 /// Ok(()) on success, error on failure
 pub fn create_network(network_name: &str) -> Result<(), Box<dyn Error>> {
-    info!("  Creating network '{}'...", network_name);
+    info!("Creating network '{}'...", network_name);
 
     if network_exists(network_name)? {
-        info!("    Network already exists");
+        info!("Network already exists");
         return Ok(());
     }
 
     docker_command(&["network", "create", "--driver", "bridge", network_name])?;
-    info!("    Network created");
+    info!("Network created");
 
     Ok(())
 }
@@ -75,15 +75,15 @@ pub fn create_network(network_name: &str) -> Result<(), Box<dyn Error>> {
 /// # Returns
 /// Ok(()) on success, error on failure
 pub fn delete_network(network_name: &str) -> Result<(), Box<dyn Error>> {
-    info!("  Removing network '{}'...", network_name);
+    info!("Removing network '{}'...", network_name);
 
     if !network_exists(network_name)? {
-        info!("    Network does not exist");
+        info!("Network does not exist");
         return Ok(());
     }
 
     docker_command(&["network", "rm", network_name])?;
-    info!("    Network removed");
+    info!("Network removed");
 
     Ok(())
 }
@@ -115,7 +115,7 @@ pub fn create_all_networks(run_id: &str, active_pdp_sp_count: usize) -> Result<(
         create_network(&pdp_miner_network_name(run_id, i))?;
     }
 
-    info!("  All networks created successfully");
+    info!("All networks created successfully");
     Ok(())
 }
 
@@ -144,7 +144,7 @@ pub fn delete_all_networks(run_id: &str) -> Result<(), Box<dyn Error>> {
         }
     }
 
-    info!("  All networks removed successfully");
+    info!("All networks removed successfully");
     Ok(())
 }
 

@@ -34,15 +34,15 @@ fn cleanup_previous_installation() -> Result<(), Box<dyn std::error::Error>> {
     // Remove the entire foc-localnet home directory
     let home_dir = foc_localnet_home();
     if home_dir.exists() {
-        info!("  Removing {}", home_dir.display());
+        info!("Removing {}", home_dir.display());
         std::fs::remove_dir_all(&home_dir)?;
-        info!("  Removed previous foc-localnet installation");
+        info!("Removed previous foc-localnet installation");
     } else {
-        info!("  No previous installation found");
+        info!("No previous installation found");
     }
 
     // Remove all foc-localnet Docker images
-    info!("  Removing existing foc-localnet Docker images");
+    info!("Removing existing foc-localnet Docker images");
     let output = Command::new("docker")
         .args(["images", "--format", "{{.Repository}}:{{.Tag}}"])
         .output()?;
@@ -63,12 +63,12 @@ fn cleanup_previous_installation() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         if removed_count > 0 {
-            info!("  Removed {} Docker image(s)", removed_count);
+            info!("Removed {} Docker image(s)", removed_count);
         } else {
-            info!("  No foc-localnet Docker images found");
+            info!("No foc-localnet Docker images found");
         }
     } else {
-        warn!("  Could not list Docker images (Docker may not be running)");
+        warn!("Could not list Docker images (Docker may not be running)");
     }
 
     Ok(())

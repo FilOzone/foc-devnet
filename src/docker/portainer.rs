@@ -55,36 +55,36 @@ pub fn start_portainer(run_id: &str, port: u16) -> Result<(), Box<dyn Error>> {
     let container_name = portainer_container_name(run_id);
 
     info!("{}", "Starting Portainer...");
-    info!("  Container: {}", container_name);
+    info!("Container: {}", container_name);
 
     // Check if any Portainer container already exists (from any run) and remove it
     // to ensure we use the new port and follow the new naming convention
     let existing_portainer = find_existing_portainer()?;
     if let Some(existing_name) = existing_portainer {
         if existing_name != container_name {
-            info!("  Removing existing Portainer container: {}", existing_name);
+            info!("Removing existing Portainer container: {}", existing_name);
             stop_and_remove_container(&existing_name)?;
         }
     }
 
     // Check if our specific container is already running
     if container_is_running(&container_name)? {
-        info!("  Portainer already running");
+        info!("Portainer already running");
         return Ok(());
     }
 
     // Stop and remove if exists but not running
     if container_exists(&container_name)? {
-        info!("  Cleaning up existing container...");
+        info!("Cleaning up existing container...");
         stop_and_remove_container(&container_name)?;
     }
 
     // Pull latest Portainer image
-    info!("  Pulling Portainer image...");
+    info!("Pulling Portainer image...");
     docker_command(&["pull", PORTAINER_IMAGE])?;
 
     // Start Portainer container
-    info!("  Starting container...");
+    info!("Starting container...");
     let port_mapping = format!("{}:9000", port);
     let volume_mapping = format!("{}:/data", PORTAINER_DATA_VOLUME);
     docker_command(&[
@@ -103,8 +103,8 @@ pub fn start_portainer(run_id: &str, port: u16) -> Result<(), Box<dyn Error>> {
         PORTAINER_IMAGE,
     ])?;
 
-    info!("  ℹ Portainer started");
-    info!("  Access at: {}", format!("http://localhost:{}", port));
+    info!("ℹ Portainer started");
+    info!("Access at: {}", format!("http://localhost:{}", port));
 
     Ok(())
 }

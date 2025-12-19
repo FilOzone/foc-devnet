@@ -30,10 +30,10 @@ pub fn print_keys_status() -> Result<(), Box<dyn std::error::Error>> {
         info!("{}: {}", key.name, addr_display);
 
         if let Some(eth) = key.eth_address {
-            info!("  Ethereum: {}", eth);
+            info!("Ethereum: {}", eth);
         }
 
-        info!("  Private Key: {}", key.private_key);
+        info!("Private Key: {}", key.private_key);
     }
 
     Ok(())

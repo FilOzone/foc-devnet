@@ -31,7 +31,7 @@ pub fn check_existing_container(context: &SetupContext) -> Result<(), Box<dyn Er
     // Check if any existing lotus container is running
     if container_exists(&container_name)? {
         if container_is_running(&container_name)? {
-            info!("    Container '{}' is already running", container_name);
+            info!("Container '{}' is already running", container_name);
             stop_and_remove_container(&container_name)?;
         } else {
             info!(
@@ -68,7 +68,7 @@ pub fn start_container(
     let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
     context.set("lotus_container_id", container_id.clone());
     context.set("lotus_container_name", container_name);
-    info!("    Container started with ID: {}", &container_id[..12]);
+    info!("Container started with ID: {}", &container_id[..12]);
 
     Ok(())
 }
@@ -78,7 +78,7 @@ pub fn wait_for_container_init(context: &SetupContext) -> Result<(), Box<dyn Err
     let container_name = get_container_name(context)?;
 
     // Wait for container to initialize
-    info!("    Waiting for Lotus daemon to start...");
+    info!("Waiting for Lotus daemon to start...");
     thread::sleep(Duration::from_secs(CONTAINER_INIT_WAIT_SECS));
 
     // Verify container is running
@@ -94,6 +94,6 @@ pub fn wait_for_container_init(context: &SetupContext) -> Result<(), Box<dyn Err
         )
         .into());
     }
-    info!("    Container is running");
+    info!("Container is running");
     Ok(())
 }

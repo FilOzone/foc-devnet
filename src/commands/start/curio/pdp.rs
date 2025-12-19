@@ -17,7 +17,7 @@ use tracing::info;
 /// Uses JSON-RPC to call: CurioWeb.ImportPDPKey
 /// Verifies the returned address matches the expected PDP_SP_X address.
 pub fn import_pdp_key(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
-    info!("    Importing PDP private key for PDP SP {}...", sp_index);
+    info!("Importing PDP private key for PDP SP {}...", sp_index);
 
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let container_name = format!("foc-{}-curio-{}", run_id, sp_index);

@@ -52,7 +52,7 @@ pub fn download_artifacts(
         copy_proof_params_from_local(&params_path)?;
     }
 
-    info!("  Artifacts downloaded successfully.");
+    info!("Artifacts downloaded successfully.");
     Ok(())
 }
 
@@ -148,7 +148,7 @@ fn extract_yugabyte_tarball(
         return Ok(());
     }
 
-    info!("  Extracting Yugabyte tarball...");
+    info!("Extracting Yugabyte tarball...");
 
     // Extract the tarball
     let pb_extract = ProgressBar::new_spinner();
@@ -191,7 +191,7 @@ fn extract_yugabyte_tarball(
 
     pb_extract.finish_with_message("✓ Extracted Yugabyte");
 
-    info!("  Yugabyte downloaded and installed successfully.");
+    info!("Yugabyte downloaded and installed successfully.");
 
     Ok(())
 }
@@ -270,7 +270,7 @@ fn copy_proof_params_from_local(params_path: &str) -> Result<(), Box<dyn std::er
 
     pb.finish_with_message("✓ Proof parameters copied");
 
-    info!("  Proof parameters copied successfully");
+    info!("Proof parameters copied successfully");
     Ok(())
 }
 

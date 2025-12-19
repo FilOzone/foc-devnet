@@ -83,13 +83,13 @@ impl Step for PdpSpRegistrationStep {
 
         // Check if Lotus is running
         Self::check_lotus_running(context)?;
-        info!("  Lotus is running");
+        info!("Lotus is running");
 
         // Check if required addresses are available
         let (deployer_foc_address, deployer_foc_eth_address) =
             Self::get_required_addresses(context)?;
-        info!("  DEPLOYER_FOC address: {}", deployer_foc_address);
-        info!("  DEPLOYER_FOC ETH address: {}", deployer_foc_eth_address);
+        info!("DEPLOYER_FOC address: {}", deployer_foc_address);
+        info!("DEPLOYER_FOC ETH address: {}", deployer_foc_eth_address);
 
         // Check if all SP addresses are available
         for sp_index in 1..=self.active_sp_count {
@@ -111,9 +111,9 @@ impl Step for PdpSpRegistrationStep {
                 ))?
                 .parse()?;
 
-            info!("  PDP SP {} address: {}", sp_index, sp_address);
-            info!("  PDP SP {} ETH address: {}", sp_index, sp_eth_address);
-            info!("  PDP SP {} PDP port: {}", sp_index, pdp_port);
+            info!("PDP SP {} address: {}", sp_index, sp_address);
+            info!("PDP SP {} ETH address: {}", sp_index, sp_eth_address);
+            info!("PDP SP {} PDP port: {}", sp_index, pdp_port);
         }
 
         // Check if contract addresses are available
@@ -122,13 +122,13 @@ impl Step for PdpSpRegistrationStep {
             .foc_contracts
             .get("service_provider_registry_proxy")
             .ok_or("service_provider_registry_proxy address not found")?;
-        info!("  ServiceProviderRegistry: {}", registry_address);
+        info!("ServiceProviderRegistry: {}", registry_address);
 
         let warm_storage_address = contract_addresses
             .foc_contracts
             .get("filecoin_warm_storage_service_proxy")
             .ok_or("filecoin_warm_storage_service_proxy address not found")?;
-        info!("  WarmStorageService: {}", warm_storage_address);
+        info!("WarmStorageService: {}", warm_storage_address);
 
         Ok(())
     }
@@ -337,10 +337,10 @@ impl Step for PdpSpRegistrationStep {
             .clone();
 
         for sp_index in 1..=self.active_sp_count {
-            info!("  Verifying PDP SP {}...", sp_index);
+            info!("Verifying PDP SP {}...", sp_index);
             // Verify provider ID file exists and is valid
             let info = ProviderIdInfo::load(run_id, sp_index)?;
-            info!("  Provider ID file exists: {}", info.provider_id);
+            info!("Provider ID file exists: {}", info.provider_id);
 
             // Verify on-chain provider ID matches the saved one
             let onchain_provider_id = registration::verify_provider_id_by_address(
@@ -356,7 +356,7 @@ impl Step for PdpSpRegistrationStep {
                 )
                 .into());
             }
-            info!("  On-chain provider ID matches: {}", onchain_provider_id);
+            info!("On-chain provider ID matches: {}", onchain_provider_id);
 
             if sp_index < self.approved_sp_count {
                 // Verify provider is approved
@@ -373,7 +373,7 @@ impl Step for PdpSpRegistrationStep {
                     )
                     .into());
                 }
-                info!("  Provider {} is approved", info.provider_id);
+                info!("Provider {} is approved", info.provider_id);
             }
         }
 
@@ -387,9 +387,9 @@ impl Step for PdpSpRegistrationStep {
             )
             .into());
         }
-        info!("  Provider count on-chain: {}", provider_count);
+        info!("Provider count on-chain: {}", provider_count);
 
-        info!("  All critical on-chain verifications passed");
+        info!("All critical on-chain verifications passed");
 
         Ok(())
     }
