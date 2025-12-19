@@ -4,10 +4,10 @@
 //! including starting, stopping, and checking container status.
 
 use super::super::step::SetupContext;
+use crate::docker::command_logger::run_and_log_command_strings;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::{container_exists, container_is_running, stop_and_remove_container};
 use std::error::Error;
-use std::process::Command;
 use std::thread;
 use std::time::Duration;
 use tracing::info;
@@ -35,7 +35,7 @@ pub fn check_existing_container(context: &SetupContext) -> Result<(), Box<dyn Er
             stop_and_remove_container(&container_name)?;
         } else {
             info!(
-                "    Container '{}' exists but is not running",
+                "Container '{}' exists but is not running",
                 container_name
             );
             stop_and_remove_container(&container_name)?;
@@ -52,10 +52,11 @@ pub fn start_container(
     let container_name = get_container_name(context)?;
 
     info!(
-        "    Starting Lotus daemon container '{}'...",
+        "Starting Lotus daemon container '{}'...",
         container_name
     );
-    let output = Command::new("docker").args(&docker_args).output()?;
+    let key = format!("lotus_container_start_{}", container_name);
+    let output = run_and_log_command_strings("docker", &docker_args, context, &key)?;
 
     if !output.status.success() {
         return Err(format!(
@@ -84,9 +85,13 @@ pub fn wait_for_container_init(context: &SetupContext) -> Result<(), Box<dyn Err
     // Verify container is running
     if !container_is_running(&container_name)? {
         // Check logs for errors
-        let logs_output = Command::new("docker")
-            .args(["logs", "--tail", LOG_TAIL_LINES, &container_name])
-            .output()?;
+        let key = format!("lotus_container_logs_{}", container_name);
+        let logs_output = run_and_log_command_strings(
+            "docker",
+            &["logs".to_string(), "--tail".to_string(), LOG_TAIL_LINES.to_string(), container_name.clone()],
+            context,
+            &key,
+        )?;
 
         return Err(format!(
             "Container stopped unexpectedly. Logs:\n{}",

@@ -33,6 +33,7 @@ impl USDFCFundingStep {
     /// Check if all recipients already have the required MockUSDFC balance
     fn check_existing_balances(
         &self,
+        context: &SetupContext,
         mockusdfc_address: &str,
         lotus_rpc_url: &str,
     ) -> Result<bool, Box<dyn Error>> {
@@ -55,7 +56,7 @@ impl USDFCFundingStep {
         for (account_name, amount_tokens) in accounts_to_check.iter() {
             let eth_address = get_user_eth_address(account_name)?;
 
-            match check_mock_usdfc_balance(&eth_address, mockusdfc_address, lotus_rpc_url) {
+            match check_mock_usdfc_balance(context, &eth_address, mockusdfc_address, lotus_rpc_url) {
                 Ok(balance) => {
                     let expected_wei = token_amount_to_wei(*amount_tokens);
                     if balance < expected_wei {
@@ -79,7 +80,7 @@ impl USDFCFundingStep {
         mockusdfc_address: &str,
         transfers: Vec<(String, String, ethers_core::types::U256, u64)>,
         lotus_rpc_url: &str,
-        _context: &SetupContext,
+        context: &SetupContext,
     ) -> Result<(), Box<dyn Error>> {
         use std::sync::{Arc, Mutex};
         use std::thread;
@@ -88,7 +89,7 @@ impl USDFCFundingStep {
 
         let num_transfers = transfers.len();
         info!(
-            "      Executing {} USDFC transfers (max {} concurrent)...",
+            "Executing {} USDFC transfers (max {} concurrent)...",
             num_transfers, MAX_CONCURRENT_TRANSFERS
         );
 
@@ -101,7 +102,7 @@ impl USDFCFundingStep {
             let total_batches = num_transfers.div_ceil(MAX_CONCURRENT_TRANSFERS);
 
             info!(
-                "      Processing batch {}/{} ({} transfers)...",
+                "Processing batch {}/{} ({} transfers)...",
                 batch_num,
                 total_batches,
                 batch.len()
@@ -113,6 +114,7 @@ impl USDFCFundingStep {
                 batch.iter().enumerate()
             {
                 let errors_clone = Arc::clone(&errors);
+                let context_clone = context.clone();
                 let account_name = account_name.clone();
                 let eth_address = eth_address.clone();
                 let amount_wei_str = amount_wei.to_string();
@@ -132,6 +134,7 @@ impl USDFCFundingStep {
                     info!("Transferring {} USDFC: {}...", amount, description);
 
                     match transfer_mock_usdfc(
+                        &context_clone,
                         &pk,
                         &from,
                         &eth_address,
@@ -232,7 +235,7 @@ impl Step for USDFCFundingStep {
         let lotus_rpc_url = get_lotus_rpc_url(context)?;
 
         // Check if distribution is already done
-        if self.check_existing_balances(&mockusdfc_address, &lotus_rpc_url)? {
+        if self.check_existing_balances(context, &mockusdfc_address, &lotus_rpc_url)? {
             info!("MockUSDFC distribution already completed, skipping...");
             return Ok(());
         }
@@ -301,12 +304,12 @@ impl Step for USDFCFundingStep {
                 .get("mockusdfc_contract_address")
                 .ok_or("MockUSDFC address not found in context")?;
 
-            match check_mock_usdfc_balance(&eth_address, &mock_usdfc_address, &lotus_rpc_url) {
+            match check_mock_usdfc_balance(context, &eth_address, &mock_usdfc_address, &lotus_rpc_url) {
                 Ok(balance) => {
                     let expected_wei = token_amount_to_wei(*amount_tokens);
                     if balance >= expected_wei {
                         info!(
-                            "      {} balance correct: {} tokens",
+                            "{} balance correct: {} tokens",
                             account_name, amount_tokens
                         );
                     } else {

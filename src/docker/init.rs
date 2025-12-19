@@ -80,7 +80,7 @@ fn create_single_volume(
 
     fs::create_dir_all(&volume_dir)?;
     println!(
-        "  {} Created volume directory: {}",
+        "{} Created volume directory: {}",
         "✓".green(),
         volume_dir.display()
     );
@@ -115,7 +115,7 @@ pub fn copy_initial_volume_contents(
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !image_exists(image_tag)? {
         println!(
-            "    {} Image {} not yet built, skipping volume initialization",
+            "{} Image {} not yet built, skipping volume initialization",
             "ℹ".cyan(),
             image_tag
         );
@@ -123,7 +123,7 @@ pub fn copy_initial_volume_contents(
     }
 
     println!(
-        "    {} Copying initial contents from {}:{} to {}",
+        "{} Copying initial contents from {}:{} to {}",
         "📋".bold(),
         image_tag,
         container_path,
@@ -136,7 +136,7 @@ pub fn copy_initial_volume_contents(
     match result {
         Ok(()) => {
             println!(
-                "    {} Initialized volume with contents from image",
+                "{} Initialized volume with contents from image",
                 "✓".green()
             );
             Ok(())
@@ -160,7 +160,7 @@ fn perform_volume_copy_and_cleanup(
             let stderr = String::from_utf8_lossy(&output.stderr);
             if stderr.contains("Could not find") || stderr.contains("No such") {
                 println!(
-                    "    {} No contents found at {} in image, volume remains empty",
+                    "{} No contents found at {} in image, volume remains empty",
                     "ℹ".cyan(),
                     container_path
                 );

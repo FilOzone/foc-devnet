@@ -3,7 +3,6 @@
 //! This module provides utilities for verifying Lotus-Miner startup and functionality.
 
 use std::error::Error;
-use std::process::Command;
 use std::thread;
 use std::time::Duration;
 use tracing::info;
@@ -12,6 +11,7 @@ use super::constants::{
     MINER_API_CHECK_DELAY_SECS, PORT_WAIT_TIMEOUT_SECS, TIPSET_CHECK_DELAY_SECS,
 };
 use crate::commands::start::step::SetupContext;
+use crate::docker::command_logger::run_and_log_command;
 use crate::docker::containers::{lotus_container_name, lotus_miner_container_name};
 use crate::docker::wait_for_port;
 
@@ -36,14 +36,18 @@ pub fn check_miner_api(context: &SetupContext) -> Result<(), Box<dyn Error>> {
     let container_name = get_container_name(context)?;
 
     // Try to execute a simple lotus-miner command via docker exec
-    let output = Command::new("docker")
-        .args([
+    let key = format!("lotus_miner_api_check_{}", container_name);
+    let output = run_and_log_command(
+        "docker",
+        &[
             "exec",
             &container_name,
             "/usr/local/bin/lotus-bins/lotus-miner",
             "version",
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
     if !output.status.success() {
         return Err(format!(
@@ -61,16 +65,20 @@ pub fn check_tipset_generation(context: &SetupContext) -> Result<(), Box<dyn Err
     let lotus_name = get_lotus_container_name(context)?;
 
     // Get initial chain height
-    let output1 = Command::new("docker")
-        .args([
+    let key = format!("lotus_miner_chain_height_check_1_{}", lotus_name);
+    let output1 = run_and_log_command(
+        "docker",
+        &[
             "exec",
             &lotus_name,
             "/usr/local/bin/lotus-bins/lotus",
             "chain",
             "list",
             "--count=1",
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
     if !output1.status.success() {
         return Err("Failed to get initial chain height".into());
@@ -80,22 +88,26 @@ pub fn check_tipset_generation(context: &SetupContext) -> Result<(), Box<dyn Err
     let height1 = parse_chain_height(&chain_output1)?;
 
     info!(
-        "      Waiting {} seconds to check for new blocks...",
+        "Waiting {} seconds to check for new blocks...",
         TIPSET_CHECK_DELAY_SECS
     );
     thread::sleep(Duration::from_secs(TIPSET_CHECK_DELAY_SECS));
 
     // Get new chain height
-    let output2 = Command::new("docker")
-        .args([
+    let key = format!("lotus_miner_chain_height_check_2_{}", lotus_name);
+    let output2 = run_and_log_command(
+        "docker",
+        &[
             "exec",
             &lotus_name,
             "/usr/local/bin/lotus-bins/lotus",
             "chain",
             "list",
             "--count=1",
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
     if !output2.status.success() {
         return Err("Failed to get new chain height".into());
@@ -106,7 +118,7 @@ pub fn check_tipset_generation(context: &SetupContext) -> Result<(), Box<dyn Err
 
     if height2 > height1 {
         info!(
-            "      ✓ Chain is progressing (height {} -> {})",
+            "✓ Chain is progressing (height {} -> {})",
             height1, height2
         );
         Ok(())
@@ -133,7 +145,7 @@ pub fn perform_post_execution_verification(
         .parse()?;
 
     info!(
-        "      Waiting for Lotus-Miner API port {}...",
+        "Waiting for Lotus-Miner API port {}...",
         miner_api_port
     );
     wait_for_port(miner_api_port, PORT_WAIT_TIMEOUT_SECS)?;

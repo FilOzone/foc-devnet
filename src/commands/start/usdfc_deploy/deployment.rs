@@ -6,12 +6,14 @@ use super::foundry_setup::{get_mockusdfc_project_dir, setup_foundry_project};
 use super::key_management::get_deployer_private_key;
 use super::prerequisites::check_required_addresses;
 use crate::commands::start::lotus_utils::get_lotus_rpc_url;
+use crate::commands::start::step::SetupContext;
+use crate::docker::command_logger::run_and_log_command;
 use std::error::Error;
-use std::process::Command;
 use tracing::{error, info};
 
 /// Deploy MockUSDFC using the Foundry project
 pub fn deploy_mock_usdfc_foundry(
+    context: &SetupContext,
     private_key: &str,
     lotus_rpc_url: &str,
     run_id: &str,
@@ -22,7 +24,7 @@ pub fn deploy_mock_usdfc_foundry(
     let contract_dir = get_mockusdfc_project_dir(run_id)?;
 
     // Setup the Foundry project (install deps, build)
-    setup_foundry_project(&contract_dir)?;
+    setup_foundry_project(context, &contract_dir, run_id)?;
 
     // Deploy using forge script with explicit gas limit for FEVM
     info!("Executing deployment script...");
@@ -39,8 +41,10 @@ pub fn deploy_mock_usdfc_foundry(
         lotus_rpc_url, private_key
     );
 
-    let output = Command::new("docker")
-        .args([
+    let key = format!("usdfc_deploy_{}", run_id);
+    let output = run_and_log_command(
+        "docker",
+        &[
             "run",
             "--rm",
             "--name",
@@ -53,26 +57,28 @@ pub fn deploy_mock_usdfc_foundry(
             "bash",
             "-c",
             &deploy_cmd,
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     // Print output for debugging
     // if !stdout.is_empty() {
-    //     println!("        Deployment output:");
+    //     println!("Deployment output:");
     //     for line in stdout.lines() {
-    //         println!("          {}", line);
+    //         println!("  {}", line);
     //     }
     // }
 
     if !output.status.success() {
-        error!("   ✗ Deployment failed");
+        error!(" ✗ Deployment failed");
         if !stderr.is_empty() {
-            error!("   Error output:");
+            error!(" Error output:");
             for line in stderr.lines() {
-                error!("     {}", line);
+                error!(" {}", line);
             }
         }
         return Err("MockUSDFC deployment failed".into());
@@ -111,7 +117,7 @@ pub fn perform_token_deployment(
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
 
     // Deploy MockUSDFC
-    let mock_usdfc_address = deploy_mock_usdfc_foundry(&private_key, &lotus_rpc_url, run_id)?;
+    let mock_usdfc_address = deploy_mock_usdfc_foundry(context, &private_key, &lotus_rpc_url, run_id)?;
 
     // Store in context
     context.set("mockusdfc_contract_address", &mock_usdfc_address);
@@ -121,6 +127,7 @@ pub fn perform_token_deployment(
 
     // Verify the deployment
     super::verification::verify_mock_usdfc(
+        context,
         &private_key,
         &mock_usdfc_address,
         &lotus_rpc_url,
@@ -130,7 +137,7 @@ pub fn perform_token_deployment(
     info!("✓ MockUSDFC token deployed successfully!");
     info!("Token Address: {}", mock_usdfc_address);
     info!(
-        "      Initial Supply: {} tokens",
+        "Initial Supply: {} tokens",
         super::usdfc_deploy_step::MOCK_USDFC_INITIAL_SUPPLY
     );
     info!("Decimals: 18");

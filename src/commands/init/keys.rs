@@ -30,12 +30,12 @@ impl fmt::Display for KeyInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Key: {}", self.name)?;
         if let Some(filecoin_addr) = &self.filecoin_address {
-            writeln!(f, "  Filecoin Address: {}", filecoin_addr)?;
+            writeln!(f, "Filecoin Address: {}", filecoin_addr)?;
         }
         if let Some(eth_addr) = &self.eth_address {
-            writeln!(f, "  Ethereum Address:  {}", eth_addr)?;
+            writeln!(f, "Ethereum Address:  {}", eth_addr)?;
         }
-        writeln!(f, "  Private Key:       {}", self.private_key)?;
+        writeln!(f, "Private Key:       {}", self.private_key)?;
         Ok(())
     }
 }
@@ -100,7 +100,7 @@ pub fn generate_keys(use_random: bool) -> Result<Vec<KeyInfo>, Box<dyn std::erro
     info!("Generated Keys:");
     for key in &keys {
         info!(
-            "    - {}: {} private key: ({})",
+            "- {}: {} private key: ({})",
             key.name,
             key.filecoin_address.as_deref().unwrap_or("N/A"),
             key.private_key

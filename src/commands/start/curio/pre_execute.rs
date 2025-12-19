@@ -4,10 +4,10 @@
 //! attempting to start Curio.
 
 use super::super::step::SetupContext;
+use crate::docker::command_logger::run_and_log_command;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::{container_exists, container_is_running};
 use std::error::Error;
-use std::process::Command;
 use std::thread;
 use std::time::Duration;
 use tracing::info;
@@ -42,10 +42,10 @@ pub fn verify_prerequisites(context: &SetupContext, sp_count: usize) -> Result<(
     }
 
     // Verify chain is progressing
-    verify_chain_progressing(&lotus_container)?;
+    verify_chain_progressing(context, &lotus_container)?;
 
     info!(
-        "  Allocating and verifying ports for {} Curio instance(s)...",
+        "Allocating and verifying ports for {} Curio instance(s)...",
         sp_count
     );
     for sp_index in 1..=sp_count {
@@ -94,18 +94,18 @@ pub fn verify_prerequisites(context: &SetupContext, sp_count: usize) -> Result<(
 }
 
 /// Verify that the Filecoin chain is progressing (blocks are being generated).
-fn verify_chain_progressing(lotus_container: &str) -> Result<(), Box<dyn Error>> {
+fn verify_chain_progressing(context: &SetupContext, lotus_container: &str) -> Result<(), Box<dyn Error>> {
     info!("Checking chain is progressing...");
 
     // Get initial block height
-    let height1 = get_chain_head_height(lotus_container)?;
+    let height1 = get_chain_head_height(context, lotus_container)?;
 
     // Wait 6 seconds (should be enough for at least 1 block with 4s block time)
     info!("Waiting 6 seconds to verify block production...");
     thread::sleep(Duration::from_secs(6));
 
     // Get new block height
-    let height2 = get_chain_head_height(lotus_container)?;
+    let height2 = get_chain_head_height(context, lotus_container)?;
 
     if height2 <= height1 {
         return Err(format!(
@@ -117,7 +117,7 @@ fn verify_chain_progressing(lotus_container: &str) -> Result<(), Box<dyn Error>>
     }
 
     info!(
-        "    Chain is progressing (height {} → {})",
+        "Chain is progressing (height {} → {})",
         height1, height2
     );
 
@@ -125,17 +125,21 @@ fn verify_chain_progressing(lotus_container: &str) -> Result<(), Box<dyn Error>>
 }
 
 /// Get the current chain head height from Lotus.
-fn get_chain_head_height(lotus_container: &str) -> Result<u64, Box<dyn Error>> {
-    let output = Command::new("docker")
-        .args([
+fn get_chain_head_height(context: &SetupContext, lotus_container: &str) -> Result<u64, Box<dyn Error>> {
+    let key = format!("curio_pre_check_chain_height_{}", lotus_container);
+    let output = run_and_log_command(
+        "docker",
+        &[
             "exec",
             lotus_container,
             "/usr/local/bin/lotus-bins/lotus",
             "chain",
             "head",
             "--height",
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
     if !output.status.success() {
         return Err(format!(

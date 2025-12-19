@@ -47,7 +47,7 @@ pub fn add_miner_to_genesis(
 
     let total_miners = 1 + active_pdp_sp_count;
     info!(
-        "  ✓ All {} miners added to genesis successfully",
+        "✓ All {} miners added to genesis successfully",
         total_miners
     );
     Ok(())
@@ -60,9 +60,8 @@ fn add_single_miner_to_genesis(
     run_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     info!(
-        "    ⛏ Adding miner {} to genesis from {}...",
+        "⛏ Adding miner {} to genesis...",
         miner_id,
-        miner_dir.display()
     );
 
     // Check for pre-seal file (e.g., pre-seal-t01000.json)

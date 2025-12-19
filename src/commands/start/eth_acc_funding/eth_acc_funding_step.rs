@@ -8,6 +8,7 @@ use super::lotus_checks::{check_lotus_running, get_global_faucet_address};
 use crate::commands::init::keys::load_keys;
 use crate::commands::start::eth_acc_funding::constants::FEVM_ACCOUNTS_PREFUNDED;
 use crate::commands::start::step::{SetupContext, Step};
+use crate::docker::command_logger::log_command;
 use crate::docker::containers::lotus_container_name;
 use std::error::Error;
 use std::fs;
@@ -133,7 +134,7 @@ impl ETHAccFundingStep {
                 .ok_or(format!("No Ethereum address for {}", account_name))?;
 
             info!(
-                "      {}: {} (ETH: {})",
+                "{}: {} (ETH: {})",
                 account_name, f4_address, eth_address
             );
 
@@ -167,7 +168,7 @@ impl ETHAccFundingStep {
 
         let num_transfers = transfers.len();
         info!(
-            "      Executing {} FIL transfers in parallel...",
+            "Executing {} FIL transfers in parallel...",
             num_transfers
         );
 
@@ -183,10 +184,30 @@ impl ETHAccFundingStep {
             let container = container_name.clone();
             let from = from_addr.clone();
             let errors_clone = Arc::clone(&errors);
+            let context_clone = context.clone();
+            let account_name_clone = account_name.clone();
 
             let handle = thread::spawn(move || {
                 let description = format!("GLOBAL_FIL_FAUCET → {}", account_name);
                 info!("Transferring {} FIL: {}...", amount, description);
+
+                // Log the command
+                let key = format!("eth_acc_transfer_{}_{}", account_name_clone, container);
+                log_command(
+                    "docker",
+                    &[
+                        "exec",
+                        &container,
+                        "/usr/local/bin/lotus-bins/lotus",
+                        "send",
+                        "--from",
+                        &from,
+                        &to_addr,
+                        &amount.to_string(),
+                    ],
+                    &context_clone,
+                    &key,
+                );
 
                 let output = Command::new("docker")
                     .args([
@@ -246,7 +267,7 @@ impl ETHAccFundingStep {
         }
 
         info!(
-            "      All {} transfers completed successfully!",
+            "All {} transfers completed successfully!",
             num_transfers
         );
 
@@ -269,8 +290,26 @@ impl ETHAccFundingStep {
         for (account_name, address, expected_amount) in accounts {
             let container = container_name.clone();
             let errors_clone = Arc::clone(&errors);
+            let context_clone = context.clone();
+            let account_name_clone = account_name.clone();
 
             let handle = thread::spawn(move || {
+                // Log the command
+                let key = format!("eth_acc_verify_balance_{}_{}", account_name_clone, container);
+                log_command(
+                    "docker",
+                    &[
+                        "exec",
+                        &container,
+                        "/usr/local/bin/lotus-bins/lotus",
+                        "wallet",
+                        "balance",
+                        &address,
+                    ],
+                    &context_clone,
+                    &key,
+                );
+
                 let output = Command::new("docker")
                     .args([
                         "exec",
@@ -294,7 +333,7 @@ impl ETHAccFundingStep {
                                     let expected = expected_amount as f64;
                                     if balance >= expected {
                                         info!(
-                                            "      {}: {} FIL (expected: {} FIL)",
+                                            "{}: {} FIL (expected: {} FIL)",
                                             account_name, balance, expected
                                         );
                                     } else {

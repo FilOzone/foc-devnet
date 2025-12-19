@@ -122,12 +122,12 @@ pub fn stop_portainer(run_id: &str) -> Result<(), Box<dyn Error>> {
     println!("{}", "Stopping Portainer...");
 
     if !container_exists(&container_name)? {
-        println!("   Portainer container does not exist");
+        println!(" Portainer container does not exist");
         return Ok(());
     }
 
     stop_and_remove_container(&container_name)?;
-    println!("   Portainer stopped and removed");
+    println!(" Portainer stopped and removed");
 
     Ok(())
 }

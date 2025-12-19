@@ -105,7 +105,7 @@ fn clone_and_checkout(
 
     if repo_dir.exists() {
         info!(
-            "  {} repository already exists at {}",
+            "{} repository already exists at {}",
             name,
             repo_dir.display()
         );

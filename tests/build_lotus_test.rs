@@ -143,11 +143,11 @@ fn test_lotus_build_valid_path() {
     if let Ok(entries) = fs::read_dir(&output_dir) {
         for entry in entries {
             if let Ok(entry) = entry {
-                println!("  {}", entry.path().display());
+                println!("{}", entry.path().display());
             }
         }
     } else {
-        println!("{}", "  Could not read output directory".red());
+        println!("{}", "Could not read output directory".red());
     }
 
     // The build should create the expected binaries

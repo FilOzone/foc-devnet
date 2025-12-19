@@ -94,7 +94,7 @@ fn download_yugabyte_tarball(
 
     if tarball_path.exists() {
         info!(
-            "  Yugabyte tarball already exists at {}",
+            "Yugabyte tarball already exists at {}",
             tarball_path.display()
         );
         return Ok(tarball_path);
@@ -142,7 +142,7 @@ fn extract_yugabyte_tarball(
 
     if yugabyte_dir.exists() {
         info!(
-            "  Yugabyte directory already exists at {}",
+            "Yugabyte directory already exists at {}",
             yugabyte_dir.display()
         );
         return Ok(());
@@ -220,7 +220,7 @@ fn copy_yugabyte_from_local(
     }
 
     info!(
-        "  Copying Yugabyte from local archive: {}",
+        "Copying Yugabyte from local archive: {}",
         archive_path.display()
     );
 
@@ -248,7 +248,7 @@ fn copy_proof_params_from_local(params_path: &str) -> Result<(), Box<dyn std::er
     }
 
     info!(
-        "  Copying proof parameters from local directory: {}",
+        "Copying proof parameters from local directory: {}",
         params_path.display()
     );
 

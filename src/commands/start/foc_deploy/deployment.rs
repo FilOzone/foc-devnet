@@ -24,7 +24,7 @@ pub fn check_existing_deployment(
     if let Ok(existing_addresses) = ContractAddresses::load(run_id) {
         if !existing_addresses.foc_contracts.is_empty() {
             info!(
-                "    {} FOC contracts already deployed, skipping deployment...",
+                "{} FOC contracts already deployed, skipping deployment...",
                 "✓".green()
             );
 
@@ -84,7 +84,7 @@ pub fn perform_deployment(
 
     addresses_struct.save(run_id)?;
     info!(
-        "      {} Contract addresses saved to {}",
+        "{} Contract addresses saved to {}",
         "✓".green(),
         contract_addresses_file(run_id).display()
     );
@@ -92,7 +92,7 @@ pub fn perform_deployment(
     // Save network metadata
     contract_addresses.metadata.save(run_id)?;
     info!(
-        "      {} Network metadata saved to {}",
+        "{} Network metadata saved to {}",
         "✓".green(),
         foc_metadata_file(run_id).display()
     );

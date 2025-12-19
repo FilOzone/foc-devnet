@@ -2,14 +2,16 @@
 //!
 //! This module provides utilities for transferring MockUSDFC tokens between addresses.
 
+use crate::commands::start::step::SetupContext;
+use crate::docker::command_logger::run_and_log_command;
 use ethers_core::types::U256;
 use hex;
 use std::error::Error;
-use std::process::Command;
 use tracing::info;
 
 /// Transfer MockUSDFC tokens from one address to another using cast
 pub fn transfer_mock_usdfc(
+    context: &SetupContext,
     from_private_key: &str,
     _from_eth_address: &str,
     to_eth_address: &str,
@@ -36,10 +38,12 @@ pub fn transfer_mock_usdfc(
     }
 
     // Debug output
-    // println!("        Executing command: {}", cast_cmd);
+    // println!("Executing command: {}", cast_cmd);
 
-    let output = Command::new("docker")
-        .args([
+    let key = format!("usdfc_transfer_{}", description.replace(" ", "_"));
+    let output = run_and_log_command(
+        "docker",
+        &[
             "run",
             "--rm",
             "--network",
@@ -50,12 +54,14 @@ pub fn transfer_mock_usdfc(
             "bash",
             "-c",
             &cast_cmd,
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        tracing::error!("   Transfer failed");
+        tracing::error!(" Transfer failed");
         return Err(format!("Failed to transfer MockUSDFC: {}", stderr).into());
     }
 
@@ -64,14 +70,17 @@ pub fn transfer_mock_usdfc(
 
 /// Check the MockUSDFC balance of an address
 pub fn check_mock_usdfc_balance(
+    context: &SetupContext,
     eth_address: &str,
     token_address: &str,
     lotus_rpc_url: &str,
 ) -> Result<U256, Box<dyn Error>> {
     // info!("Checking MockUSDFC balance for {}...", eth_address);
 
-    let output = Command::new("docker")
-        .args([
+    let key = format!("usdfc_balance_check_{}", eth_address);
+    let output = run_and_log_command(
+        "docker",
+        &[
             "run",
             "--rm",
             "--network",
@@ -92,8 +101,10 @@ pub fn check_mock_usdfc_balance(
                  'balanceOf(address)' {}",
                 token_address, lotus_rpc_url, eth_address
             ),
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
     if !output.status.success() {
         return Err(format!(

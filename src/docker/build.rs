@@ -22,7 +22,7 @@ pub fn build_image_from_embedded(name: &str) -> Result<(), Box<dyn std::error::E
 
     if image_exists(&image_tag)? {
         info!(
-            "    Docker image {} already exists, skipping build",
+            "Docker image {} already exists, skipping build",
             image_tag
         );
     } else {
@@ -54,7 +54,7 @@ pub fn perform_build_from_embedded(
 /// Print build information for standard image.
 fn print_build_info(_name: &str, image_tag: &str) {
     info!(
-        "    Building Docker image: {} from embedded Dockerfile",
+        "Building Docker image: {} from embedded Dockerfile",
         image_tag
     );
 }
@@ -109,7 +109,7 @@ pub fn build_yugabyte_image(name: &str) -> Result<(), Box<dyn std::error::Error>
 
     if image_exists(&image_tag)? {
         info!(
-            "    Docker image {} already exists, skipping build",
+            "Docker image {} already exists, skipping build",
             image_tag
         );
         return Ok(());
@@ -162,7 +162,7 @@ fn perform_yugabyte_build(name: &str, image_tag: &str) -> Result<(), Box<dyn std
 /// Print build information for YugabyteDB image.
 fn print_yugabyte_build_info(image_tag: &str, artifacts_dir: &Path) {
     info!(
-        "    Building Docker image: {} from embedded Dockerfile (Yugabyte)",
+        "Building Docker image: {} from embedded Dockerfile (Yugabyte)",
         image_tag
     );
     info!("Using build context: {}", artifacts_dir.display());

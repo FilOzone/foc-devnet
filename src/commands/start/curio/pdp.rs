@@ -5,9 +5,9 @@
 use super::super::step::SetupContext;
 use super::constants::{CURIO_WEB_RPC_PORT, PDP_KEY_IMPORT_WAIT_SECS};
 use crate::commands::init::keys::KeyInfo;
+use crate::docker::command_logger::run_and_log_command;
 use std::error::Error;
 use std::fs;
-use std::process::Command;
 use std::thread;
 use std::time::Duration;
 use tracing::info;
@@ -27,7 +27,7 @@ pub fn import_pdp_key(context: &SetupContext, sp_index: usize) -> Result<(), Box
     let (private_key, expected_eth_address) = get_pdp_sp_credentials(&pdp_sp_name)?;
 
     // Import key via JSON-RPC
-    let returned_address = import_key_via_rpc(&container_name, &private_key)?;
+    let returned_address = import_key_via_rpc(context, &container_name, &private_key)?;
 
     // Verify the returned address matches expected
     if returned_address.to_lowercase() != expected_eth_address.to_lowercase() {
@@ -39,7 +39,7 @@ pub fn import_pdp_key(context: &SetupContext, sp_index: usize) -> Result<(), Box
     }
 
     info!(
-        "    PDP key imported and verified for {} ({})",
+        "PDP key imported and verified for {} ({})",
         pdp_sp_name, returned_address
     );
 
@@ -48,7 +48,7 @@ pub fn import_pdp_key(context: &SetupContext, sp_index: usize) -> Result<(), Box
 
 /// Get PDP SP credentials from addresses.json
 fn get_pdp_sp_credentials(pdp_sp_name: &str) -> Result<(String, String), Box<dyn Error>> {
-    let state_file = crate::paths::foc_localnet_state().join("addresses.json");
+    let state_file = crate::paths::foc_localnet_keys().join("addresses.json");
     if !state_file.exists() {
         return Err(format!("State addresses file not found: {}", state_file.display()).into());
     }
@@ -73,7 +73,7 @@ fn get_pdp_sp_credentials(pdp_sp_name: &str) -> Result<(String, String), Box<dyn
 /// Import PDP key via Curio Web RPC API
 ///
 /// Returns the Ethereum address from the response
-fn import_key_via_rpc(container_name: &str, private_key: &str) -> Result<String, Box<dyn Error>> {
+fn import_key_via_rpc(context: &SetupContext, container_name: &str, private_key: &str) -> Result<String, Box<dyn Error>> {
     // Construct JSON-RPC payload
     let payload = format!(
         r#"{{"jsonrpc":"2.0","method":"CurioWeb.ImportPDPKey","params":["{}"],"id":1}}"#,
@@ -81,8 +81,10 @@ fn import_key_via_rpc(container_name: &str, private_key: &str) -> Result<String,
     );
 
     // Call via curl inside container
-    let output = Command::new("docker")
-        .args([
+    let key = format!("curio_pdp_import_key_{}", container_name);
+    let output = run_and_log_command(
+        "docker",
+        &[
             "exec",
             container_name,
             "curl",
@@ -94,8 +96,10 @@ fn import_key_via_rpc(container_name: &str, private_key: &str) -> Result<String,
             "-d",
             &payload,
             &format!("http://localhost:{}/api/webrpc/v0", CURIO_WEB_RPC_PORT),
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
     if !output.status.success() {
         return Err(format!(

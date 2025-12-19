@@ -9,7 +9,7 @@ mod lotus_miner;
 mod lotus_utils;
 mod multicall3_deploy;
 mod pdp_service_provider;
-mod step;
+pub mod step;
 mod usdfc_deploy;
 mod usdfc_funding;
 mod yugabyte;

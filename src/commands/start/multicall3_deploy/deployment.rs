@@ -5,10 +5,10 @@
 use super::key_management;
 use super::prerequisites::check_required_addresses;
 use crate::commands::start::lotus_utils::get_lotus_rpc_url;
+use crate::docker::command_logger::run_and_log_command_strings;
 use crate::paths::foc_localnet_multicall3_repo;
 use crossterm::style::Stylize;
 use std::error::Error;
-use std::process::Command;
 use tracing::{error, info};
 
 /// Deploy Multicall3 using forge create
@@ -16,6 +16,7 @@ pub fn deploy_multicall3(
     private_key: &str,
     lotus_rpc_url: &str,
     run_id: &str,
+    context: &super::super::step::SetupContext,
 ) -> Result<String, Box<dyn Error>> {
     info!("Deploying Multicall3 contract...");
 
@@ -51,22 +52,30 @@ pub fn deploy_multicall3(
         lotus_rpc_url, private_key
     );
 
-    let output = Command::new("docker")
-        .args([
-            "run",
-            "--rm",
-            "--name",
-            &format!("foc-{}-multicall3-deploy", run_id),
-            "--network",
-            "host", // Use host network to access Lotus RPC on dynamic port
-            "-v",
-            &format!("{}:/workspace", multicall3_repo.display()),
-            "foc-builder",
-            "bash",
-            "-c",
-            &deploy_cmd,
-        ])
-        .output()?;
+    let container_name = format!("foc-{}-multicall3-deploy", run_id);
+    let volume_mount = format!("{}:/workspace", multicall3_repo.display());
+    let args: Vec<String> = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "--name".to_string(),
+        container_name,
+        "--network".to_string(),
+        "host".to_string(), // Use host network to access Lotus RPC on dynamic port
+        "-v".to_string(),
+        volume_mount,
+        "foc-builder".to_string(),
+        "bash".to_string(),
+        "-c".to_string(),
+        deploy_cmd,
+    ];
+
+    let key = format!("multicall3_deploy_{}", run_id);
+    let output = run_and_log_command_strings(
+        "docker",
+        &args,
+        context,
+        &key,
+    )?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -80,11 +89,11 @@ pub fn deploy_multicall3(
     }
 
     if !output.status.success() {
-        error!("   ✗ Deployment failed");
+        error!(" ✗ Deployment failed");
         if !stderr.is_empty() {
-            error!("   Error output:");
+            error!(" Error output:");
             for line in stderr.lines() {
-                error!("     {}", line);
+                error!(" {}", line);
             }
         }
         return Err("Multicall3 deployment failed".into());
@@ -117,14 +126,14 @@ pub fn perform_deployment(
     let private_key = key_management::get_deployer_private_key(&multicall3_deployer)?;
 
     info!(
-        "      Deployer ETH address: {}",
+        "Deployer ETH address: {}",
         multicall3_deployer_eth.cyan()
     );
 
     // Deploy Multicall3 contract
     let lotus_rpc_url = get_lotus_rpc_url(context)?;
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
-    let multicall3_address = deploy_multicall3(&private_key, &lotus_rpc_url, run_id)?;
+    let multicall3_address = deploy_multicall3(&private_key, &lotus_rpc_url, run_id, context)?;
 
     // Store in context
     context.set("multicall3_address", &multicall3_address);
@@ -147,7 +156,7 @@ pub fn perform_deployment(
     addresses_struct.save(run_id)?;
 
     // Verify the deployment
-    super::verification::verify_multicall3(&private_key, &multicall3_address, &lotus_rpc_url)?;
+    super::verification::verify_multicall3(&private_key, &multicall3_address, &lotus_rpc_url, context)?;
 
     info!(
         "✓ Multicall3 contract deployed successfully! Address: {}",

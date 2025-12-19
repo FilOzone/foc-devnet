@@ -40,7 +40,7 @@ pub fn add_signers_to_genesis(run_id: &str) -> Result<(), Box<dyn std::error::Er
     }
     info!("Using signers:");
     for (i, addr) in addresses.iter().enumerate() {
-        info!("Key {}: {}", i + 1, addr);
+        info!("Key {}: {}...{}", i + 1, &addr[..6], &addr[addr.len() - 4..]);
     }
 
     // Run lotus-seed genesis set-signers in builder container

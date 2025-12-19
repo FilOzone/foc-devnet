@@ -198,7 +198,7 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
                 }
             } else {
                 info!(
-                    "        Skipping line that doesn't split into exactly 2 parts: {}",
+                    "Skipping line that doesn't split into exactly 2 parts: {}",
                     line
                 );
             }
@@ -274,7 +274,7 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
         info!("Deployment may have failed or output format changed");
     } else {
         info!(
-            "        Successfully parsed {} contracts from output",
+            "Successfully parsed {} contracts from output",
             addresses.len()
         );
     }

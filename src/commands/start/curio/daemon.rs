@@ -6,6 +6,7 @@ use super::super::step::SetupContext;
 use super::db_setup::{build_db_env_vars, build_foc_contract_env_vars, build_lotus_env_vars};
 use super::CurioStep;
 use crate::commands::start::curio::constants::CURIO_LAYERS;
+use crate::docker::command_logger::run_and_log_command_strings;
 use crate::docker::network::{lotus_network_name, pdp_miner_network_name};
 use crate::docker::{container_exists, stop_and_remove_container};
 use crate::paths::{
@@ -14,7 +15,6 @@ use crate::paths::{
 };
 use std::error::Error;
 use std::fs;
-use std::process::Command;
 use tracing::info;
 
 /// Start a single Curio PDP SP daemon.
@@ -87,7 +87,8 @@ fn start_curio_container(
     docker_args.push(CURIO_LAYERS.to_string());
 
     // Execute docker run
-    let output = Command::new("docker").args(&docker_args).output()?;
+    let key = format!("curio_daemon_start_{}", container_name);
+    let output = run_and_log_command_strings("docker", &docker_args, context, &key)?;
 
     if !output.status.success() {
         return Err(format!(
@@ -99,9 +100,14 @@ fn start_curio_container(
 
     // Connect to filecoin network
     let lotus_network = lotus_network_name(context.run_id().ok_or("Run ID not found in context")?);
-    let _ = Command::new("docker")
-        .args(["network", "connect", &lotus_network, container_name])
-        .output(); // Ignore errors if already connected
+    let network_args = vec![
+        "network".to_string(),
+        "connect".to_string(),
+        lotus_network.clone(),
+        container_name.to_string(),
+    ];
+    let key = format!("curio_network_connect_{}", container_name);
+    let _ = run_and_log_command_strings("docker", &network_args, context, &key); // Ignore errors if already connected
 
     info!("Container created");
 

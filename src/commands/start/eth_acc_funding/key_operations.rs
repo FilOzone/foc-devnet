@@ -6,10 +6,10 @@
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 use tracing::info;
 
 use crate::commands::start::step::SetupContext;
+use crate::docker::command_logger::run_and_log_command;
 use crate::docker::containers::lotus_container_name;
 use crate::paths::foc_localnet_lotus_keys;
 
@@ -43,16 +43,20 @@ pub fn import_faucet_key(
         .map_err(|_| "Failed to get relative path for hex key file")?;
     let container_path = format!("/keys/{}", relative_path.display());
 
-    let output = Command::new("docker")
-        .args([
+    let key = format!("eth_acc_import_key_{}", container_name);
+    let output = run_and_log_command(
+        "docker",
+        &[
             "exec",
             &container_name,
             "/usr/local/bin/lotus-bins/lotus",
             "wallet",
             "import",
             &container_path,
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
     // Clean up the temp file
     let _ = fs::remove_file(&temp_key_file);

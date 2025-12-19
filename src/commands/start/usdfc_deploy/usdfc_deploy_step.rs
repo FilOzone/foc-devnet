@@ -47,7 +47,7 @@ impl Step for USDFCDeployStep {
         let (mockusdfc_deployer, mockusdfc_deployer_eth) = check_required_addresses(context)?;
         info!("✓ DEPLOYER_MOCKUSDFC address: {}", mockusdfc_deployer);
         info!(
-            "    ✓ DEPLOYER_MOCKUSDFC Ethereum address: {}",
+            "✓ DEPLOYER_MOCKUSDFC Ethereum address: {}",
             mockusdfc_deployer_eth
         );
 

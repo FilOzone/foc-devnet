@@ -1,7 +1,7 @@
 use super::step::{SetupContext, Step};
+use crate::docker::command_logger::run_and_log_command;
 use std::error::Error;
 use std::path::PathBuf;
-use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -25,6 +25,7 @@ fn spawn_yugabyte_instance(
     ports: &[u16],
     _volumes_dir: &PathBuf,
     run_id: &str,
+    context: &SetupContext,
 ) -> Result<(), Box<dyn Error>> {
     // Generate container name with instance suffix
     // Format: foc-{run_id}-yugabyte-{instance_index} (always indexed for consistency)
@@ -38,7 +39,7 @@ fn spawn_yugabyte_instance(
     // Stop and remove existing container if it exists
     if container_exists(&container_name)? {
         warn!(
-            "    ⚠ Removing existing Yugabyte container {} ...",
+            "⚠ Removing existing Yugabyte container {} ...",
             if total_instances == 1 {
                 "".to_string()
             } else {
@@ -105,7 +106,8 @@ fn spawn_yugabyte_instance(
     ]);
 
     // Run the container
-    let output = Command::new("docker").args(&docker_args).output()?;
+    let key = format!("yugabyte_start_sp_{}", sp_idx);
+    let output = run_and_log_command("docker", &docker_args, context, &key)?;
 
     if !output.status.success() {
         return Err(format!(
@@ -119,7 +121,10 @@ fn spawn_yugabyte_instance(
 }
 
 /// Verify PostgreSQL connectivity for a specific Yugabyte instance.
-fn verify_postgres_connection_for_instance(container_name: &str) -> Result<(), Box<dyn Error>> {
+fn verify_postgres_connection_for_instance(
+    container_name: &str,
+    context: &SetupContext,
+) -> Result<(), Box<dyn Error>> {
     const YUGABYTE_YSQL_CONTAINER_PORT: &str = "5433";
     const MAX_RETRIES: u32 = 30;
     const RETRY_DELAY_SECS: u64 = 2;
@@ -127,8 +132,10 @@ fn verify_postgres_connection_for_instance(container_name: &str) -> Result<(), B
     // YugabyteDB YSQL service takes time to initialize after the container starts
     // Retry connection attempts with delays
     for attempt in 1..=MAX_RETRIES {
-        let output = Command::new("docker")
-            .args([
+        let key = format!("yugabyte_verify_{}_{}", container_name, attempt);
+        let output = run_and_log_command(
+            "docker",
+            &[
                 "exec",
                 "-e",
                 "PGPASSWORD=yugabyte",
@@ -144,8 +151,10 @@ fn verify_postgres_connection_for_instance(container_name: &str) -> Result<(), B
                 "yugabyte",
                 "-c",
                 "SELECT 1;",
-            ])
-            .output()?;
+            ],
+            context,
+            &key,
+        )?;
 
         if output.status.success() {
             return Ok(());
@@ -239,7 +248,7 @@ impl Step for YugabyteStep {
             .unwrap_or(1);
 
         info!(
-            "    Checking port availability for {} Yugabyte instance(s)...",
+            "Checking port availability for {} Yugabyte instance(s)...",
             sp_count
         );
 
@@ -327,13 +336,14 @@ impl Step for YugabyteStep {
             let volumes_dir = self.volumes_dir.clone();
             let run_id = context.run_id().ok_or("Run ID not found")?.to_string();
             let errors_clone = Arc::clone(&errors);
+            let context_clone = context.clone();
 
             let handle = thread::spawn(move || {
-                match spawn_yugabyte_instance(sp_idx, num_instances, &ports, &volumes_dir, &run_id)
+                match spawn_yugabyte_instance(sp_idx, num_instances, &ports, &volumes_dir, &run_id, &context_clone)
                 {
                     Ok(_) => {
                         info!(
-                            "    Yugabyte instance {} started successfully",
+                            "Yugabyte instance {} started successfully",
                             if num_instances == 1 {
                                 "".to_string()
                             } else {
@@ -404,7 +414,7 @@ impl Step for YugabyteStep {
                     .parse()?;
 
                 info!(
-                    "      {} - Checking port {} ({})...",
+                    "{} - Checking port {} ({})...",
                     container_name, port, description
                 );
                 if let Err(e) = wait_for_port(port, 30) {
@@ -414,12 +424,12 @@ impl Step for YugabyteStep {
 
             // Verify PostgreSQL connection for this instance
             info!(
-                "    Verifying PostgreSQL connectivity for {}...",
+                "Verifying PostgreSQL connectivity for {}...",
                 container_name
             );
             thread::sleep(Duration::from_secs(2));
 
-            if let Err(e) = verify_postgres_connection_for_instance(&container_name) {
+            if let Err(e) = verify_postgres_connection_for_instance(&container_name, context) {
                 return Err(format!(
                     "PostgreSQL verification failed for {}: {}",
                     container_name, e
@@ -431,7 +441,7 @@ impl Step for YugabyteStep {
         }
 
         info!(
-            "    ✓ All {} Yugabyte instance(s) verified successfully",
+            "✓ All {} Yugabyte instance(s) verified successfully",
             num_instances
         );
 
@@ -449,7 +459,7 @@ impl Step for YugabyteStep {
                 .unwrap()
                 .parse()?;
             info!(
-                "      Instance {} - Web UI: http://localhost:{}, YSQL: localhost:{}",
+                "Instance {} - Web UI: http://localhost:{}, YSQL: localhost:{}",
                 instance_index, web_ui_port, ysql_port
             );
         }

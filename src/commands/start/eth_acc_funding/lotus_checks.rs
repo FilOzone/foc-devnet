@@ -4,10 +4,10 @@
 
 use std::error::Error;
 use std::fs;
-use std::process::Command;
 
 use crate::commands::start::eth_acc_funding::constants::GLOBAL_FIL_FAUCET_KEY;
 use crate::commands::start::step::SetupContext;
+use crate::docker::command_logger::run_and_log_command;
 use crate::docker::containers::lotus_container_name;
 use crate::paths::foc_localnet_lotus_keys;
 
@@ -16,15 +16,19 @@ pub fn check_lotus_running(context: &SetupContext) -> Result<(), Box<dyn Error>>
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let container_name = lotus_container_name(run_id);
 
-    let output = Command::new("docker")
-        .args([
+    let key = format!("eth_acc_lotus_check_{}", container_name);
+    let output = run_and_log_command(
+        "docker",
+        &[
             "ps",
             "--filter",
             &format!("name=^{}$", container_name),
             "--format",
             "{{.Names}}",
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
     if !String::from_utf8_lossy(&output.stdout)
         .trim()

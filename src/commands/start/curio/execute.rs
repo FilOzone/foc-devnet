@@ -28,7 +28,7 @@ pub fn setup_all_curio_sps(context: &SetupContext, step: &CurioStep) -> Result<(
     }
 
     info!(
-        "  All {} Curio PDP SP(s) setup successfully",
+        "All {} Curio PDP SP(s) setup successfully",
         step.active_sp_count()
     );
 
@@ -46,6 +46,9 @@ fn setup_single_curio_sp(
 
     // Step 2: Start Curio daemon
     daemon::start_curio_daemon(context, step, sp_index)?;
+
+    // Wait a bit to ensure daemon is fully started before proceeding
+    std::thread::sleep(std::time::Duration::from_secs(5));
 
     // Step 3: Attach storage locations
     storage::attach_storage_locations(context, sp_index)?;

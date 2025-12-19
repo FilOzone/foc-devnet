@@ -85,7 +85,7 @@ pub fn add_foc_accounts(run_id: &str) -> Result<(), Box<dyn std::error::Error>> 
                         }
                     });
                     accounts.push(account);
-                    info!("✓ Added {}: {}", key.name, fil_addr);
+                    info!("✓ Added {}", key.name);
                 }
             }
         }

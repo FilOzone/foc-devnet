@@ -9,13 +9,13 @@ use super::constants::{DB_SETUP_WAIT_SECS, PDP_LAYER_CONFIG_TEMPLATE};
 use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
 use crate::commands::start::genesis::constants::PDP_SP_MINER_ID_START;
 use crate::commands::start::lotus_utils::{build_fullnode_api_info, read_lotus_token};
+use crate::docker::command_logger::run_and_log_command;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::core::docker_command;
 use crate::docker::network::{lotus_network_name, pdp_miner_network_name};
 use crate::paths::foc_localnet_bin;
 use crate::paths::foc_localnet_docker_volumes;
 use std::error::Error;
-use std::process::Command;
 use std::thread;
 use std::time::Duration;
 use tracing::info;
@@ -190,7 +190,9 @@ fn create_base_cluster(
     );
     docker_args.extend_from_slice(&["foc-curio", "/bin/bash", "-c", &bash_cmd]);
 
-    let output = Command::new("docker").args(&docker_args).output()?;
+    let docker_args_str: Vec<&str> = docker_args.iter().map(|s| s.as_ref()).collect();
+    let key = format!("curio_new_cluster_sp_{}", sp_index);
+    let output = run_and_log_command("docker", &docker_args_str, context, &key)?;
 
     if !output.status.success() {
         // Clean up container on failure
@@ -294,7 +296,9 @@ fn create_pdp_layer(context: &SetupContext, sp_index: usize) -> Result<(), Box<d
 
     docker_args.extend_from_slice(&["foc-curio", "/bin/bash", "-c", &bash_cmd]);
 
-    let output = Command::new("docker").args(&docker_args).output()?;
+    let docker_args_str: Vec<&str> = docker_args.iter().map(|s| s.as_ref()).collect();
+    let key = format!("curio_pdp_layer_config_sp_{}", sp_index);
+    let output = run_and_log_command("docker", &docker_args_str, context, &key)?;
 
     if !output.status.success() {
         // Clean up container on failure

@@ -25,8 +25,7 @@ pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
     // Check if parameters already exist and are valid
     if params_dir.exists() && validate_proof_parameters(&params_dir)? {
         info!(
-            "  ✓ Proof parameters already exist at {}",
-            params_dir.display()
+            "✓ Proof parameters already exist locally",
         );
         return Ok(());
     }
@@ -44,7 +43,7 @@ pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
     let pb = ProgressBar::new_spinner();
     pb.set_style(
         ProgressStyle::default_spinner()
-            .template("    {spinner:.cyan} {msg}")
+            .template("{spinner:.cyan} {msg}")
             .unwrap()
             .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ "),
     );

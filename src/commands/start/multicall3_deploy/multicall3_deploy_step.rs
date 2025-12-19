@@ -44,7 +44,7 @@ impl Step for MultiCall3DeployStep {
         let (multicall3_deployer, multicall3_deployer_eth) = check_required_addresses(context)?;
         info!("✓ DEPLOYER_MULTICALL3 address: {}", multicall3_deployer);
         info!(
-            "    ✓ DEPLOYER_MULTICALL3 Ethereum address: {}",
+            "✓ DEPLOYER_MULTICALL3 Ethereum address: {}",
             multicall3_deployer_eth
         );
 

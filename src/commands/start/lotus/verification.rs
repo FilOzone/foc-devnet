@@ -4,11 +4,11 @@
 //! started and all services are accessible.
 
 use super::super::step::SetupContext;
+use crate::docker::command_logger::run_and_log_command;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::wait_for_port;
 use std::error::Error;
 use std::path::PathBuf;
-use std::process::Command;
 use std::thread;
 use std::time::Duration;
 use tracing::{info, warn};
@@ -30,14 +30,18 @@ pub fn check_lotus_api(context: &SetupContext) -> Result<(), Box<dyn Error>> {
     let container_name = get_container_name(context)?;
 
     // Try to execute a simple lotus command via docker exec
-    let output = Command::new("docker")
-        .args([
+    let key = format!("lotus_api_check_{}", container_name);
+    let output = run_and_log_command(
+        "docker",
+        &[
             "exec",
             &container_name,
             "/usr/local/bin/lotus-bins/lotus",
             "version",
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
     if !output.status.success() {
         return Err(format!(
@@ -118,8 +122,10 @@ pub fn check_ethereum_rpc(context: &SetupContext) -> Result<(), Box<dyn Error>> 
 
     // Test eth_blockNumber via docker exec
     // This is a simple, safe RPC call that should work if FEVM is enabled
-    let output = Command::new("docker")
-        .args([
+    let key = format!("lotus_fevm_check_{}", container_name);
+    let output = run_and_log_command(
+        "docker",
+        &[
             "exec",
             &container_name,
             "/bin/bash",
@@ -130,8 +136,10 @@ pub fn check_ethereum_rpc(context: &SetupContext) -> Result<(), Box<dyn Error>> 
                 http://localhost:{}/rpc/v1",
                 lotus_api_port
             ),
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
     if !output.status.success() {
         return Err(format!(
@@ -163,7 +171,7 @@ pub fn verify_api_connectivity(context: &SetupContext) -> Result<(), Box<dyn Err
         Err(e) => {
             warn!("⚠ Lotus API verification failed: {}", e);
             info!(
-                "    Note: Lotus may still be initializing. This is usually not a critical error."
+                "Note: Lotus may still be initializing. This is usually not a critical error."
             );
         }
     }
@@ -177,7 +185,7 @@ pub fn verify_api_connectivity(context: &SetupContext) -> Result<(), Box<dyn Err
         Err(e) => {
             warn!("⚠ Ethereum RPC verification failed: {}", e);
             info!(
-                "    Note: This may indicate FEVM is not fully initialized. Check logs if needed."
+                "Note: This may indicate FEVM is not fully initialized. Check logs if needed."
             );
         }
     }

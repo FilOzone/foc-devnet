@@ -131,6 +131,43 @@ impl SetupContext {
         state.keys().filter(|k| predicate(k)).cloned().collect()
     }
 
+    /// Save a command that was executed (for audit/debugging purposes)
+    ///
+    /// Stores the command in two places:
+    /// 1. Under the specified key for easy retrieval
+    /// 2. Appends to a cumulative command history list
+    ///
+    /// # Arguments
+    /// * `key` - The key to store the command under (free-form, e.g., "lotus_start", "deploy_mockusdfc")
+    /// * `command_str` - The formatted command string (e.g., "docker run -it ubuntu")
+    ///
+    /// # Example
+    /// ```
+    /// context.save_command("lotus_container_create", "docker run -d foc-lotus");
+    /// // Stored as: "lotus_container_create" = "docker run -d foc-lotus"
+    /// // Also appended to: "command_history" list
+    /// ```
+    pub fn save_command(&self, key: &str, command_str: &str) {
+        // Store under the specific key
+        self.set(key, command_str);
+        
+        // Also append to cumulative command history
+        let history_key = "command_history";
+        let mut state = self.state.lock().expect("Failed to lock state");
+        let history = state.get(history_key).cloned().unwrap_or_default();
+        let updated_history = if history.is_empty() {
+            command_str.to_string()
+        } else {
+            format!("{}\n{}", history, command_str)
+        };
+        state.insert(history_key.to_string(), updated_history);
+    }
+    
+    /// Get the cumulative command history as a newline-separated string
+    pub fn get_command_history(&self) -> String {
+        self.get("command_history").unwrap_or_default()
+    }
+
     /// Get the run ID
     pub fn run_id(&self) -> Option<&str> {
         self.run_id.as_deref()
@@ -221,7 +258,7 @@ pub trait Step: Send + Sync {
         let start_time = Instant::now();
         let step_name = self.name();
 
-        info!("=== Step: {} ===", step_name);
+        info!(">>> Step: {}", step_name);
 
         info!("Running pre-execution checks...");
         self.pre_execute(context)?;
@@ -500,7 +537,7 @@ fn execute_step_with_timing(
 
     let duration = start_time.elapsed();
     info!(
-        "  [{}] Completed in {:.2}s",
+        "[{}] Completed in {:.2}s",
         step_name,
         duration.as_secs_f64()
     );

@@ -86,7 +86,7 @@ pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
     let docker_volumes_size = get_directory_size(&docker_volumes_dir)?;
     table.add_row(
         Row::new()
-            .with_cell("  └─ Docker Volumes")
+            .with_cell("└─ Docker Volumes")
             .with_ansi_cell(format_size(docker_volumes_size))
             .with_ansi_cell(docker_volumes_dir.display().to_string().dim()),
     );
@@ -96,7 +96,7 @@ pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
     let other_artifacts_path = artifacts_dir.display().to_string();
     table.add_row(
         Row::new()
-            .with_cell("  └─ Other Artifacts")
+            .with_cell("└─ Other Artifacts")
             .with_ansi_cell(format_size(other_artifacts_size))
             .with_ansi_cell(format!("{}/(other files)", other_artifacts_path).dim()),
     );

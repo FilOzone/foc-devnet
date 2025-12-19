@@ -64,7 +64,7 @@ fn ensure_bls_key_from_info(
     // Check if key already exists
     if key_dir.exists() && key_dir.read_dir()?.next().is_some() {
         info!(
-            "  ✓ BLS {} key {} already exists at {}",
+            "✓ BLS {} key {} already exists at {}",
             key_type,
             key_num,
             key_dir.display()

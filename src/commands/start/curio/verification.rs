@@ -192,7 +192,7 @@ fn download_piece(
 
         if attempt < 5 {
             info!(
-                "      Download attempt {} failed with status: {}, retrying...",
+                "Download attempt {} failed with status: {}, retrying...",
                 attempt,
                 response.status()
             );

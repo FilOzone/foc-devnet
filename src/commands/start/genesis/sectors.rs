@@ -50,7 +50,7 @@ pub fn ensure_presealed_sectors(
     if all_exist {
         let total_miners = 1 + active_pdp_sp_count;
         info!(
-            "  ✓ Pre-sealed sectors already exist for all {} miners",
+            "✓ Pre-sealed sectors already exist for all {} miners",
             total_miners
         );
         return Ok(());
@@ -58,7 +58,7 @@ pub fn ensure_presealed_sectors(
 
     let total_miners = 1 + active_pdp_sp_count;
     info!(
-        "  ⚙ Pre-sealing {} sectors (size: {}) for {} miners...",
+        "⚙ Pre-sealing {} sectors (size: {}) for {} miners...",
         super::constants::NUM_SECTORS,
         super::constants::SECTOR_SIZE,
         total_miners
@@ -89,7 +89,7 @@ pub fn ensure_presealed_sectors(
     }
 
     info!(
-        "  ✓ Sectors pre-sealed successfully for all {} miners",
+        "✓ Sectors pre-sealed successfully for all {} miners",
         total_miners
     );
     Ok(())

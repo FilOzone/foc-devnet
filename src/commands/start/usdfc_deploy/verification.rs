@@ -3,12 +3,14 @@
 //! This module handles the verification of deployed MockUSDFC contracts.
 
 use super::foundry_setup::get_mockusdfc_project_dir;
+use crate::commands::start::step::SetupContext;
+use crate::docker::command_logger::run_and_log_command;
 use std::error::Error;
-use std::process::Command;
 use tracing::{info, warn};
 
 /// Verify the deployed MockUSDFC contract
 pub fn verify_mock_usdfc(
+    context: &SetupContext,
     private_key: &str,
     contract_address: &str,
     lotus_rpc_url: &str,
@@ -33,8 +35,10 @@ pub fn verify_mock_usdfc(
         lotus_rpc_url, private_key, contract_address
     );
 
-    let output = Command::new("docker")
-        .args([
+    let key = format!("usdfc_verify_{}", run_id);
+    let output = run_and_log_command(
+        "docker",
+        &[
             "run",
             "--rm",
             "--network",
@@ -45,10 +49,12 @@ pub fn verify_mock_usdfc(
             "bash",
             "-c",
             &verify_cmd,
-        ])
-        .output()?;
+        ],
+        context,
+        &key,
+    )?;
 
-    let _stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     if !output.status.success() {

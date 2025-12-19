@@ -213,6 +213,7 @@ impl Step for PdpSpRegistrationStep {
             let deployer_foc_eth_address = deployer_foc_eth_address.clone();
             let errors_clone = Arc::clone(&errors);
             let provider_ids_clone = Arc::clone(&provider_ids);
+            let context_clone = context.clone();
 
             let handle = thread::spawn(move || {
                 let service_url = format!("http://localhost:{}", pdp_port);
@@ -226,6 +227,7 @@ impl Step for PdpSpRegistrationStep {
                     &lotus_rpc_url,
                     &service_url,
                     sp_index,
+                    &context_clone,
                 ) {
                     Ok(provider_id) => {
                         // Only approve if within approved count
@@ -237,6 +239,7 @@ impl Step for PdpSpRegistrationStep {
                                 &deployer_foc_address,
                                 &deployer_foc_eth_address,
                                 &lotus_rpc_url,
+                                &context_clone,
                             ) {
                                 errors_clone
                                     .lock()
@@ -248,7 +251,7 @@ impl Step for PdpSpRegistrationStep {
                                     .unwrap()
                                     .push((sp_index, provider_id));
                                 info!(
-                                    "  PDP SP {} registered and approved (Provider ID: {}, URL: {})",
+                                    "PDP SP {} registered and approved (Provider ID: {}, URL: {})",
                                     sp_index,
                                     provider_id,
                                     service_url
@@ -261,7 +264,7 @@ impl Step for PdpSpRegistrationStep {
                                 .unwrap()
                                 .push((sp_index, provider_id));
                             info!(
-                                "  PDP SP {} registered (not approved, Provider ID: {}, URL: {})",
+                                "PDP SP {} registered (not approved, Provider ID: {}, URL: {})",
                                 sp_index, provider_id, service_url
                             );
                         }
@@ -310,7 +313,7 @@ impl Step for PdpSpRegistrationStep {
         }
 
         info!(
-            "  All {} PDP SP(s) registered successfully",
+            "All {} PDP SP(s) registered successfully",
             self.active_sp_count
         );
 
@@ -348,6 +351,7 @@ impl Step for PdpSpRegistrationStep {
                 &registry_address,
                 &info.provider_address,
                 &lotus_rpc_url,
+                context,
             )?;
             if onchain_provider_id != info.provider_id {
                 return Err(format!(
@@ -365,6 +369,7 @@ impl Step for PdpSpRegistrationStep {
                     &state_view_address,
                     info.provider_id,
                     &lotus_rpc_url,
+                    context,
                 )?;
                 if !is_approved {
                     return Err(format!(
@@ -379,7 +384,7 @@ impl Step for PdpSpRegistrationStep {
 
         // Verify there's exactly the expected number of providers on-chain
         let provider_count =
-            registration::verify_provider_count(run_id, &registry_address, &lotus_rpc_url)?;
+            registration::verify_provider_count(run_id, &registry_address, &lotus_rpc_url, context)?;
         if provider_count != self.active_sp_count as u64 {
             return Err(format!(
                 "Expected exactly {} providers on-chain, found {}",

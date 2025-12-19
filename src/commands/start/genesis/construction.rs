@@ -37,7 +37,7 @@ pub fn construct_genesis(
     // Check if genesis file already exists - if so, skip all construction
     if genesis_file_path.exists() {
         info!(
-            "  ✓ Genesis file already exists at {}",
+            "✓ Genesis file already exists at {}",
             genesis_file_path.display()
         );
         info!("✓ Genesis construction complete");
