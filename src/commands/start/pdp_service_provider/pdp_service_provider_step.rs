@@ -8,8 +8,6 @@ use crate::docker::containers::lotus_container_name;
 use crate::docker::core::container_is_running;
 use std::error::Error;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-use std::thread;
 use tracing::info;
 
 /// Step for registering PDP service provider
@@ -198,112 +196,78 @@ impl Step for PdpSpRegistrationStep {
             ));
         }
 
-        // Register all SPs in parallel
-        let errors: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
-        let provider_ids: Arc<Mutex<Vec<(usize, u64)>>> = Arc::new(Mutex::new(Vec::new()));
-        let mut handles = Vec::new();
+        // Register all SPs sequentially
+        let mut errors = Vec::new();
+        let mut provider_ids = Vec::new();
 
         for (sp_index, sp_address, sp_eth_address, pdp_port, should_approve) in sp_data {
-            let run_id = run_id.to_string();
-            let registry_address = registry_address.clone();
-            let mock_usdfc_address = mock_usdfc_address.clone();
-            let lotus_rpc_url = lotus_rpc_url.clone();
-            let warm_storage_address = warm_storage_address.clone();
-            let deployer_foc_address = deployer_foc_address.clone();
-            let deployer_foc_eth_address = deployer_foc_eth_address.clone();
-            let errors_clone = Arc::clone(&errors);
-            let provider_ids_clone = Arc::clone(&provider_ids);
-            let context_clone = context.clone();
+            let service_url = format!("http://localhost:{}", pdp_port);
 
-            let handle = thread::spawn(move || {
-                let service_url = format!("http://localhost:{}", pdp_port);
-
-                match registration::register_single_provider(
-                    &run_id,
-                    &registry_address,
-                    &sp_address,
-                    &sp_eth_address,
-                    &mock_usdfc_address,
-                    &lotus_rpc_url,
-                    &service_url,
-                    sp_index,
-                    &context_clone,
-                ) {
-                    Ok(provider_id) => {
-                        // Only approve if within approved count
-                        if should_approve {
-                            if let Err(e) = registration::add_to_approved_list(
-                                &run_id,
-                                &warm_storage_address,
-                                provider_id,
-                                &deployer_foc_address,
-                                &deployer_foc_eth_address,
-                                &lotus_rpc_url,
-                                &context_clone,
-                            ) {
-                                errors_clone
-                                    .lock()
-                                    .unwrap()
-                                    .push(format!("SP {} approval failed: {}", sp_index, e));
-                            } else {
-                                provider_ids_clone
-                                    .lock()
-                                    .unwrap()
-                                    .push((sp_index, provider_id));
-                                info!(
-                                    "PDP SP {} registered and approved (Provider ID: {}, URL: {})",
-                                    sp_index, provider_id, service_url
-                                );
-                            }
+            match registration::register_single_provider(
+                run_id,
+                &registry_address,
+                &sp_address,
+                &sp_eth_address,
+                &mock_usdfc_address,
+                &lotus_rpc_url,
+                &service_url,
+                sp_index,
+                context,
+            ) {
+                Ok(provider_id) => {
+                    // Only approve if within approved count
+                    if should_approve {
+                        if let Err(e) = registration::add_to_approved_list(
+                            run_id,
+                            &warm_storage_address,
+                            provider_id,
+                            deployer_foc_address.as_str(),
+                            deployer_foc_eth_address.as_str(),
+                            &lotus_rpc_url,
+                            sp_index,
+                            context,
+                        ) {
+                            errors.push(format!("SP {} approval failed: {}", sp_index, e));
                         } else {
-                            // Registered but not approved
-                            provider_ids_clone
-                                .lock()
-                                .unwrap()
-                                .push((sp_index, provider_id));
+                            provider_ids.push((sp_index, provider_id));
                             info!(
-                                "PDP SP {} registered (not approved, Provider ID: {}, URL: {})",
+                                "PDP SP {} registered and approved (Provider ID: {}, URL: {})",
                                 sp_index, provider_id, service_url
                             );
                         }
-                    }
-                    Err(e) => {
-                        errors_clone
-                            .lock()
-                            .unwrap()
-                            .push(format!("SP {} registration failed: {}", sp_index, e));
+                    } else {
+                        // Registered but not approved
+                        provider_ids.push((sp_index, provider_id));
+                        info!(
+                            "PDP SP {} registered (not approved, Provider ID: {}, URL: {})",
+                            sp_index, provider_id, service_url
+                        );
                     }
                 }
-            });
-
-            handles.push(handle);
-        }
-
-        // Wait for all threads to complete
-        for handle in handles {
-            handle.join().map_err(|_| "Registration thread panicked")?;
+                Err(e) => {
+                    errors.push(format!("SP {} registration failed: {}", sp_index, e));
+                }
+            }
         }
 
         // Check for errors
-        let error_list = errors.lock().unwrap();
-        if !error_list.is_empty() {
+        if !errors.is_empty() {
             return Err(format!(
                 "Failed to register some providers:\n{}",
-                error_list.join("\n")
+                errors.join("\n")
             )
             .into());
         }
 
-        // Store first provider ID (for backward compatibility)
-        let provider_ids_list = provider_ids.lock().unwrap();
-        if let Some((sp_index, first_provider_id)) = provider_ids_list.first() {
+        // Store all provider IDs
+        for (sp_index, provider_id) in &provider_ids {
             let sp_key_prefix = format!("pdp_sp_{}", sp_index); // 1-indexed keys
             let sp_eth_address = context
                 .get(&format!("{}_eth_address", sp_key_prefix))
                 .ok_or("SP eth address not found")?;
 
             let info = ProviderIdInfo {
-                provider_id: *first_provider_id,
+                provider_id: *provider_id,
                 provider_address: sp_eth_address.clone(),
                 payee_address: sp_eth_address.clone(),
             };

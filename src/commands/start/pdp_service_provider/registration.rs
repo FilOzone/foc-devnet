@@ -1,5 +1,7 @@
 //! Provider registration contract interactions.
 
+use tracing::info;
+
 use super::constants::*;
 use crate::commands::start::step::SetupContext;
 use crate::constants::BUILDER_CONTAINER;
@@ -24,7 +26,7 @@ pub fn register_single_provider(
 
     let label = format!("PDP_SP_{}", sp_index);
 
-    println!("Registering {} in ServiceProviderRegistry...", label);
+    info!("Registering {} in ServiceProviderRegistry...", label);
 
     // Get private key for this PDP SP
     let pdp_sp_private_key =
@@ -62,7 +64,7 @@ pub fn register_single_provider(
         cap_values,
         registration_fee_wei,
         lotus_rpc_url,
-        pdp_sp_private_key
+        pdp_sp_private_key,
     );
 
     let args: Vec<String> = vec![
@@ -102,7 +104,7 @@ pub fn register_single_provider(
     let provider_id =
         query_provider_id(registry_address, pdp_sp_eth_address, lotus_rpc_url, context)?;
 
-    println!("✓ {} Provider ID: {}", label, provider_id);
+    info!("✓ {} Provider ID: {}", label, provider_id);
     Ok(provider_id)
 }
 
@@ -114,11 +116,12 @@ pub fn add_to_approved_list(
     deployer_foc_address: &str,
     _deployer_foc_eth_address: &str,
     lotus_rpc_url: &str,
+    _sp_index: usize,
     context: &SetupContext,
 ) -> Result<(), Box<dyn Error>> {
     let _ = run_id; // Not needed when using foc-builder
 
-    println!(
+    info!(
         "Adding provider {} to WarmStorage approved list...",
         provider_id
     );
@@ -163,11 +166,11 @@ pub fn add_to_approved_list(
     // Check if transaction was successful
     if stdout.contains("status               0") || stdout.contains("status               (failed)")
     {
-        println!("Transaction output:\n{}", stdout);
+        info!("Transaction output:\n{}", stdout);
         return Err("Add approved provider transaction failed (status 0). Check transaction logs for details.".into());
     }
 
-    println!("✓ Provider added to approved list");
+    info!("✓ Provider added to approved list");
     wait_for_confirmation();
 
     Ok(())
@@ -276,7 +279,7 @@ fn query_provider_id(
 
 /// Wait for transaction confirmation
 fn wait_for_confirmation() {
-    println!(
+    info!(
         "Waiting {} seconds for transaction confirmation...",
         TRANSACTION_CONFIRMATION_WAIT_SECS
     );
