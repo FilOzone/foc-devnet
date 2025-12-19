@@ -132,7 +132,7 @@ fn create_base_cluster(
     sp_index: usize,
     miner_id: &str,
 ) -> Result<(), Box<dyn Error>> {
-    info!("Creating base cluster for miner {}...", miner_id);
+    info!("Running DB migrations and setting up base layer for miner {}...", miner_id);
 
     let run_id = context.run_id().ok_or("Run ID not found in context")?;
     let pdp_network = pdp_miner_network_name(run_id, sp_index);

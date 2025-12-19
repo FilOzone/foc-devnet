@@ -8,6 +8,8 @@ pub const CURIO_FAST_STORAGE_PATH: &str = "/home/foc-user/curio/fast-storage";
 /// Curio storage path inside container (long-term)
 pub const CURIO_LONG_TERM_STORAGE_PATH: &str = "/home/foc-user/curio/long-term-storage";
 
+pub const CURIO_LAYERS: &str = "seal,post,pdp-only,gui";
+
 /// PDP layer configuration template
 pub const PDP_LAYER_CONFIG_TEMPLATE: &str = r#"[HTTP]
 DelegateTLS = true

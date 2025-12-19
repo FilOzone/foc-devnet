@@ -72,55 +72,72 @@ pub fn deploy_foc_contracts(
     let private_key = get_private_key(foc_deployer, lotus_container)?;
 
     // Prepare environment variables for the deployment script
-    let env_vars = format!(
-        r#"export ETH_RPC_URL='{}'
-export USDFC_TOKEN_ADDRESS='{}'
-export SERVICE_NAME='FOC LocalNet Warm Storage'
-export SERVICE_DESCRIPTION='Warm storage service for FOC local development network'
-export DRY_RUN=false
-export CHAIN={}
-export DEPLOYER_ADDRESS='{}'
-export AUTO_VERIFY=false
-export ETH_PRIVATE_KEY='{}'
-export PASSWORD=''"#,
-        lotus_rpc_url, mock_usdfc_address, LOCAL_NETWORK_CHAIN_ID, deployer_eth_addr, private_key
-    );
+    let env_vars = [
+        ("ETH_RPC_URL", lotus_rpc_url.to_string()),
+        ("USDFC_TOKEN_ADDRESS", mock_usdfc_address.to_string()),
+        ("SERVICE_NAME", "FOC LocalNet Warm Storage".to_string()),
+        (
+            "SERVICE_DESCRIPTION",
+            "Warm storage service for FOC local development network".to_string(),
+        ),
+        ("DRY_RUN", "false".to_string()),
+        ("CHAIN", LOCAL_NETWORK_CHAIN_ID.to_string()),
+        ("DEPLOYER_ADDRESS", deployer_eth_addr.to_string()),
+        ("AUTO_VERIFY", "false".to_string()),
+        ("ETH_PRIVATE_KEY", private_key.clone()),
+        ("PASSWORD", "".to_string()),
+        (
+            "ETH_KEYSTORE",
+            "/home/foc-user/.foundry/keystores/foc-deployer".to_string(),
+        ),
+    ];
 
     // Run the deployment script
     // First, create a keystore from the private key with empty password
     let deploy_cmd = format!(
         r#"set -e
 cast wallet import foc-deployer --private-key {} --unsafe-password ''
-export ETH_KEYSTORE="$HOME/.foundry/keystores/foc-deployer"
-{}
 cd /service_contracts
 bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-deploy.log"#,
-        private_key, env_vars
+        private_key
     );
 
     info!("This may take several minutes...");
 
-    let output = docker_command(&[
-        "run",
-        "--rm",
-        "--name",
-        &format!("foc-{}-foc-deploy", run_id),
-        "--network",
-        "host",
-        "-v",
-        &format!("{}:/opt/bin", bin_dir.display()),
-        "-v",
-        &format!(
-            "{}:/home/foc-user/.cargo",
-            builder_volumes_dir.join("cargo").display()
-        ),
-        "-v",
-        &format!("{}:/service_contracts", contracts_dir.display()),
-        BUILDER_CONTAINER,
-        "/bin/bash",
-        "-c",
-        &deploy_cmd,
-    ])?;
+    let mut docker_args = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "--name".to_string(),
+        format!("foc-{}-foc-deploy", run_id),
+        "--network".to_string(),
+        "host".to_string(),
+    ];
+
+    // Add environment variables
+    for (key, value) in env_vars {
+        docker_args.push("-e".to_string());
+        docker_args.push(format!("{}={}", key, value));
+    }
+
+    // Add volumes
+    docker_args.push("-v".to_string());
+    docker_args.push(format!("{}:/opt/bin", bin_dir.display()));
+    docker_args.push("-v".to_string());
+    docker_args.push(format!(
+        "{}:/home/foc-user/.cargo",
+        builder_volumes_dir.join("cargo").display()
+    ));
+    docker_args.push("-v".to_string());
+    docker_args.push(format!("{}:/service_contracts", contracts_dir.display()));
+
+    // Add image and command
+    docker_args.push(BUILDER_CONTAINER.to_string());
+    docker_args.push("/bin/bash".to_string());
+    docker_args.push("-c".to_string());
+    docker_args.push(deploy_cmd);
+
+    let args_ref: Vec<&str> = docker_args.iter().map(|s| s.as_str()).collect();
+    let output = docker_command(&args_ref)?;
 
     let output_str = String::from_utf8_lossy(&output.stdout);
 

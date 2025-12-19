@@ -5,6 +5,7 @@
 use super::super::step::SetupContext;
 use super::db_setup::{build_db_env_vars, build_foc_contract_env_vars, build_lotus_env_vars};
 use super::CurioStep;
+use crate::commands::start::curio::constants::CURIO_LAYERS;
 use crate::docker::network::{lotus_network_name, pdp_miner_network_name};
 use crate::docker::{container_exists, stop_and_remove_container};
 use crate::paths::{
@@ -73,9 +74,17 @@ fn create_curio_directories(context: &SetupContext, sp_index: usize) -> Result<(
 fn start_curio_container(
     context: &SetupContext,
     container_name: &str,
-    docker_args: Vec<String>,
+    mut docker_args: Vec<String>,
 ) -> Result<(), Box<dyn Error>> {
     info!("Creating container {}...", container_name);
+
+    // Add image and command - run curio directly as the main process
+    docker_args.push("foc-curio".to_string());
+    docker_args.push("/usr/local/bin/lotus-bins/curio".to_string());
+    docker_args.push("run".to_string());
+    docker_args.push("--nosync".to_string());
+    docker_args.push("--layers".to_string());
+    docker_args.push(CURIO_LAYERS.to_string());
 
     // Execute docker run
     let output = Command::new("docker").args(&docker_args).output()?;
