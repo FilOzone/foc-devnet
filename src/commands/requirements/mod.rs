@@ -2,7 +2,6 @@
 //!
 //! This module checks if all system requirements are met to run the foc-localnet system.
 
-use crossterm::style::Stylize;
 use std::process::{Command, Stdio};
 use tracing::{error, info, warn};
 
@@ -98,25 +97,22 @@ fn install_docker() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             eprintln!(
                 "{}",
-                "❌ Automatic Docker installation is only supported on Ubuntu/Debian Linux.".red()
+                "❌ Automatic Docker installation is only supported on Ubuntu/Debian Linux."
             );
             return Err("Unsupported Linux distribution".into());
         }
     } else if cfg!(target_os = "macos") {
         // On macOS, Docker installation is handled by Homebrew
+        eprintln!("{}", "❌ Please install Docker Desktop manually on macOS.");
         eprintln!(
             "{}",
-            "❌ Please install Docker Desktop manually on macOS.".red()
-        );
-        eprintln!(
-            "{}",
-            "Download from: https://www.docker.com/products/docker-desktop".cyan()
+            "Download from: https://www.docker.com/products/docker-desktop"
         );
         return Err("Manual Docker installation required on macOS".into());
     } else {
         eprintln!(
             "{}",
-            "❌ Automatic Docker installation is not supported on this platform.".red()
+            "❌ Automatic Docker installation is not supported on this platform."
         );
         return Err("Unsupported platform".into());
     }

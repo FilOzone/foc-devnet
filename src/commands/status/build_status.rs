@@ -9,8 +9,6 @@
 
 use crate::paths::foc_localnet_bin;
 use chrono::{DateTime, Utc};
-use crossterm::style::Stylize;
-use tabular::{Row, Table};
 use tracing::info;
 
 use super::utils::format_time_ago;
@@ -39,15 +37,12 @@ pub fn print_build_status() -> Result<(), Box<dyn std::error::Error>> {
     // Check for expected binaries
     let expected_binaries = vec!["lotus", "lotus-miner", "lotus-shed", "lotus-seed", "curio"];
 
-    // Create tabular output
-    let mut table = Table::new("{:<}  {:<}  {:<}  {:<}");
-    table.add_row(
-        Row::new()
-            .with_ansi_cell("Binary".bold().dark_grey())
-            .with_ansi_cell("Status".bold().dark_grey())
-            .with_ansi_cell("Path".bold().dark_grey())
-            .with_ansi_cell("Time of Build".bold().dark_grey()),
+    // Print header
+    info!(
+        "{:<15}  {:<10}  {:<40}  {:<20}",
+        "Binary", "Status", "Path", "Time of Build"
     );
+    info!("{:-<15}  {:-<10}  {:-<40}  {:-<20}", "", "", "", "");
 
     for binary in expected_binaries {
         let binary_path = bin_dir.join(binary);
@@ -64,17 +59,10 @@ pub fn print_build_status() -> Result<(), Box<dyn std::error::Error>> {
             ("Missing", "N/A".to_string(), "N/A".to_string())
         };
 
-        table.add_row(
-            Row::new()
-                .with_cell(binary)
-                .with_cell(status)
-                .with_cell(path_display)
-                .with_cell(time_display),
+        info!(
+            "{:<15}  {:<10}  {:<40}  {:<20}",
+            binary, status, path_display, time_display
         );
-    }
-
-    for line in table.to_string().lines() {
-        info!("{}", line);
     }
 
     Ok(())

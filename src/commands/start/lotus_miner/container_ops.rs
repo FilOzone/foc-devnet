@@ -13,7 +13,7 @@ use crate::docker::network::{connect_container_to_network, lotus_miner_network_n
 
 /// Get the Lotus-Miner container name from context
 pub fn get_container_name(context: &SetupContext) -> Result<String, Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     Ok(lotus_miner_container_name(run_id))
 }
 
@@ -23,7 +23,7 @@ pub fn start_miner_container(
     context: &SetupContext,
 ) -> Result<(), Box<dyn Error>> {
     let container_name = get_container_name(context)?;
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let porep_network = lotus_miner_network_name(run_id);
 
     info!("Starting Lotus-Miner container '{}'...", container_name);

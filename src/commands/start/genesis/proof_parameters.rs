@@ -24,9 +24,7 @@ pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
 
     // Check if parameters already exist and are valid
     if params_dir.exists() && validate_proof_parameters(&params_dir)? {
-        info!(
-            "✓ Proof parameters already exist locally",
-        );
+        info!("✓ Proof parameters already exist locally",);
         return Ok(());
     }
 
@@ -214,7 +212,7 @@ fn validate_proof_parameters(
         }
     }
 
-    // Validation criteria:
+    // Validation criteria (very crude):
     // - At least one large .params file
     // - At least one .srs file
     // - At least 5 .vk files

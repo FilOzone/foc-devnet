@@ -56,7 +56,8 @@ impl USDFCFundingStep {
         for (account_name, amount_tokens) in accounts_to_check.iter() {
             let eth_address = get_user_eth_address(account_name)?;
 
-            match check_mock_usdfc_balance(context, &eth_address, mockusdfc_address, lotus_rpc_url) {
+            match check_mock_usdfc_balance(context, &eth_address, mockusdfc_address, lotus_rpc_url)
+            {
                 Ok(balance) => {
                     let expected_wei = token_amount_to_wei(*amount_tokens);
                     if balance < expected_wei {
@@ -213,7 +214,7 @@ impl Step for USDFCFundingStep {
         info!("- Distributing MockUSDFC tokens...");
 
         // Check if Lotus is running
-        let run_id = context.run_id().ok_or("Run ID not found")?;
+        let run_id = context.run_id();
         if !container_is_running(&lotus_container_name(run_id))? {
             return Err("Lotus container is not running".into());
         }
@@ -304,14 +305,16 @@ impl Step for USDFCFundingStep {
                 .get("mockusdfc_contract_address")
                 .ok_or("MockUSDFC address not found in context")?;
 
-            match check_mock_usdfc_balance(context, &eth_address, &mock_usdfc_address, &lotus_rpc_url) {
+            match check_mock_usdfc_balance(
+                context,
+                &eth_address,
+                &mock_usdfc_address,
+                &lotus_rpc_url,
+            ) {
                 Ok(balance) => {
                     let expected_wei = token_amount_to_wei(*amount_tokens);
                     if balance >= expected_wei {
-                        info!(
-                            "{} balance correct: {} tokens",
-                            account_name, amount_tokens
-                        );
+                        info!("{} balance correct: {} tokens", account_name, amount_tokens);
                     } else {
                         return Err(format!(
                             "{} balance incorrect: expected {} wei, found {} wei",

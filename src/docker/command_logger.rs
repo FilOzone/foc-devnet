@@ -71,7 +71,10 @@ pub fn run_and_log_command(
 ) -> Result<Output, Box<dyn Error>> {
     let cmd_string = format_command(program, args);
     context.save_command(key, &cmd_string);
-    Command::new(program).args(args).output().map_err(Into::into)
+    Command::new(program)
+        .args(args)
+        .output()
+        .map_err(Into::into)
 }
 
 /// Execute a command with String arguments and save it to the context.
@@ -92,7 +95,10 @@ pub fn run_and_log_command_strings(
 ) -> Result<Output, Box<dyn Error>> {
     let cmd_string = format_command_strings(program, args);
     context.save_command(key, &cmd_string);
-    Command::new(program).args(args).output().map_err(Into::into)
+    Command::new(program)
+        .args(args)
+        .output()
+        .map_err(Into::into)
 }
 
 /// Log a command without executing it (useful for commands already executed).
@@ -108,12 +114,7 @@ pub fn log_command(program: &str, args: &[&str], context: &SetupContext, key: &s
 }
 
 /// Log a command with String arguments without executing it.
-pub fn log_command_strings(
-    program: &str,
-    args: &[String],
-    context: &SetupContext,
-    key: &str,
-) {
+pub fn log_command_strings(program: &str, args: &[String], context: &SetupContext, key: &str) {
     let cmd_string = format_command_strings(program, args);
     context.save_command(key, &cmd_string);
 }

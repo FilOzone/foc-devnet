@@ -334,13 +334,19 @@ impl Step for YugabyteStep {
 
         for (sp_idx, ports) in all_ports.into_iter() {
             let volumes_dir = self.volumes_dir.clone();
-            let run_id = context.run_id().ok_or("Run ID not found")?.to_string();
+            let run_id = context.run_id().to_string();
             let errors_clone = Arc::clone(&errors);
             let context_clone = context.clone();
 
             let handle = thread::spawn(move || {
-                match spawn_yugabyte_instance(sp_idx, num_instances, &ports, &volumes_dir, &run_id, &context_clone)
-                {
+                match spawn_yugabyte_instance(
+                    sp_idx,
+                    num_instances,
+                    &ports,
+                    &volumes_dir,
+                    &run_id,
+                    &context_clone,
+                ) {
                     Ok(_) => {
                         info!(
                             "Yugabyte instance {} started successfully",
@@ -376,7 +382,7 @@ impl Step for YugabyteStep {
 
     fn post_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         let num_instances = self.active_sp_count;
-        let run_id = context.run_id().ok_or("Run ID not found")?;
+        let run_id = context.run_id();
 
         info!("Waiting for YugabyteDB instance(s) to start...");
         thread::sleep(Duration::from_secs(5));

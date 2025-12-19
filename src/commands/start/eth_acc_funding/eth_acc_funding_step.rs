@@ -67,7 +67,7 @@ impl ETHAccFundingStep {
     fn import_global_faucet_key(
         context: &SetupContext,
     ) -> Result<String, Box<dyn Error + 'static>> {
-        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let run_id = context.run_id();
         let keys_dir = crate::paths::foc_localnet_lotus_keys(run_id);
         let faucet_key_dir = keys_dir.join(GLOBAL_FIL_FAUCET_KEY);
         let keyinfo_files: Vec<_> = fs::read_dir(&faucet_key_dir)?
@@ -133,10 +133,7 @@ impl ETHAccFundingStep {
                 .as_ref()
                 .ok_or(format!("No Ethereum address for {}", account_name))?;
 
-            info!(
-                "{}: {} (ETH: {})",
-                account_name, f4_address, eth_address
-            );
+            info!("{}: {} (ETH: {})", account_name, f4_address, eth_address);
 
             // Store in context using snake_case
             let address_key = format!("{}_address", account_name.to_lowercase());
@@ -167,12 +164,9 @@ impl ETHAccFundingStep {
         use super::constants::TRANSACTION_CONFIRMATION_WAIT_SECS;
 
         let num_transfers = transfers.len();
-        info!(
-            "Executing {} FIL transfers in parallel...",
-            num_transfers
-        );
+        info!("Executing {} FIL transfers in parallel...", num_transfers);
 
-        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let run_id = context.run_id();
         let container_name = lotus_container_name(run_id);
         let from_addr = from.to_string();
 
@@ -266,10 +260,7 @@ impl ETHAccFundingStep {
             return Err(format!("One or more transfers failed:\n{}", combined_error).into());
         }
 
-        info!(
-            "All {} transfers completed successfully!",
-            num_transfers
-        );
+        info!("All {} transfers completed successfully!", num_transfers);
 
         Ok(())
     }
@@ -280,7 +271,7 @@ impl ETHAccFundingStep {
         accounts: Vec<(String, String, u64)>,
         context: &SetupContext,
     ) -> Result<(), Box<dyn Error>> {
-        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let run_id = context.run_id();
         let container_name = lotus_container_name(run_id);
 
         // Shared error collection
@@ -295,7 +286,10 @@ impl ETHAccFundingStep {
 
             let handle = thread::spawn(move || {
                 // Log the command
-                let key = format!("eth_acc_verify_balance_{}_{}", account_name_clone, container);
+                let key = format!(
+                    "eth_acc_verify_balance_{}_{}",
+                    account_name_clone, container
+                );
                 log_command(
                     "docker",
                     &[
@@ -418,7 +412,7 @@ impl Step for ETHAccFundingStep {
         check_lotus_running(context)?;
 
         // Get global faucet address
-        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let run_id = context.run_id();
         let global_faucet = get_global_faucet_address(run_id)?;
         context.set("global_faucet_address", &global_faucet);
 

@@ -8,8 +8,6 @@
 //! - Show port accessibility
 //! - Indicate overall system health
 
-use crossterm::style::Stylize;
-use tabular::{Row, Table};
 use tracing::{info, warn};
 
 use crate::docker::core::image_exists;
@@ -47,15 +45,14 @@ pub fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
         ("Builder", "foc-builder"),
     ];
 
-    // Create tabular output
-    let mut table = Table::new("{:<}  {:<}  {:<}  {:<}  {:<}");
-    table.add_row(
-        Row::new()
-            .with_ansi_cell("Service".bold().dark_grey())
-            .with_ansi_cell("Status".bold().dark_grey())
-            .with_ansi_cell("Container".bold().dark_grey())
-            .with_ansi_cell("Uptime".bold().dark_grey())
-            .with_ansi_cell("Ports".bold().dark_grey()),
+    // Print header
+    info!(
+        "{:<20}  {:<12}  {:<20}  {:<15}  {:<20}",
+        "Service", "Status", "Container", "Uptime", "Ports"
+    );
+    info!(
+        "{:-<20}  {:-<12}  {:-<20}  {:-<15}  {:-<20}",
+        "", "", "", "", ""
     );
 
     let mut all_running = true;
@@ -93,18 +90,10 @@ pub fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
             "N/A".to_string()
         };
 
-        table.add_row(
-            Row::new()
-                .with_cell(*service_name)
-                .with_cell(status)
-                .with_cell(*container_name)
-                .with_cell(uptime)
-                .with_cell(port_status),
+        info!(
+            "{:<20}  {:<12}  {:<20}  {:<15}  {:<20}",
+            service_name, status, container_name, uptime, port_status
         );
-    }
-
-    for line in table.to_string().lines() {
-        info!("{}", line);
     }
 
     if all_running {

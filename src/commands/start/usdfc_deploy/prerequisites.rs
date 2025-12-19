@@ -10,7 +10,7 @@ use std::error::Error;
 
 /// Check if Lotus is running and accessible
 pub fn check_lotus_running(context: &SetupContext) -> Result<(), Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let lotus_name = lotus_container_name(run_id);
 
     if !container_is_running(&lotus_name)? {

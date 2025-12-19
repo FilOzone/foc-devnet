@@ -13,12 +13,10 @@ indicatif = "0.17"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.8"
-crossterm = "0.27"
 dirs = "5.0"
 chrono = { version = "0.4", features = ["serde"] }
 tempfile = "3.0"
 downloader = "0.2"
-tabular = { version = "0.2", features = ["ansi-cell"] }
 regex = "1.0"
 base64 = "0.21"
 hex = "0.4"

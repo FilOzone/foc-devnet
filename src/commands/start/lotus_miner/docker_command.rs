@@ -22,7 +22,7 @@ pub fn build_miner_docker_command(
     context: &SetupContext,
 ) -> Result<Vec<String>, Box<dyn Error>> {
     let (preseal_file, preseal_key_file) = preseal_files;
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let container_name = lotus_miner_container_name(run_id);
     let filecoin_network = lotus_network_name(run_id);
     let lotus_name = lotus_container_name(run_id);

@@ -19,7 +19,7 @@ use tracing::info;
 pub fn import_pdp_key(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
     info!("Importing PDP private key for PDP SP {}...", sp_index);
 
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let container_name = format!("foc-{}-curio-{}", run_id, sp_index);
 
     // Get PDP_SP_{sp_index} private key and expected eth address
@@ -73,7 +73,11 @@ fn get_pdp_sp_credentials(pdp_sp_name: &str) -> Result<(String, String), Box<dyn
 /// Import PDP key via Curio Web RPC API
 ///
 /// Returns the Ethereum address from the response
-fn import_key_via_rpc(context: &SetupContext, container_name: &str, private_key: &str) -> Result<String, Box<dyn Error>> {
+fn import_key_via_rpc(
+    context: &SetupContext,
+    container_name: &str,
+    private_key: &str,
+) -> Result<String, Box<dyn Error>> {
     // Construct JSON-RPC payload
     let payload = format!(
         r#"{{"jsonrpc":"2.0","method":"CurioWeb.ImportPDPKey","params":["{}"],"id":1}}"#,

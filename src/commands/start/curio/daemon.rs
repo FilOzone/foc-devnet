@@ -33,7 +33,7 @@ pub fn start_curio_daemon(
 ) -> Result<(), Box<dyn Error>> {
     info!("Starting Curio daemon for PDP SP {}...", sp_index);
 
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let container_name = format!("foc-{}-curio-{}", run_id, sp_index);
 
     // Clean up existing container if any
@@ -54,7 +54,7 @@ pub fn start_curio_daemon(
 
 /// Create necessary directories for Curio
 fn create_curio_directories(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let curio_sp_dir = foc_localnet_curio_sp_volume(run_id, sp_index);
 
     let dirs = vec![
@@ -99,7 +99,7 @@ fn start_curio_container(
     }
 
     // Connect to filecoin network
-    let lotus_network = lotus_network_name(context.run_id().ok_or("Run ID not found in context")?);
+    let lotus_network = lotus_network_name(context.run_id());
     let network_args = vec![
         "network".to_string(),
         "connect".to_string(),
@@ -120,7 +120,7 @@ fn build_docker_run_args(
     sp_index: usize,
     container_name: &str,
 ) -> Result<Vec<String>, Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let curio_sp_dir = foc_localnet_curio_sp_volume(run_id, sp_index);
     let bin_dir = foc_localnet_bin();
     let proof_params_dir = foc_localnet_proof_parameters();

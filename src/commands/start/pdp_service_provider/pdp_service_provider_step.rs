@@ -39,7 +39,7 @@ impl PdpSpRegistrationStep {
 
     /// Check if Lotus is running
     fn check_lotus_running(context: &SetupContext) -> Result<(), Box<dyn Error>> {
-        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let run_id = context.run_id();
         let container_name = lotus_container_name(run_id);
         if !container_is_running(&container_name)? {
             return Err("Lotus container is not running.".into());
@@ -51,7 +51,7 @@ impl PdpSpRegistrationStep {
     fn load_contract_addresses(
         context: &SetupContext,
     ) -> Result<ContractAddresses, Box<dyn Error>> {
-        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let run_id = context.run_id();
         ContractAddresses::load(run_id)
             .map_err(|e| format!("Failed to load contract addresses: {}", e).into())
     }
@@ -136,7 +136,7 @@ impl Step for PdpSpRegistrationStep {
     fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         Self::check_lotus_running(context)?;
 
-        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let run_id = context.run_id();
         let lotus_rpc_url = crate::commands::start::lotus_utils::get_lotus_rpc_url(context)?;
 
         let contract_addresses = Self::load_contract_addresses(context)?;
@@ -252,9 +252,7 @@ impl Step for PdpSpRegistrationStep {
                                     .push((sp_index, provider_id));
                                 info!(
                                     "PDP SP {} registered and approved (Provider ID: {}, URL: {})",
-                                    sp_index,
-                                    provider_id,
-                                    service_url
+                                    sp_index, provider_id, service_url
                                 );
                             }
                         } else {
@@ -323,7 +321,7 @@ impl Step for PdpSpRegistrationStep {
     fn post_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         Self::check_lotus_running(context)?;
 
-        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let run_id = context.run_id();
         let lotus_rpc_url = crate::commands::start::lotus_utils::get_lotus_rpc_url(context)?;
 
         let contract_addresses = Self::load_contract_addresses(context)?;
@@ -383,8 +381,12 @@ impl Step for PdpSpRegistrationStep {
         }
 
         // Verify there's exactly the expected number of providers on-chain
-        let provider_count =
-            registration::verify_provider_count(run_id, &registry_address, &lotus_rpc_url, context)?;
+        let provider_count = registration::verify_provider_count(
+            run_id,
+            &registry_address,
+            &lotus_rpc_url,
+            context,
+        )?;
         if provider_count != self.active_sp_count as u64 {
             return Err(format!(
                 "Expected exactly {} providers on-chain, found {}",

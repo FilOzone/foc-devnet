@@ -21,7 +21,7 @@ use tracing::info;
 pub fn verify_prerequisites(context: &SetupContext, sp_count: usize) -> Result<(), Box<dyn Error>> {
     info!("Verifying Lotus is running and producing blocks...");
 
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let lotus_container = lotus_container_name(run_id);
 
     // Check Lotus container exists and is running
@@ -94,7 +94,10 @@ pub fn verify_prerequisites(context: &SetupContext, sp_count: usize) -> Result<(
 }
 
 /// Verify that the Filecoin chain is progressing (blocks are being generated).
-fn verify_chain_progressing(context: &SetupContext, lotus_container: &str) -> Result<(), Box<dyn Error>> {
+fn verify_chain_progressing(
+    context: &SetupContext,
+    lotus_container: &str,
+) -> Result<(), Box<dyn Error>> {
     info!("Checking chain is progressing...");
 
     // Get initial block height
@@ -116,16 +119,16 @@ fn verify_chain_progressing(context: &SetupContext, lotus_container: &str) -> Re
         .into());
     }
 
-    info!(
-        "Chain is progressing (height {} → {})",
-        height1, height2
-    );
+    info!("Chain is progressing (height {} → {})", height1, height2);
 
     Ok(())
 }
 
 /// Get the current chain head height from Lotus.
-fn get_chain_head_height(context: &SetupContext, lotus_container: &str) -> Result<u64, Box<dyn Error>> {
+fn get_chain_head_height(
+    context: &SetupContext,
+    lotus_container: &str,
+) -> Result<u64, Box<dyn Error>> {
     let key = format!("curio_pre_check_chain_height_{}", lotus_container);
     let output = run_and_log_command(
         "docker",

@@ -26,8 +26,8 @@ pub use build::{
     build_docker_image, build_image_from_embedded, build_image_with_args, build_yugabyte_image,
 };
 pub use command_logger::{
-    format_command, format_command_strings, log_command, log_command_strings,
-    run_and_log_command, run_and_log_command_strings,
+    format_command, format_command_strings, log_command, log_command_strings, run_and_log_command,
+    run_and_log_command_strings,
 };
 pub use containers::{
     builder_container_name, curio_container_name, lotus_container_name, lotus_miner_container_name,

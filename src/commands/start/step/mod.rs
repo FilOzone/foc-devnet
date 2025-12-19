@@ -1,11 +1,9 @@
-use crossterm::style::Stylize;
 use std::collections::HashMap;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-use tabular::{Row, Table};
 use tracing::{info, warn};
 
 use crate::port_allocator::PortAllocator;
@@ -55,35 +53,16 @@ pub struct SetupContext {
     state: Arc<Mutex<HashMap<String, String>>>,
 
     /// Run ID for this execution (e.g., "251203-1246-thirsty-wolf")
-    run_id: Option<String>,
+    run_id: String,
 
     /// Run-specific directory (e.g., ~/.foc-localnet/run/251203-1246-thirsty-wolf)
-    run_dir: Option<PathBuf>,
+    run_dir: PathBuf,
 
     /// Port allocator for dynamic port assignment (thread-safe)
     port_allocator: Arc<Mutex<PortAllocator>>,
 }
 
-impl Default for SetupContext {
-    fn default() -> Self {
-        // Default to a safe port range (will be overridden by actual config)
-        Self {
-            state: Arc::new(Mutex::new(HashMap::new())),
-            run_id: None,
-            run_dir: None,
-            port_allocator: Arc::new(Mutex::new(
-                PortAllocator::new(5700, 300).expect("Failed to create default port allocator"),
-            )),
-        }
-    }
-}
-
 impl SetupContext {
-    /// Create a new SetupContext
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     /// Create a SetupContext with run ID, run directory, and port allocator
     pub fn with_run_id_and_ports(
         run_id: String,
@@ -92,8 +71,8 @@ impl SetupContext {
     ) -> Self {
         Self {
             state: Arc::new(Mutex::new(HashMap::new())),
-            run_id: Some(run_id),
-            run_dir: Some(run_dir),
+            run_id,
+            run_dir,
             port_allocator: Arc::new(Mutex::new(port_allocator)),
         }
     }
@@ -102,8 +81,8 @@ impl SetupContext {
     pub fn with_run_id(run_id: String, run_dir: PathBuf) -> Self {
         Self {
             state: Arc::new(Mutex::new(HashMap::new())),
-            run_id: Some(run_id),
-            run_dir: Some(run_dir),
+            run_id,
+            run_dir,
             port_allocator: Arc::new(Mutex::new(
                 PortAllocator::new(5700, 300).expect("Failed to create default port allocator"),
             )),
@@ -111,9 +90,40 @@ impl SetupContext {
     }
 
     /// Set a value in the shared state (thread-safe)
+    ///
+    /// Automatically saves the state to file.
     pub fn set<K: Into<String>, V: Into<String>>(&self, key: K, value: V) {
-        let mut state = self.state.lock().expect("Failed to lock state");
-        state.insert(key.into(), value.into());
+        {
+            let mut state = self.state.lock().expect("Failed to lock state");
+            state.insert(key.into(), value.into());
+        }
+
+        // Auto-save
+        if let Err(e) = self.save_to_file() {
+            warn!("Failed to auto-save step context: {}", e);
+        }
+    }
+
+    /// Set multiple values in the shared state (thread-safe)
+    ///
+    /// Automatically saves the state to file.
+    pub fn set_multi<I, K, V>(&self, items: I)
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: Into<String>,
+        V: Into<String>,
+    {
+        {
+            let mut state = self.state.lock().expect("Failed to lock state");
+            for (key, value) in items {
+                state.insert(key.into(), value.into());
+            }
+        }
+
+        // Auto-save
+        if let Err(e) = self.save_to_file() {
+            warn!("Failed to auto-save step context: {}", e);
+        }
     }
 
     /// Get a value from the shared state (thread-safe)
@@ -148,34 +158,42 @@ impl SetupContext {
     /// // Also appended to: "command_history" list
     /// ```
     pub fn save_command(&self, key: &str, command_str: &str) {
-        // Store under the specific key
-        self.set(key, command_str);
-        
-        // Also append to cumulative command history
-        let history_key = "command_history";
-        let mut state = self.state.lock().expect("Failed to lock state");
-        let history = state.get(history_key).cloned().unwrap_or_default();
-        let updated_history = if history.is_empty() {
-            command_str.to_string()
-        } else {
-            format!("{}\n{}", history, command_str)
-        };
-        state.insert(history_key.to_string(), updated_history);
+        {
+            let mut state = self.state.lock().expect("Failed to lock state");
+
+            // Store under the specific key
+            state.insert(key.to_string(), command_str.to_string());
+
+            // Also append to cumulative command history
+            let history_key = "command_history";
+            let history = state.get(history_key).cloned().unwrap_or_default();
+            let updated_history = if history.is_empty() {
+                command_str.to_string()
+            } else {
+                format!("{}\n{}", history, command_str)
+            };
+            state.insert(history_key.to_string(), updated_history);
+        }
+
+        // Auto-save
+        if let Err(e) = self.save_to_file() {
+            warn!("Failed to auto-save step context: {}", e);
+        }
     }
-    
+
     /// Get the cumulative command history as a newline-separated string
     pub fn get_command_history(&self) -> String {
         self.get("command_history").unwrap_or_default()
     }
 
     /// Get the run ID
-    pub fn run_id(&self) -> Option<&str> {
-        self.run_id.as_deref()
+    pub fn run_id(&self) -> &str {
+        &self.run_id
     }
 
     /// Get the run directory for this run
-    pub fn run_dir(&self) -> Option<&PathBuf> {
-        self.run_dir.as_ref()
+    pub fn run_dir(&self) -> &PathBuf {
+        &self.run_dir
     }
 
     /// Allocate a port from the port allocator (thread-safe)
@@ -199,8 +217,7 @@ impl SetupContext {
     /// Save the shared state to a JSON file
     pub fn save_to_file(&self) -> Result<(), Box<dyn Error>> {
         let state = self.state.lock().expect("Failed to lock state");
-        let run_id = self.run_id().ok_or("Run ID not set in context")?;
-        let path = crate::paths::step_context_file(run_id);
+        let path = crate::paths::step_context_file(&self.run_id);
 
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
@@ -335,9 +352,26 @@ pub fn execute_steps(
 
     let context = SetupContext::with_run_id_and_ports(run_id, run_dir, port_allocator);
 
+    let overall_start = Instant::now();
+    let mut all_step_timings = Vec::new();
     for step in steps {
-        step.run(&context)?;
+        let duration = step.run(&context)?;
+        all_step_timings.push((step.name().to_string(), duration));
     }
+    let overall_duration = overall_start.elapsed();
+    all_step_timings.push(("Total Execution Time".to_string(), overall_duration));
+
+    // Populate step timings in context
+    let timing_items: Vec<(String, String)> = all_step_timings
+        .iter()
+        .map(|(name, duration)| {
+            (
+                format!("step_timing_{}", name.to_lowercase().replace(' ', "_")),
+                format!("{:.2}s", duration.as_secs_f64()),
+            )
+        })
+        .collect();
+    context.set_multi(timing_items);
 
     Ok(())
 }
@@ -409,8 +443,20 @@ pub fn execute_steps_parallel(
         let epoch_timings = execute_epoch(epoch_index, epoch_steps, &context)?;
         all_step_timings.extend(epoch_timings);
     }
+    let overall_duration = overall_start.elapsed();
+    all_step_timings.push(("Total Execution Time".to_string(), overall_duration));
 
-    print_execution_summary(&all_step_timings, overall_start.elapsed(), &context)?;
+    // Populate step timings in context
+    let timing_items: Vec<(String, String)> = all_step_timings
+        .iter()
+        .map(|(name, duration)| {
+            (
+                format!("step_timing_{}", name.to_lowercase().replace(' ', "_")),
+                format!("{:.2}s", duration.as_secs_f64()),
+            )
+        })
+        .collect();
+    context.set_multi(timing_items);
 
     // Save context at the end
     if let Err(e) = context.save_to_file() {
@@ -543,79 +589,4 @@ fn execute_step_with_timing(
     );
 
     Ok(duration)
-}
-
-/// Print the execution summary with timing table and context variables
-fn print_execution_summary(
-    all_step_timings: &[(String, Duration)],
-    overall_duration: Duration,
-    context: &Arc<SetupContext>,
-) -> Result<(), Box<dyn Error>> {
-    // Step timing table
-    info!("Step Execution Times:");
-    let mut timing_table = Table::new("{:<}  {:>}  {:>}");
-    timing_table.add_row(
-        Row::new()
-            .with_ansi_cell("Step".bold().dark_grey())
-            .with_ansi_cell("Duration".bold().dark_grey())
-            .with_ansi_cell("% of Total".bold().dark_grey()),
-    );
-
-    for (step_name, duration) in all_step_timings {
-        let percentage = (duration.as_secs_f64() / overall_duration.as_secs_f64()) * 100.0;
-        timing_table.add_row(
-            Row::new()
-                .with_ansi_cell(step_name.clone())
-                .with_ansi_cell(format!("{:.2}s", duration.as_secs_f64()).green())
-                .with_ansi_cell(format!("{:.1}%", percentage).cyan()),
-        );
-    }
-
-    // Add total row
-    timing_table.add_row(
-        Row::new()
-            .with_ansi_cell("TOTAL TIME".bold())
-            .with_ansi_cell(
-                format!("{:.2}s", overall_duration.as_secs_f64())
-                    .green()
-                    .bold(),
-            )
-            .with_ansi_cell("100.0%".cyan()),
-    );
-
-    info!("\n{}", timing_table);
-
-    // Print StepContext state variables
-    let state = context
-        .state
-        .lock()
-        .expect("Failed to lock state for display");
-    if !state.is_empty() {
-        info!("Step Context Variables:");
-        let mut context_table = Table::new("{:<}  {:<}");
-        context_table.add_row(
-            Row::new()
-                .with_ansi_cell("Key".bold().dark_grey())
-                .with_ansi_cell("Value".bold().dark_grey()),
-        );
-
-        // Sort keys alphabetically
-        let mut keys: Vec<&String> = state.keys().collect();
-        keys.sort();
-
-        for key in keys {
-            let value = state.get(key).unwrap();
-            context_table.add_row(
-                Row::new()
-                    .with_ansi_cell(key.clone().yellow())
-                    .with_ansi_cell(value.clone().dim()),
-            );
-        }
-
-        info!("\n{}", context_table);
-    }
-    drop(state); // Release lock before final output
-
-    info!("All steps completed successfully!");
-    Ok(())
 }

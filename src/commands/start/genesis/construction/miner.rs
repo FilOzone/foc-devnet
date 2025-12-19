@@ -59,10 +59,7 @@ fn add_single_miner_to_genesis(
     miner_dir: &PathBuf,
     run_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    info!(
-        "⛏ Adding miner {} to genesis...",
-        miner_id,
-    );
+    info!("⛏ Adding miner {} to genesis...", miner_id,);
 
     // Check for pre-seal file (e.g., pre-seal-t01000.json)
     let preseal_file = miner_dir.join(format!("pre-seal-{}.json", miner_id));

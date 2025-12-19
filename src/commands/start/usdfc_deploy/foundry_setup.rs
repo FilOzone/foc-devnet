@@ -43,7 +43,11 @@ pub fn get_mockusdfc_project_dir(run_id: &str) -> Result<PathBuf, Box<dyn Error>
 }
 
 /// Setup the Foundry project (install dependencies if needed)
-pub fn setup_foundry_project(context: &SetupContext, contract_dir: &PathBuf, run_id: &str) -> Result<(), Box<dyn Error>> {
+pub fn setup_foundry_project(
+    context: &SetupContext,
+    contract_dir: &PathBuf,
+    run_id: &str,
+) -> Result<(), Box<dyn Error>> {
     let openzeppelin_path = contract_dir.join("lib/openzeppelin-contracts");
 
     if !openzeppelin_path.exists() {

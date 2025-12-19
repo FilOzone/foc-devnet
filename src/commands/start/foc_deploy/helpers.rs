@@ -48,7 +48,7 @@ pub fn get_filecoin_services_repo_path() -> Result<PathBuf, Box<dyn Error>> {
 pub fn check_lotus_running(
     context: &super::super::step::SetupContext,
 ) -> Result<(), Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let lotus_name = lotus_container_name(run_id);
 
     if !container_is_running(&lotus_name)? {

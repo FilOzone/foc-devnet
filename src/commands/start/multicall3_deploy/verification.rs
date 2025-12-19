@@ -34,12 +34,7 @@ pub fn verify_multicall3(
     ];
 
     let key = format!("multicall3_verify_{}", contract_address);
-    let output = run_and_log_command_strings(
-        "docker",
-        &args,
-        context,
-        &key,
-    )?;
+    let output = run_and_log_command_strings("docker", &args, context, &key)?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -57,10 +52,7 @@ pub fn verify_multicall3(
     }
 
     if stdout.trim() == "0x" || stdout.trim().is_empty() {
-        warn!(
-            "⚠ No contract code found at address {}",
-            contract_address
-        );
+        warn!("⚠ No contract code found at address {}", contract_address);
         info!("→ Continuing despite verification warning");
         return Ok(());
     }

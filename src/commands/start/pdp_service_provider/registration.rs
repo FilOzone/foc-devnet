@@ -4,7 +4,6 @@ use super::constants::*;
 use crate::commands::start::step::SetupContext;
 use crate::constants::BUILDER_CONTAINER;
 use crate::docker::command_logger::run_and_log_command_strings;
-use crossterm::style::Stylize;
 use std::error::Error;
 
 /// Register a single provider in ServiceProviderRegistry contract
@@ -78,12 +77,7 @@ pub fn register_single_provider(
     ];
 
     let key = format!("pdp_register_provider_sp{}", sp_index);
-    let output = run_and_log_command_strings(
-        "docker",
-        &args,
-        context,
-        &key,
-    )?;
+    let output = run_and_log_command_strings("docker", &args, context, &key)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -103,9 +97,10 @@ pub fn register_single_provider(
     wait_for_confirmation();
 
     // Query provider ID
-    let provider_id = query_provider_id(registry_address, pdp_sp_eth_address, lotus_rpc_url, context)?;
+    let provider_id =
+        query_provider_id(registry_address, pdp_sp_eth_address, lotus_rpc_url, context)?;
 
-    println!("{} {} Provider ID: {}", "✓".green(), label, provider_id);
+    println!("✓ {} Provider ID: {}", label, provider_id);
     Ok(provider_id)
 }
 
@@ -152,12 +147,7 @@ pub fn add_to_approved_list(
     ];
 
     let key = format!("pdp_add_approved_provider_{}", provider_id);
-    let output = run_and_log_command_strings(
-        "docker",
-        &args,
-        context,
-        &key,
-    )?;
+    let output = run_and_log_command_strings("docker", &args, context, &key)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -173,7 +163,7 @@ pub fn add_to_approved_list(
         return Err("Add approved provider transaction failed (status 0). Check transaction logs for details.".into());
     }
 
-    println!("{} Provider added to approved list", "✓".green());
+    println!("✓ Provider added to approved list");
     wait_for_confirmation();
 
     Ok(())
@@ -261,12 +251,7 @@ fn query_provider_id(
     ];
 
     let key = format!("pdp_query_provider_id_{}", pdp_sp_eth_address);
-    let output = run_and_log_command_strings(
-        "docker",
-        &args,
-        context,
-        &key,
-    )?;
+    let output = run_and_log_command_strings("docker", &args, context, &key)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -320,12 +305,7 @@ pub fn verify_provider_count(
     ];
 
     let key = "pdp_verify_provider_count".to_string();
-    let output = run_and_log_command_strings(
-        "docker",
-        &args,
-        context,
-        &key,
-    )?;
+    let output = run_and_log_command_strings("docker", &args, context, &key)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -366,12 +346,7 @@ pub fn verify_provider_id_by_address(
     ];
 
     let key = format!("pdp_verify_provider_id_{}", provider_address);
-    let output = run_and_log_command_strings(
-        "docker",
-        &args,
-        context,
-        &key,
-    )?;
+    let output = run_and_log_command_strings("docker", &args, context, &key)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -415,12 +390,7 @@ pub fn verify_approved_provider(
     ];
 
     let key = format!("pdp_verify_approved_provider_{}", provider_id);
-    let output = run_and_log_command_strings(
-        "docker",
-        &args,
-        context,
-        &key,
-    )?;
+    let output = run_and_log_command_strings("docker", &args, context, &key)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

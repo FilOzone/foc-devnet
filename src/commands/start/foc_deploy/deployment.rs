@@ -6,7 +6,6 @@
 use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
 use crate::commands::start::foc_deployer::deploy_foc_contracts;
 use crate::paths::{contract_addresses_file, foc_metadata_file};
-use crossterm::style::Stylize;
 use std::error::Error;
 use tracing::{info, warn};
 
@@ -20,13 +19,10 @@ use tracing::{info, warn};
 pub fn check_existing_deployment(
     context: &crate::commands::start::step::SetupContext,
 ) -> Result<bool, Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     if let Ok(existing_addresses) = ContractAddresses::load(run_id) {
         if !existing_addresses.foc_contracts.is_empty() {
-            info!(
-                "{} FOC contracts already deployed, skipping deployment...",
-                "✓".green()
-            );
+            info!("✓ FOC contracts already deployed, skipping deployment...");
 
             // Store contract addresses in context
             for (name, addr) in &existing_addresses.foc_contracts {
@@ -54,7 +50,7 @@ pub fn perform_deployment(
     let services_repo = super::helpers::get_filecoin_services_repo_path()?;
 
     // Get Lotus container name and RPC URL
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let lotus_container = crate::docker::containers::lotus_container_name(run_id);
     let lotus_rpc_url = crate::commands::start::lotus_utils::get_lotus_rpc_url(context)?;
 
@@ -84,16 +80,14 @@ pub fn perform_deployment(
 
     addresses_struct.save(run_id)?;
     info!(
-        "{} Contract addresses saved to {}",
-        "✓".green(),
+        "✓ Contract addresses saved to {}",
         contract_addresses_file(run_id).display()
     );
 
     // Save network metadata
     contract_addresses.metadata.save(run_id)?;
     info!(
-        "{} Network metadata saved to {}",
-        "✓".green(),
+        "✓ Network metadata saved to {}",
         foc_metadata_file(run_id).display()
     );
 

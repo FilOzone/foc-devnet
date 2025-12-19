@@ -21,7 +21,7 @@ const DAEMON_INIT_WAIT_SECS: u64 = 5;
 
 /// Get the Lotus container name from context
 fn get_container_name(context: &SetupContext) -> Result<String, Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     Ok(lotus_container_name(run_id))
 }
 
@@ -170,9 +170,7 @@ pub fn verify_api_connectivity(context: &SetupContext) -> Result<(), Box<dyn Err
         }
         Err(e) => {
             warn!("⚠ Lotus API verification failed: {}", e);
-            info!(
-                "Note: Lotus may still be initializing. This is usually not a critical error."
-            );
+            info!("Note: Lotus may still be initializing. This is usually not a critical error.");
         }
     }
 
@@ -184,9 +182,7 @@ pub fn verify_api_connectivity(context: &SetupContext) -> Result<(), Box<dyn Err
         }
         Err(e) => {
             warn!("⚠ Ethereum RPC verification failed: {}", e);
-            info!(
-                "Note: This may indicate FEVM is not fully initialized. Check logs if needed."
-            );
+            info!("Note: This may indicate FEVM is not fully initialized. Check logs if needed.");
         }
     }
 

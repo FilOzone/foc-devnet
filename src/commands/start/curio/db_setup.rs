@@ -28,7 +28,7 @@ pub fn build_foc_contract_env_vars(context: &SetupContext) -> Result<Vec<String>
     let mut env_vars = Vec::new();
 
     // Load contract addresses from file
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let addresses = ContractAddresses::load(run_id)?;
 
     // Get standard contracts
@@ -64,7 +64,7 @@ pub fn build_db_env_vars(
     context: &SetupContext,
     sp_index: usize,
 ) -> Result<Vec<String>, Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let yugabyte_name = format!("foc-{}-yugabyte-{}", run_id, sp_index);
 
     Ok(vec![
@@ -84,7 +84,7 @@ pub fn build_db_env_vars(
 /// - FULLNODE_API_INFO: JWT token and multiaddr to Lotus API (dns4 for Docker networking)
 /// - LOTUS_PATH: Path to lotus-data directory (host-side shared volume)
 pub fn build_lotus_env_vars(context: &SetupContext) -> Result<Vec<String>, Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let lotus_name = lotus_container_name(run_id);
 
     // Read Lotus API token from host
@@ -132,9 +132,12 @@ fn create_base_cluster(
     sp_index: usize,
     miner_id: &str,
 ) -> Result<(), Box<dyn Error>> {
-    info!("Running DB migrations and setting up base layer for miner {}...", miner_id);
+    info!(
+        "Running DB migrations and setting up base layer for miner {}...",
+        miner_id
+    );
 
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let pdp_network = pdp_miner_network_name(run_id, sp_index);
     let lotus_network = lotus_network_name(run_id);
 
@@ -236,7 +239,7 @@ fn create_base_cluster(
 fn create_pdp_layer(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
     info!("Creating PDP layer configuration...");
 
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let pdp_network = pdp_miner_network_name(run_id, sp_index);
     let lotus_network = lotus_network_name(run_id);
 

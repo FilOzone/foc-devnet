@@ -21,10 +21,7 @@ pub fn build_image_from_embedded(name: &str) -> Result<(), Box<dyn std::error::E
     let image_tag = format!("foc-{}", name);
 
     if image_exists(&image_tag)? {
-        info!(
-            "Docker image {} already exists, skipping build",
-            image_tag
-        );
+        info!("Docker image {} already exists, skipping build", image_tag);
     } else {
         perform_build_from_embedded(name, &image_tag)?;
     }
@@ -108,10 +105,7 @@ pub fn build_yugabyte_image(name: &str) -> Result<(), Box<dyn std::error::Error>
     let image_tag = format!("foc-{}", name);
 
     if image_exists(&image_tag)? {
-        info!(
-            "Docker image {} already exists, skipping build",
-            image_tag
-        );
+        info!("Docker image {} already exists, skipping build", image_tag);
         return Ok(());
     }
 

@@ -50,7 +50,7 @@ impl Step for LotusMinerStep {
     }
 
     fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
-        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let run_id = context.run_id();
 
         setup_miner_directories(&self.volumes_dir)?;
         let preseal_files = find_preseal_files(run_id)?;

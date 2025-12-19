@@ -20,7 +20,7 @@ const LOG_TAIL_LINES: &str = "50";
 
 /// Get the Lotus container name from context
 fn get_container_name(context: &SetupContext) -> Result<String, Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     Ok(lotus_container_name(run_id))
 }
 
@@ -34,10 +34,7 @@ pub fn check_existing_container(context: &SetupContext) -> Result<(), Box<dyn Er
             info!("Container '{}' is already running", container_name);
             stop_and_remove_container(&container_name)?;
         } else {
-            info!(
-                "Container '{}' exists but is not running",
-                container_name
-            );
+            info!("Container '{}' exists but is not running", container_name);
             stop_and_remove_container(&container_name)?;
         }
     }
@@ -51,10 +48,7 @@ pub fn start_container(
 ) -> Result<(), Box<dyn Error>> {
     let container_name = get_container_name(context)?;
 
-    info!(
-        "Starting Lotus daemon container '{}'...",
-        container_name
-    );
+    info!("Starting Lotus daemon container '{}'...", container_name);
     let key = format!("lotus_container_start_{}", container_name);
     let output = run_and_log_command_strings("docker", &docker_args, context, &key)?;
 
@@ -88,7 +82,12 @@ pub fn wait_for_container_init(context: &SetupContext) -> Result<(), Box<dyn Err
         let key = format!("lotus_container_logs_{}", container_name);
         let logs_output = run_and_log_command_strings(
             "docker",
-            &["logs".to_string(), "--tail".to_string(), LOG_TAIL_LINES.to_string(), container_name.clone()],
+            &[
+                "logs".to_string(),
+                "--tail".to_string(),
+                LOG_TAIL_LINES.to_string(),
+                container_name.clone(),
+            ],
             context,
             &key,
         )?;

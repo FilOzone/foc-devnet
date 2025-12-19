@@ -82,7 +82,7 @@ pub fn build_docker_command(
         .parse()?;
 
     // Get run-specific container name and network
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let container_name = lotus_container_name(run_id);
     let network_name = lotus_network_name(run_id);
 

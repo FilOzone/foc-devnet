@@ -23,7 +23,7 @@ pub fn attach_storage_locations(
 ) -> Result<(), Box<dyn Error>> {
     info!("Attaching storage locations for PDP SP {}...", sp_index);
 
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let container_name = format!("foc-{}-curio-{}", run_id, sp_index);
 
     // Attach fast storage
@@ -80,7 +80,10 @@ fn attach_fast_storage(context: &SetupContext, container_name: &str) -> Result<(
 }
 
 /// Attach long-term storage for storing sealed sectors.
-fn attach_long_term_storage(context: &SetupContext, container_name: &str) -> Result<(), Box<dyn Error>> {
+fn attach_long_term_storage(
+    context: &SetupContext,
+    container_name: &str,
+) -> Result<(), Box<dyn Error>> {
     info!("Attaching long-term storage...");
 
     // Use container DNS name for --machine flag so it works in Docker networks

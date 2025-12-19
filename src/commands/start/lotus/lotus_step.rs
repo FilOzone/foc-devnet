@@ -38,7 +38,7 @@ impl Step for LotusStep {
 
     /// Perform pre-execution checks
     fn pre_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
-        let run_id = context.run_id().ok_or("Run ID not found in context")?;
+        let run_id = context.run_id();
         check_image_and_binary()?;
         check_genesis_and_params(run_id)?;
 

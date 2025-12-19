@@ -114,10 +114,11 @@ pub fn perform_token_deployment(
 
     // Get Lotus RPC URL
     let lotus_rpc_url = get_lotus_rpc_url(context)?;
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
 
     // Deploy MockUSDFC
-    let mock_usdfc_address = deploy_mock_usdfc_foundry(context, &private_key, &lotus_rpc_url, run_id)?;
+    let mock_usdfc_address =
+        deploy_mock_usdfc_foundry(context, &private_key, &lotus_rpc_url, run_id)?;
 
     // Store in context
     context.set("mockusdfc_contract_address", &mock_usdfc_address);

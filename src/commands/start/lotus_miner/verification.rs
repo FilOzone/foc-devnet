@@ -21,13 +21,13 @@ const API_FILE_CHECK_INTERVAL_MS: u64 = 500;
 
 /// Get the Lotus-Miner container name from context
 fn get_container_name(context: &SetupContext) -> Result<String, Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     Ok(lotus_miner_container_name(run_id))
 }
 
 /// Get the Lotus container name from context
 fn get_lotus_container_name(context: &SetupContext) -> Result<String, Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     Ok(lotus_container_name(run_id))
 }
 
@@ -117,10 +117,7 @@ pub fn check_tipset_generation(context: &SetupContext) -> Result<(), Box<dyn Err
     let height2 = parse_chain_height(&chain_output2)?;
 
     if height2 > height1 {
-        info!(
-            "✓ Chain is progressing (height {} -> {})",
-            height1, height2
-        );
+        info!("✓ Chain is progressing (height {} -> {})", height1, height2);
         Ok(())
     } else {
         Err(format!(
@@ -144,10 +141,7 @@ pub fn perform_post_execution_verification(
         .ok_or("Lotus-Miner API port not found in context")?
         .parse()?;
 
-    info!(
-        "Waiting for Lotus-Miner API port {}...",
-        miner_api_port
-    );
+    info!("Waiting for Lotus-Miner API port {}...", miner_api_port);
     wait_for_port(miner_api_port, PORT_WAIT_TIMEOUT_SECS)?;
     info!("✓ Lotus-Miner API port is open");
 

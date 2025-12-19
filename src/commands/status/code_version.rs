@@ -10,7 +10,6 @@
 use crate::config::Config;
 use crate::paths::foc_localnet_config;
 use std::fs;
-use tabular::{Row, Table};
 use tracing::info;
 
 use super::git::{format_location_info, get_git_info, get_repo_path_from_config};
@@ -57,38 +56,24 @@ pub fn print_code_version() -> Result<(), Box<dyn std::error::Error>> {
     let (curio_source_type, curio_version, curio_commit, curio_status) =
         format_location_info(&config.curio, &curio_git_info, &curio_repo_path);
 
-    // Create table
-    let mut table = Table::new("{:<15} {:<15} {:<15} {:<15} {:<15}");
-    table.add_row(
-        Row::new()
-            .with_cell("Component")
-            .with_cell("Source Type")
-            .with_cell("Version")
-            .with_cell("Commit")
-            .with_cell("Status"),
+    // Print header
+    info!(
+        "{:<15} {:<20} {:<15} {:<15} {:<15}",
+        "Component", "Source Type", "Version", "Commit", "Status"
+    );
+    info!(
+        "{:-<15} {:-<20} {:-<15} {:-<15} {:-<15}",
+        "", "", "", "", ""
     );
 
-    table.add_row(
-        Row::new()
-            .with_cell("Lotus")
-            .with_cell(lotus_source_type)
-            .with_cell(lotus_version)
-            .with_cell(lotus_commit)
-            .with_cell(lotus_status),
+    info!(
+        "{:<15} {:<20} {:<15} {:<15} {:<15}",
+        "Lotus", lotus_source_type, lotus_version, lotus_commit, lotus_status
     );
-
-    table.add_row(
-        Row::new()
-            .with_cell("Curio")
-            .with_cell(curio_source_type)
-            .with_cell(curio_version)
-            .with_cell(curio_commit)
-            .with_cell(curio_status),
+    info!(
+        "{:<15} {:<20} {:<15} {:<15} {:<15}",
+        "Curio", curio_source_type, curio_version, curio_commit, curio_status
     );
-
-    for line in table.to_string().lines() {
-        info!("{}", line);
-    }
 
     Ok(())
 }

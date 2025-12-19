@@ -18,7 +18,7 @@ pub fn import_faucet_key(
     keyinfo_path: &PathBuf,
     context: &SetupContext,
 ) -> Result<String, Box<dyn Error>> {
-    let run_id = context.run_id().ok_or("Run ID not found in context")?;
+    let run_id = context.run_id();
     let container_name = lotus_container_name(run_id);
 
     info!("Importing GLOBAL_FIL_FAUCET key into Lotus wallet...");
