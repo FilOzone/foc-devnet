@@ -24,6 +24,7 @@ pub fn start_cluster(
     run_dir: Option<String>,
     parallel: bool,
     run_id: String,
+    notest: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    start::start_cluster(volumes_dir, run_dir, parallel, run_id)
+    start::start_cluster(volumes_dir, run_dir, parallel, run_id, notest)
 }

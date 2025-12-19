@@ -315,6 +315,8 @@ pub fn execute_steps(
     port_start: u16,
     port_count: u16,
     portainer_port: Option<u16>,
+    active_pdp_sp_count: usize,
+    approved_pdp_sp_count: usize,
 ) -> Result<(), Box<dyn Error>> {
     // Create port allocator and verify all ports are available
     let mut port_allocator = PortAllocator::new(port_start, port_count)?;
@@ -351,6 +353,10 @@ pub fn execute_steps(
     }
 
     let context = SetupContext::with_run_id_and_ports(run_id, run_dir, port_allocator);
+
+    // Set initial state
+    context.set("active_pdp_sp_count", active_pdp_sp_count.to_string());
+    context.set("approved_pdp_sp_count", approved_pdp_sp_count.to_string());
 
     let overall_start = Instant::now();
     let mut all_step_timings = Vec::new();
@@ -400,6 +406,8 @@ pub fn execute_steps_parallel(
     port_start: u16,
     port_count: u16,
     portainer_port: Option<u16>,
+    active_pdp_sp_count: usize,
+    approved_pdp_sp_count: usize,
 ) -> Result<(), Box<dyn Error>> {
     // Create port allocator and verify all ports are available
     let mut port_allocator = PortAllocator::new(port_start, port_count)?;
@@ -435,6 +443,10 @@ pub fn execute_steps_parallel(
         run_dir,
         port_allocator,
     ));
+
+    // Set initial state
+    context.set("active_pdp_sp_count", active_pdp_sp_count.to_string());
+    context.set("approved_pdp_sp_count", approved_pdp_sp_count.to_string());
 
     let overall_start = Instant::now();
     let mut all_step_timings: Vec<(String, Duration)> = Vec::new();

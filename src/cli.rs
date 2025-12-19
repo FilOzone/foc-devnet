@@ -24,6 +24,9 @@ pub enum Commands {
         /// Run steps in parallel where possible (experimental)
         #[arg(long)]
         parallel: bool,
+        /// Skip the end-to-end tests
+        #[arg(long)]
+        notest: bool,
     },
     /// Stop the local cluster
     Stop,

@@ -68,6 +68,8 @@ pub fn register_single_provider(
     let args: Vec<String> = vec![
         "run".to_string(),
         "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
         "--network".to_string(),
         "host".to_string(),
         BUILDER_CONTAINER.to_string(),
@@ -130,6 +132,8 @@ pub fn add_to_approved_list(
     let args: Vec<String> = vec![
         "run".to_string(),
         "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
         "--network".to_string(),
         "host".to_string(),
         BUILDER_CONTAINER.to_string(),
@@ -238,6 +242,8 @@ fn query_provider_id(
     let args: Vec<String> = vec![
         "run".to_string(),
         "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
         "--network".to_string(),
         "host".to_string(),
         BUILDER_CONTAINER.to_string(),
@@ -293,6 +299,8 @@ pub fn verify_provider_count(
     let args: Vec<String> = vec![
         "run".to_string(),
         "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
         "--network".to_string(),
         "host".to_string(),
         BUILDER_CONTAINER.to_string(),
@@ -333,6 +341,8 @@ pub fn verify_provider_id_by_address(
     let args: Vec<String> = vec![
         "run".to_string(),
         "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
         "--network".to_string(),
         "host".to_string(),
         BUILDER_CONTAINER.to_string(),
@@ -377,6 +387,8 @@ pub fn verify_approved_provider(
     let args: Vec<String> = vec![
         "run".to_string(),
         "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
         "--network".to_string(),
         "host".to_string(),
         BUILDER_CONTAINER.to_string(),

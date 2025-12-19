@@ -81,6 +81,8 @@ fn add_single_miner_to_genesis(
     let mut docker_args = vec![
         "run".to_string(),
         "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
         "--name".to_string(),
         format!("foc-{}-genesis-add-miner-{}", run_id, miner_id),
     ];

@@ -63,6 +63,8 @@ pub fn setup_foundry_project(
                 &[
                     "run",
                     "--rm",
+                    "-u",
+                    "foc-user",
                     "-v",
                     &format!("{}:/workspace", contract_dir.display()),
                     "foc-builder",
@@ -90,6 +92,8 @@ pub fn setup_foundry_project(
             &[
                 "run",
                 "--rm",
+                "-u",
+                "foc-user",
                 "-v",
                 &format!("{}:/workspace", contract_dir.display()),
                 "foc-builder",

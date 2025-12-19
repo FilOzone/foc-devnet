@@ -107,6 +107,8 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
     let mut docker_args = vec![
         "run".to_string(),
         "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
         "--name".to_string(),
         format!("foc-{}-foc-deploy", run_id),
         "--network".to_string(),

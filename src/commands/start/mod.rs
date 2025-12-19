@@ -10,6 +10,7 @@ mod lotus_utils;
 mod multicall3_deploy;
 mod pdp_service_provider;
 pub mod step;
+mod synapse_test_e2e;
 mod usdfc_deploy;
 mod usdfc_funding;
 mod yugabyte;
@@ -23,6 +24,7 @@ use lotus_miner::LotusMinerStep;
 use multicall3_deploy::MultiCall3DeployStep;
 use pdp_service_provider::PdpSpRegistrationStep;
 pub use step::{execute_steps, execute_steps_parallel, SetupContext, Step};
+use synapse_test_e2e::SynapseTestE2EStep;
 use usdfc_deploy::USDFCDeployStep;
 use yugabyte::YugabyteStep;
 
@@ -100,12 +102,51 @@ fn perform_regenesis() -> Result<(), Box<dyn std::error::Error>> {
 
     for path in paths_to_delete {
         if path.exists() {
-            if path.is_dir() {
-                std::fs::remove_dir_all(&path)?;
-                info!("Removed directory: {}", path.display());
+            let result = if path.is_dir() {
+                std::fs::remove_dir_all(&path)
             } else {
-                std::fs::remove_file(&path)?;
-                info!("Removed file: {}", path.display());
+                std::fs::remove_file(&path)
+            };
+
+            if let Err(e) = result {
+                if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    warn!(
+                        "Permission denied removing {}, trying with Docker...",
+                        path.display()
+                    );
+                    // Fallback to Docker
+                    let parent = path.parent().unwrap_or_else(|| std::path::Path::new("/"));
+                    let file_name = path.file_name().unwrap().to_string_lossy();
+
+                    let status = std::process::Command::new("docker")
+                        .args(&[
+                            "run",
+                            "--rm",
+                            "-u",
+                            "root",
+                            "-v",
+                            &format!("{}:/work", parent.display()),
+                            "foc-builder",
+                            "rm",
+                            "-rf",
+                            &format!("/work/{}", file_name),
+                        ])
+                        .status()?;
+
+                    if status.success() {
+                        info!("Removed with Docker: {}", path.display());
+                    } else {
+                        return Err(format!(
+                            "Failed to remove {} even with Docker",
+                            path.display()
+                        )
+                        .into());
+                    }
+                } else {
+                    return Err(e.into());
+                }
+            } else {
+                info!("Removed: {}", path.display());
             }
         } else {
             info!("Skipped (not found): {}", path.display());
@@ -141,7 +182,12 @@ fn load_and_validate_config() -> Result<Config, Box<dyn std::error::Error>> {
 }
 
 /// Create all the step instances for the cluster startup sequence.
-fn create_steps(volumes_dir: &PathBuf, run_dir: &PathBuf, config: &Config) -> Vec<Box<dyn Step>> {
+fn create_steps(
+    volumes_dir: &PathBuf,
+    run_dir: &PathBuf,
+    config: &Config,
+    notest: bool,
+) -> Vec<Box<dyn Step>> {
     let lotus_step = LotusStep::new(volumes_dir.clone(), run_dir.clone());
     let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), run_dir.clone());
     let eth_acc_funding_step = ETHAccFundingStep::new(run_dir.clone(), config.active_pdp_sp_count);
@@ -165,6 +211,7 @@ fn create_steps(volumes_dir: &PathBuf, run_dir: &PathBuf, config: &Config) -> Ve
         run_dir.clone(),
         config.active_pdp_sp_count,
     );
+    let synapse_test_step = SynapseTestE2EStep::new(volumes_dir.clone(), run_dir.clone(), notest);
 
     // Execute all steps
     // Note: PDP SP registration MUST happen after Curio because it needs
@@ -180,6 +227,7 @@ fn create_steps(volumes_dir: &PathBuf, run_dir: &PathBuf, config: &Config) -> Ve
         Box::new(yugabyte_step),
         Box::new(curio_step),
         Box::new(pdp_sp_reg_step),
+        Box::new(synapse_test_step),
     ]
 }
 
@@ -200,6 +248,7 @@ fn create_step_epochs(
     volumes_dir: &PathBuf,
     run_dir: &PathBuf,
     config: &Config,
+    notest: bool,
 ) -> Vec<Vec<Box<dyn Step>>> {
     let lotus_step = LotusStep::new(volumes_dir.clone(), run_dir.clone());
     let yugabyte_step = YugabyteStep::new(
@@ -224,6 +273,7 @@ fn create_step_epochs(
         config.active_pdp_sp_count,
         config.approved_pdp_sp_count,
     );
+    let synapse_test_step = SynapseTestE2EStep::new(volumes_dir.clone(), run_dir.clone(), notest);
 
     vec![
         // Epoch 1: Start Lotus
@@ -247,6 +297,8 @@ fn create_step_epochs(
         vec![Box::new(curio_step)],
         // Epoch 7: Register PDP SPs (needs Curio running, for port information)
         vec![Box::new(pdp_sp_reg_step)],
+        // Epoch 8: Run Synapse E2E Test
+        vec![Box::new(synapse_test_step)],
     ]
 }
 
@@ -258,6 +310,7 @@ fn execute_cluster_steps(
     config: &Config,
     parallel: bool,
     portainer_port: u16,
+    notest: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Ensure genesis prerequisites are ready (one-time setup, needs config for sector count)
     ensure_genesis_prerequisites(config.active_pdp_sp_count, run_id)?;
@@ -281,7 +334,7 @@ fn execute_cluster_steps(
 
     if parallel {
         info!("Execution mode: PARALLEL (experimental)");
-        let step_epochs = create_step_epochs(volumes_dir, run_dir, config);
+        let step_epochs = create_step_epochs(volumes_dir, run_dir, config, notest);
 
         // Convert Vec<Vec<Box<dyn Step>>> to Vec<Vec<&dyn Step>>
         let epoch_refs: Vec<Vec<&dyn Step>> = step_epochs
@@ -296,10 +349,12 @@ fn execute_cluster_steps(
             config.port_range_start,
             config.port_range_count,
             Some(portainer_port),
+            config.active_pdp_sp_count,
+            config.approved_pdp_sp_count,
         )?;
     } else {
         info!("Execution mode: SEQUENTIAL");
-        let steps = create_steps(volumes_dir, run_dir, config);
+        let steps = create_steps(volumes_dir, run_dir, config, notest);
 
         execute_steps(
             steps.iter().map(|s| s.as_ref()).collect::<Vec<_>>(),
@@ -308,6 +363,8 @@ fn execute_cluster_steps(
             config.port_range_start,
             config.port_range_count,
             Some(portainer_port),
+            config.active_pdp_sp_count,
+            config.approved_pdp_sp_count,
         )?;
     }
 
@@ -320,6 +377,7 @@ pub fn start_cluster(
     run_dir: Option<String>,
     parallel: bool,
     run_id: String,
+    notest: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     stop_existing_cluster()?;
 
@@ -357,6 +415,7 @@ pub fn start_cluster(
         &config,
         parallel,
         portainer_port,
+        notest,
     )?;
 
     info!("Cluster started successfully!");

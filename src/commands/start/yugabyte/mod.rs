@@ -33,6 +33,8 @@ fn spawn_yugabyte_instance(
     let network_name = pdp_miner_network_name(run_id, sp_idx);
 
     // Create data directory for this instance
+    // This will be mounted to /home/foc-user/yb_base in the container
+    // yugabyted will create subdirectories (data/, conf/, logs/) under this base directory
     let data_dir = foc_localnet_yugabyte_sp_volume(run_id, sp_idx);
     std::fs::create_dir_all(&data_dir)?;
 
@@ -75,9 +77,9 @@ fn spawn_yugabyte_instance(
         docker_args.push(mapping);
     }
 
-    // Add volume mount
+    // Add volume mount - mount to /home/foc-user/yb_base which yugabyted will use as base_dir
     let data_dir_str = data_dir.to_str().ok_or("Invalid path")?;
-    let volume_mount = format!("{}:/home/yugabyte/yb_data", data_dir_str);
+    let volume_mount = format!("{}:/home/foc-user/yb_base", data_dir_str);
     docker_args.extend_from_slice(&["-v", &volume_mount]);
 
     // Add environment variables
@@ -94,9 +96,11 @@ fn spawn_yugabyte_instance(
     docker_args.push(IMAGE_NAME);
 
     // Add YugabyteDB startup command with full configuration
+    // CRITICAL: --base_dir must match the volume mount location
     docker_args.extend_from_slice(&[
         "/yugabyte/bin/yugabyted",
         "start",
+        "--base_dir=/home/foc-user/yb_base",
         "--ui=true",
         "--callhome=false",
         "--advertise_address=0.0.0.0",
@@ -242,10 +246,7 @@ impl Step for YugabyteStep {
         info!("✓ Docker image '{}' found", IMAGE_NAME);
 
         // Check if ports are available
-        let sp_count = context
-            .get("active_pdp_sp_count")
-            .and_then(|v| v.parse::<usize>().ok())
-            .unwrap_or(1);
+        let sp_count = self.active_sp_count;
 
         info!(
             "Checking port availability for {} Yugabyte instance(s)...",
@@ -313,10 +314,7 @@ impl Step for YugabyteStep {
     }
 
     fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
-        let sp_count = context
-            .get("active_pdp_sp_count")
-            .and_then(|v| v.parse::<usize>().ok())
-            .unwrap_or(1);
+        let sp_count = self.active_sp_count;
 
         info!("Starting {} YugabyteDB instance(s)...", sp_count);
 
@@ -394,7 +392,7 @@ impl Step for YugabyteStep {
             // Verify container is running
             if !container_is_running(&container_name)? {
                 return Err(
-                    format!("Yugabyte instance{} stopped unexpectedly", container_name).into(),
+                    format!("Yugabyte instance {} stopped unexpectedly", container_name).into(),
                 );
             }
             info!("Yugabyte instance {} is running", container_name);

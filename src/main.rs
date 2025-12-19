@@ -27,7 +27,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             volumes_dir,
             run_dir,
             parallel,
-        } => main_app::command_handlers::handle_start(volumes_dir, run_dir, parallel, run_id),
+            notest,
+        } => {
+            main_app::command_handlers::handle_start(volumes_dir, run_dir, parallel, run_id, notest)
+        }
         Commands::Stop => main_app::command_handlers::handle_stop(),
         Commands::Init {
             curio,

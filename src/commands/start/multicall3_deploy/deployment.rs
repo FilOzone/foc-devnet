@@ -56,6 +56,8 @@ pub fn deploy_multicall3(
     let args: Vec<String> = vec![
         "run".to_string(),
         "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
         "--name".to_string(),
         container_name,
         "--network".to_string(),

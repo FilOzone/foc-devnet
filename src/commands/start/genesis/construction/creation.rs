@@ -37,6 +37,8 @@ pub fn create_genesis_file(run_id: &str) -> Result<(), Box<dyn std::error::Error
     let mut docker_args = vec![
         "run".to_string(),
         "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
         "--name".to_string(),
         format!("foc-{}-genesis-creation", run_id),
     ];

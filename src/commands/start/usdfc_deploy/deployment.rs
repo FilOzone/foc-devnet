@@ -47,6 +47,8 @@ pub fn deploy_mock_usdfc_foundry(
         &[
             "run",
             "--rm",
+            "-u",
+            "foc-user",
             "--name",
             &format!("foc-{}-usdfc-deploy", run_id),
             "--network",

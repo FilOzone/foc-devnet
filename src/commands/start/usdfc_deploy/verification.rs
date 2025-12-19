@@ -41,6 +41,8 @@ pub fn verify_mock_usdfc(
         &[
             "run",
             "--rm",
+            "-u",
+            "foc-user",
             "--network",
             "host",
             "-v",

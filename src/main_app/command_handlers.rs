@@ -17,9 +17,10 @@ pub fn handle_start(
     run_dir: Option<String>,
     parallel: bool,
     run_id: String,
+    notest: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     poison::create_poison("Start")?;
-    commands::start_cluster(volumes_dir, run_dir, parallel, run_id)
+    commands::start_cluster(volumes_dir, run_dir, parallel, run_id, notest)
 }
 
 /// Execute the stop command

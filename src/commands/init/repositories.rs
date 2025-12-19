@@ -64,8 +64,35 @@ pub fn download_code_repositories() -> Result<(), Box<dyn std::error::Error>> {
 /// Returns `Ok(())` if repository is downloaded successfully, or an error if download fails.
 fn download_repository(name: &str, location: &Location) -> Result<(), Box<dyn std::error::Error>> {
     match location {
-        Location::LocalSource { .. } => {
-            info!("{} using local source, skipping download", name);
+        Location::LocalSource { dir } => {
+            info!(
+                "{} using local source at {}, creating symlink...",
+                name, dir
+            );
+            let target_link = foc_localnet_code().join(name);
+
+            if target_link.exists() {
+                // If it exists, we check if it's a symlink or a directory
+                if fs::symlink_metadata(&target_link)?.file_type().is_symlink() {
+                    // It's a symlink, remove it and recreate it to ensure it points to the new location
+                    fs::remove_file(&target_link)?;
+                } else {
+                    // It's a directory (likely from a previous git clone)
+                    // We should probably back it up or warn, but for now let's just warn and return
+                    // or maybe we should remove it?
+                    // Let's be safe and just warn if it's not a symlink
+                    info!("{} repository already exists at {} (not a symlink). Skipping symlink creation.", name, target_link.display());
+                    return Ok(());
+                }
+            }
+
+            // Create symlink
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(dir, &target_link)?;
+            #[cfg(windows)]
+            std::os::windows::fs::symlink_dir(dir, &target_link)?;
+
+            info!("Created symlink for {} at {}", name, target_link.display());
             Ok(())
         }
         Location::GitCommit { url, commit } => {

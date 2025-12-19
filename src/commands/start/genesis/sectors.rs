@@ -59,7 +59,7 @@ pub fn ensure_presealed_sectors(
     let total_miners = 1 + active_pdp_sp_count;
     info!(
         "⚙ Pre-sealing {} sectors (size: {}) for {} miners...",
-        super::constants::NUM_SECTORS,
+        total_miners,
         super::constants::SECTOR_SIZE,
         total_miners
     );
@@ -114,6 +114,8 @@ fn preseal_miner_sectors(
     let mut docker_args = vec![
         "run".to_string(),
         "--rm".to_string(),
+        "-u".to_string(),
+        "foc-user".to_string(),
         "--name".to_string(),
         format!("foc-{}-genesis-preseal-{}", run_id, miner_id),
     ];
