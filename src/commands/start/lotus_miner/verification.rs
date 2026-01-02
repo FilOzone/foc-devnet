@@ -87,45 +87,48 @@ pub fn check_tipset_generation(context: &SetupContext) -> Result<(), Box<dyn Err
     let chain_output1 = String::from_utf8_lossy(&output1.stdout);
     let height1 = parse_chain_height(&chain_output1)?;
 
-    info!(
-        "Waiting {} seconds to check for new blocks...",
-        TIPSET_CHECK_DELAY_SECS
-    );
-    thread::sleep(Duration::from_secs(TIPSET_CHECK_DELAY_SECS));
+    const MAX_RETRIES: u32 = 12;
+    for attempt in 1..=MAX_RETRIES {
+        info!(
+            "Waiting {} seconds to check for new blocks (attempt {}/{})...",
+            TIPSET_CHECK_DELAY_SECS, attempt, MAX_RETRIES
+        );
+        thread::sleep(Duration::from_secs(TIPSET_CHECK_DELAY_SECS));
 
-    // Get new chain height
-    let key = format!("lotus_miner_chain_height_check_2_{}", lotus_name);
-    let output2 = run_and_log_command(
-        "docker",
-        &[
-            "exec",
-            &lotus_name,
-            "/usr/local/bin/lotus-bins/lotus",
-            "chain",
-            "list",
-            "--count=1",
-        ],
-        context,
-        &key,
-    )?;
+        // Get new chain height
+        let key = format!("lotus_miner_chain_height_check_{}_{}", attempt, lotus_name);
+        let output2 = run_and_log_command(
+            "docker",
+            &[
+                "exec",
+                &lotus_name,
+                "/usr/local/bin/lotus-bins/lotus",
+                "chain",
+                "list",
+                "--count=1",
+            ],
+            context,
+            &key,
+        )?;
 
-    if !output2.status.success() {
-        return Err("Failed to get new chain height".into());
+        if !output2.status.success() {
+            return Err("Failed to get new chain height".into());
+        }
+
+        let chain_output2 = String::from_utf8_lossy(&output2.stdout);
+        let height2 = parse_chain_height(&chain_output2)?;
+
+        if height2 > height1 {
+            info!("✓ Chain is progressing (height {} -> {})", height1, height2);
+            return Ok(());
+        }
     }
 
-    let chain_output2 = String::from_utf8_lossy(&output2.stdout);
-    let height2 = parse_chain_height(&chain_output2)?;
-
-    if height2 > height1 {
-        info!("✓ Chain is progressing (height {} -> {})", height1, height2);
-        Ok(())
-    } else {
-        Err(format!(
-            "Chain is not progressing. Height remained at {} after {} seconds.",
-            height1, TIPSET_CHECK_DELAY_SECS
-        )
-        .into())
-    }
+    Err(format!(
+        "Chain is not progressing. Height remained at {} after {} attempts ({} seconds total).",
+        height1, MAX_RETRIES, (MAX_RETRIES as u64) * TIPSET_CHECK_DELAY_SECS
+    )
+    .into())
 }
 
 /// Perform all post-execution verifications for Lotus-Miner

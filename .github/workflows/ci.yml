@@ -46,39 +46,8 @@ jobs:
     - name: Set up Docker
       uses: docker/setup-buildx-action@v3
 
-    - name: Login to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-    - name: Cache Docker layers
-      uses: actions/cache@v4
-      with:
-        path: /tmp/.buildx-cache
-        key: ${{ runner.os }}-docker-${{ hashFiles('docker/**') }}
-        restore-keys: |
-          ${{ runner.os }}-docker-
-
     - name: Install dependencies
       run: sudo apt-get update && sudo apt-get install -y tar
-
-    - name: Restore Docker images cache
-      uses: actions/cache/restore@v4
-      with:
-        path: /tmp/foc-docker-images.tar
-        key: ${{ runner.os }}-docker-images-${{ hashFiles('docker/**') }}-force-update
-        restore-keys: |
-          ${{ runner.os }}-docker-images-
-
-    - name: Load cached Docker images
-      run: |
-        if [ -f /tmp/foc-docker-images.tar ]; then
-          docker load -i /tmp/foc-docker-images.tar
-          echo "Loaded cached Docker images"
-        else
-          echo "No cached Docker images found"
-        fi
 
     - name: Build foc-localnet
       run: cargo build --release
@@ -104,29 +73,18 @@ jobs:
     - name: Initialize foc-localnet
       run: ./foc-localnet init
 
-    - name: Save Docker images cache
-      run: |
-        docker save $(docker images --format "table {{.Repository}}:{{.Tag}}" | grep -v "REPOSITORY:TAG" | grep "foc-") -o /tmp/foc-docker-images.tar
-        df -h
-
-    - name: Cache Docker images
-      uses: actions/cache/save@v4
-      with:
-        path: /tmp/foc-docker-images.tar
-        key: ${{ runner.os }}-docker-images-${{ hashFiles('docker/**') }}-force-update
-
     - name: Remove YugabyteDB tarballs to save disk space
       run: |
         rm ~/.foc-localnet/artifacts/yugabyte-*.tar.gz
         df -h
 
-    - name: Restore foc-localnet cache
+    - name: Restore foc-builder cache
       uses: actions/cache/restore@v4
       with:
-        path: ~/.foc-localnet/docker/volumes/cache
-        key: ${{ runner.os }}-foc-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
+        path: ~/.foc-localnet/docker/volumes/cache/foc-builder
+        key: ${{ runner.os }}-foc-builder-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
         restore-keys: |
-          ${{ runner.os }}-foc-cache-
+          ${{ runner.os }}-foc-builder-cache-
 
     - name: Show available disk space before builds
       run: df -h
@@ -137,11 +95,11 @@ jobs:
     - name: Build Curio
       run: ./foc-localnet build curio
 
-    - name: Save foc-localnet cache
+    - name: Save foc-builder cache
       uses: actions/cache/save@v4
       with:
-        path: ~/.foc-localnet/docker/volumes/cache
-        key: ${{ runner.os }}-foc-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
+        path: ~/.foc-localnet/docker/volumes/cache/foc-builder
+        key: ${{ runner.os }}-foc-builder-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
 
     - name: Clean up Go modules after builds
       run: |
@@ -150,9 +108,22 @@ jobs:
         sudo rm -rf ~/.foc-localnet/code/curio
         df -h
 
+    - name: Restore filecoin-proof-params cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.foc-localnet/docker/volumes/cache/filecoin-proof-params
+        key: ${{ runner.os }}-filecoin-proof-params-2k-cache
+        restore-keys: |
+          ${{ runner.os }}-filecoin-proof-params-2k-cache-
+        
     - name: Start cluster
       run: ./foc-localnet start --parallel
 
+    - name: Save filecoin-proof-params cache
+      uses: actions/cache/save@v4
+      with:
+        path:~/.foc-localnet/docker/volumes/cache/filecoin-proof-params
+        key: ${{ runner.os }}-filecoin-proof-params-2k-cache
     - name: Check status
       run: ./foc-localnet status
 
