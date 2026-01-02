@@ -122,7 +122,7 @@ jobs:
     - name: Save filecoin-proof-params cache
       uses: actions/cache/save@v4
       with:
-        path:~/.foc-localnet/docker/volumes/cache/filecoin-proof-params
+        path: ~/.foc-localnet/docker/volumes/cache/filecoin-proof-params
         key: ${{ runner.os }}-filecoin-proof-params-2k-cache
     - name: Check status
       run: ./foc-localnet status
