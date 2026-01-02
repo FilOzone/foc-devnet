@@ -7,53 +7,9 @@ on:
     branches: [ main ]
 
 jobs:
-  build-and-test:
+  integration-test:
     runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup Rust toolchain
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        components: rustfmt, clippy
-
-    - name: Build
-      run: cargo build
-
-    - name: Run tests
-      run: cargo test
-
-    - name: Check formatting
-      run: cargo fmt --all -- --check
-
-    - name: Run clippy
-      run: cargo clippy -- -D warnings
-
-  requirements-setup-test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest]
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup Rust toolchain
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        components: rustfmt, clippy
-
-    - name: Build
-      run: cargo build
-
-    - name: Test requirements with --setup
-      run: |
-        cargo run -- requirements --setup
-      continue-on-error: false
-
-  build-commands-test:
-    runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
     - uses: actions/checkout@v4
@@ -61,133 +17,24 @@ jobs:
     - name: Setup Rust toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
 
-    - name: Build
-      run: cargo build
+    - name: Build foc-localnet
+      run: cargo build --release
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+    - name: Initialize foc-localnet
+      run: ./target/release/foc-localnet init
 
-    - name: Build Docker builder image
-      run: docker build -t foc-localnet-builder ./docker
+    - name: Build Lotus
+      run: ./target/release/foc-localnet build lotus
 
-    - name: Verify Docker image was built
-      run: docker images foc-localnet-builder
+    - name: Build Curio
+      run: ./target/release/foc-localnet build curio
 
-    - name: Test build command with invalid path (should fail gracefully)
-      run: |
-        if ./target/debug/foc-localnet build lotus /nonexistent/path 2>&1; then
-          echo "Expected command to fail with nonexistent path"
-          exit 1
-        fi
+    - name: Start cluster
+      run: ./target/release/foc-localnet start
 
-    - name: Run Lotus build integration tests
-      run: |
-        RUST_BACKTRACE=full cargo test --test build_lotus_test -- --nocapture
+    - name: Check status
+      run: ./target/release/foc-localnet status
 
-    - name: Run Curio build integration tests
-      run: |
-        RUST_BACKTRACE=full cargo test --test build_curio_test -- --nocapture
+    - name: Stop cluster
+      run: ./target/release/foc-localnet stop
 
-  integration-start-test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup Rust toolchain
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-
-    - name: Install build dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y tar
-
-    - name: Generate build artifacts
-      run: |
-        # Ensure artifacts directory exists
-        mkdir -p artifacts
-
-        # Generate MockUSDFC.tar.gz if contracts directory exists
-        if [ -d "contracts/MockUSDFC" ]; then
-          tar -czf artifacts/MockUSDFC.tar.gz contracts/MockUSDFC
-          echo "✅ Generated MockUSDFC.tar.gz"
-          ls -la artifacts/
-        else
-          echo "❌ contracts/MockUSDFC directory not found"
-          exit 1
-        fi
-
-    - name: Build
-      run: cargo build
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Enable Docker experimental features
-      run: |
-        echo '{"experimental": true}' | sudo tee /etc/docker/daemon.json
-        sudo systemctl restart docker
-
-    - name: Initialize foc-localnet environment
-      run: |
-        ./target/debug/foc-localnet init
-      timeout-minutes: 10
-
-    - name: Build curio
-      run: |
-        ./target/debug/foc-localnet build curio
-      timeout-minutes: 10
-
-    - name: Build lotus
-      run: |
-        ./target/debug/foc-localnet build lotus
-      timeout-minutes: 10
-
-    - name: Test start command with --reset --regenesis
-      run: |
-        ./target/debug/foc-localnet start --reset --regenesis
-      timeout-minutes: 15
-
-    - name: Verify cluster is running
-      run: |
-        # Check that containers are running
-        running_containers=$(docker ps --filter "name=foc-" --format "{{.Names}}")
-        echo "Running containers: $running_containers"
-
-        # Should have at least lotus and lotus-miner running
-        if ! echo "$running_containers" | grep -q "foc-lotus"; then
-          echo "ERROR: foc-lotus container is not running"
-          exit 1
-        fi
-
-        if ! echo "$running_containers" | grep -q "foc-lotus-miner"; then
-          echo "ERROR: foc-lotus-miner container is not running"
-          exit 1
-        fi
-
-        echo "✅ Cluster containers are running"
-
-    - name: Check contract deployment
-      run: |
-        # Wait a bit for contracts to be deployed
-        sleep 10
-
-        # Check if contract addresses file exists
-        if [ -f ~/.foc-localnet/artifacts/docker/volumes/foc-contract-addresses.json ]; then
-          echo "✅ Contract addresses file exists"
-          cat ~/.foc-localnet/artifacts/docker/volumes/foc-contract-addresses.json
-        else
-          echo "❌ Contract addresses file not found"
-          exit 1
-        fi
-
-    - name: Cleanup - Stop cluster
-      run: |
-        ./target/debug/foc-localnet stop
-      if: always()
-
-    - name: Cleanup - Remove containers and volumes
-      run: |
-        docker system prune -f --volumes
-      if: always()

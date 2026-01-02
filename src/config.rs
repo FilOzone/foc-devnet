@@ -204,25 +204,25 @@ impl Default for Config {
         Self {
             port_range_start: 5700,
             port_range_count: 100,
-            lotus: Location::GitTag {
+            lotus: Location::GitBranch {
                 url: "https://github.com/filecoin-project/lotus.git".to_string(),
-                tag: "v1.34.0".to_string(),
+                branch: "feat/redpanda/localnet-support".to_string(),
             },
             curio: Location::GitBranch {
-                url: "https://github.com/filecoin-project/curio.git".to_string(),
-                branch: "pdpv0".to_string(),
+                url: "https://github.com/redpanda-f/curio.git".to_string(),
+                branch: "feat/redpanda/localnet-support".to_string(),
             },
-            filecoin_services: Location::GitTag {
+            filecoin_services: Location::GitBranch {
                 url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
-                tag: "v1.0.0".to_string(),
+                branch: "feat/redpanda/localnet-deployment-aware".to_string(),
             },
             multicall3: Location::GitBranch {
                 url: "https://github.com/mds1/multicall3.git".to_string(),
                 branch: "main".to_string(),
             },
-            synapse_sdk: Location::GitTag {
+            synapse_sdk: Location::GitBranch {
                 url: "git@github.com:FilOzone/synapse-sdk.git".to_string(),
-                tag: "synapse-sdk-v0.36.1".to_string(),
+                branch: "feat/redpanda/localnet-support".to_string(),
             },
             yugabyte_download_url: "https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz".to_string(),
             approved_pdp_sp_count: 1,
