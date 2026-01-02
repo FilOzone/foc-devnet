@@ -41,6 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             proof_params_dir,
             force,
             rand,
+            no_docker_build,
         } => main_app::command_handlers::handle_init(
             curio,
             lotus,
@@ -51,6 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             proof_params_dir,
             force,
             rand,
+            no_docker_build,
         ),
         Commands::Build { build_command } => {
             main_app::command_handlers::handle_build(build_command)

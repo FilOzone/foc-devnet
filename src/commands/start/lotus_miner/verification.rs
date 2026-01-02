@@ -7,14 +7,12 @@ use std::thread;
 use std::time::Duration;
 use tracing::info;
 
-use super::constants::{
-    MINER_API_CHECK_DELAY_SECS, PORT_WAIT_TIMEOUT_SECS,
-};
+use super::constants::{MINER_API_CHECK_DELAY_SECS, PORT_WAIT_TIMEOUT_SECS};
 use crate::commands::start::step::SetupContext;
 use crate::docker::command_logger::run_and_log_command;
 use crate::docker::containers::{lotus_container_name, lotus_miner_container_name};
 use crate::docker::wait_for_port;
-use crate::utils::retry::{DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS, retry_with_fixed_delay};
+use crate::utils::retry::{retry_with_fixed_delay, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS};
 
 // Additional timing constant for API file wait
 const API_FILE_TIMEOUT_SECS: u64 = 120;
@@ -126,10 +124,8 @@ pub fn check_tipset_generation(context: &SetupContext) -> Result<(), Box<dyn Err
     )
     .map_err(|_| {
         format!(
-            "Chain is not progressing. Height remained at {} after {} attempts ({} seconds total).",
-            height1,
-            DEFAULT_MAX_RETRIES,
-            (DEFAULT_MAX_RETRIES as u64) * DEFAULT_RETRY_DELAY_SECS
+            "Chain is not progressing. Height remained at {} after {} attempts.",
+            height1, DEFAULT_MAX_RETRIES,
         )
     })?;
 

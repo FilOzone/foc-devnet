@@ -59,6 +59,9 @@ pub enum Commands {
         /// Use random mnemonic instead of deterministic one
         #[arg(long)]
         rand: bool,
+        /// Skip building Docker images (useful when images are already cached)
+        #[arg(long)]
+        no_docker_build: bool,
     },
     /// Build Filecoin projects in a container
     Build {

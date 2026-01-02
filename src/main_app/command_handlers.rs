@@ -40,6 +40,7 @@ pub fn handle_init(
     proof_params_dir: Option<String>,
     force: bool,
     rand: bool,
+    no_docker_build: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     poison::create_poison("Init")?;
     commands::init_environment(
@@ -52,6 +53,7 @@ pub fn handle_init(
         proof_params_dir,
         force,
         rand,
+        no_docker_build,
     )
 }
 

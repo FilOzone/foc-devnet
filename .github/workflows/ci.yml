@@ -14,6 +14,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    # Free up disk space on GitHub Actions runner to avoid "no space left" errors
     - name: Reclaim unused disk 
       uses: endersonmenezes/free-disk-space@v3
       with:
@@ -28,10 +29,14 @@ jobs:
         rm_cmd: "rmz"
         rmz_version: "3.1.1"
 
+    # Setup Rust toolchain and restore cached dependencies
     - name: Setup Rust toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
 
+    # CACHE-RUST: Rust dependencies and build artifacts
+    # These are keyed on the Cargo.lock file to ensure cache validity
     - name: Restore Rust cache
+      id: cache-rust
       uses: actions/cache/restore@v4
       with:
         path: |
@@ -43,16 +48,20 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-rust-build-
 
+    # Setup Docker for building and running containers
     - name: Set up Docker
       uses: docker/setup-buildx-action@v3
 
     - name: Install dependencies
       run: sudo apt-get update && sudo apt-get install -y tar
 
+    # Build the foc-localnet binary
     - name: Build foc-localnet
       run: cargo build --release
 
+    # CACHE-RUST: Save Rust build cache for future runs
     - name: Save Rust cache
+      if: steps.cache-rust.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: |
@@ -62,6 +71,7 @@ jobs:
           target/
         key: ${{ runner.os }}-rust-build-${{ hashFiles('**/Cargo.lock') }}
     
+    # Copy binary and clean up Rust artifacts to save disk space
     - name: Copy foc-localnet binary and delete rust build cache
       run: |
         cp ./target/release/foc-localnet ./foc-localnet
@@ -70,15 +80,97 @@ jobs:
         rm -rf target/
         df -h
 
-    - name: Initialize foc-localnet
-      run: ./foc-localnet init
+    # Compute cache keys based on version info and source files
+    # - CODE_HASH: Changes when Lotus/Curio versions change (for build artifacts cache)
+    # - DOCKER_HASH: Changes when Dockerfiles change (for Docker images cache)
+    - name: Compute version hashes
+      id: version-hashes
+      run: |   
+        # Get version output
+        VERSION_OUTPUT=$(./foc-localnet --version 2>&1)
+        
+        # Compute CODE_HASH from all default:code: lines (Lotus/Curio versions)
+        CODE_HASH=$(echo "$VERSION_OUTPUT" | grep 'default:code:' | sha256sum | cut -d' ' -f1)
+        echo "code-hash=$CODE_HASH" >> $GITHUB_OUTPUT
+        echo "CODE_HASH: $CODE_HASH"
+        
+        # Compute DOCKER_HASH from docker/ directory (Dockerfile changes)
+        DOCKER_HASH=$(find docker -type f -exec sha256sum {} \; | sort | sha256sum | cut -d' ' -f1)
+        echo "docker-hash=$DOCKER_HASH" >> $GITHUB_OUTPUT
+        echo "DOCKER_HASH: $DOCKER_HASH"
 
-    - name: Remove YugabyteDB tarballs to save disk space
+    - name: Restore Docker images cache
+      id: cache-docker-images
+    
+    # CACHE-DOCKER: Try to restore pre-built Docker images (foc-lotus, foc-lotus-miner, foc-builder, foc-curio, foc-yugabyte)
+    # These images contain YugabyteDB and all build dependencies
+    - name: Restore Docker images cache
+      id: cache-docker-images
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.foc-localnet/docker-images-cache
+        key: ${{ runner.os }}-docker-images-${{ steps.version-hashes.outputs.docker-hash }}
+
+    # CACHE-DOCKER: If Docker images are cached, load them from tarballs
+    - name: Load cached Docker images
+      if: steps.cache-docker-images.outputs.cache-hit == 'true'
       run: |
-        rm ~/.foc-localnet/artifacts/yugabyte-*.tar.gz
-        df -h
+        echo "Loading Docker images from cache..."
+        for image in ~/.foc-localnet/docker-images-cache/*.tar; do
+          if [ -f "$image" ]; then
+            echo "Loading $(basename $image)..."
+            docker load -i "$image"
+          fi
+        done
+        echo "Docker images loaded successfully, list:"
+        docker images
 
+    # If Docker images are cached, skip building them AND skip downloading YugabyteDB
+    # (YugabyteDB is already baked into the foc-yugabyte Docker image)
+    - name: Initialize (CACHE-DOCKER hit)
+      if: steps.cache-docker-images.outputs.cache-hit == 'true'
+      run: |
+        rm -rf ~/.foc-localnet
+        ./foc-localnet init --no-docker-build
+
+    # If Docker images are not cached, do full init (downloads YugabyteDB and builds all images)
+    - name: Initialize (CACHE-DOCKER miss)
+      if: steps.cache-docker-images.outputs.cache-hit == 'false'
+      run: |
+        rm -rf ~/.foc-localnet
+        ./foc-localnet init
+
+    # CACHE-DOCKER: Build Docker images if not cached
+    - name: Build Docker images archives for cache
+      if: steps.cache-docker-images.outputs.cache-hit != 'true'
+      run: |e
+        docker save foc-lotus -o ~/.foc-localnet/docker-images-cache/foc-lotus.tar
+        docker save foc-lotus-miner -o ~/.foc-localnet/docker-images-cache/foc-lotus-miner.tar
+        docker save foc-builder -o ~/.foc-localnet/docker-images-cache/foc-builder.tar
+        docker save foc-curio -o ~/.foc-localnet/docker-images-cache/foc-curio.tar
+        docker save foc-yugabyte -o ~/.foc-localnet/docker-images-cache/foc-yugabyte.tar
+        echo "Docker images saved to cache"
+
+    # CACHE-DOCKER: Save Docker images cache for future runs
+    - name: Save Docker images cache to GitHub
+      if: steps.cache-docker-images.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ~/.foc-localnet/docker-images-cache
+        key: ${{ runner.os }}-docker-images-${{ steps.version-hashes.outputs.docker-hash }}
+
+    # CACHE-BINARIES: Try to restore previously built Lotus/Curio binaries
+    - name: Restore build artifacts cache
+      id: cache-binaries
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.foc-localnet/artifacts/bin
+        key: ${{ runner.os }}-binaries-${{ steps.version-hashes.outputs.code-hash }}
+
+    # CACHE-GO: Try to restore foc-builder Go module cache to speed up Lotus/Curio builds
     - name: Restore foc-builder cache
+      id: cache-go
+      if: steps.cache-binaries.outputs.cache-hit != 'true'
       uses: actions/cache/restore@v4
       with:
         path: ~/.foc-localnet/docker/volumes/cache/foc-builder
@@ -89,18 +181,33 @@ jobs:
     - name: Show available disk space before builds
       run: df -h
 
+    # Build Lotus and Curio if not cached
     - name: Build Lotus
+      if: steps.cache-binaries.outputs.cache-hit != 'true'
       run: ./foc-localnet build lotus
 
     - name: Build Curio
+      if: steps.cache-binaries.outputs.cache-hit != 'true'
       run: ./foc-localnet build curio
 
+    # CACHE-GO: Save Go module cache for future builds
     - name: Save foc-builder cache
+      if: steps.cache-binaries.outputs.cache-hit != 'true' &&
+          steps.cache-go.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: ~/.foc-localnet/docker/volumes/cache/foc-builder
         key: ${{ runner.os }}-foc-builder-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
 
+    # CACHE-BINARIES: Save built Lotus/Curio binaries for future runs
+    - name: Save build artifacts cache
+      if: steps.cache-binaries.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ~/.foc-localnet/artifacts/bin
+        key: ${{ runner.os }}-binaries-${{ steps.version-hashes.outputs.code-hash }}
+
+    # Disk free-up
     - name: Clean up Go modules after builds
       run: |
         sudo rm -rf ~/.foc-localnet/docker/volumes/cache
@@ -108,24 +215,30 @@ jobs:
         sudo rm -rf ~/.foc-localnet/code/curio
         df -h
 
+    # CACHE-PROOF-PARAMS: Try to restore Filecoin proof parameters cache
     - name: Restore filecoin-proof-params cache
+      id: cache-proof-params
       uses: actions/cache/restore@v4
       with:
         path: ~/.foc-localnet/docker/volumes/cache/filecoin-proof-params
         key: ${{ runner.os }}-filecoin-proof-params-2k-cache
-        restore-keys: |
-          ${{ runner.os }}-filecoin-proof-params-2k-cache-
-        
+
+    # Start the full Filecoin localnet cluster
     - name: Start cluster
       run: ./foc-localnet start --parallel
 
+    # CACHE-PROOF-PARAMS: Save proof parameters for future runs (speeds up sector sealing)
     - name: Save filecoin-proof-params cache
+      if: steps.cache-proof-params.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: ~/.foc-localnet/docker/volumes/cache/filecoin-proof-params
         key: ${{ runner.os }}-filecoin-proof-params-2k-cache
+    
+    # Verify cluster is running correctly
     - name: Check status
       run: ./foc-localnet status
 
+    # Clean shutdown
     - name: Stop cluster
       run: ./foc-localnet stop

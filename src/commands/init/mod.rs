@@ -94,6 +94,7 @@ fn cleanup_previous_installation() -> Result<(), Box<dyn std::error::Error>> {
 /// * `proof_params_dir` - Optional path to local filecoin-proof-params directory
 /// * `force` - Whether to force regeneration of config file
 /// * `use_random_mnemonic` - Whether to use random mnemonic for key generation
+/// * `no_docker_build` - Whether to skip artifact downloads and Docker image builds (use when images are already cached)
 ///
 /// # Returns
 /// Returns `Ok(())` on successful initialization, or an error if any step fails.
@@ -107,6 +108,7 @@ pub fn init_environment(
     proof_params_dir: Option<String>,
     force: bool,
     use_random_mnemonic: bool,
+    no_docker_build: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     info!("Initializing foc-localnet environment...");
 
@@ -135,11 +137,16 @@ pub fn init_environment(
     // Download code repositories
     repositories::download_code_repositories()?;
 
-    // Download required artifacts (or copy from local paths)
-    artifacts::download_artifacts(yugabyte_archive, proof_params_dir)?;
+    // Download required artifacts and build Docker images (unless skipped)
+    if no_docker_build {
+        info!("Skipping artifact downloads and Docker image builds (--no-docker-build flag set)");
+    } else {
+        // Download required artifacts (or copy from local paths)
+        artifacts::download_artifacts(yugabyte_archive, proof_params_dir)?;
 
-    // Build and cache Docker images
-    crate::docker::build::build_and_cache_docker_images()?;
+        // Build and cache Docker images
+        crate::docker::build::build_and_cache_docker_images()?;
+    }
 
     info!("✓ Initialization completed successfully");
     info!("You can now start the localnet with 'foc-localnet start'");
