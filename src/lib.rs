@@ -16,4 +16,5 @@ pub mod paths;
 pub mod poison;
 pub mod port_allocator;
 pub mod run_id;
+pub mod utils;
 pub mod version_info;

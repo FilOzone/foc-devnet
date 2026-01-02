@@ -4,6 +4,7 @@
 
 use crate::commands::start::step::SetupContext;
 use crate::docker::command_logger::run_and_log_command;
+use crate::utils::retry::{retry_with_fixed_delay, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS};
 use ethers_core::types::U256;
 use hex;
 use std::error::Error;
@@ -75,63 +76,68 @@ pub fn check_mock_usdfc_balance(
     token_address: &str,
     lotus_rpc_url: &str,
 ) -> Result<U256, Box<dyn Error>> {
-    // info!("Checking MockUSDFC balance for {}...", eth_address);
+    // Retry balance check with fixed delay
+    retry_with_fixed_delay(
+        || {
+            let key = format!("usdfc_balance_check_{}", eth_address);
+            let output = run_and_log_command(
+                "docker",
+                &[
+                    "run",
+                    "--rm",
+                    "--network",
+                    "host",
+                    "-v",
+                    &format!(
+                        "{}:/workspace",
+                        crate::paths::project_root()?
+                            .join("contracts/MockUSDFC")
+                            .display()
+                    ),
+                    "foc-builder",
+                    "bash",
+                    "-c",
+                    &format!(
+                        "cd /workspace && cast call {} \
+                         --rpc-url {} \
+                         'balanceOf(address)' {}",
+                        token_address, lotus_rpc_url, eth_address
+                    ),
+                ],
+                context,
+                &key,
+            )?;
 
-    let key = format!("usdfc_balance_check_{}", eth_address);
-    let output = run_and_log_command(
-        "docker",
-        &[
-            "run",
-            "--rm",
-            "--network",
-            "host",
-            "-v",
-            &format!(
-                "{}:/workspace",
-                crate::paths::project_root()?
-                    .join("contracts/MockUSDFC")
-                    .display()
-            ),
-            "foc-builder",
-            "bash",
-            "-c",
-            &format!(
-                "cd /workspace && cast call {} \
-                 --rpc-url {} \
-                 'balanceOf(address)' {}",
-                token_address, lotus_rpc_url, eth_address
-            ),
-        ],
-        context,
-        &key,
-    )?;
+            if !output.status.success() {
+                return Err(format!(
+                    "Failed to check balance for {}: {}",
+                    eth_address,
+                    String::from_utf8_lossy(&output.stderr)
+                )
+                .into());
+            }
 
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to check balance for {}: {}",
-            eth_address,
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
+            let balance_hex = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
-    let balance_hex = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if balance_hex.is_empty() || balance_hex == "0x" {
+                return Ok(U256::zero());
+            }
 
-    if balance_hex.is_empty() || balance_hex == "0x" {
-        return Ok(U256::zero());
-    }
+            // Remove "0x" prefix if it exists
+            let hex_str = balance_hex.strip_prefix("0x").unwrap_or(&balance_hex);
 
-    // Remove "0x" prefix if it exists
-    let hex_str = balance_hex.strip_prefix("0x").unwrap_or(&balance_hex);
+            // Decode hex to bytes
+            let bytes = hex::decode(hex_str).map_err(|e| -> Box<dyn Error> {
+                format!("Failed to decode hex string: {}: {}", hex_str, e).into()
+            })?;
 
-    // Decode hex to bytes
-    let bytes = match hex::decode(hex_str) {
-        Ok(bytes) => bytes,
-        Err(e) => return Err(format!("Failed to decode hex string: {}: {}", hex_str, e).into()),
-    };
+            // Convert bytes to U256
+            let balance_u256 = U256::from_big_endian(&bytes);
 
-    // Convert bytes to U256
-    let balance_u256 = U256::from_big_endian(&bytes);
-
-    Ok(balance_u256)
+            Ok(balance_u256)
+        },
+        DEFAULT_MAX_RETRIES,
+        DEFAULT_RETRY_DELAY_SECS,
+        &format!("MockUSDFC balance check for {}", eth_address),
+    )
 }

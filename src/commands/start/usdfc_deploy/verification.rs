@@ -5,6 +5,7 @@
 use super::foundry_setup::get_mockusdfc_project_dir;
 use crate::commands::start::step::SetupContext;
 use crate::docker::command_logger::run_and_log_command;
+use crate::utils::retry::{retry_with_fixed_delay, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS};
 use std::error::Error;
 use tracing::{info, warn};
 
@@ -25,52 +26,70 @@ pub fn verify_mock_usdfc(
     info!("Waiting for transaction confirmation...");
     std::thread::sleep(std::time::Duration::from_secs(6));
 
-    let verify_cmd = format!(
-        "cd /workspace && \
-         forge script script/Verify.s.sol:VerifyMockUSDFC \
-         --rpc-url {} \
-         --private-key {} \
-         --sig 'run(address)' {} \
-         -vv",
-        lotus_rpc_url, private_key, contract_address
+    // Retry verification with fixed delay
+    let verification_result = retry_with_fixed_delay(
+        || {
+            let verify_cmd = format!(
+                "cd /workspace && \
+                 forge script script/Verify.s.sol:VerifyMockUSDFC \
+                 --rpc-url {} \
+                 --private-key {} \
+                 --sig 'run(address)' {} \
+                 -vv",
+                lotus_rpc_url, private_key, contract_address
+            );
+
+            let key = format!("usdfc_verify_{}", run_id);
+            let output = run_and_log_command(
+                "docker",
+                &[
+                    "run",
+                    "--rm",
+                    "-u",
+                    "foc-user",
+                    "--network",
+                    "host",
+                    "-v",
+                    &format!("{}:/workspace", contract_dir.display()),
+                    "foc-builder",
+                    "bash",
+                    "-c",
+                    &verify_cmd,
+                ],
+                context,
+                &key,
+            )?;
+
+            let _stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+
+            if !output.status.success() {
+                return Err(format!(
+                    "Verification failed: {}",
+                    if !stderr.is_empty() {
+                        stderr.to_string()
+                    } else {
+                        "Unknown error".to_string()
+                    }
+                )
+                .into());
+            }
+
+            Ok(())
+        },
+        DEFAULT_MAX_RETRIES,
+        DEFAULT_RETRY_DELAY_SECS,
+        "MockUSDFC contract verification",
     );
 
-    let key = format!("usdfc_verify_{}", run_id);
-    let output = run_and_log_command(
-        "docker",
-        &[
-            "run",
-            "--rm",
-            "-u",
-            "foc-user",
-            "--network",
-            "host",
-            "-v",
-            &format!("{}:/workspace", contract_dir.display()),
-            "foc-builder",
-            "bash",
-            "-c",
-            &verify_cmd,
-        ],
-        context,
-        &key,
-    )?;
-
-    let _stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    if !output.status.success() {
-        warn!("Verification failed");
-        if !stderr.is_empty() {
-            warn!("Error output:");
-            for line in stderr.lines() {
-                warn!("{}", line);
-            }
+    match verification_result {
+        Ok(_) => {
+            info!("✓ All contract functions verified");
         }
-        // Don't fail the step, just warn
-        warn!("Continuing despite verification warning");
-    } else {
-        info!("All contract functions verified");
+        Err(e) => {
+            warn!("Contract verification failed after retries: {}", e);
+            warn!("Continuing despite verification warning");
+        }
     }
 
     Ok(())
