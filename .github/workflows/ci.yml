@@ -88,7 +88,7 @@ jobs:
       id: version-hashes
       run: |   
         # Get version output
-        VERSION_OUTPUT=$(./foc-localnet --version 2>&1)
+        VERSION_OUTPUT=$(./foc-localnet version 2>&1)
         
         # Compute CODE_HASH from all default:code: lines (Lotus/Curio versions)
         CODE_HASH=$(echo "$VERSION_OUTPUT" | grep 'default:code:' | sha256sum | cut -d' ' -f1)
