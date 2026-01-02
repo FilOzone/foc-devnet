@@ -3,11 +3,13 @@
 //! This module provides comprehensive status reporting for the FOC LocalNet system.
 //!
 //! The status command displays information about:
-//! - Code versions and git status for Lotus and Curio repositories
+//! - Code versions and git status for repositories (Lotus, Curio, Filecoin-Services, Synapse-SDK)
 //! - Build status of system binaries
+//! - Proof parameters availability and validation
 //! - Running status of Docker containers and services
 //! - System uptime information
-//! - Disk usage across various directories
+//! - Running system details (block height, ports, file locations) when system is active
+//! - Generated keys and their file locations
 //!
 //! ## Usage
 //!
@@ -24,23 +26,23 @@
 //! The status module is organized into several submodules:
 //! - `code_version`: Handles repository version and git information display
 //! - `build_status`: Manages binary build status reporting
+//! - `proof_params`: Checks proof parameters availability and validation
 //! - `running_status`: Reports Docker container and service status
 //! - `uptime`: Calculates and displays system uptime
-//! - `disk_usage`: Provides disk usage statistics
+//! - `running_system_info`: Shows detailed info when system is running (ports, block height, files)
+//! - `keys`: Displays generated keys and their file locations
 //! - `git`: Git repository utilities
-//! - `docker`: Docker container management utilities
 //! - `utils`: Common formatting and utility functions
 
 pub mod build_status;
 pub mod code_version;
-pub mod disk_usage;
 pub mod git;
 pub mod keys;
+pub mod proof_params;
 pub mod running_status;
+pub mod running_system_info;
 pub mod uptime;
 pub mod utils;
-
-use tracing::info;
 
 /// Execute the status command.
 ///
@@ -64,13 +66,14 @@ use tracing::info;
 /// - Docker command execution failures
 /// - File system access problems
 pub fn status() -> Result<(), Box<dyn std::error::Error>> {
-    info!("FOC LocalNet Status");
-
     // Code version information
     code_version::print_code_version()?;
 
     // Artifacts build status
     build_status::print_build_status()?;
+
+    // Proof parameters status
+    proof_params::print_proof_params_status()?;
 
     // System running status
     running_status::print_running_status()?;
@@ -78,11 +81,11 @@ pub fn status() -> Result<(), Box<dyn std::error::Error>> {
     // Uptime information (if running)
     uptime::print_uptime()?;
 
+    // Running system information (ports, block height, files) - only if system is running
+    running_system_info::print_running_system_info()?;
+
     // Keys information
     keys::print_keys_status()?;
-
-    // Disk usage information
-    disk_usage::print_disk_usage()?;
 
     Ok(())
 }

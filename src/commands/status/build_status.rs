@@ -30,39 +30,26 @@ use super::utils::format_time_ago;
 ///
 /// Returns an error if file system operations fail.
 pub fn print_build_status() -> Result<(), Box<dyn std::error::Error>> {
-    info!("Build Status");
-
     let bin_dir = foc_localnet_bin();
 
     // Check for expected binaries
     let expected_binaries = vec!["lotus", "lotus-miner", "lotus-shed", "lotus-seed", "curio"];
 
-    // Print header
-    info!(
-        "{:<15}  {:<10}  {:<40}  {:<20}",
-        "Binary", "Status", "Path", "Time of Build"
-    );
-    info!("{:-<15}  {:-<10}  {:-<40}  {:-<20}", "", "", "", "");
-
     for binary in expected_binaries {
         let binary_path = bin_dir.join(binary);
-        let (status, path_display, time_display) = if binary_path.exists() {
+        if binary_path.exists() {
             let metadata = std::fs::metadata(&binary_path)?;
             let modified: DateTime<Utc> = metadata.modified()?.into();
             let time_ago = format_time_ago(Utc::now() - modified);
-            (
-                "Ready",
-                binary_path.display().to_string(),
-                format!("{} ({})", modified.format("%Y-%m-%d %H:%M"), time_ago),
-            )
+            info!(
+                "Binary \"{}\": build on {} ({})",
+                binary,
+                modified.format("%Y-%m-%d %H:%M"),
+                time_ago
+            );
         } else {
-            ("Missing", "N/A".to_string(), "N/A".to_string())
-        };
-
-        info!(
-            "{:<15}  {:<10}  {:<40}  {:<20}",
-            binary, status, path_display, time_display
-        );
+            info!("Binary \"{}\": Missing", binary);
+        }
     }
 
     Ok(())

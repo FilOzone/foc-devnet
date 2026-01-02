@@ -186,8 +186,6 @@ fn parse_memory_value(mem_str: &str) -> Option<f64> {
 ///
 /// Returns an error if Docker commands fail.
 pub fn print_uptime() -> Result<(), Box<dyn std::error::Error>> {
-    info!("System Uptime");
-
     let containers = get_running_foc_containers()?;
 
     if containers.is_empty() {

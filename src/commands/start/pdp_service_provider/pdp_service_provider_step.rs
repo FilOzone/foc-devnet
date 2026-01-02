@@ -252,11 +252,9 @@ impl Step for PdpSpRegistrationStep {
 
         // Check for errors
         if !errors.is_empty() {
-            return Err(format!(
-                "Failed to register some providers:\n{}",
-                errors.join("\n")
-            )
-            .into());
+            return Err(
+                format!("Failed to register some providers:\n{}", errors.join("\n")).into(),
+            );
         }
 
         // Store all provider IDs
