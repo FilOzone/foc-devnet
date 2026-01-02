@@ -1,10 +1,11 @@
+---
 name: CI
 
 on:
   push:
-    branches: [ '*' ]
+    branches: ['*']
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   integration-test:
@@ -99,9 +100,6 @@ jobs:
         echo "docker-hash=$DOCKER_HASH" >> $GITHUB_OUTPUT
         echo "DOCKER_HASH: $DOCKER_HASH"
 
-    - name: Restore Docker images cache
-      id: cache-docker-images
-    
     # CACHE-DOCKER: Try to restore pre-built Docker images (foc-lotus, foc-lotus-miner, foc-builder, foc-curio, foc-yugabyte)
     # These images contain YugabyteDB and all build dependencies
     - name: Restore Docker images cache
@@ -143,7 +141,7 @@ jobs:
     # CACHE-DOCKER: Build Docker images if not cached
     - name: Build Docker images archives for cache
       if: steps.cache-docker-images.outputs.cache-hit != 'true'
-      run: |e
+      run: |-
         docker save foc-lotus -o ~/.foc-localnet/docker-images-cache/foc-lotus.tar
         docker save foc-lotus-miner -o ~/.foc-localnet/docker-images-cache/foc-lotus-miner.tar
         docker save foc-builder -o ~/.foc-localnet/docker-images-cache/foc-builder.tar
