@@ -221,7 +221,7 @@ impl Default for Config {
                 branch: "main".to_string(),
             },
             synapse_sdk: Location::GitBranch {
-                url: "git@github.com:FilOzone/synapse-sdk.git".to_string(),
+                url: "https://github.com/FilOzone/synapse-sdk.git".to_string(),
                 branch: "feat/redpanda/localnet-support".to_string(),
             },
             yugabyte_download_url: "https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz".to_string(),
