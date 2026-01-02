@@ -8,13 +8,13 @@ use std::time::Duration;
 use tracing::info;
 
 use super::constants::{
-    MINER_API_CHECK_DELAY_SECS, PORT_WAIT_TIMEOUT_SECS, TIPSET_CHECK_DELAY_SECS,
+    MINER_API_CHECK_DELAY_SECS, PORT_WAIT_TIMEOUT_SECS,
 };
 use crate::commands::start::step::SetupContext;
 use crate::docker::command_logger::run_and_log_command;
 use crate::docker::containers::{lotus_container_name, lotus_miner_container_name};
 use crate::docker::wait_for_port;
-use crate::utils::retry::retry_with_fixed_delay;
+use crate::utils::retry::{DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS, retry_with_fixed_delay};
 
 // Additional timing constant for API file wait
 const API_FILE_TIMEOUT_SECS: u64 = 120;
@@ -88,8 +88,6 @@ pub fn check_tipset_generation(context: &SetupContext) -> Result<(), Box<dyn Err
     let chain_output1 = String::from_utf8_lossy(&output1.stdout);
     let height1 = parse_chain_height(&chain_output1)?;
 
-    // Retry checking for chain progression
-    const MAX_RETRIES: u32 = 12;
     retry_with_fixed_delay(
         || {
             // Get new chain height
@@ -122,16 +120,16 @@ pub fn check_tipset_generation(context: &SetupContext) -> Result<(), Box<dyn Err
                 Err(format!("Chain height still at {}", height1).into())
             }
         },
-        MAX_RETRIES,
-        TIPSET_CHECK_DELAY_SECS,
+        DEFAULT_MAX_RETRIES,
+        DEFAULT_RETRY_DELAY_SECS,
         "Chain progression verification",
     )
     .map_err(|_| {
         format!(
             "Chain is not progressing. Height remained at {} after {} attempts ({} seconds total).",
             height1,
-            MAX_RETRIES,
-            (MAX_RETRIES as u64) * TIPSET_CHECK_DELAY_SECS
+            DEFAULT_MAX_RETRIES,
+            (DEFAULT_MAX_RETRIES as u64) * DEFAULT_RETRY_DELAY_SECS
         )
     })?;
 
