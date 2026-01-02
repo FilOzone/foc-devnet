@@ -99,15 +99,6 @@ fn stop_running_containers() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Clean up old runs (keep only the last N runs to prevent unbounded disk usage).
-///
-/// This is optional and can be configured. By default, we keep all runs.
-fn cleanup_old_runs(_max_runs_to_keep: Option<usize>) -> Result<(), Box<dyn std::error::Error>> {
-    // TODO: Implement cleanup policy if desired
-    // For now, keep all runs for historical reference
-    Ok(())
-}
-
 /// Perform legacy full regenesis (deletes ALL runs - deprecated).
 ///
 /// This function is kept for backward compatibility but should not be used
