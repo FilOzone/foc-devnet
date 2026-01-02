@@ -545,47 +545,98 @@ Portainer is a lightweight container management UI that gives you visual, browse
 
 foc-localnet uses **user-defined bridge networks** to separate components:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                   foc-<run-id>-lot-net                      │
-│  (Lotus Network - blockchain communication)                 │
-│                                                              │
-│  ┌──────────────┐    ┌─────────────┐    ┌──────────────┐  │
-│  │ foc-lotus    │◄──►│ foc-builder │    │ foc-curio-1  │  │
-│  │              │    │ (--net=host)│    │              │  │
-│  └──────────────┘    └─────────────┘    └──────────────┘  │
-│         ▲                                       ▲           │
-└─────────┼───────────────────────────────────────┼───────────┘
-          │                                       │
-          │                                       │
-┌─────────┼───────────────────────────────────────┼───────────┐
-│         │       foc-<run-id>-lot-m-net         │           │
-│  (Lotus Miner Network)                         │           │
-│         │                                       │           │
-│  ┌──────▼──────┐                                │           │
-│  │ foc-lotus-  │                                │           │
-│  │   miner     │                                │           │
-│  └─────────────┘                                │           │
-└─────────────────────────────────────────────────┼───────────┘
-                                                  │
-┌─────────────────────────────────────────────────┼───────────┐
-│                foc-<run-id>-cur-m-net-1         │           │
-│  (Curio SP 1 Network)                           │           │
-│                                                  │           │
-│  ┌─────────────┐    ┌──────▼──────┐                        │
-│  │ foc-        │◄──►│ foc-curio-1 │                        │
-│  │  yugabyte   │    │             │                        │
-│  └─────────────┘    └─────────────┘                        │
-└─────────────────────────────────────────────────────────────┘
+**What are user-defined bridge networks?**
+
+Docker's user-defined bridge networks are virtual networks that provide:
+- **Container isolation:** Containers on different networks can't communicate directly
+- **Automatic DNS:** Containers can reference each other by name (e.g., `foc-lotus` instead of IP addresses)
+- **Network segmentation:** Mimics real-world network separation for testing
+
+**Important:** All containers are still accessible from the host machine via their exposed ports. The networks only control container-to-container communication and provide convenient DNS resolution. This segregation helps:
+- **Test network isolation scenarios:** Simulate how components interact in production
+- **Prevent accidental cross-talk:** Ensure services only communicate with intended peers
+- **Enable clean DNS:** Use container names instead of hardcoded IPs in configuration
+
+**Network diagram:**
+
+```mermaid
+graph TB
+    subgraph host["Host Machine (localhost)"]
+        style host fill:#f0f0f0,stroke:#333,stroke-width:2px
+        portainer["🌐 Portainer<br/>:5700"]
+        lotus_api["📡 Lotus API<br/>:5701"]
+        miner_api["⛏️ Miner API<br/>:5702"]
+        yugabyte_api["🗄️ Yugabyte<br/>:5710"]
+    end
+
+    subgraph lotus_net["foc-&lt;run-id&gt;-lot-net<br/>(Lotus Network - Blockchain Communication)"]
+        style lotus_net fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+        lotus["foc-lotus<br/>(Filecoin Daemon)"]
+        builder["foc-builder<br/>(--net=host)"]
+        curio1_lot["foc-curio-1<br/>(on lot-net)"]
+    end
+
+    subgraph miner_net["foc-&lt;run-id&gt;-lot-m-net<br/>(Lotus Miner Network)"]
+        style miner_net fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+        miner["foc-lotus-miner<br/>(PoRep Miner)"]
+    end
+
+    subgraph curio_net["foc-&lt;run-id&gt;-cur-m-net-1<br/>(Curio SP 1 Network)"]
+        style curio_net fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+        yugabyte["foc-yugabyte<br/>(Database)"]
+        curio1["foc-curio-1<br/>(PDP Service Provider)"]
+    end
+
+    %% Container to Host connections
+    lotus -.->|exposes| lotus_api
+    miner -.->|exposes| miner_api
+    yugabyte -.->|exposes| yugabyte_api
+
+    %% Network connections
+    builder -->|uses host network| lotus
+    curio1 -->|same container| curio1_lot
+    miner -->|connects to| lotus
+    curio1_lot -->|connects to| lotus
+    yugabyte <-->|database| curio1
+
+    %% Styling
+    classDef container fill:#fff,stroke:#333,stroke-width:1px
+    class lotus,builder,curio1_lot,miner,yugabyte,curio1 container
 ```
 
-**Why multiple networks:**
+**Legend:**
+- **Solid lines** → Network connectivity
+- **Dotted lines** → Port exposure to host
+- **Boxes** → Docker networks (segregation boundaries)
+- All services remain accessible from host machine despite network isolation
 
-1. **Lotus Network (`foc-<run-id>-lot-net`)**: All components accessing Lotus API
-2. **Lotus Miner Network (`foc-<run-id>-lot-m-net`)**: Lotus miner connects to Lotus
-3. **Curio Networks (`foc-<run-id>-cur-m-net-N`)**: Each Curio SP isolated with shared Yugabyte
+**Why multiple networks (segregation purposes):**
+
+1. **Lotus Network (`foc-<run-id>-lot-net`)**: 
+   - All components that need Lotus API access
+   - Provides DNS: containers can use `foc-<run-id>-lotus` as hostname
+   
+2. **Lotus Miner Network (`foc-<run-id>-lot-m-net`)**: 
+   - Lotus miner's isolated network
+   - Miner connects to Lotus daemon by name
+   
+3. **Curio Networks (`foc-<run-id>-cur-m-net-N`)**: 
+   - Each Curio SP gets its own network
+   - All share Yugabyte database via network membership
+   - Provides DNS: Curio can use `foc-<run-id>-yugabyte` as database host
 
 **Builder uses host network** (`--network host`) to access Lotus RPC at `http://localhost:1234/rpc/v1`.
+
+**Access from host machine:**
+
+Despite network segregation, you can still access all services from your host:
+- Lotus API: `http://localhost:1234/rpc/v1`
+- Lotus Miner API: `http://localhost:2345`
+- Yugabyte Database: `postgresql://localhost:5433`
+- Portainer UI: `http://localhost:5700`
+- Curio instances: Dynamic ports (check `docker ps`)
+
+The networks only affect container-to-container communication, not host-to-container access.
 
 ### Port Management
 
