@@ -14,7 +14,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - uses: endersonmenezes/free-disk-space@v3
+    - name: Reclaim unused disk 
+      uses: endersonmenezes/free-disk-space@v3
       with:
         remove_android: true
         remove_dotnet: true
@@ -37,9 +38,10 @@ jobs:
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          target/
+        key: ${{ runner.os }}-rust-build-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
-          ${{ runner.os }}-cargo-
+          ${{ runner.os }}-rust-build-
 
     - name: Set up Docker
       uses: docker/setup-buildx-action@v3
@@ -54,12 +56,29 @@ jobs:
       uses: actions/cache@v4
       with:
         path: /tmp/.buildx-cache
-        key: ${{ runner.os }}-docker-${{ hashFiles('docker/**') }}-force-update
+        key: ${{ runner.os }}-docker-${{ hashFiles('docker/**') }}
         restore-keys: |
           ${{ runner.os }}-docker-
 
     - name: Install dependencies
       run: sudo apt-get update && sudo apt-get install -y tar
+
+    - name: Restore Docker images cache
+      uses: actions/cache/restore@v4
+      with:
+        path: /tmp/foc-docker-images.tar
+        key: ${{ runner.os }}-docker-images-${{ hashFiles('docker/**') }}-force-update
+        restore-keys: |
+          ${{ runner.os }}-docker-images-
+
+    - name: Load cached Docker images
+      run: |
+        if [ -f /tmp/foc-docker-images.tar ]; then
+          docker load -i /tmp/foc-docker-images.tar
+          echo "Loaded cached Docker images"
+        else
+          echo "No cached Docker images found"
+        fi
 
     - name: Build foc-localnet
       run: cargo build --release
@@ -71,18 +90,32 @@ jobs:
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-force-update
+          target/
+        key: ${{ runner.os }}-rust-build-${{ hashFiles('**/Cargo.lock') }}
     
-    - name: Copy foc-localnet binary and delete target/ directory
+    - name: Copy foc-localnet binary and delete rust build cache
       run: |
         cp ./target/release/foc-localnet ./foc-localnet
+        rm -rf ~/.cargo/registry/
+        rm -rf ~/.cargo/git/db/
         rm -rf target/
         df -h
 
     - name: Initialize foc-localnet
       run: ./foc-localnet init
 
-    - name: Clean up some disk space
+    - name: Save Docker images cache
+      run: |
+        docker save $(docker images --format "table {{.Repository}}:{{.Tag}}" | grep -v "REPOSITORY:TAG" | grep "foc-") -o /tmp/foc-docker-images.tar
+        df -h
+
+    - name: Cache Docker images
+      uses: actions/cache/save@v4
+      with:
+        path: /tmp/foc-docker-images.tar
+        key: ${{ runner.os }}-docker-images-${{ hashFiles('docker/**') }}-force-update
+
+    - name: Remove YugabyteDB tarballs to save disk space
       run: |
         rm ~/.foc-localnet/artifacts/yugabyte-*.tar.gz
         df -h
@@ -91,7 +124,7 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ~/.foc-localnet/docker/volumes/cache
-        key: ${{ runner.os }}-foc-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}-force-update
+        key: ${{ runner.os }}-foc-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
         restore-keys: |
           ${{ runner.os }}-foc-cache-
 
@@ -108,11 +141,13 @@ jobs:
       uses: actions/cache/save@v4
       with:
         path: ~/.foc-localnet/docker/volumes/cache
-        key: ${{ runner.os }}-foc-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}-force-update
+        key: ${{ runner.os }}-foc-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
 
     - name: Clean up Go modules after builds
       run: |
-        rm -rf ~/.foc-localnet/docker/volumes/cache
+        sudo rm -rf ~/.foc-localnet/docker/volumes/cache
+        sudo rm -rf ~/.foc-localnet/code/lotus
+        sudo rm -rf ~/.foc-localnet/code/curio
         df -h
 
     - name: Start cluster
