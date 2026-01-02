@@ -210,7 +210,7 @@ impl Default for Config {
             },
             curio: Location::GitBranch {
                 url: "https://github.com/redpanda-f/curio.git".to_string(),
-                branch: "feat/redpanda/localnet-support".to_string(),
+                branch: "feat/redpanda/pdpv0-2k-envvars".to_string(),
             },
             filecoin_services: Location::GitBranch {
                 url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
