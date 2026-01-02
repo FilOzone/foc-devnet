@@ -144,6 +144,8 @@ jobs:
     - name: Build Docker images archives for cache
       if: steps.cache-docker-images.outputs.cache-hit != 'true'
       run: |-
+        mkdir -p ~/.docker-images-cache
+        echo "Building Docker images for cache..."
         docker save foc-lotus -o ~/.docker-images-cache/foc-lotus.tar
         docker save foc-lotus-miner -o ~/.docker-images-cache/foc-lotus-miner.tar
         docker save foc-builder -o ~/.docker-images-cache/foc-builder.tar
