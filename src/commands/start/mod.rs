@@ -106,7 +106,7 @@ fn stop_running_containers() -> Result<(), Box<dyn std::error::Error>> {
 #[allow(dead_code)]
 fn perform_regenesis_legacy() -> Result<(), Box<dyn std::error::Error>> {
     warn!("Legacy regenesis called - this deletes ALL previous runs!");
-    
+
     let run_specific_volumes_root = crate::paths::foc_localnet_docker_volumes_run_specific_root();
     let runs_dir = crate::paths::foc_localnet_runs();
 
