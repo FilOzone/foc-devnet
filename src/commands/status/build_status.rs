@@ -9,6 +9,7 @@
 
 use crate::paths::foc_localnet_bin;
 use chrono::{DateTime, Utc};
+use std::process::Command;
 use tracing::info;
 
 use super::utils::format_time_ago;
@@ -41,11 +42,16 @@ pub fn print_build_status() -> Result<(), Box<dyn std::error::Error>> {
             let metadata = std::fs::metadata(&binary_path)?;
             let modified: DateTime<Utc> = metadata.modified()?.into();
             let time_ago = format_time_ago(Utc::now() - modified);
+
+            // Get version information
+            let version = get_binary_version(&binary_path);
+
             info!(
-                "Binary \"{}\": build on {} ({})",
+                "{}: Ready | Built {} ({}) | Version: {}",
                 binary,
                 modified.format("%Y-%m-%d %H:%M"),
-                time_ago
+                time_ago,
+                version
             );
         } else {
             info!("Binary \"{}\": Missing", binary);
@@ -53,6 +59,25 @@ pub fn print_build_status() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+/// Get the version string for a binary by executing it with --version.
+///
+/// Returns the version string or "Unknown" if the command fails.
+fn get_binary_version(binary_path: &std::path::Path) -> String {
+    match Command::new(binary_path).arg("--version").output() {
+        Ok(output) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            // Take first line and clean it up
+            stdout
+                .lines()
+                .next()
+                .unwrap_or("Unknown")
+                .trim()
+                .to_string()
+        }
+        _ => "Unknown".to_string(),
+    }
 }
 
 #[cfg(test)]

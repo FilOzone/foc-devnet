@@ -7,7 +7,6 @@ use foc_localnet::cli::{Cli, Commands};
 use foc_localnet::logger::init_logging;
 use foc_localnet::poison;
 use foc_localnet::run_id::generate_run_id;
-use tracing::error;
 
 mod main_app;
 
@@ -67,13 +66,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             poison::remove_poison()?;
             Ok(())
         }
-        Err(e) => {
-            // Leave poison file in place on error
-            error!(
-                "Command failed, poison file left in place for safety: {}",
-                e
-            );
-            Err(e)
-        }
+        Err(e) => Err(e),
     }
 }

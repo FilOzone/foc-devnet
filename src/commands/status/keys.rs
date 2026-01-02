@@ -8,7 +8,10 @@ use tracing::info;
 /// Print the keys status information.
 pub fn print_keys_status() -> Result<(), Box<dyn std::error::Error>> {
     let keys_dir = foc_localnet_keys();
-    info!("Keys stored in: {}", keys_dir.display());
+    info!(
+        "Deterministic Keys and Addresses stored in: {}",
+        keys_dir.display()
+    );
 
     Ok(())
 }

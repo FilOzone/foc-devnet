@@ -75,7 +75,7 @@ pub fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
                 service_name, uptime, ports
             );
         } else if !image_available {
-            info!("{}: Not Built", service_name);
+            info!("{}: Container Unavailable", service_name);
         } else {
             // Don't count builder as "not running" for all_running check
             if !container_name.contains("builder") {
