@@ -16,7 +16,7 @@ use super::Project;
 
 /// Build the builder Docker image.
 pub fn build_builder_image(dockerfile_dir: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let image_tag = "foc-localnet-builder:latest";
+    let image_tag = "foc-builder";
 
     // Check if image already exists in Docker
     if image_exists(image_tag)? {
