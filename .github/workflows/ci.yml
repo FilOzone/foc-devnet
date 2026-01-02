@@ -2,10 +2,11 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ '*' ]
   pull_request:
     branches: [ main ]
 
+jobs:
   integration-test:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -29,14 +30,13 @@ on:
     - name: Setup Rust toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
 
-    - name: Cache Rust dependencies
-      uses: actions/cache@v4
+    - name: Restore Rust cache
+      uses: actions/cache/restore@v4
       with:
         path: |
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
-          target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-cargo-
@@ -54,7 +54,7 @@ on:
       uses: actions/cache@v4
       with:
         path: /tmp/.buildx-cache
-        key: ${{ runner.os }}-docker-${{ hashFiles('docker/**') }}
+        key: ${{ runner.os }}-docker-${{ hashFiles('docker/**') }}-force-update
         restore-keys: |
           ${{ runner.os }}-docker-
 
@@ -63,6 +63,15 @@ on:
 
     - name: Build foc-localnet
       run: cargo build --release
+
+    - name: Save Rust cache
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-force-update
     
     - name: Copy foc-localnet binary and delete target/ directory
       run: |
@@ -78,20 +87,32 @@ on:
         rm ~/.foc-localnet/artifacts/yugabyte-*.tar.gz
         df -h
 
+    - name: Restore foc-localnet cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.foc-localnet/docker/volumes/cache
+        key: ${{ runner.os }}-foc-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}-force-update
+        restore-keys: |
+          ${{ runner.os }}-foc-cache-
+
+    - name: Show available disk space before builds
+      run: df -h
+
     - name: Build Lotus
       run: ./foc-localnet build lotus
-
-    - name: Clean up Go modules
-      run: |
-        rm -rf ~/go/pkg/mod/
-        df -h
 
     - name: Build Curio
       run: ./foc-localnet build curio
 
+    - name: Save foc-localnet cache
+      uses: actions/cache/save@v4
+      with:
+        path: ~/.foc-localnet/docker/volumes/cache
+        key: ${{ runner.os }}-foc-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}-force-update
+
     - name: Clean up Go modules after builds
       run: |
-        rm -rf ~/go/pkg/mod/
+        rm -rf ~/.foc-localnet/docker/volumes/cache
         df -h
 
     - name: Start cluster
