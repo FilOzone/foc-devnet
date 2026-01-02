@@ -48,7 +48,7 @@ This will:
 ### Step 3: Start the Network
 
 ```bash
-cargo run -- start
+cargo run -- start --parallel
 ```
 
 This will:
@@ -58,7 +58,7 @@ This will:
 - Start storage provider(s)
 - Launch Portainer UI for container management
 
-**If you are feeling adventurous**: Use `cargo run -- start --parallel`, an experimental feature that attempts to parallelize setup steps as much as possible. 
+**If you are have troubles**: Use `cargo run -- start`, removing parallelism during start, this may take longer.
 
 **That's it!** Your local Filecoin network is running.
 
@@ -88,7 +88,7 @@ Each can be:
 ### 🔒 Deterministic Setup
 - **Pinned versions**: All components use specific git tags/commits for reproducibility
 - **Deterministic keys**: Uses fixed seeds, generating the same keys on every setup
-- **Consistent addresses**: Find derived accounts in `~/.foc-localnet/state/addresses.json`
+- **Consistent state**: Each run preserves its context in `~/.foc-localnet/run/<run-id>/step_context.json`
 
 ### 🤖 Fully Automated
 From building Docker images to deploying contracts—everything is automated:
@@ -105,8 +105,9 @@ Built with modular steps for easy extension and customization:
 
 ### 📜 Programmable
 Built for scripting and automation:
-- **Contract addresses**: `~/.foc-localnet/state/contract_addresses.json`
-- **Account addresses**: `~/.foc-localnet/state/addresses.json`
+- **Contract addresses**: `~/.foc-localnet/run/<run-id>/contract_addresses.json`
+- **Step context**: `~/.foc-localnet/run/<run-id>/step_context.json`
+- **Latest run symlink**: `~/.foc-localnet/state/latest/` → points to most recent run
 - Write scripts for testing, demos, CI/CD pipelines, etc.
 
 ### 🌐 Isolated Networks
@@ -133,34 +134,23 @@ Bundled with Portainer for browser-based Docker management—no terminal wizardr
 
 ---
 
-## 📂 Where's My Data?
-
-Everything lives in `~/.foc-localnet/`:
-
-```
-~/.foc-localnet/
-├── state/
-│   ├── addresses.json           # Derived account addresses
-│   └── contract_addresses.json  # Deployed smart contracts
-├── artifacts/
-│   └── docker/volumes/          # Persistent container data
-├── logs/                        # Container logs
-├── repos/                       # Cloned Git repositories
-└── config.toml                  # Configuration
-```
-
----
-
 ## 🛠️ Need More?
 
 For advanced topics like:
-- Custom repository configurations
-- Multiple storage provider setups
-- Architecture deep-dives
-- Troubleshooting guides
-- API access and scripting
+- **All commands reference** (init, build, start, stop, status, version)
+- **Configuration system** (config.toml structure, parameters, editing)
+- **Complete directory structure** (what's stored where and why)
+- **Resetting and cleanup** (manual cleanup, disk management)
+- **Run ID and Step Context** (isolation mechanism, state sharing)
+- **Docker and networking** (container architecture, network topology, Portainer debugging)
+- **Repository management** (using local repos, sharing configurations)
+- **Command flags** (detailed explanations of all flags and when to use them)
+- **Lifecycle overview** (full startup sequence, step implementation)
+- **Service Provider examples** (1 SP with 0 authorized, 3 SPs with top 2 authorized, etc.)
+- **Troubleshooting guides** (port conflicts, build failures, network issues)
+- **Advanced topics** (custom genesis, Lotus API access, contract interaction)
 
-See **[README_ADVANCED.md](README_ADVANCED.md)** for detailed documentation (coming soon).
+See **[Advanced_Readme.md](Advanced_Readme.md)** for comprehensive documentation.
 
 ---
 

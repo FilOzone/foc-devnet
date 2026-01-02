@@ -79,12 +79,13 @@ fn setup_directories_and_run_id(
     Ok((volumes_dir, run_dir, run_id))
 }
 
-/// Perform a full regenesis reset, deleting all genesis-related files and keys.
-fn perform_regenesis() -> Result<(), Box<dyn std::error::Error>> {
-    info!("Performing regenesis (full reset)...");
+/// Stop any running containers from previous runs.
+///
+/// Note: We do NOT delete old run volumes or directories since each run has
+/// a unique run ID. Old runs are preserved for historical reference and debugging.
+fn stop_running_containers() -> Result<(), Box<dyn std::error::Error>> {
+    info!("Stopping any running containers from previous runs...");
 
-    // First, stop any running containers to ensure clean state
-    info!("Stopping any running containers...");
     let containers = vec!["foc-lotus-miner", "foc-lotus", "foc-curio", "foc-yugabyte"];
     for container in containers {
         if container_is_running(container)? {
@@ -94,10 +95,31 @@ fn perform_regenesis() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    info!("All running containers stopped.");
+    Ok(())
+}
+
+/// Clean up old runs (keep only the last N runs to prevent unbounded disk usage).
+///
+/// This is optional and can be configured. By default, we keep all runs.
+fn cleanup_old_runs(_max_runs_to_keep: Option<usize>) -> Result<(), Box<dyn std::error::Error>> {
+    // TODO: Implement cleanup policy if desired
+    // For now, keep all runs for historical reference
+    Ok(())
+}
+
+/// Perform legacy full regenesis (deletes ALL runs - deprecated).
+///
+/// This function is kept for backward compatibility but should not be used
+/// since it defeats the purpose of run IDs.
+#[allow(dead_code)]
+fn perform_regenesis_legacy() -> Result<(), Box<dyn std::error::Error>> {
+    warn!("Legacy regenesis called - this deletes ALL previous runs!");
+    
     let run_specific_volumes_root = crate::paths::foc_localnet_docker_volumes_run_specific_root();
     let runs_dir = crate::paths::foc_localnet_runs();
 
-    // Files and directories to delete
+    // Files and directories to delete (ALL runs)
     let paths_to_delete = vec![run_specific_volumes_root, runs_dir];
 
     for path in paths_to_delete {
@@ -384,8 +406,8 @@ pub fn start_cluster(
     let (volumes_dir, run_dir, run_id) =
         setup_directories_and_run_id(volumes_dir, run_dir, run_id)?;
 
-    // Always perform regenesis (full reset) before starting
-    perform_regenesis()?;
+    // Stop any running containers (but preserve old run data)
+    stop_running_containers()?;
 
     info!("Starting local cluster...");
     info!("Run ID: {}", run_id);

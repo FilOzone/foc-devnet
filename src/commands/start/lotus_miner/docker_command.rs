@@ -114,7 +114,7 @@ pub fn build_miner_docker_command(
            echo "Lotus daemon API is ready!" && \
            if [ ! -f $LOTUS_MINER_PATH/config.toml ]; then \
              echo "Importing pre-sealed miner key..." && \
-             (/usr/local/bin/lotus-bins/lotus wallet import --as-default /sectors/{} 2>&1 | grep -v "key already exists" || true) && \
+             (/usr/local/bin/lotus-bins/lotus wallet import --as-default /sectors/{} 2>&1 | grep --invert-match "key already exists" || true) && \
              echo "Initializing lotus-miner..." && \
              /usr/local/bin/lotus-bins/lotus-miner init --genesis-miner --actor=t01000 --sector-size=2KiB \
                --pre-sealed-sectors=/sectors --pre-sealed-metadata=/sectors/{} --nosync; \
