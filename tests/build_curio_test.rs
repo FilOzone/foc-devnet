@@ -168,12 +168,12 @@ fn test_curio_build_valid_path() {
         "Curio binary was created successfully and is executable"
     );
 
-    // At minimum, verify that the foc-localnet-builder Docker image was created
+    // At minimum, verify that the foc-builder Docker image was created
     // (this happens during the build process)
     let images_output = Command::new("docker")
         .args([
             "images",
-            "foc-localnet-builder",
+            "foc-builder",
             "--format",
             "{{.Repository}}:{{.Tag}}",
         ])
@@ -183,7 +183,7 @@ fn test_curio_build_valid_path() {
     let images_text = String::from_utf8_lossy(&images_output.stdout);
     // The image should exist since it's created early in the build process
     assert!(
-        images_text.contains("foc-localnet-builder:latest"),
+        images_text.contains("foc-builder:latest"),
         "Docker builder image should have been created during build process"
     );
     println!("Docker images check: {}", images_text);
@@ -194,7 +194,7 @@ fn test_curio_build_valid_path() {
 fn test_docker_image_building() {
     // Test Docker image building (this is the core functionality we want to test)
     let build_status = Command::new("docker")
-        .args(["build", "-t", "foc-localnet-builder-test", "./docker"])
+        .args(["build", "-t", "foc-builder-test", "./docker"])
         .status()
         .expect("Failed to build Docker image");
 
@@ -207,7 +207,7 @@ fn test_docker_image_building() {
     let images_output = Command::new("docker")
         .args([
             "images",
-            "foc-localnet-builder-test",
+            "foc-builder-test",
             "--format",
             "{{.Repository}}:{{.Tag}}",
         ])
@@ -216,12 +216,12 @@ fn test_docker_image_building() {
 
     let images_text = String::from_utf8_lossy(&images_output.stdout);
     assert!(
-        images_text.contains("foc-localnet-builder-test:latest"),
+        images_text.contains("foc-builder-test:latest"),
         "Docker builder image was not created properly"
     );
 
     // Clean up: remove the test Docker image
     let _ = Command::new("docker")
-        .args(["rmi", "foc-localnet-builder-test:latest"])
+        .args(["rmi", "foc-builder-test:latest"])
         .status();
 }

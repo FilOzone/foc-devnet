@@ -6,13 +6,25 @@ on:
   pull_request:
     branches: [ main ]
 
-jobs:
   integration-test:
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
     steps:
     - uses: actions/checkout@v4
+
+    - uses: endersonmenezes/free-disk-space@v3
+      with:
+        remove_android: true
+        remove_dotnet: true
+        remove_haskell: true
+        remove_tool_cache: true
+        remove_swap: true
+        remove_packages: "azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable firefox postgresql* temurin-* *llvm* mysql* dotnet-sdk-*"
+        remove_packages_one_command: true
+        remove_folders: "/usr/share/swift /usr/share/miniconda /usr/share/az* /usr/local/lib/node_modules /usr/local/share/chromium /usr/local/share/powershell /usr/local/julia /usr/local/aws-cli /usr/local/aws-sam-cli /usr/share/gradle"
+        rm_cmd: "rmz"
+        rmz_version: "3.1.1"
 
     - name: Setup Rust toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -51,22 +63,42 @@ jobs:
 
     - name: Build foc-localnet
       run: cargo build --release
+    
+    - name: Copy foc-localnet binary and delete target/ directory
+      run: |
+        cp ./target/release/foc-localnet ./foc-localnet
+        rm -rf target/
+        df -h
 
     - name: Initialize foc-localnet
-      run: ./target/release/foc-localnet init
+      run: ./foc-localnet init
+
+    - name: Clean up some disk space
+      run: |
+        rm ~/.foc-localnet/artifacts/yugabyte-*.tar.gz
+        df -h
 
     - name: Build Lotus
-      run: ./target/release/foc-localnet build lotus
+      run: ./foc-localnet build lotus
+
+    - name: Clean up Go modules
+      run: |
+        rm -rf ~/go/pkg/mod/
+        df -h
 
     - name: Build Curio
-      run: ./target/release/foc-localnet build curio
+      run: ./foc-localnet build curio
+
+    - name: Clean up Go modules after builds
+      run: |
+        rm -rf ~/go/pkg/mod/
+        df -h
 
     - name: Start cluster
-      run: ./target/release/foc-localnet start
+      run: ./foc-localnet start
 
     - name: Check status
-      run: ./target/release/foc-localnet status
+      run: ./foc-localnet status
 
     - name: Stop cluster
-      run: ./target/release/foc-localnet stop
-
+      run: ./foc-localnet stop
