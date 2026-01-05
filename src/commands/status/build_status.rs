@@ -34,7 +34,15 @@ pub fn print_build_status() -> Result<(), Box<dyn std::error::Error>> {
     let bin_dir = foc_localnet_bin();
 
     // Check for expected binaries
-    let expected_binaries = vec!["lotus", "lotus-miner", "lotus-shed", "lotus-seed", "curio"];
+    let expected_binaries = vec![
+        "lotus",
+        "lotus-miner",
+        "lotus-shed",
+        "lotus-seed",
+        "curio",
+        "pdptool",
+        "sptool",
+    ];
 
     for binary in expected_binaries {
         let binary_path = bin_dir.join(binary);
@@ -47,7 +55,7 @@ pub fn print_build_status() -> Result<(), Box<dyn std::error::Error>> {
             let version = get_binary_version(&binary_path);
 
             info!(
-                "{}: Ready | Built {} ({}) | Version: {}",
+                "Binary: {}: Ready | Built {} ({}) | Version: {}",
                 binary,
                 modified.format("%Y-%m-%d %H:%M"),
                 time_ago,

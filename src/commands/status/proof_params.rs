@@ -14,8 +14,7 @@ pub fn print_proof_params_status() -> Result<(), Box<dyn std::error::Error>> {
     let params_dir = foc_localnet_proof_parameters();
 
     if !params_dir.exists() {
-        warn!("Status: NOT AVAILABLE");
-        info!("Run 'foc-localnet init' to download proof parameters.");
+        info!("Run 'foc-localnet start' to download proof parameters. (first run downloads and caches it for future runs)");
         return Ok(());
     }
 
@@ -29,7 +28,7 @@ pub fn print_proof_params_status() -> Result<(), Box<dyn std::error::Error>> {
                 "FilProofParams: INVALID (missing or incomplete files), available at: {}",
                 params_dir.display()
             );
-            info!("Run 'foc-localnet init' to re-download proof parameters.");
+            info!("Run 'rm -rf ~/.foc-localnet/docker/volumes/cache/filecoin-proof-parameters; foc-localnet start' to re-download proof parameters.");
         }
         Err(e) => {
             warn!("FilProofParams: UNKNOWN (validation error: {})", e);

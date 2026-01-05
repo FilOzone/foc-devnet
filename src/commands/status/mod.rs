@@ -39,7 +39,7 @@ pub mod code_version;
 pub mod git;
 pub mod keys;
 pub mod proof_params;
-pub mod running_status;
+pub mod running;
 pub mod running_system_info;
 pub mod uptime;
 pub mod utils;
@@ -76,7 +76,7 @@ pub fn status() -> Result<(), Box<dyn std::error::Error>> {
     proof_params::print_proof_params_status()?;
 
     // System running status
-    running_status::print_running_status()?;
+    running::print_running_status()?;
 
     // Uptime information (if running)
     uptime::print_uptime()?;

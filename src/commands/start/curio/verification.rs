@@ -7,6 +7,7 @@
 
 use super::super::step::SetupContext;
 use super::constants::TEST_FILE_SIZE_BYTES;
+use crate::paths::foc_localnet_bin;
 use rand::Rng;
 use std::error::Error;
 use std::fs;
@@ -62,7 +63,7 @@ fn verify_pdp_ping(context: &SetupContext, sp_index: usize) -> Result<(), Box<dy
 
 /// Verify file upload and download works correctly.
 fn verify_upload_download(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
-    info!("Testing upload/download functionality...");
+    info!("Testing upload/download functionality via pdptool...");
 
     // Create temporary directory for test files
     let temp_dir = TempDir::new()?;
@@ -113,7 +114,6 @@ fn upload_test_file(
 
     let service_url = format!("http://localhost:{}", port);
 
-    // Run pdptool upload twice due to tool quirk
     let args = [
         "upload-piece",
         "--service-url",
@@ -126,7 +126,9 @@ fn upload_test_file(
         "--verbose",
     ];
 
-    let output = Command::new("pdptool").args(args).output()?;
+    let output = Command::new(foc_localnet_bin().join("pdptool"))
+        .args(args)
+        .output()?;
 
     if !output.status.success() {
         return Err(format!(

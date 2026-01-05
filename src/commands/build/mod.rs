@@ -3,7 +3,7 @@
 //! This module handles building Filecoin projects (Lotus and Curio) in a Docker container.
 
 pub mod docker;
-pub mod execution;
+pub mod exec;
 pub mod logging;
 pub mod repository;
 
@@ -14,7 +14,7 @@ use std::fs;
 use tracing::info;
 
 use self::docker::build_builder_image;
-use self::execution::run_build_in_container;
+use self::exec::run_build_in_container;
 
 /// Build a project in a Docker container.
 ///
