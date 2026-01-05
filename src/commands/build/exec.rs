@@ -1,0 +1,141 @@
+//! Container execution for build processes.
+//!
+//! This module handles running build processes inside Docker containers with logging.
+
+use super::docker;
+use super::logging;
+use super::Project;
+use crate::docker::core::{get_current_gid, get_current_uid};
+use std::fs::OpenOptions;
+use std::io::{BufRead, BufReader, Write};
+use std::path::Path;
+use std::process::{Command, Stdio};
+use tracing::info;
+use tracing::warn;
+
+/// Run the build process inside the Docker container.
+pub fn run_build_in_container(
+    source_dir: &str,
+    output_dir: &str,
+    project: &Project,
+    image_tag: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    info!("Building {} in container...", project);
+
+    // Create log file for this build
+    let log_path = logging::create_build_log_path()?;
+    fix_directory_ownership(
+        log_path
+            .parent()
+            .unwrap()
+            .to_str()
+            .ok_or("Invalid log path")?,
+    )?;
+    info!("Logs will be saved to: {}", log_path.display());
+
+    let container_source_dir = "/workspace/source";
+    let container_output_dir = "/workspace/output";
+
+    let docker_run_args =
+        docker::setup_docker_run_args(source_dir, output_dir, image_tag, project)?;
+    let build_script =
+        docker::setup_build_script(project, container_source_dir, container_output_dir);
+
+    execute_build_process(docker_run_args, build_script, &log_path, project)?;
+
+    info!("Build logs saved to: {}", log_path.display());
+
+    Ok(())
+}
+
+/// Execute the build process in the Docker container.
+pub fn execute_build_process(
+    mut docker_run_args: Vec<String>,
+    build_script: String,
+    log_path: &Path,
+    project: &Project,
+) -> Result<(), Box<dyn std::error::Error>> {
+    docker_run_args.push(build_script);
+
+    // Spawn the process with piped stdout/stderr
+    let mut child = Command::new("docker")
+        .args(&docker_run_args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    // Get handles to stdout and stderr
+    let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
+    let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
+
+    // Create log file
+    let log_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path)?;
+
+    info!("NOTE: StdErr output does not necessarily indicate failure");
+
+    std::thread::sleep(std::time::Duration::from_secs(5));
+
+    // Stream stdout to both console and log file
+    let stdout_handle = std::thread::spawn({
+        let mut log_file = log_file.try_clone()?;
+        move || {
+            let reader = BufReader::new(stdout);
+            for line in reader.lines().flatten() {
+                info!("(stdout): {}", line);
+                writeln!(log_file, "{}", line).ok();
+            }
+        }
+    });
+
+    // Stream stderr to both console and log file
+    let stderr_handle = std::thread::spawn({
+        let mut log_file = log_file.try_clone()?;
+        move || {
+            let reader = BufReader::new(stderr);
+            for line in reader.lines().flatten() {
+                warn!("(stderr): {}", line);
+                writeln!(log_file, "{}", line).ok();
+            }
+        }
+    });
+
+    // Wait for both threads to finish
+    stdout_handle.join().ok();
+    stderr_handle.join().ok();
+
+    // Wait for the child process to finish
+    let status = child.wait()?;
+
+    if !status.success() {
+        return Err(format!(
+            "Failed to build {} in container. Check logs at: {}",
+            project,
+            log_path.display()
+        )
+        .into());
+    }
+
+    Ok(())
+}
+
+/// Fix ownership of a directory to the current user.
+///
+/// This ensures the Docker container (running as current user) can access the directory.
+fn fix_directory_ownership(dir: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let uid = get_current_uid()?;
+    let gid = get_current_gid()?;
+
+    let output = Command::new("sudo")
+        .args(["chown", "-R", &format!("{}:{}", uid, gid), dir])
+        .output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Failed to fix ownership of {}: {}", dir, stderr).into());
+    }
+
+    Ok(())
+}
