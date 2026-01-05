@@ -28,7 +28,7 @@ ARG GROUP_ID=1002
 RUN groupadd -g ${GROUP_ID} foc-group && \
     useradd -l -u ${USER_ID} -g foc-group -m -s /bin/bash foc-user && \
     mkdir -p /home/foc-user/go/pkg && \
-    chown -R foc-user:foc-group /home/foc-user/go
+    chown -R foc-user:foc-group /home/foc-user
 
 # Install Rust as foc-user
 USER foc-user
