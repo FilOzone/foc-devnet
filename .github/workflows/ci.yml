@@ -228,26 +228,18 @@ jobs:
         sudo rm -rf ~/.foc-localnet/code/curio
         df -h
 
-    # CACHE-PROOF-PARAMS: Try to restore Filecoin proof parameters cache
-    - name: "CACHE_RESTORE: {C-filecoin-proof-params-cache}"
-      id: cache-proof-params
-      uses: actions/cache/restore@v4
-      with:
-        path: ~/.foc-localnet/docker/volumes/cache/filecoin-proof-params
-        key: ${{ runner.os }}-filecoin-proof-params-2k-cache
+    # Download and extract Filecoin proof parameters from S3
+    - name: "EXEC: {Download proof parameters from S3}, independent"
+      run: |
+        mkdir -p ~/.foc-localnet/docker/volumes/cache/filecoin-proof-parameters/
+        curl -L https://fil-proof-params-2k-cache.s3.us-east-2.amazonaws.com/proof-parameters.tar -o /tmp/proof-parameters.tar
+        tar -xf /tmp/proof-parameters.tar -C ~/.foc-localnet/docker/volumes/cache/filecoin-proof-parameters/
+        rm /tmp/proof-parameters.tar
 
     # Start the full Filecoin localnet cluster
     - name: "EXEC: {Start cluster}, independent"
       run: ./foc-localnet start --parallel
 
-    # CACHE-PROOF-PARAMS: Save proof parameters for future runs (speeds up sector sealing)
-    - name: "CACHE_SAVE: {C-filecoin-proof-params-cache}"
-      if: steps.cache-proof-params.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
-      with:
-        path: ~/.foc-localnet/docker/volumes/cache/filecoin-proof-params
-        key: ${{ runner.os }}-filecoin-proof-params-2k-cache
-    
     # Verify cluster is running correctly
     - name: "EXEC: {Check cluster status}, independent"
       run: ./foc-localnet status
