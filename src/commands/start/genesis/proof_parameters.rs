@@ -61,7 +61,9 @@ fn compute_proof_params_hash(
         .collect();
     hashes.sort();
 
-    let combined = hashes.join("\n");
+    // Join with newlines and add trailing newline to match bash behavior:
+    // `echo hash1\nhash2\nhash3 | sha256sum` includes trailing newline
+    let combined = format!("{}\n", hashes.join("\n"));
     let mut hasher = Sha256::new();
     hasher.update(combined.as_bytes());
     let hash = hasher.finalize();
