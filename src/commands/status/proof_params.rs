@@ -4,8 +4,48 @@
 //! including availability and validation.
 
 use crate::paths::foc_localnet_proof_parameters;
+use sha2::{Digest, Sha256};
+use std::error::Error;
 use std::fs;
+use std::process::Command;
 use tracing::{info, warn};
+
+/// Expected SHA256 hash of the proof parameters directory
+const EXPECTED_PROOF_PARAMS_SHA256: &str =
+    "73bad75faa8d6b9b95cf229f912212c3a7a34576e7a8601a94155a2664e2be45";
+
+/// Compute the SHA256 hash of all files in the proof parameters directory
+///
+/// This function computes a deterministic hash by:
+/// 1. Finding all regular files in the directory: `find params_dir -type f -exec sha256sum {} \;`
+/// 2. Sorting the output lines to ensure consistent ordering
+/// 3. Concatenating all hashes with newlines
+/// 4. Computing SHA256 of the concatenated string
+fn compute_proof_params_hash(params_dir: &std::path::Path) -> Result<String, Box<dyn Error>> {
+    let output = Command::new("find")
+        .arg(params_dir)
+        .arg("-type")
+        .arg("f")
+        .arg("-exec")
+        .arg("sha256sum")
+        .arg("{}")
+        .arg(";")
+        .output()?;
+
+    if !output.status.success() {
+        return Err("Failed to compute file hashes".into());
+    }
+
+    let file_hashes = String::from_utf8(output.stdout)?;
+    let mut lines: Vec<&str> = file_hashes.lines().collect();
+    lines.sort();
+
+    let combined = lines.join("\n");
+    let mut hasher = Sha256::new();
+    hasher.update(combined.as_bytes());
+    let hash = hasher.finalize();
+    Ok(format!("{:x}", hash))
+}
 
 /// Print the proof parameters status.
 ///
@@ -25,7 +65,7 @@ pub fn print_proof_params_status() -> Result<(), Box<dyn std::error::Error>> {
         }
         Ok(false) => {
             warn!(
-                "FilProofParams: INVALID (missing or incomplete files), available at: {}",
+                "FilProofParams: INVALID (hash mismatch or missing), available at: {}",
                 params_dir.display()
             );
             info!("Run 'rm -rf ~/.foc-localnet/docker/volumes/cache/filecoin-proof-parameters; foc-localnet start' to re-download proof parameters.");
@@ -38,14 +78,7 @@ pub fn print_proof_params_status() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Validate that proof parameters directory contains expected files.
-///
-/// This performs a heuristic validation without requiring exact file matches:
-/// - Checks for at least one large .params file (> 10MB)
-/// - Checks for at least one .srs file (> 100MB)
-/// - Checks for multiple .vk (verification key) files (>= 5)
-/// - Verifies files follow v28- naming convention
-/// - Ensures total directory size is reasonable (> 1GB)
+/// Validate that proof parameters directory contains expected files and matches expected hash.
 fn validate_proof_parameters(
     params_dir: &std::path::Path,
 ) -> Result<bool, Box<dyn std::error::Error>> {
@@ -59,47 +92,11 @@ fn validate_proof_parameters(
         return Ok(false);
     }
 
-    let mut has_large_params = false;
-    let mut has_srs_file = false;
-    let mut vk_count = 0;
-    let mut total_size = 0u64;
-
-    for entry in entries {
-        let path = entry.path();
-        let metadata = entry.metadata()?;
-
-        if !metadata.is_file() {
-            continue;
-        }
-
-        let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-
-        let file_size = metadata.len();
-        total_size += file_size;
-
-        // Verify v28- naming convention
-        if !file_name.starts_with("v28-") {
-            continue;
-        }
-
-        // Check for .params files (should be large, > 10MB)
-        if file_name.ends_with(".params") && file_size > 10_000_000 {
-            has_large_params = true;
-        }
-
-        // Check for .srs files (should be very large, > 100MB)
-        if file_name.ends_with(".srs") && file_size > 100_000_000 {
-            has_srs_file = true;
-        }
-
-        // Count .vk (verification key) files
-        if file_name.ends_with(".vk") {
-            vk_count += 1;
-        }
+    // Check hash
+    let computed_hash = compute_proof_params_hash(params_dir)?;
+    if computed_hash != EXPECTED_PROOF_PARAMS_SHA256 {
+        return Ok(false);
     }
 
-    // Validation checks
-    let is_valid = has_large_params && has_srs_file && vk_count >= 5 && total_size > 1_000_000_000; // At least 1GB
-
-    Ok(is_valid)
+    Ok(true)
 }

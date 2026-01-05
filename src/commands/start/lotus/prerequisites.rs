@@ -8,10 +8,50 @@ use crate::paths::{
     foc_localnet_bin, foc_localnet_genesis, foc_localnet_genesis_sectors,
     foc_localnet_proof_parameters,
 };
+use sha2::{Digest, Sha256};
 use std::error::Error;
 use tracing::info;
 
 const IMAGE_NAME: &str = "foc-lotus";
+
+/// Expected SHA256 hash of the proof parameters directory
+const EXPECTED_PROOF_PARAMS_SHA256: &str =
+    "73bad75faa8d6b9b95cf229f912212c3a7a34576e7a8601a94155a2664e2be45";
+
+/// Compute the SHA256 hash of all files in the proof parameters directory
+///
+/// This function computes a deterministic hash by:
+/// 1. Finding all regular files in the directory: `find params_dir -type f -exec sha256sum {} \;`
+/// 2. Sorting the output lines to ensure consistent ordering
+/// 3. Concatenating all hashes with newlines
+/// 4. Computing SHA256 of the concatenated string
+fn compute_proof_params_hash(params_dir: &std::path::Path) -> Result<String, Box<dyn Error>> {
+    use std::process::Command;
+
+    let output = Command::new("find")
+        .arg(params_dir)
+        .arg("-type")
+        .arg("f")
+        .arg("-exec")
+        .arg("sha256sum")
+        .arg("{}")
+        .arg(";")
+        .output()?;
+
+    if !output.status.success() {
+        return Err("Failed to compute file hashes".into());
+    }
+
+    let file_hashes = String::from_utf8(output.stdout)?;
+    let mut lines: Vec<&str> = file_hashes.lines().collect();
+    lines.sort();
+
+    let combined = lines.join("\n");
+    let mut hasher = Sha256::new();
+    hasher.update(combined.as_bytes());
+    let hash = hasher.finalize();
+    Ok(format!("{:x}", hash))
+}
 
 /// Verify that the genesis block file exists
 pub fn verify_genesis_file(run_id: &str) -> Result<std::path::PathBuf, Box<dyn Error>> {
@@ -64,7 +104,17 @@ pub fn check_genesis_and_params(run_id: &str) -> Result<(), Box<dyn Error>> {
         );
     }
 
-    info!("✓ Proof parameters found");
+    // Verify proof parameters integrity
+    let computed_hash = compute_proof_params_hash(&params_dir)?;
+    if computed_hash != EXPECTED_PROOF_PARAMS_SHA256 {
+        return Err(format!(
+            "Filecoin proof parameters integrity check failed. Expected hash: {}, got: {}",
+            EXPECTED_PROOF_PARAMS_SHA256, computed_hash
+        )
+        .into());
+    }
+
+    info!("✓ Proof parameters found and verified");
 
     // Verify pre-sealed sectors exist
     let sectors_dir = foc_localnet_genesis_sectors(run_id);

@@ -235,6 +235,9 @@ jobs:
         curl -L https://fil-proof-params-2k-cache.s3.us-east-2.amazonaws.com/proof-parameters.tar -o /tmp/proof-parameters.tar
         tar -xf /tmp/proof-parameters.tar -C ~/.foc-localnet/docker/volumes/cache/filecoin-proof-parameters/
         rm /tmp/proof-parameters.tar
+        ls -lath ~/.foc-localnet/docker/volumes/cache/filecoin-proof-parameters/
+        PROOF_PARAMS_HASH=$(find ~/.foc-localnet/docker/volumes/cache/filecoin-proof-parameters/ -type f -exec sha256sum {} \; | sort | sha256sum | cut -d' ' -f1)
+        echo "Downloaded proof parameters with hash: $PROOF_PARAMS_HASH"
 
     # Start the full Filecoin localnet cluster
     - name: "EXEC: {Start cluster}, independent"
