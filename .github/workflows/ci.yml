@@ -182,7 +182,12 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-foc-builder-cache-
 
-    - name: Show available disk space before builds
+    - name: Ensure permissions on foc-builder cache
+      if: steps.cache-binaries.outputs.cache-hit != 'true' &&
+          steps.cache-go.outputs.cache-hit == 'true'
+      run: sudo chown -R $USER:$USER ~/.foc-localnet/
+      
+    - name: Check disk space before builds
       run: df -h
 
     # Build Lotus and Curio if not cached
