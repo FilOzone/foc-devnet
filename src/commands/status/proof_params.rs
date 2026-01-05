@@ -12,15 +12,15 @@ use tracing::{info, warn};
 
 /// Expected SHA256 hash of the proof parameters directory
 const EXPECTED_PROOF_PARAMS_SHA256: &str =
-    "73bad75faa8d6b9b95cf229f912212c3a7a34576e7a8601a94155a2664e2be45";
+    "1d2746e3c92f96608adfa10849004b5654104082c3bba5a2e5362e0657741527";
 
 /// Compute the SHA256 hash of all files in the proof parameters directory
 ///
-/// This function computes a deterministic hash by:
-/// 1. Finding all regular files in the directory: `find params_dir -type f -exec sha256sum {} \;`
-/// 2. Sorting the output lines to ensure consistent ordering
-/// 3. Concatenating all hashes with newlines
-/// 4. Computing SHA256 of the concatenated string
+/// This function computes a deterministic hash based only on file contents (not paths) by:
+/// 1. Finding all regular files: `find params_dir -type f -exec sha256sum {} \;`
+/// 2. Extracting only the hash part (first field), removing file paths
+/// 3. Sorting the hashes to ensure consistent ordering
+/// 4. Computing SHA256 of the concatenated sorted hashes
 fn compute_proof_params_hash(params_dir: &std::path::Path) -> Result<String, Box<dyn Error>> {
     let output = Command::new("find")
         .arg(params_dir)
@@ -37,10 +37,14 @@ fn compute_proof_params_hash(params_dir: &std::path::Path) -> Result<String, Box
     }
 
     let file_hashes = String::from_utf8(output.stdout)?;
-    let mut lines: Vec<&str> = file_hashes.lines().collect();
-    lines.sort();
+    // Extract only the hash part (first field), not the file path
+    let mut hashes: Vec<&str> = file_hashes
+        .lines()
+        .filter_map(|line| line.split_whitespace().next())
+        .collect();
+    hashes.sort();
 
-    let combined = lines.join("\n");
+    let combined = hashes.join("\n");
     let mut hasher = Sha256::new();
     hasher.update(combined.as_bytes());
     let hash = hasher.finalize();
