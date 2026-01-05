@@ -89,6 +89,8 @@ pub fn setup_docker_run_args(
         "foc-user".to_string(),
         "--name".to_string(),
         container_name,
+        "-e".to_string(),
+        "HOME=/home/foc-user".to_string(),
         "-v".to_string(),
         format!("{}:{}", source_dir, container_source_dir),
         "-v".to_string(),
