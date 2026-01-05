@@ -8,7 +8,7 @@
 //! - Show port accessibility
 //! - Indicate overall system health
 
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::docker::core::image_exists;
 use crate::docker::status::{
@@ -61,7 +61,6 @@ pub fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
         info!("Run ID: {}", id);
     }
 
-    let mut all_running = true;
     for (service_name, container_name) in &expected_containers {
         let is_running = containers.contains(container_name);
         let image_name = extract_base_image_name(container_name);
@@ -77,10 +76,6 @@ pub fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
         } else if !image_available {
             info!("{}: Running Container Unavailable", service_name);
         } else {
-            // Don't count builder as "not running" for all_running check
-            if !container_name.contains("builder") {
-                all_running = false;
-            }
             info!("{}: Stopped", service_name);
         }
     }

@@ -119,7 +119,7 @@ pub fn start_portainer(run_id: &str, port: u16) -> Result<(), Box<dyn Error>> {
 pub fn stop_portainer(run_id: &str) -> Result<(), Box<dyn Error>> {
     let container_name = portainer_container_name(run_id);
 
-    println!("{}", "Stopping Portainer...");
+    println!("Stopping Portainer...");
 
     if !container_exists(&container_name)? {
         println!(" Portainer container does not exist");

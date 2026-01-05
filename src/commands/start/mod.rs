@@ -132,7 +132,7 @@ fn perform_regenesis_legacy() -> Result<(), Box<dyn std::error::Error>> {
                     let file_name = path.file_name().unwrap().to_string_lossy();
 
                     let status = std::process::Command::new("docker")
-                        .args(&[
+                        .args([
                             "run",
                             "--rm",
                             "-u",

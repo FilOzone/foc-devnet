@@ -95,25 +95,16 @@ fn install_docker() -> Result<(), Box<dyn std::error::Error>> {
         if setup_docker::linux::is_ubuntu_or_debian()? {
             setup_docker::linux::install_docker_ubuntu()?;
         } else {
-            eprintln!(
-                "{}",
-                "❌ Automatic Docker installation is only supported on Ubuntu/Debian Linux."
-            );
+            eprintln!("❌ Automatic Docker installation is only supported on Ubuntu/Debian Linux.");
             return Err("Unsupported Linux distribution".into());
         }
     } else if cfg!(target_os = "macos") {
         // On macOS, Docker installation is handled by Homebrew
-        eprintln!("{}", "❌ Please install Docker Desktop manually on macOS.");
-        eprintln!(
-            "{}",
-            "Download from: https://www.docker.com/products/docker-desktop"
-        );
+        eprintln!("❌ Please install Docker Desktop manually on macOS.");
+        eprintln!("Download from: https://www.docker.com/products/docker-desktop");
         return Err("Manual Docker installation required on macOS".into());
     } else {
-        eprintln!(
-            "{}",
-            "❌ Automatic Docker installation is not supported on this platform."
-        );
+        eprintln!("❌ Automatic Docker installation is not supported on this platform.");
         return Err("Unsupported platform".into());
     }
 
