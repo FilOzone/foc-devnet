@@ -17,6 +17,7 @@ ENV LC_ALL=en_US.UTF-8
 # Create foc-user and foc-group with matching host UID/GID when it is run. The 1002 below is just a placeholder which will be replaced during build process. See `docker.rs`
 ARG USER_ID=1002
 ARG GROUP_ID=1002
+RUN userdel ubuntu || true
 RUN groupadd -g ${GROUP_ID} foc-group && \
     useradd -l -u ${USER_ID} -g foc-group -m -s /bin/bash foc-user
 
