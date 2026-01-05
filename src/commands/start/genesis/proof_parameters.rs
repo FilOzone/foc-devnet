@@ -33,6 +33,8 @@ fn compute_proof_params_hash(
 ) -> Result<String, Box<dyn std::error::Error>> {
     use std::process::Command;
 
+    info!("Computing hash for directory: {}", params_dir.display());
+
     let output = Command::new("find")
         .arg(params_dir)
         .arg("-type")
@@ -44,10 +46,14 @@ fn compute_proof_params_hash(
         .output()?;
 
     if !output.status.success() {
-        return Err("Failed to compute file hashes".into());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Failed to compute file hashes: {}", stderr).into());
     }
 
     let file_hashes = String::from_utf8(output.stdout)?;
+    let file_count = file_hashes.lines().count();
+    info!("Found {} files in proof parameters directory", file_count);
+
     // Extract only the hash part (first field), not the file path
     let mut hashes: Vec<&str> = file_hashes
         .lines()
@@ -59,7 +65,9 @@ fn compute_proof_params_hash(
     let mut hasher = Sha256::new();
     hasher.update(combined.as_bytes());
     let hash = hasher.finalize();
-    Ok(format!("{:x}", hash))
+    let computed = format!("{:x}", hash);
+    info!("Computed proof parameters hash: {}", computed);
+    Ok(computed)
 }
 
 /// Ensure Filecoin proof parameters are downloaded.
@@ -70,9 +78,28 @@ pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
     let params_dir = foc_localnet_proof_parameters();
 
     // Check if parameters already exist and are valid
-    if params_dir.exists() && validate_proof_parameters(&params_dir)? {
-        info!("✓ Proof parameters already exist locally",);
-        return Ok(());
+    if params_dir.exists() {
+        info!(
+            "Checking existing proof parameters at: {}",
+            params_dir.display()
+        );
+        match validate_proof_parameters(&params_dir) {
+            Ok(true) => {
+                info!("✓ Proof parameters already exist and are valid");
+                return Ok(());
+            }
+            Ok(false) => {
+                info!("Proof parameters exist but validation failed, will re-download");
+            }
+            Err(e) => {
+                warn!("Error validating proof parameters: {}, will re-download", e);
+            }
+        }
+    } else {
+        info!(
+            "Proof parameters directory does not exist: {}",
+            params_dir.display()
+        );
     }
 
     info!("⬇ Downloading proof parameters (this may take a while)...");
@@ -223,12 +250,24 @@ fn validate_proof_parameters(
     params_dir: &std::path::Path,
 ) -> Result<bool, Box<dyn std::error::Error>> {
     if !params_dir.exists() || !params_dir.is_dir() {
+        info!(
+            "Proof parameters directory does not exist or is not a directory: {}",
+            params_dir.display()
+        );
         return Ok(false);
     }
 
     // Check hash
     let computed_hash = compute_proof_params_hash(params_dir)?;
+    info!(
+        "Proof parameters hash check: expected={}, computed={}",
+        EXPECTED_PROOF_PARAMS_SHA256, computed_hash
+    );
     if computed_hash != EXPECTED_PROOF_PARAMS_SHA256 {
+        warn!(
+            "Proof parameters hash mismatch: expected {}, got {}",
+            EXPECTED_PROOF_PARAMS_SHA256, computed_hash
+        );
         return Ok(false);
     }
 
