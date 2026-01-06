@@ -136,7 +136,7 @@ Bundled with Portainer for browser-based Docker management—no terminal wizardr
 
 ## 🛠️ Need More?
 
-For advanced topics like:
+See **[Advanced_Readme.md](Advanced_Readme.md)** for comprehensive documentation on:
 - **All commands reference** (init, build, start, stop, status, version)
 - **Configuration system** (config.toml structure, parameters, editing)
 - **Complete directory structure** (what's stored where and why)
@@ -149,8 +149,6 @@ For advanced topics like:
 - **Service Provider examples** (1 SP with 0 authorized, 3 SPs with top 2 authorized, etc.)
 - **Troubleshooting guides** (port conflicts, build failures, network issues)
 - **Advanced topics** (custom genesis, Lotus API access, contract interaction)
-
-See **[Advanced_Readme.md](Advanced_Readme.md)** for comprehensive documentation.
 
 ---
 
