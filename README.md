@@ -56,7 +56,7 @@ This will:
 - Start Lotus daemon with FEVM enabled
 - Deploy FOC smart contracts (including MockUSDFC)
 - Start storage provider(s)
-- Launch Portainer UI for container management
+- Launch [Portainer UI](https://docs.docksal.io/use-cases/portainer/) for container management
 
 **If you are have troubles**: Use `cargo run -- start`, removing parallelism during start, this may take longer.
 
