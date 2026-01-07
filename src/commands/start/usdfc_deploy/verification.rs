@@ -2,11 +2,11 @@
 //!
 //! This module handles the verification of deployed MockUSDFC contracts.
 
-use super::foundry_setup::get_mockusdfc_project_dir;
 use crate::commands::start::step::SetupContext;
 use crate::docker::command_logger::run_and_log_command;
 use crate::utils::retry::{retry_with_fixed_delay, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS};
 use std::error::Error;
+use std::path::PathBuf;
 use tracing::{info, warn};
 
 /// Verify the deployed MockUSDFC contract
@@ -16,11 +16,9 @@ pub fn verify_mock_usdfc(
     contract_address: &str,
     lotus_rpc_url: &str,
     run_id: &str,
+    contract_dir: &PathBuf,
 ) -> Result<(), Box<dyn Error>> {
     info!("Verifying MockUSDFC contract functions...");
-
-    // Get the contract directory from embedded assets
-    let contract_dir = get_mockusdfc_project_dir(run_id)?;
 
     // Wait a bit for transaction confirmation
     info!("Waiting for transaction confirmation...");
@@ -44,6 +42,7 @@ pub fn verify_mock_usdfc(
                 "docker",
                 &[
                     "run",
+                    "--rm",
                     "-u",
                     "foc-user",
                     "--network",

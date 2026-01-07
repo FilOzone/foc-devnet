@@ -9,6 +9,7 @@ use crate::commands::start::lotus_utils::get_lotus_rpc_url;
 use crate::commands::start::step::SetupContext;
 use crate::docker::command_logger::run_and_log_command;
 use std::error::Error;
+use std::path::PathBuf;
 use tracing::{error, info};
 
 /// Deploy MockUSDFC using the Foundry project
@@ -17,7 +18,7 @@ pub fn deploy_mock_usdfc_foundry(
     private_key: &str,
     lotus_rpc_url: &str,
     run_id: &str,
-) -> Result<String, Box<dyn Error>> {
+) -> Result<(String, PathBuf), Box<dyn Error>> {
     info!("Deploying MockUSDFC using Foundry project...");
 
     // Get the contract directory from embedded assets
@@ -95,7 +96,7 @@ pub fn deploy_mock_usdfc_foundry(
 
     info!("✓ MockUSDFC deployed at: {}", contract_address);
 
-    Ok(contract_address.to_string())
+    Ok((contract_address.to_string(), contract_dir))
 }
 
 /// Perform the MockUSDFC deployment process
@@ -118,7 +119,7 @@ pub fn perform_token_deployment(
     let run_id = context.run_id();
 
     // Deploy MockUSDFC
-    let mock_usdfc_address =
+    let (mock_usdfc_address, contract_dir) =
         deploy_mock_usdfc_foundry(context, &private_key, &lotus_rpc_url, run_id)?;
 
     // Store in context
@@ -134,6 +135,7 @@ pub fn perform_token_deployment(
         &mock_usdfc_address,
         &lotus_rpc_url,
         run_id,
+        &contract_dir,
     )?;
 
     info!("✓ MockUSDFC token deployed successfully!");

@@ -94,10 +94,10 @@ pub fn deploy_foc_contracts(
     ];
 
     // Run the deployment script
-    // First, create a keystore from the private key with empty password
+    // Import keystore without password prompt by using stdin
     let deploy_cmd = format!(
         r#"set -e
-cast wallet import foc-deployer --private-key {} --unsafe-password ''
+echo "" | cast wallet import foc-deployer --private-key {}
 cd /service_contracts
 bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-deploy.log"#,
         private_key
@@ -105,12 +105,14 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
 
     info!("This may take several minutes...");
 
+    let container_name = format!("foc-{}-foc-deploy", run_id);
+
     let mut docker_args = vec![
         "run".to_string(),
         "-u".to_string(),
         "foc-user".to_string(),
         "--name".to_string(),
-        format!("foc-{}-foc-deploy", run_id),
+        container_name.clone(),
         "--network".to_string(),
         "host".to_string(),
     ];
@@ -145,10 +147,34 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
 
     if !output.status.success() {
         warn!("Deployment script failed");
+
+        // Print stderr
         let stderr_str = String::from_utf8_lossy(&output.stderr);
-        for line in stderr_str.lines() {
-            warn!("{}", line);
+        if !stderr_str.is_empty() {
+            warn!("=== STDERR ===");
+            for line in stderr_str.lines() {
+                warn!("{}", line);
+            }
         }
+
+        // Print stdout as well
+        if !output_str.is_empty() {
+            warn!("=== STDOUT ===");
+            for line in output_str.lines() {
+                warn!("{}", line);
+            }
+        }
+
+        // Try to get container logs if the container still exists
+        if let Ok(logs) = crate::docker::core::get_container_logs(&container_name) {
+            if !logs.is_empty() {
+                warn!("=== CONTAINER LOGS ===");
+                for line in logs.lines() {
+                    warn!("{}", line);
+                }
+            }
+        }
+
         return Err("FOC contract deployment failed".into());
     }
 

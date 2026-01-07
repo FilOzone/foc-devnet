@@ -22,11 +22,19 @@ pub fn run_command(program: &str, args: &[&str]) -> Result<Output, Box<dyn Error
     let output = Command::new(program).args(args).output()?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        // Truncate command display if too long
+        let cmd_str = args.join(" ");
+        let cmd_display = if cmd_str.len() > 200 {
+            format!("{}... (truncated)", &cmd_str[..200])
+        } else {
+            cmd_str
+        };
+
         return Err(format!(
-            "Command failed: {} {} -> {}",
-            program,
-            args.join(" "),
-            stderr
+            "Command failed: {} {}\nSTDOUT:\n{}\nSTDERR:\n{}",
+            program, cmd_display, stdout, stderr
         )
         .into());
     }
@@ -42,6 +50,18 @@ pub fn run_command(program: &str, args: &[&str]) -> Result<Output, Box<dyn Error
 /// The command output on success.
 pub fn docker_command(args: &[&str]) -> Result<Output, Box<dyn Error>> {
     run_command("docker", args)
+}
+
+/// Get logs from a Docker container.
+///
+/// # Arguments
+/// * `container_name` - The name of the container to get logs from
+///
+/// # Returns
+/// The container logs on success.
+pub fn get_container_logs(container_name: &str) -> Result<String, Box<dyn Error>> {
+    let output = docker_command(&["logs", container_name])?;
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
 /// Check if a port is available (not in use)
