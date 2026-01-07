@@ -55,7 +55,7 @@ foc-localnet init \
 ```
 
 ### `build`
-Builds Filecoin components in Docker containers. Must be run after `init` and after building `lotus` and `curio` components.
+Builds Filecoin components in Docker containers. Must be run after `init`.
 
 ```bash
 foc-localnet build lotus [PATH] [--output-dir <DIR>]
@@ -358,7 +358,7 @@ rm -rf ~/.foc-localnet
 
 **What:** A unique identifier for each cluster execution.
 
-**Format:** `YYYYMMDDTHHMM_RandomName` (ISO8601-based)
+**Format:** `YYYYMMDDTHHMM_RandomName` (datetime portion follows ISO8601 conventions)
 
 **Example:** `20260102T1430_ZanyPip`
 
@@ -370,8 +370,8 @@ rm -rf ~/.foc-localnet
 
 **Generation:**
 ```rust
-// Date: YYYYMMDD (20260102 = January 2, 2026) - ISO8601 format
-// Time: HHMM (1430 = 2:30 PM, 24-hour format)
+// Date: YYYYMMDD (20260102 = January 2, 2026) - ISO8601 basic format
+// Time: HHMM (1430 = 2:30 PM, 24-hour format) - simplified, without seconds
 // Name: RandomAdjective + RandomNoun (ZanyPip)
 "20260102T1430_ZanyPip"
 ```
@@ -763,7 +763,7 @@ commit = "789012345678..."
 | `--notest` | Boolean | Skip end-to-end Synapse tests |
 
 **Why `--parallel` (Recommended):**
-- **⚡ Significant speedup:** Reduces startup time from ~10 min to ~6 min
+- **⚡ Significant speedup:** Reduces startup time by ~40%
 - **Smart parallelization:** Steps that don't depend on each other run concurrently
 - **Production-ready:** Thread-safe implementation with proper synchronization
 - **Use case:** Default for most workflows, especially development iteration
@@ -787,9 +787,6 @@ commit = "789012345678..."
 | 8 | Synapse E2E Test | No | Verification step |
 
 **Time savings:** Epochs 4 and 5 run ~40% faster in parallel mode.
-
-**Without `--parallel`:** All 8 epochs run sequentially (~5 minutes total).
-**With `--parallel`:** Epochs 4-5 run concurrently (~3 minutes total).
 
 **Why `--notest`:** Skip time-consuming E2E tests when rapid iteration needed.
 
