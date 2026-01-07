@@ -5,7 +5,7 @@
 //! - Generating BLS keys for lotus
 //! - Pre-sealing sectors for genesis block
 //!
-//! These operations are performed using the foc-builder container and their
+//! These operations are performed using the BUILDER_CONTAINER container and their
 //! outputs are cached for reuse across localnet restarts.
 
 use tracing::info;

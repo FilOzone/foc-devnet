@@ -46,7 +46,6 @@ pub fn deploy_mock_usdfc_foundry(
         "docker",
         &[
             "run",
-            "--rm",
             "-u",
             "foc-user",
             "--name",
@@ -55,7 +54,7 @@ pub fn deploy_mock_usdfc_foundry(
             "host", // Use host network to access Lotus RPC on dynamic port
             "-v",
             &format!("{}:/workspace", contract_dir.display()),
-            "foc-builder",
+            crate::constants::BUILDER_DOCKER_IMAGE,
             "bash",
             "-c",
             &deploy_cmd,

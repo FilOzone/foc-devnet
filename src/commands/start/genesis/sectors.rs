@@ -108,12 +108,12 @@ fn preseal_miner_sectors(
 
     // Run lotus-seed pre-seal in builder container
     let bin_dir = foc_localnet_bin();
-    let builder_volumes_dir = foc_localnet_docker_volumes_cache().join("foc-builder");
+    let builder_volumes_dir =
+        foc_localnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
 
     // Build docker args with network environment variables
     let mut docker_args = vec![
         "run".to_string(),
-        "--rm".to_string(),
         "-u".to_string(),
         "foc-user".to_string(),
         "--name".to_string(),
@@ -131,7 +131,7 @@ fn preseal_miner_sectors(
         ),
         "-v".to_string(),
         format!("{}:/home/foc-user/.genesis-sectors", miner_dir.display()),
-        "foc-builder".to_string(),
+        crate::constants::BUILDER_DOCKER_IMAGE.to_string(),
         "/bin/bash".to_string(),
         "-c".to_string(),
         format!(

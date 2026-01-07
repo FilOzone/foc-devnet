@@ -1,5 +1,5 @@
 use crate::commands::start::step::{SetupContext, Step};
-use crate::constants::BUILDER_IMAGE;
+use crate::constants::BUILDER_DOCKER_IMAGE;
 use crate::docker::core::docker_command;
 use crate::paths::{
     contract_addresses_file, foc_localnet_docker_volumes_cache, foc_localnet_keys,
@@ -65,7 +65,8 @@ impl Step for SynapseTestE2EStep {
 
         let run_id = context.run_id();
         let synapse_sdk_path = foc_localnet_synapse_sdk_repo();
-        let builder_volumes_dir = foc_localnet_docker_volumes_cache().join("foc-builder");
+        let builder_volumes_dir =
+            foc_localnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
 
         // Load contract addresses from file
         let addresses_path = contract_addresses_file(run_id);
@@ -153,7 +154,6 @@ node utils/example-storage-e2e.js --network localnet /tmp/random_test_file.txt
 
         let mut docker_args = vec![
             "run".to_string(),
-            "--rm".to_string(),
             "--name".to_string(),
             format!("foc-{}-synapse-test", run_id),
             "--network".to_string(),
@@ -190,7 +190,7 @@ node utils/example-storage-e2e.js --network localnet /tmp/random_test_file.txt
             builder_volumes_dir.join("cargo").display()
         ));
 
-        docker_args.push(BUILDER_IMAGE.to_string());
+        docker_args.push(BUILDER_DOCKER_IMAGE.to_string());
         docker_args.push("/bin/bash".to_string());
         docker_args.push("-c".to_string());
         docker_args.push(script.to_string());

@@ -70,7 +70,6 @@ pub fn register_single_provider(
 
     let args: Vec<String> = vec![
         "run".to_string(),
-        "--rm".to_string(),
         "-u".to_string(),
         "foc-user".to_string(),
         "--network".to_string(),
@@ -135,7 +134,6 @@ pub fn add_to_approved_list(
     let provider_id_str = provider_id.to_string();
     let args: Vec<String> = vec![
         "run".to_string(),
-        "--rm".to_string(),
         "-u".to_string(),
         "foc-user".to_string(),
         "--network".to_string(),
@@ -245,7 +243,6 @@ fn query_provider_id(
 ) -> Result<u64, Box<dyn Error>> {
     let args: Vec<String> = vec![
         "run".to_string(),
-        "--rm".to_string(),
         "-u".to_string(),
         "foc-user".to_string(),
         "--network".to_string(),
@@ -304,7 +301,6 @@ pub fn verify_provider_count(
         || {
             let args: Vec<String> = vec![
                 "run".to_string(),
-                "--rm".to_string(),
                 "-u".to_string(),
                 "foc-user".to_string(),
                 "--network".to_string(),
@@ -353,7 +349,6 @@ pub fn verify_provider_id_by_address(
         || {
             let args: Vec<String> = vec![
                 "run".to_string(),
-                "--rm".to_string(),
                 "-u".to_string(),
                 "foc-user".to_string(),
                 "--network".to_string(),
@@ -406,7 +401,6 @@ pub fn verify_approved_provider(
             let provider_id_str = provider_id.to_string();
             let args: Vec<String> = vec![
                 "run".to_string(),
-                "--rm".to_string(),
                 "-u".to_string(),
                 "foc-user".to_string(),
                 "--network".to_string(),

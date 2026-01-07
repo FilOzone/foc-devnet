@@ -6,10 +6,10 @@ use tracing::{info, warn};
 
 /// Container names for all services
 const CONTAINERS: &[(&str, &str)] = &[
-    ("foc-curio", "Curio"),
-    ("foc-yugabyte", "YugabyteDB"),
-    ("foc-lotus-miner", "Lotus-Miner"),
-    ("foc-lotus", "Lotus"),
+    (crate::constants::CURIO_CONTAINER, "Curio"),
+    (crate::constants::YUGABYTE_CONTAINER, "YugabyteDB"),
+    (crate::constants::LOTUS_MINER_CONTAINER, "Lotus-Miner"),
+    (crate::constants::LOTUS_CONTAINER, "Lotus"),
 ];
 
 /// Execute the stop command.

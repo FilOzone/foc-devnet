@@ -1,4 +1,5 @@
 use super::step::{SetupContext, Step};
+use crate::constants::YUGABYTE_DOCKER_IMAGE;
 use crate::docker::command_logger::run_and_log_command;
 use std::error::Error;
 use std::path::PathBuf;
@@ -13,8 +14,6 @@ use crate::docker::{
     container_exists, container_is_running, stop_and_remove_container, wait_for_port,
 };
 use crate::paths::foc_localnet_yugabyte_sp_volume;
-
-const IMAGE_NAME: &str = "foc-yugabyte";
 
 /// Spawn a single Yugabyte instance (used for parallel spawning).
 ///
@@ -93,7 +92,7 @@ fn spawn_yugabyte_instance(
     ]);
 
     // Add image name
-    docker_args.push(IMAGE_NAME);
+    docker_args.push(YUGABYTE_DOCKER_IMAGE);
 
     // Add YugabyteDB startup command with full configuration
     // CRITICAL: --base_dir must match the volume mount location
@@ -236,14 +235,14 @@ impl Step for YugabyteStep {
 
     fn pre_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         // Verify Docker image exists
-        if !crate::docker::core::image_exists(IMAGE_NAME).unwrap_or(true) {
+        if !crate::docker::core::image_exists(YUGABYTE_DOCKER_IMAGE).unwrap_or(true) {
             return Err(format!(
                 "Docker image '{}' not found. Please run 'foc-localnet init' to build the image.",
-                IMAGE_NAME
+                YUGABYTE_DOCKER_IMAGE
             )
             .into());
         }
-        info!("✓ Docker image '{}' found", IMAGE_NAME);
+        info!("✓ Docker image '{}' found", YUGABYTE_DOCKER_IMAGE);
 
         // Check if ports are available
         let sp_count = self.active_sp_count;

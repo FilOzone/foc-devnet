@@ -86,7 +86,12 @@ fn setup_directories_and_run_id(
 fn stop_running_containers() -> Result<(), Box<dyn std::error::Error>> {
     info!("Stopping any running containers from previous runs...");
 
-    let containers = vec!["foc-lotus-miner", "foc-lotus", "foc-curio", "foc-yugabyte"];
+    let containers = vec![
+        crate::constants::LOTUS_MINER_CONTAINER,
+        crate::constants::LOTUS_CONTAINER,
+        crate::constants::CURIO_CONTAINER,
+        crate::constants::YUGABYTE_CONTAINER,
+    ];
     for container in containers {
         if container_is_running(container)? {
             info!("Stopping container '{}'...", container);
@@ -134,12 +139,11 @@ fn perform_regenesis_legacy() -> Result<(), Box<dyn std::error::Error>> {
                     let status = std::process::Command::new("docker")
                         .args([
                             "run",
-                            "--rm",
                             "-u",
                             "root",
                             "-v",
                             &format!("{}:/work", parent.display()),
-                            "foc-builder",
+                            crate::constants::BUILDER_DOCKER_IMAGE,
                             "rm",
                             "-rf",
                             &format!("/work/{}", file_name),

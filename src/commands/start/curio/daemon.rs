@@ -79,7 +79,7 @@ fn start_curio_container(
     info!("Creating container {}...", container_name);
 
     // Add image and command - run curio directly as the main process
-    docker_args.push("foc-curio".to_string());
+    docker_args.push(crate::constants::CURIO_DOCKER_IMAGE.to_string());
     docker_args.push("/usr/local/bin/lotus-bins/curio".to_string());
     docker_args.push("run".to_string());
     docker_args.push("--nosync".to_string());

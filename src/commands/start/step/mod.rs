@@ -153,8 +153,8 @@ impl SetupContext {
     ///
     /// # Example
     /// ```
-    /// context.save_command("lotus_container_create", "docker run -d foc-lotus");
-    /// // Stored as: "lotus_container_create" = "docker run -d foc-lotus"
+    /// context.save_command("lotus_container_create", "docker run -d [LOTUS_CONTAINER]");
+    /// // Stored as: "lotus_container_create" = "docker run -d [LOTUS_CONTAINER]"
     /// // Also appended to: "command_history" list
     /// ```
     pub fn save_command(&self, key: &str, command_str: &str) {

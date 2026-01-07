@@ -16,7 +16,7 @@ use super::Project;
 
 /// Build the builder Docker image.
 pub fn build_builder_image(dockerfile_dir: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let image_tag = "foc-builder";
+    let image_tag = crate::constants::BUILDER_DOCKER_IMAGE;
 
     // Check if image already exists in Docker
     if image_exists(image_tag)? {
@@ -80,11 +80,10 @@ pub fn setup_docker_run_args(
     let container_output_dir = "/workspace/output";
 
     // Give each project a unique container name so they can build simultaneously
-    let container_name = format!("foc-builder-{}", project);
+    let container_name = format!("{}-{}", crate::constants::BUILDER_CONTAINER, project);
 
     let mut docker_run_args = vec![
         "run".to_string(),
-        "--rm".to_string(),
         "-u".to_string(),
         "foc-user".to_string(),
         "--name".to_string(),
@@ -101,7 +100,7 @@ pub fn setup_docker_run_args(
     let volume_map = load_volume_map("builder")?;
     if !volume_map.is_empty() {
         let cache_dir = foc_localnet_docker_volumes_cache();
-        let image_volumes_dir = cache_dir.join("foc-builder");
+        let image_volumes_dir = cache_dir.join(crate::constants::BUILDER_CONTAINER);
 
         for (host_subdir, container_path) in volume_map {
             let host_path = image_volumes_dir.join(&host_subdir);

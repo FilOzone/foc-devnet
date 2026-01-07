@@ -52,7 +52,7 @@ pub fn is_port_available(port: u16) -> bool {
 /// Check if a Docker image exists locally.
 ///
 /// # Arguments
-/// * `image_name` - The image name to check (e.g., "foc-lotus")
+/// * `image_name` - The image name to check (e.g., LOTUS_DOCKER_IMAGE)
 ///
 /// # Returns
 /// true if the image exists, false otherwise.

@@ -173,7 +173,7 @@ fn test_curio_build_valid_path() {
     let images_output = Command::new("docker")
         .args([
             "images",
-            "foc-builder",
+            foc_localnet::constants::BUILDER_IMAGE,
             "--format",
             "{{.Repository}}:{{.Tag}}",
         ])
@@ -182,8 +182,9 @@ fn test_curio_build_valid_path() {
 
     let images_text = String::from_utf8_lossy(&images_output.stdout);
     // The image should exist since it's created early in the build process
+    let expected_image = format!("{}:latest", foc_localnet::constants::BUILDER_IMAGE);
     assert!(
-        images_text.contains("foc-builder:latest"),
+        images_text.contains(&expected_image),
         "Docker builder image should have been created during build process"
     );
     println!("Docker images check: {}", images_text);

@@ -2,7 +2,8 @@
 //!
 //! This module contains all configuration constants used in the Lotus-Miner startup process.
 
-pub const IMAGE_NAME: &str = "foc-lotus-miner";
+// Docker image constant
+pub const IMAGE_NAME: &str = crate::constants::LOTUS_MINER_DOCKER_IMAGE;
 
 // Timing constants
 pub const LOTUS_API_WAIT_SLEEP_SECS: u64 = 2;

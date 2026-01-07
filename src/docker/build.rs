@@ -236,11 +236,11 @@ fn finalize_build_progress(
 /// Build and cache all required Docker images for foc-localnet.
 ///
 /// This function builds the following images from embedded Dockerfiles:
-/// - foc-builder (Foundry tools)
-/// - foc-lotus (Filecoin daemon)
-/// - foc-lotus-miner (Filecoin miner)
-/// - foc-yugabyte (Database)
-/// - foc-curio (Second-generation miner)
+/// - BUILDER_DOCKER_IMAGE (Foundry tools)
+/// - LOTUS_DOCKER_IMAGE (Filecoin daemon)
+/// - LOTUS_MINER_DOCKER_IMAGE (Filecoin miner)
+/// - YUGABYTE_DOCKER_IMAGE (Database)
+/// - CURIO_DOCKER_IMAGE (Second-generation miner)
 pub fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>> {
     info!("Building and caching Docker images...");
 

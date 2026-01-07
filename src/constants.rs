@@ -3,13 +3,21 @@
 //! This module centralizes all magic numbers, container names, port numbers,
 //! and other constants to avoid scattering them throughout the codebase.
 
-/// Container names (base - will be prefixed with foc-<RUN_ID>- in practice)
-pub const LOTUS_CONTAINER: &str = "foc-lotus";
-pub const LOTUS_MINER_CONTAINER: &str = "foc-lotus-miner";
-pub const BUILDER_CONTAINER: &str = "foc-builder";
-pub const YUGABYTE_CONTAINER: &str = "foc-yugabyte";
-pub const CURIO_CONTAINER: &str = "foc-curio";
-pub const PORTAINER_CONTAINER: &str = "foc-portainer";
+/// Docker image names
+pub const LOTUS_DOCKER_IMAGE: &str = "foc-lotus";
+pub const LOTUS_MINER_DOCKER_IMAGE: &str = "foc-lotus-miner";
+pub const BUILDER_DOCKER_IMAGE: &str = "foc-builder";
+pub const YUGABYTE_DOCKER_IMAGE: &str = "foc-yugabyte";
+pub const CURIO_DOCKER_IMAGE: &str = "foc-curio";
+pub const PORTAINER_DOCKER_IMAGE: &str = "foc-portainer";
+
+/// Docker container names (base - will be prefixed with foc-c-<RUN_ID>- in practice)
+pub const LOTUS_CONTAINER: &str = "foc-c-lotus";
+pub const LOTUS_MINER_CONTAINER: &str = "foc-c-lotus-miner";
+pub const BUILDER_CONTAINER: &str = "foc-c-builder";
+pub const YUGABYTE_CONTAINER: &str = "foc-c-yugabyte";
+pub const CURIO_CONTAINER: &str = "foc-c-curio";
+pub const PORTAINER_CONTAINER: &str = "foc-c-portainer";
 
 /// Port numbers
 pub const LOTUS_RPC_PORT: u16 = 1234;
@@ -42,13 +50,6 @@ pub const MOCK_USDFC_INITIAL_SUPPLY: &str = "1000000000000000000000000"; // 1,00
 pub const MOCK_USDFC_DECIMALS: u8 = 18;
 pub const MOCK_USDFC_SYMBOL: &str = "USDFC";
 pub const MOCK_USDFC_NAME: &str = "Mock USDFC";
-
-/// Docker image names
-pub const LOTUS_IMAGE: &str = "foc-lotus";
-pub const LOTUS_MINER_IMAGE: &str = "foc-lotus-miner";
-pub const BUILDER_IMAGE: &str = "foc-builder";
-pub const YUGABYTE_IMAGE: &str = "foc-yugabyte";
-pub const CURIO_IMAGE: &str = "foc-curio";
 
 /// Network configuration
 pub const LOCAL_NETWORK_CHAIN_ID: u64 = 1414; // Local network chain ID

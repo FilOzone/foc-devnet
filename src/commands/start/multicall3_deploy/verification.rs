@@ -24,12 +24,11 @@ pub fn verify_multicall3(
 
     let args: Vec<String> = vec![
         "run".to_string(),
-        "--rm".to_string(),
         "-u".to_string(),
         "foc-user".to_string(),
         "--network".to_string(),
         "host".to_string(),
-        "foc-builder".to_string(),
+        crate::constants::BUILDER_DOCKER_IMAGE.to_string(),
         "bash".to_string(),
         "-c".to_string(),
         verify_cmd,

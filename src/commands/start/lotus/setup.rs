@@ -4,13 +4,12 @@
 //! for starting the Lotus daemon container.
 
 use super::super::step::SetupContext;
+use crate::constants::LOTUS_DOCKER_IMAGE;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::network::lotus_network_name;
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
-
-const IMAGE_NAME: &str = "foc-lotus";
 
 /// Enable FEVM in the Lotus config.toml
 ///
@@ -139,7 +138,7 @@ pub fn build_docker_command(
     docker_args.extend_from_slice(&["-w".to_string(), "/data".to_string()]);
 
     // Add image name
-    docker_args.push(IMAGE_NAME.to_string());
+    docker_args.push(LOTUS_DOCKER_IMAGE.to_string());
 
     // Add command to start lotus daemon
     let genesis_filename = genesis_file

@@ -4,14 +4,13 @@
 //! before starting the Lotus daemon container.
 
 use super::super::genesis::constants::GENESIS_FILE;
+use crate::constants::LOTUS_DOCKER_IMAGE;
 use crate::paths::{
     foc_localnet_bin, foc_localnet_genesis, foc_localnet_genesis_sectors,
     foc_localnet_proof_parameters,
 };
 use std::error::Error;
 use tracing::info;
-
-const IMAGE_NAME: &str = "foc-lotus";
 
 /// Verify that the genesis block file exists
 pub fn verify_genesis_file(run_id: &str) -> Result<std::path::PathBuf, Box<dyn Error>> {
@@ -31,14 +30,14 @@ pub fn verify_genesis_file(run_id: &str) -> Result<std::path::PathBuf, Box<dyn E
 /// Check that required Docker image and Lotus binary exist
 pub fn check_image_and_binary() -> Result<(), Box<dyn Error>> {
     // Verify Docker image exists
-    if !crate::docker::core::image_exists(IMAGE_NAME).unwrap_or(true) {
+    if !crate::docker::core::image_exists(LOTUS_DOCKER_IMAGE).unwrap_or(true) {
         return Err(format!(
             "Docker image '{}' not found. Please run 'foc-localnet init' to build the image.",
-            IMAGE_NAME
+            LOTUS_DOCKER_IMAGE
         )
         .into());
     }
-    info!("✓ Docker image '{}' found", IMAGE_NAME);
+    info!("✓ Docker image '{}' found", LOTUS_DOCKER_IMAGE);
 
     // Verify lotus binary exists
     let lotus_bin = foc_localnet_bin().join("lotus");

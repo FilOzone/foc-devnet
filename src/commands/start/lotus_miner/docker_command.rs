@@ -37,7 +37,8 @@ pub fn build_miner_docker_command(
     // Get paths
     let bin_dir = foc_localnet_bin();
     let sectors_dir = foc_localnet_genesis_sectors_lotus_miner(run_id);
-    let builder_volumes_dir = foc_localnet_docker_volumes_cache().join("foc-builder");
+    let builder_volumes_dir =
+        foc_localnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
     let params_dir = foc_localnet_proof_parameters();
 
     // Get allocated miner API port from context

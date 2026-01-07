@@ -46,12 +46,11 @@ pub fn transfer_mock_usdfc(
         "docker",
         &[
             "run",
-            "--rm",
             "--network",
             "host", // Use host network to access localhost:1234
             "-v",
             "/tmp:/workspace",
-            "foc-builder",
+            crate::constants::BUILDER_DOCKER_IMAGE,
             "bash",
             "-c",
             &cast_cmd,
@@ -84,7 +83,6 @@ pub fn check_mock_usdfc_balance(
                 "docker",
                 &[
                     "run",
-                    "--rm",
                     "--network",
                     "host",
                     "-v",
@@ -94,7 +92,7 @@ pub fn check_mock_usdfc_balance(
                             .join("contracts/MockUSDFC")
                             .display()
                     ),
-                    "foc-builder",
+                    crate::constants::BUILDER_DOCKER_IMAGE,
                     "bash",
                     "-c",
                     &format!(

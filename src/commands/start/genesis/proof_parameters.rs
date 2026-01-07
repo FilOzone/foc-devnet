@@ -96,7 +96,6 @@ pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
             let child = Command::new("docker")
                 .args([
                     "run",
-                    "--rm",
                     "-e",
                     &format!(
                         "FIL_PROOFS_PARAMETER_CACHE={}",
@@ -115,7 +114,7 @@ pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
                         params_dir.display(),
                         CONTAINER_FILECOIN_PROOF_PARAMS_PATH
                     ),
-                    "foc-builder",
+                    crate::constants::BUILDER_DOCKER_IMAGE,
                     "/bin/bash",
                     "-c",
                     &format!(

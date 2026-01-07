@@ -66,7 +66,8 @@ pub fn deploy_foc_contracts(
     }
 
     let bin_dir = foc_localnet_bin();
-    let builder_volumes_dir = foc_localnet_docker_volumes_cache().join("foc-builder");
+    let builder_volumes_dir =
+        foc_localnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
 
     // Get the private key from lotus for the deployer address
     let private_key = get_private_key(foc_deployer, lotus_container)?;
@@ -106,7 +107,6 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
 
     let mut docker_args = vec![
         "run".to_string(),
-        "--rm".to_string(),
         "-u".to_string(),
         "foc-user".to_string(),
         "--name".to_string(),

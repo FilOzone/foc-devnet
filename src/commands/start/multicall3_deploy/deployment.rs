@@ -55,7 +55,6 @@ pub fn deploy_multicall3(
     let volume_mount = format!("{}:/workspace", multicall3_repo.display());
     let args: Vec<String> = vec![
         "run".to_string(),
-        "--rm".to_string(),
         "-u".to_string(),
         "foc-user".to_string(),
         "--name".to_string(),
@@ -64,7 +63,7 @@ pub fn deploy_multicall3(
         "host".to_string(), // Use host network to access Lotus RPC on dynamic port
         "-v".to_string(),
         volume_mount,
-        "foc-builder".to_string(),
+        crate::constants::BUILDER_DOCKER_IMAGE.to_string(),
         "bash".to_string(),
         "-c".to_string(),
         deploy_cmd,

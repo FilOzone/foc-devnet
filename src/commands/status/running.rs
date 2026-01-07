@@ -49,11 +49,20 @@ pub fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
         ]
     } else {
         vec![
-            ("Lotus Daemon", "foc-lotus".to_string()),
-            ("Lotus Miner", "foc-lotus-miner".to_string()),
-            ("Curio", "foc-curio".to_string()),
-            ("YugabyteDB", "foc-yugabyte".to_string()),
-            ("Builder", "foc-builder".to_string()),
+            (
+                "Lotus Daemon",
+                crate::constants::LOTUS_CONTAINER.to_string(),
+            ),
+            (
+                "Lotus Miner",
+                crate::constants::LOTUS_MINER_CONTAINER.to_string(),
+            ),
+            ("Curio", crate::constants::CURIO_CONTAINER.to_string()),
+            (
+                "YugabyteDB",
+                crate::constants::YUGABYTE_CONTAINER.to_string(),
+            ),
+            ("Builder", crate::constants::BUILDER_CONTAINER.to_string()),
         ]
     };
 
@@ -112,8 +121,8 @@ fn extract_base_image_name(container_name: &str) -> String {
     // foc-<run_id>-<service> or foc-<run_id>-<service>-<number>
     if parts.len() >= 3 {
         // Extract everything after the run_id part
-        // For foc-26jan02-1058_TizzyTike-lotus -> foc-lotus
-        // For foc-26jan02-1058_TizzyTike-curio-1 -> foc-curio
+        // For foc-26jan02-1058_TizzyTike-lotus -> LOTUS_CONTAINER
+        // For foc-26jan02-1058_TizzyTike-curio-1 -> CURIO_CONTAINER
         let service_parts = &parts[2..];
 
         // If it ends with a number (like curio-1), remove it
@@ -175,16 +184,19 @@ mod tests {
     fn test_extract_base_image_name() {
         assert_eq!(
             extract_base_image_name("foc-26jan02-1058_TizzyTike-lotus"),
-            "foc-lotus"
+            crate::constants::LOTUS_CONTAINER
         );
         assert_eq!(
             extract_base_image_name("foc-26jan02-1058_TizzyTike-lotus-miner"),
-            "foc-lotus-miner"
+            crate::constants::LOTUS_MINER_CONTAINER
         );
         assert_eq!(
             extract_base_image_name("foc-26jan02-1058_TizzyTike-curio-1"),
-            "foc-curio"
+            crate::constants::CURIO_CONTAINER
         );
-        assert_eq!(extract_base_image_name("foc-lotus"), "foc-lotus");
+        assert_eq!(
+            extract_base_image_name(crate::constants::LOTUS_CONTAINER),
+            crate::constants::LOTUS_CONTAINER
+        );
     }
 }

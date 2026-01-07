@@ -191,7 +191,12 @@ fn create_base_cluster(
         "sleep 3 && /usr/local/bin/lotus-bins/curio config new-cluster {}",
         miner_id
     );
-    docker_args.extend_from_slice(&["foc-curio", "/bin/bash", "-c", &bash_cmd]);
+    docker_args.extend_from_slice(&[
+        crate::constants::CURIO_DOCKER_IMAGE,
+        "/bin/bash",
+        "-c",
+        &bash_cmd,
+    ]);
 
     let docker_args_str: Vec<&str> = docker_args.iter().map(|s| s.as_ref()).collect();
     let key = format!("curio_new_cluster_sp_{}", sp_index);
@@ -297,7 +302,12 @@ fn create_pdp_layer(context: &SetupContext, sp_index: usize) -> Result<(), Box<d
         pdp_config
     );
 
-    docker_args.extend_from_slice(&["foc-curio", "/bin/bash", "-c", &bash_cmd]);
+    docker_args.extend_from_slice(&[
+        crate::constants::CURIO_DOCKER_IMAGE,
+        "/bin/bash",
+        "-c",
+        &bash_cmd,
+    ]);
 
     let docker_args_str: Vec<&str> = docker_args.iter().map(|s| s.as_ref()).collect();
     let key = format!("curio_pdp_layer_config_sp_{}", sp_index);

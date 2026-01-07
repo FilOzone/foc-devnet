@@ -32,7 +32,7 @@ fn get_lotus_block_height() -> Option<u64> {
     let output = Command::new("docker")
         .args([
             "exec",
-            "foc-lotus",
+            crate::constants::LOTUS_CONTAINER,
             "/usr/local/bin/lotus-bins/lotus",
             "chain",
             "list",
