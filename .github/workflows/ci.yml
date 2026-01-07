@@ -250,7 +250,6 @@ jobs:
 
     # On failure, collect and print Docker container logs for debugging
     - name: "EXEC: {Collect Docker logs on failure}, independent"
-      if: failure()
       run: |
         echo "========== DOCKER CONTAINER LOGS (Start cluster step failed) =========="
         echo ""
