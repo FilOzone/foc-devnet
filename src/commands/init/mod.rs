@@ -20,12 +20,16 @@ use tracing::{info, warn};
 
 /// Clean up previous foc-localnet installation.
 ///
-/// This function removes the entire ~/.foc-localnet directory and all
-/// previously built Docker images to ensure a clean slate for initialization.
+/// Removes the entire ~/.foc-localnet directory and optionally all foc-* Docker
+/// images to ensure a clean slate for initialization.
+///
+/// # Arguments
+/// * `remove_images` - When true, also remove cached foc-* Docker images. This
+///   should stay false when callers rely on preloaded images (e.g., CI caches).
 ///
 /// # Returns
 /// Returns `Ok(())` if cleanup succeeds, or an error if cleanup fails.
-fn cleanup_previous_installation() -> Result<(), Box<dyn std::error::Error>> {
+fn cleanup_previous_installation(remove_images: bool) -> Result<(), Box<dyn std::error::Error>> {
     use crate::paths::foc_localnet_home;
     use std::process::Command;
 
@@ -41,34 +45,36 @@ fn cleanup_previous_installation() -> Result<(), Box<dyn std::error::Error>> {
         info!("No previous installation found");
     }
 
-    // Remove all foc-localnet Docker images
-    info!("Removing existing foc-localnet Docker images");
-    let output = Command::new("docker")
-        .args(["images", "--format", "{{.Repository}}:{{.Tag}}"])
-        .output()?;
+    // Optionally remove foc-localnet Docker images
+    if remove_images {
+        info!("Removing existing foc-localnet Docker images");
+        let output = Command::new("docker")
+            .args(["images", "--format", "{{.Repository}}:{{.Tag}}"])
+            .output()?;
 
-    if output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let mut removed_count = 0;
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let mut removed_count = 0;
 
-        for line in stdout.lines() {
-            if line.starts_with("foc-") {
-                // Remove the image
-                let remove_output = Command::new("docker").args(["rmi", line]).output()?;
+            for line in stdout.lines() {
+                if line.starts_with("foc-") {
+                    // Remove the image
+                    let remove_output = Command::new("docker").args(["rmi", line]).output()?;
 
-                if remove_output.status.success() {
-                    removed_count += 1;
+                    if remove_output.status.success() {
+                        removed_count += 1;
+                    }
                 }
             }
-        }
 
-        if removed_count > 0 {
-            info!("Removed {} Docker image(s)", removed_count);
+            if removed_count > 0 {
+                info!("Removed {} Docker image(s)", removed_count);
+            } else {
+                info!("No foc-localnet Docker images found");
+            }
         } else {
-            info!("No foc-localnet Docker images found");
+            warn!("Could not list Docker images (Docker may not be running)");
         }
-    } else {
-        warn!("Could not list Docker images (Docker may not be running)");
     }
 
     Ok(())
@@ -113,7 +119,8 @@ pub fn init_environment(
     info!("Initializing foc-localnet environment...");
 
     // Clean up previous installation
-    cleanup_previous_installation()?;
+    // Preserve cached Docker images when --no-docker-build is used (CI cache path)
+    cleanup_previous_installation(!no_docker_build)?;
 
     // Create all necessary directories
     directories::create_directories()?;
