@@ -239,6 +239,10 @@ jobs:
         PROOF_PARAMS_HASH=$(find ~/.foc-localnet/docker/volumes/cache/filecoin-proof-parameters -type f -exec sha256sum {} \; | cut -d' ' -f1 | sort | sha256sum | cut -d' ' -f1)
         echo "Downloaded proof parameters with hash: $PROOF_PARAMS_HASH"
 
+    # Verify cluster is running correctly
+    - name: "EXEC: {Check cluster status}, independent"
+      run: ./foc-localnet status
+
     # Start the full Filecoin localnet cluster
     - name: "EXEC: {Start cluster}, independent"
       run: ./foc-localnet start --parallel
