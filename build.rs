@@ -70,9 +70,11 @@ fn main() {
 
 /// Generate MockUSDFC.tar.gz archive from the MockUSDFC Foundry project
 fn generate_mockusdfc_archive() {
+    use std::fs;
     use std::path::Path;
 
     let mockusdfc_dir = Path::new("contracts/MockUSDFC");
+    let artifacts_dir = Path::new("artifacts");
 
     // Check if MockUSDFC directory exists
     if !mockusdfc_dir.exists() {
@@ -80,7 +82,15 @@ fn generate_mockusdfc_archive() {
         return;
     }
 
-    // Create tar.gz archive in contracts/ directory
+    // Create artifacts directory if it doesn't exist
+    if !artifacts_dir.exists() {
+        if let Err(e) = fs::create_dir_all(artifacts_dir) {
+            eprintln!("Warning: Failed to create artifacts directory: {}", e);
+            return;
+        }
+    }
+
+    // Create tar.gz archive in artifacts/ directory
     let output = Command::new("tar")
         .args(["-czf", "artifacts/MockUSDFC.tar.gz", "contracts/MockUSDFC"])
         .current_dir(".")
