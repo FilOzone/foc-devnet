@@ -91,8 +91,12 @@ fn generate_mockusdfc_archive() {
     }
 
     // Create tar.gz archive in artifacts/ directory
+    let archive_path = artifacts_dir.join("MockUSDFC.tar.gz");
+    
     let output = Command::new("tar")
-        .args(["-czf", "artifacts/MockUSDFC.tar.gz", "contracts/MockUSDFC"])
+        .arg("-czf")
+        .arg(&archive_path)
+        .arg(mockusdfc_dir)
         .current_dir(".")
         .output();
 
