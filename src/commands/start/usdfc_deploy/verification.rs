@@ -42,7 +42,6 @@ pub fn verify_mock_usdfc(
                 "docker",
                 &[
                     "run",
-                    "--rm",
                     "-u",
                     "foc-user",
                     "--network",

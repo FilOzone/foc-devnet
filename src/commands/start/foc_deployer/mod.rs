@@ -52,6 +52,9 @@ pub fn deploy_foc_contracts(
 ) -> Result<DeploymentResult, Box<dyn Error>> {
     info!("Running deploy-all-warm-storage.sh...");
 
+    // Log the RPC URL for debugging
+    info!("Lotus RPC URL: {}", lotus_rpc_url);
+
     // Resolve symlinks to get the real path for Docker mounting
     let services_repo = services_repo_path
         .canonicalize()
@@ -94,10 +97,12 @@ pub fn deploy_foc_contracts(
     ];
 
     // Run the deployment script
-    // Import keystore without password prompt by using stdin
+    // Import wallet into keystore first (required by deploy-all-warm-storage.sh)
+    // The script uses forge create --password which requires a keystore file
     let deploy_cmd = format!(
         r#"set -e
-echo "" | cast wallet import foc-deployer --private-key {}
+mkdir -p /home/foc-user/.foundry/keystores
+cast wallet import foc-deployer --private-key {} --unsafe-password ''
 cd /service_contracts
 bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-deploy.log"#,
         private_key
@@ -141,12 +146,26 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
     docker_args.push(deploy_cmd);
 
     let args_ref: Vec<&str> = docker_args.iter().map(|s| s.as_str()).collect();
+
+    info!("Executing deployment container: {}", container_name);
+    info!(
+        "Docker command: docker run [args with {} total args]",
+        args_ref.len()
+    );
+
+    // Log the command line length for debugging
+    let total_cmd_len: usize = args_ref.iter().map(|s| s.len()).sum();
+    info!("Total command line length: {} bytes", total_cmd_len);
+
     let output = docker_command(&args_ref)?;
 
     let output_str = String::from_utf8_lossy(&output.stdout);
 
     if !output.status.success() {
-        warn!("Deployment script failed");
+        warn!(
+            "Deployment container failed with exit status: {:?}",
+            output.status.code()
+        );
 
         // Print stderr
         let stderr_str = String::from_utf8_lossy(&output.stderr);
@@ -172,6 +191,21 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
                 for line in logs.lines() {
                     warn!("{}", line);
                 }
+            }
+        } else {
+            info!(
+                "Container {} does not exist or logs not accessible",
+                container_name
+            );
+        }
+
+        // Also try to inspect the container for more info
+        let inspect_output = crate::docker::core::docker_command(&["inspect", &container_name]);
+        if let Ok(output) = inspect_output {
+            let inspect_str = String::from_utf8_lossy(&output.stdout);
+            warn!("=== CONTAINER INSPECT ===");
+            for line in inspect_str.lines() {
+                warn!("{}", line);
             }
         }
 
