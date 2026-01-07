@@ -55,7 +55,7 @@ foc-localnet init \
 ```
 
 ### `build`
-Builds Filecoin components in Docker containers.
+Builds Filecoin components in Docker containers. Must be run after `init` and after building `lotus` and `curio` components.
 
 ```bash
 foc-localnet build lotus [PATH] [--output-dir <DIR>]
@@ -69,7 +69,7 @@ foc-localnet build curio /path/to/custom/curio --output-dir ~/bins
 ```
 
 ### `start`
-Starts the local Filecoin network cluster.
+Starts the local Filecoin network cluster. Must be run after `init` and `build` commands have completed successfully.
 
 ```bash
 foc-localnet start [OPTIONS]
@@ -196,6 +196,12 @@ tag = "synapse-sdk-v0.36.1"
 
 **Constraints:**
 - `approved_pdp_sp_count` ≤ `active_pdp_sp_count` ≤ `MAX_PDP_SP_COUNT` (5)
+
+**How defaults work:**
+- On first run, `foc-localnet init` generates `config.toml` with hardcoded defaults from the source code
+- Default values are defined in `src/config.rs` (see [`Config::default()`](https://github.com/FilOzone/foc-localnet/blob/main/src/config.rs))
+- When you upgrade `foc-localnet`, existing `config.toml` is preserved to maintain your customizations
+- To adopt new defaults from an updated version, delete `config.toml` and run `foc-localnet init` again, or use `foc-localnet init --force`
 
 ### Editing Config
 
@@ -344,20 +350,6 @@ ls | grep --invert-match "$CURRENT_RUN" | xargs rm -rf
 rm -rf ~/.foc-localnet
 ```
 
-### Manual Cleanup
-
-```bash
-# Stop cluster
-foc-localnet stop
-
-# Delete specific run
-rm -rf ~/.foc-localnet/run/26jan02-1430_ZanyPip
-rm -rf ~/.foc-localnet/docker/volumes/run-specific/26jan02-1430_ZanyPip
-
-# Complete nuclear reset (delete everything)
-rm -rf ~/.foc-localnet
-```
-
 ---
 
 ## Run ID and Step Context
@@ -366,9 +358,9 @@ rm -rf ~/.foc-localnet
 
 **What:** A unique identifier for each cluster execution.
 
-**Format:** `YYmmmDD-HHMM_RandomName`
+**Format:** `YYYYMMDDTHHMM_RandomName` (ISO8601-based)
 
-**Example:** `26jan02-1430_ZanyPip`
+**Example:** `20260102T1430_ZanyPip`
 
 **Why needed:**
 - **Isolation:** Separate concurrent runs without conflicts
@@ -378,10 +370,10 @@ rm -rf ~/.foc-localnet
 
 **Generation:**
 ```rust
-// Date: YYmmmDD (26jan02 = January 2, 2026)
-// Time: HHMM (1430 = 2:30 PM)
+// Date: YYYYMMDD (20260102 = January 2, 2026) - ISO8601 format
+// Time: HHMM (1430 = 2:30 PM, 24-hour format)
 // Name: RandomAdjective + RandomNoun (ZanyPip)
-"26jan02-1430_ZanyPip"
+"20260102T1430_ZanyPip"
 ```
 
 **Storage:**
@@ -390,7 +382,9 @@ rm -rf ~/.foc-localnet
 
 ### Step Context (SetupContext)
 
-**What:** Thread-safe shared state container that passes data between steps.
+**What:** Thread-safe shared state container that passes data between [steps](#lifecycle-overview).
+
+**What are steps?** Steps are modular units of work during cluster startup (e.g., "Deploy MockUSDFC", "Start Lotus", "Register SPs"). Each step can read data from and write data to the shared context. See [Lifecycle Overview](#lifecycle-overview) for the complete list of steps and [Step Implementation Pattern](#step-implementation-pattern) for implementation details.
 
 **Why needed:**
 - **Dependency resolution:** Later steps need data from earlier steps
@@ -437,6 +431,9 @@ fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
 ```
 
 **Common context keys:**
+
+These keys are used to pass data between [steps](#lifecycle-overview). For a definitive list, see the step implementations in [`src/commands/start/steps/`](https://github.com/FilOzone/foc-localnet/tree/main/src/commands/start/steps).
+
 - `deployer_mockusdfc_eth_address` - MockUSDFC deployer address
 - `deployer_foc_eth_address` - FOC contracts deployer address
 - `mockusdfc_contract_address` - MockUSDFC token contract
@@ -461,9 +458,7 @@ fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
 
 ### Portainer: Your Debugging Companion
 
-**What is Portainer?**
-
-Portainer is a lightweight container management UI that gives you visual, browser-based access to all your Docker containers, networks, and volumes. foc-localnet automatically starts Portainer using the first port in your configured range.
+[Portainer](https://docs.portainer.io/) is a lightweight container management UI that gives you visual, browser-based access to all your Docker containers, networks, and volumes. foc-localnet automatically starts Portainer using the first port in your configured range.
 
 **Access:** http://localhost:5700 (default, or first port from `port_range_start` in config.toml)
 
@@ -532,10 +527,10 @@ Portainer is a lightweight container management UI that gives you visual, browse
 |-----------|-------|---------|-------|
 | `foc-<run-id>-lotus` | foc-lotus | Filecoin daemon (FEVM enabled) | 1234 (API), 1235 (P2P) |
 | `foc-<run-id>-lotus-miner` | foc-lotus-miner | First-gen miner (PoRep) | 2345 (API) |
-| `foc-<run-id>-yugabyte` | foc-yugabyte | Database for Curio | 5433 (PostgreSQL) |
-| `foc-<run-id>-curio-1` | foc-curio | First Curio SP (PDP) | Dynamic |
-| `foc-<run-id>-curio-2` | foc-curio | Second Curio SP (PDP) | Dynamic |
-| `foc-<run-id>-curio-N` | foc-curio | Nth Curio SP (PDP) | Dynamic |
+| `foc-<run-id>-yugabyte` | foc-yugabyte | Shared database for all Curio SPs | 5433 (PostgreSQL) |
+| `foc-<run-id>-curio-1` | foc-curio | First Curio SP (PDP) | Dynamic from range |
+| `foc-<run-id>-curio-2` | foc-curio | Second Curio SP (PDP) | Dynamic from range |
+| `foc-<run-id>-curio-N` | foc-curio | Nth Curio SP (PDP) | Dynamic from range |
 | `foc-builder` | foc-builder | Foundry tools (contract deployment) | Host network |
 | `foc-portainer` | portainer/portainer-ce | Container management UI | 5700 (first from range) |
 
@@ -562,29 +557,31 @@ Docker's user-defined bridge networks are virtual networks that provide:
 ```mermaid
 graph TB
     subgraph host["Host Machine (localhost)"]
-        style host fill:#f0f0f0,stroke:#333,stroke-width:2px
+        style host fill:#f0f0f0,stroke:#333,stroke-width:2px,color:#000
         portainer["🌐 Portainer<br/>:5700"]
         lotus_api["📡 Lotus API<br/>:5701"]
         miner_api["⛏️ Miner API<br/>:5702"]
         yugabyte_api["🗄️ Yugabyte<br/>:5710"]
     end
 
-    subgraph lotus_net["foc-&lt;run-id&gt;-lot-net<br/>(Lotus Network - Blockchain Communication)"]
-        style lotus_net fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    subgraph lotus_net["foc-run-id-lot-net (Lotus Network)"]
+        style lotus_net fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000
         lotus["foc-lotus<br/>(Filecoin Daemon)"]
         builder["foc-builder<br/>(--net=host)"]
         curio1_lot["foc-curio-1<br/>(on lot-net)"]
+        curio2_lot["foc-curio-n<br/>(on lot-net)"]
     end
 
-    subgraph miner_net["foc-&lt;run-id&gt;-lot-m-net<br/>(Lotus Miner Network)"]
-        style miner_net fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    subgraph miner_net["foc-run-id-lot-m-net (Miner Network)"]
+        style miner_net fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
         miner["foc-lotus-miner<br/>(PoRep Miner)"]
     end
 
-    subgraph curio_net["foc-&lt;run-id&gt;-cur-m-net-1<br/>(Curio SP 1 Network)"]
-        style curio_net fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-        yugabyte["foc-yugabyte<br/>(Database)"]
-        curio1["foc-curio-1<br/>(PDP Service Provider)"]
+    subgraph curio_net["foc-run-id-cur-m-net-1 (Curio SP Networks)"]
+        style curio_net fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000
+        yugabyte["foc-yugabyte<br/>(Shared Database)"]
+        curio1["foc-curio-1<br/>(PDP SP)"]
+        curio2["foc-curio-n<br/>(PDP SP)"]
     end
 
     %% Container to Host connections
@@ -595,13 +592,16 @@ graph TB
     %% Network connections
     builder -->|uses host network| lotus
     curio1 -->|same container| curio1_lot
+    curio2 -->|same container| curio2_lot
     miner -->|connects to| lotus
     curio1_lot -->|connects to| lotus
+    curio2_lot -->|connects to| lotus
     yugabyte <-->|database| curio1
+    yugabyte <-->|database| curio2
 
     %% Styling
-    classDef container fill:#fff,stroke:#333,stroke-width:1px
-    class lotus,builder,curio1_lot,miner,yugabyte,curio1 container
+    classDef container fill:#fff,stroke:#333,stroke-width:1px,color:#000
+    class lotus,builder,curio1_lot,curio2_lot,miner,yugabyte,curio1,curio2 container
 ```
 
 **Legend:**
@@ -662,11 +662,17 @@ port_range_count = 100
 
 | Repository | Default Source | Purpose |
 |------------|---------------|---------|
-| **lotus** | `github.com/filecoin-project/lotus:v1.34.0` | Filecoin daemon |
-| **curio** | `github.com/filecoin-project/curio:pdpv0` | Storage provider (PDP) |
-| **filecoin-services** | `github.com/FilOzone/filecoin-services:v1.0.0` | FOC smart contracts |
-| **multicall3** | `github.com/mds1/multicall3:main` | Multicall3 contract |
-| **synapse-sdk** | `github.com/FilOzone/synapse-sdk:synapse-sdk-v0.36.1` | PDP verification SDK |
+| **lotus** | `github.com/filecoin-project/lotus:v1.34.0` (pinned version) | Filecoin daemon |
+| **curio** | `github.com/filecoin-project/curio:pdpv0` (branch) | Storage provider (PDP) |
+| **filecoin-services** | `github.com/FilOzone/filecoin-services:v1.0.0` (pinned version) | FOC smart contracts |
+| **multicall3** | `github.com/mds1/multicall3:main` (latest) | Multicall3 contract |
+| **synapse-sdk** | `github.com/FilOzone/synapse-sdk:synapse-sdk-v0.36.1` (pinned version) | PDP verification SDK |
+
+**Version Strategy:**
+- **Lotus**: Pinned to tested stable version for reliability. If you need to use `main` branch, use: `foc-localnet init --lotus gitbranch:main --force`
+- **Curio**: Uses `pdpv0` branch (under active development). If you need a specific version, use: `foc-localnet init --curio gittag:v1.0.0 --force`
+- **Multicall3**: Uses `main` (stable, rarely changes)
+- Default versions are defined in [`src/config.rs`](https://github.com/FilOzone/foc-localnet/blob/main/src/config.rs). To update, either modify your `config.toml` or use `foc-localnet init --force` with desired source flags.
 
 ### Using Local Repositories
 
@@ -694,45 +700,18 @@ foc-localnet init \
 
 **To share your exact setup with others:**
 
-1. **Export config:**
-   ```bash
-   cat ~/.foc-localnet/config.toml
-   ```
+```bash
+# Copy your config to a shared location
+cp ~/.foc-localnet/config.toml /shared/foc-localnet-installation/config.toml
 
-2. **Document versions:**
-   ```toml
-   # Lotus v1.34.0
-   [lotus]
-   url = "https://github.com/filecoin-project/lotus.git"
-   tag = "v1.34.0"
-   
-   # Curio pdpv0 branch (commit: abc123)
-   [curio]
-   url = "https://github.com/filecoin-project/curio.git"
-   branch = "pdpv0"
-   
-   # FilOzone services v1.0.0
-   [filecoin_services]
-   url = "https://github.com/FilOzone/filecoin-services.git"
-   tag = "v1.0.0"
-   
-   # Synapse SDK
-   [synapse_sdk]
-   url = "git@github.com:FilOzone/synapse-sdk.git"
-   tag = "synapse-sdk-v0.36.1"
-   ```
+# Recipient copies config and runs init
+cp /shared/foc-localnet-installation/config.toml ~/.foc-localnet/config.toml
+foc-localnet init
+```
 
-3. **Share config file:**
-   ```bash
-   # Recipient copies config
-   mkdir -p ~/.foc-localnet
-   cp shared-config.toml ~/.foc-localnet/config.toml
-   
-   # Run init to download and build
-   foc-localnet init
-   ```
+### Reproducible Builds
 
-**For reproducible builds, specify exact commits:**
+Specify exact commits for reproducibility:
 
 ```toml
 [lotus]
@@ -822,116 +801,96 @@ commit = "789012345678..."
 
 ### Full Lifecycle
 
-```
-┌──────────┐
-│   init   │  Download repos, build images, generate keys
-└────┬─────┘
-     │
-     ▼
-┌──────────┐
-│  build   │  Compile lotus and curio binaries
-└────┬─────┘
-     │
-     ▼
-┌──────────┐
-│  start   │  Launch cluster (see detailed flow below)
-└────┬─────┘
-     │
-     ▼
-┌──────────┐
-│ [running]│  Cluster active, contracts deployed
-└────┬─────┘
-     │
-     ▼
-┌──────────┐
-│   stop   │  Stop containers, cleanup networks
-└────┬─────┘
-     │
-     ▼
-┌──────────┐
-│  start   │  Regenesis + restart (fresh blockchain)
-└──────────┘
-```
+### init
+* Download repos
+* Build images
+* Generate keys
 
-### Detailed Start Sequence
+### build
+* Compile lotus binary
+* Compile curio binary
 
-**1. Pre-start cleanup:**
-   - Stop any existing cluster
-   - Generate unique run ID
-   - Create run directories
-   - Perform regenesis (delete old run volumes)
+### start
 
-**2. Genesis prerequisites (one-time per start):**
-   - Generate BLS keys for prefunded accounts
-   - Create pre-sealed sectors
-   - Build genesis block configuration
+#### Before Steps
+- Pre-start cleanup:
+  - Stop any existing cluster
+  - Generate unique run ID
+  - Create run directories
+  - Perform regenesis (delete old run volumes)
 
-**3. Port allocation:**
-   - Validate port range availability
-   - Allocate Portainer port
-   - Initialize port allocator for dynamic assignment
+- Genesis prerequisites (one-time per start):
+  - Generate BLS keys for prefunded accounts
+  - Create pre-sealed sectors
+  - Build genesis block configuration
 
-**4. Network creation:**
-   - Create Lotus network
-   - Create Lotus Miner network
-   - Create Curio networks (one per SP)
+- Port allocation:
+  - Validate port range availability
+  - Allocate Portainer port
+  - Initialize port allocator for dynamic assignment
 
-**5. Step execution (sequential or parallel):**
+- Network creation:
+  - Create Lotus network
+  - Create Lotus Miner network
+  - Create Curio networks (one per SP)
 
-   **a. Lotus Step:**
-   - Start Lotus daemon container
-   - Wait for API file
-   - Verify RPC connectivity
+#### Steps
+These can be sequential or parallel:
+  - Lotus Step:
+    - Start Lotus daemon container
+    - Wait for API file
+    - Verify RPC connectivity
+  - Lotus Miner Step:
+    - Import pre-sealed sectors
+    - Initialize miner
+    - Start mining
+  - ETH Account Funding Step:
+    - Transfer FIL to create FEVM addresses
+    - Fund deployer accounts
+    - Wait for address activation
+  - MockUSDFC Deploy Step:
+    - Deploy ERC-20 test token
+    - Save contract address
+  - USDFC Funding Step:
+    - Transfer tokens to test accounts
+    - Fund Curio SPs
+  - Multicall3 Deploy Step:
+    - Deploy Multicall3 contract
+    - Save contract address
+  - FOC Deploy Step:
+    - Deploy FOC service contracts
+    - Deploy PDPVerifier, ServiceProviderRegistry, etc.
+    - Save all contract addresses
+  - Yugabyte Step:
+    - Start Yugabyte database
+    - Verify PostgreSQL port
+  - Curio Step:
+    - Initialize Curio database schemas
+    - Start N Curio SP containers
+    - Configure PDP endpoints
+  - PDP SP Registration Step:
+    - Register each Curio SP in registry
+    - Approve authorized SPs
+    - Save provider IDs
+  - Synapse E2E Test Step:
+    - Run end-to-end verification
+    - Test deal flow (unless `--notest`)
 
-   **b. Lotus Miner Step:**
-   - Import pre-sealed sectors
-   - Initialize miner
-   - Start mining
+#### Post Steps
+  - Save step context
+  - Display summary
+  - Print access URLs
+   
 
-   **c. ETH Account Funding Step:**
-   - Transfer FIL to create FEVM addresses
-   - Fund deployer accounts
-   - Wait for address activation
+### running
+At this point the cluster is active and already has contracts deployed. It is ready for further interaction.
 
-   **d. MockUSDFC Deploy Step:**
-   - Deploy ERC-20 test token
-   - Save contract address
+### stop
+* Stop containers
+* Cleanup networks
 
-   **e. USDFC Funding Step:**
-   - Transfer tokens to test accounts
-   - Fund Curio SPs
-
-   **f. Multicall3 Deploy Step:**
-   - Deploy Multicall3 contract
-   - Save contract address
-
-   **g. FOC Deploy Step:**
-   - Deploy FOC service contracts
-   - Deploy PDPVerifier, ServiceProviderRegistry, etc.
-   - Save all contract addresses
-
-   **h. Yugabyte Step:**
-   - Start Yugabyte database
-   - Verify PostgreSQL port
-
-   **i. Curio Step:**
-   - Initialize Curio database schemas
-   - Start N Curio SP containers
-   - Configure PDP endpoints
-
-   **j. PDP SP Registration Step:**
-   - Register each Curio SP in registry
-   - Approve authorized SPs
-   - Save provider IDs
-
-   **k. Synapse E2E Test Step:**
-   - Run end-to-end verification
-   - Test deal flow (unless `--notest`)
-
-**6. Post-start:**
-   - Save step context
-   - Display summary
-   - Print access URLs
+### (re)start
+* Regenesis by following the [start steps](#steps) and creating a new blockchain.
 
 ### Step Implementation Pattern
 
@@ -939,18 +898,13 @@ Every step follows this trait:
 
 ```rust
 pub trait Step: Send + Sync {
-    fn name(&self) -> &str;
-    fn pre_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>>;
-    fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>>;
-    fn post_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>>;
-    fn run(&self, context: &SetupContext) -> Result<Duration, Box<dyn Error>>;
+    fn name(&self) -> &str;  // Returns the human-readable name of the step
+    fn pre_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>>;  // Validation phase: check images, ports, prerequisites
+    fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>>;  // Main work: start container, deploy contract, etc.
+    fn post_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>>;  // Verification phase: check API, confirm deployment
+    fn run(&self, context: &SetupContext) -> Result<Duration, Box<dyn Error>>;  // Orchestrates pre/execute/post and returns duration
 }
 ```
-
-**Phases:**
-1. **Pre-execute:** Validation (check images, ports, prerequisites)
-2. **Execute:** Main work (start container, deploy contract, etc.)
-3. **Post-execute:** Verification (check API, confirm deployment)
 
 ---
 
@@ -1172,13 +1126,16 @@ foc-localnet start
 
 ---
 
-## Advanced Topics
+## Additional User Actions
 
 ### Custom Genesis Block
-Edit genesis templates before `start`:
+
+The genesis template is generated programmatically by foc-localnet during the startup process. To customize genesis parameters (sector size, block time, etc.):
+
 ```bash
-# Modify sector size, block time, etc.
-# (Advanced - requires understanding Filecoin genesis format)
+# Advanced - requires understanding Filecoin genesis format
+# Genesis configuration is created in ~/.foc-localnet/docker/volumes/run-specific/<run-id>/genesis/
+# during the "Genesis Prerequisites" phase of startup
 ```
 
 ### Monitoring with Portainer
@@ -1230,7 +1187,3 @@ docker run --rm --network host \
 - **FEVM Documentation:** https://docs.filecoin.io/smart-contracts/
 - **Foundry Book:** https://book.getfoundry.sh/
 - **Docker Documentation:** https://docs.docker.com/
-
----
-
-**Last Updated:** January 2026

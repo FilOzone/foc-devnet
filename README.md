@@ -101,7 +101,7 @@ From building Docker images to deploying contracts—everything is automated:
 Built with modular steps for easy extension and customization:
 - Add custom deployment steps
 - Configure multiple PDP service providers
-- Control "allowed" SP nodes via `~/.foc-localnet/config.toml`
+- Control "allowed" SP nodes via [`~/.foc-localnet/config.toml`](README_ADVANCED.md#configuration-system)
 
 ### 📜 Programmable
 Built for scripting and automation:
@@ -132,11 +132,13 @@ Bundled with Portainer for browser-based Docker management—no terminal wizardr
 | **tar** | Archive utility (usually pre-installed) |
 | **Disk Space** | ~20GB for images and blockchain data |
 
+**⚠️ Important:** Currently, only **x86_64 architecture** is supported. Apple Silicon (M1/M2/M3) Macs are not yet supported. We're tracking ARM64 support in our backlog.
+
 ---
 
 ## 🛠️ Need More?
 
-See **[Advanced_Readme.md](Advanced_Readme.md)** for comprehensive documentation on:
+See **[README_ADVANCED.md](README_ADVANCED.md)** for comprehensive documentation on:
 - **All commands reference** (init, build, start, stop, status, version)
 - **Configuration system** (config.toml structure, parameters, editing)
 - **Complete directory structure** (what's stored where and why)
