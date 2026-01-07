@@ -247,6 +247,11 @@ jobs:
     - name: "EXEC: {Check cluster status}, independent"
       run: ./foc-localnet status
 
+    - name: "EXEC: {List foc-* containers}, independent"
+      run: |
+        echo "Containers using foc-* images (running or exited):"
+        docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+
     # Clean shutdown
     - name: "EXEC: {Stop cluster}, independent"
       run: ./foc-localnet stop

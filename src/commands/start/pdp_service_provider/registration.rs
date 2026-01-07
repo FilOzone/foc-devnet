@@ -4,7 +4,7 @@ use tracing::info;
 
 use super::constants::*;
 use crate::commands::start::step::SetupContext;
-use crate::constants::BUILDER_CONTAINER;
+use crate::constants::BUILDER_DOCKER_IMAGE;
 use crate::docker::command_logger::run_and_log_command_strings;
 use crate::utils::retry::{retry_with_fixed_delay, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS};
 use std::error::Error;
@@ -23,9 +23,8 @@ pub fn register_single_provider(
     sp_index: usize,
     context: &SetupContext,
 ) -> Result<u64, Box<dyn Error>> {
-    let _ = run_id; // Not needed when using foc-builder
-
     let label = format!("PDP_SP_{}", sp_index);
+    let container_name = format!("foc-{}-pdp-register-sp{}", run_id, sp_index);
 
     info!("Registering {} in ServiceProviderRegistry...", label);
 
@@ -70,11 +69,13 @@ pub fn register_single_provider(
 
     let args: Vec<String> = vec![
         "run".to_string(),
+        "--name".to_string(),
+        container_name,
         "-u".to_string(),
         "foc-user".to_string(),
         "--network".to_string(),
         "host".to_string(),
-        BUILDER_CONTAINER.to_string(),
+        BUILDER_DOCKER_IMAGE.to_string(),
         "bash".to_string(),
         "-c".to_string(),
         cast_cmd,
@@ -101,8 +102,13 @@ pub fn register_single_provider(
     wait_for_confirmation();
 
     // Query provider ID
-    let provider_id =
-        query_provider_id(registry_address, pdp_sp_eth_address, lotus_rpc_url, context)?;
+    let provider_id = query_provider_id(
+        run_id,
+        registry_address,
+        pdp_sp_eth_address,
+        lotus_rpc_url,
+        context,
+    )?;
 
     info!("✓ {} Provider ID: {}", label, provider_id);
     Ok(provider_id)
@@ -119,8 +125,6 @@ pub fn add_to_approved_list(
     _sp_index: usize,
     context: &SetupContext,
 ) -> Result<(), Box<dyn Error>> {
-    let _ = run_id; // Not needed when using foc-builder
-
     info!(
         "Adding provider {} to WarmStorage approved list...",
         provider_id
@@ -132,13 +136,17 @@ pub fn add_to_approved_list(
 
     // Use high gas limit for FEVM (cast send doesn't support gas-estimate-multiplier)
     let provider_id_str = provider_id.to_string();
+    let container_name = format!("foc-{}-pdp-approve-{}", run_id, provider_id);
+
     let args: Vec<String> = vec![
         "run".to_string(),
+        "--name".to_string(),
+        container_name,
         "-u".to_string(),
         "foc-user".to_string(),
         "--network".to_string(),
         "host".to_string(),
-        BUILDER_CONTAINER.to_string(),
+        BUILDER_DOCKER_IMAGE.to_string(),
         "cast".to_string(),
         "send".to_string(),
         warm_storage_address.to_string(),
@@ -236,18 +244,23 @@ fn encode_uint_minimal(value: u64) -> String {
 
 /// Query provider ID from registry by eth address
 fn query_provider_id(
+    run_id: &str,
     registry_address: &str,
     pdp_sp_eth_address: &str,
     lotus_rpc_url: &str,
     context: &SetupContext,
 ) -> Result<u64, Box<dyn Error>> {
+    let container_name = format!("foc-{}-pdp-query-provider-{}", run_id, pdp_sp_eth_address);
+
     let args: Vec<String> = vec![
         "run".to_string(),
+        "--name".to_string(),
+        container_name,
         "-u".to_string(),
         "foc-user".to_string(),
         "--network".to_string(),
         "host".to_string(),
-        BUILDER_CONTAINER.to_string(),
+        BUILDER_DOCKER_IMAGE.to_string(),
         "cast".to_string(),
         "call".to_string(),
         registry_address.to_string(),
@@ -295,17 +308,19 @@ pub fn verify_provider_count(
     lotus_rpc_url: &str,
     context: &SetupContext,
 ) -> Result<u64, Box<dyn Error>> {
-    let _ = run_id; // Not needed when using foc-builder
-
     retry_with_fixed_delay(
         || {
+            let container_name = format!("foc-{}-pdp-verify-count", run_id);
+
             let args: Vec<String> = vec![
                 "run".to_string(),
+                "--name".to_string(),
+                container_name,
                 "-u".to_string(),
                 "foc-user".to_string(),
                 "--network".to_string(),
                 "host".to_string(),
-                BUILDER_CONTAINER.to_string(),
+                BUILDER_DOCKER_IMAGE.to_string(),
                 "cast".to_string(),
                 "call".to_string(),
                 registry_address.to_string(),
@@ -343,17 +358,19 @@ pub fn verify_provider_id_by_address(
     lotus_rpc_url: &str,
     context: &SetupContext,
 ) -> Result<u64, Box<dyn Error>> {
-    let _ = run_id; // Not needed when using foc-builder
-
     retry_with_fixed_delay(
         || {
+            let container_name = format!("foc-{}-pdp-verify-id-{}", run_id, provider_address);
+
             let args: Vec<String> = vec![
                 "run".to_string(),
+                "--name".to_string(),
+                container_name,
                 "-u".to_string(),
                 "foc-user".to_string(),
                 "--network".to_string(),
                 "host".to_string(),
-                BUILDER_CONTAINER.to_string(),
+                BUILDER_DOCKER_IMAGE.to_string(),
                 "cast".to_string(),
                 "call".to_string(),
                 registry_address.to_string(),
@@ -393,19 +410,20 @@ pub fn verify_approved_provider(
     lotus_rpc_url: &str,
     context: &SetupContext,
 ) -> Result<bool, Box<dyn Error>> {
-    let _ = run_id; // Not needed when using foc-builder
-
     retry_with_fixed_delay(
         || {
             // Use isProviderApproved function on StateView contract
             let provider_id_str = provider_id.to_string();
+            let container_name = format!("foc-{}-pdp-verify-approved-{}", run_id, provider_id);
             let args: Vec<String> = vec![
                 "run".to_string(),
+                "--name".to_string(),
+                container_name,
                 "-u".to_string(),
                 "foc-user".to_string(),
                 "--network".to_string(),
                 "host".to_string(),
-                BUILDER_CONTAINER.to_string(),
+                BUILDER_DOCKER_IMAGE.to_string(),
                 "cast".to_string(),
                 "call".to_string(),
                 state_view_address.to_string(),

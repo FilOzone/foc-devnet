@@ -135,7 +135,7 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
     docker_args.push(format!("{}:/service_contracts", contracts_dir.display()));
 
     // Add image and command
-    docker_args.push(BUILDER_CONTAINER.to_string());
+    docker_args.push(BUILDER_DOCKER_IMAGE.to_string());
     docker_args.push("/bin/bash".to_string());
     docker_args.push("-c".to_string());
     docker_args.push(deploy_cmd);
