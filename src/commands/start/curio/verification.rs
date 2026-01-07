@@ -184,7 +184,7 @@ fn download_piece(
     let download_url = format!("http://localhost:{}/piece/{}", port, piece_cid);
 
     // Retry download a few times in case piece isn't immediately available
-    for attempt in 1..=5 {
+    for attempt in 1..=15 {
         let response = reqwest::blocking::get(&download_url)?;
 
         if response.status().is_success() {
@@ -192,13 +192,13 @@ fn download_piece(
             return Ok(data);
         }
 
-        if attempt < 5 {
+        if attempt < 15 {
             info!(
                 "Download attempt {} failed with status: {}, retrying...",
                 attempt,
                 response.status()
             );
-            sleep(Duration::from_secs(2));
+            sleep(Duration::from_secs(4));
         }
     }
 
