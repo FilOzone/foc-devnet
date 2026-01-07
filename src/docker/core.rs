@@ -193,6 +193,8 @@ pub fn wait_for_port(port: u16, timeout_secs: u64) -> Result<(), Box<dyn Error>>
 }
 
 /// Get the current user's UID.
+/// When running as root (UID=0), returns "1000" instead to avoid conflicts
+/// with existing system users in Docker containers.
 pub fn get_current_uid() -> Result<String, Box<dyn Error>> {
     let output = Command::new("id").arg("-u").output()?;
     if !output.status.success() {
@@ -202,10 +204,18 @@ pub fn get_current_uid() -> Result<String, Box<dyn Error>> {
         )
         .into());
     }
-    Ok(String::from_utf8(output.stdout)?.trim().to_string())
+    let uid = String::from_utf8(output.stdout)?.trim().to_string();
+    // When running as root, use UID 1000 to avoid Docker groupadd/useradd conflicts
+    if uid == "0" {
+        Ok("1000".to_string())
+    } else {
+        Ok(uid)
+    }
 }
 
 /// Get the current user's GID.
+/// When running as root (GID=0), returns "1000" instead to avoid conflicts
+/// with existing system groups in Docker containers.
 pub fn get_current_gid() -> Result<String, Box<dyn Error>> {
     let output = Command::new("id").arg("-g").output()?;
     if !output.status.success() {
@@ -215,7 +225,13 @@ pub fn get_current_gid() -> Result<String, Box<dyn Error>> {
         )
         .into());
     }
-    Ok(String::from_utf8(output.stdout)?.trim().to_string())
+    let gid = String::from_utf8(output.stdout)?.trim().to_string();
+    // When running as root, use GID 1000 to avoid Docker groupadd conflicts
+    if gid == "0" {
+        Ok("1000".to_string())
+    } else {
+        Ok(gid)
+    }
 }
 
 /// Execute a chown command to change file ownership.
