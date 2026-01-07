@@ -245,7 +245,31 @@ jobs:
 
     # Start the full Filecoin localnet cluster
     - name: "EXEC: {Start cluster}, independent"
+      continue-on-error: true
       run: ./foc-localnet start --parallel
+
+    # On failure, collect and print Docker container logs for debugging
+    - name: "EXEC: {Collect Docker logs on failure}, independent"
+      if: failure()
+      run: |
+        echo "========== DOCKER CONTAINER LOGS (Start cluster step failed) =========="
+        echo ""
+        echo "All Docker containers (running, exited, or removed):"
+        docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+        echo ""
+        # Get list of all containers and print their logs
+        CONTAINERS=$(docker ps -a --format '{{.Names}}')
+        if [ -z "$CONTAINERS" ]; then
+          echo "No containers found."
+        else
+          for container in $CONTAINERS; do
+            echo "========== Logs for container: $container =========="
+            docker logs "$container" 2>&1 || echo "Failed to retrieve logs for $container"
+            echo ""
+          done
+        fi
+        echo "========== END DOCKER LOGS =========="
+        exit 1
 
     # Verify cluster is running correctly
     - name: "EXEC: {Check cluster status}, independent"
