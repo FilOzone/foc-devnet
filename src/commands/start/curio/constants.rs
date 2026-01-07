@@ -26,7 +26,7 @@ EnableParkPiece = true
 
 /// Wait times (in seconds)
 pub const DB_SETUP_WAIT_SECS: u64 = 10;
-pub const STORAGE_ATTACH_WAIT_SECS: u64 = 5;
+pub const STORAGE_ATTACH_WAIT_SECS: u64 = 15;
 pub const PDP_KEY_IMPORT_WAIT_SECS: u64 = 5;
 
 /// Verification test file size
