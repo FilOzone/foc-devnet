@@ -9,68 +9,12 @@ use crate::paths::{
 };
 use crate::utils::retry::{retry_with_fixed_delay, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS};
 use indicatif::{ProgressBar, ProgressStyle};
-use sha2::{Digest, Sha256};
 use std::fs;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use tracing::{info, warn};
-
-/// Expected SHA256 hash of the proof parameters directory
-const EXPECTED_PROOF_PARAMS_SHA256: &str =
-    "1d2746e3c92f96608adfa10849004b5654104082c3bba5a2e5362e0657741527";
-
-/// Compute the SHA256 hash of all files in the proof parameters directory
-///
-/// This function computes a deterministic hash based only on file contents (not paths) by:
-/// 1. Finding all regular files: `find params_dir -type f -exec sha256sum {} \;`
-/// 2. Extracting only the hash part (first field), removing file paths
-/// 3. Sorting the hashes to ensure consistent ordering
-/// 4. Computing SHA256 of the concatenated sorted hashes
-fn compute_proof_params_hash(
-    params_dir: &std::path::Path,
-) -> Result<String, Box<dyn std::error::Error>> {
-    use std::process::Command;
-
-    info!("Computing hash for directory: {}", params_dir.display());
-
-    let output = Command::new("find")
-        .arg(params_dir)
-        .arg("-type")
-        .arg("f")
-        .arg("-exec")
-        .arg("sha256sum")
-        .arg("{}")
-        .arg(";")
-        .output()?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Failed to compute file hashes: {}", stderr).into());
-    }
-
-    let file_hashes = String::from_utf8(output.stdout)?;
-    let file_count = file_hashes.lines().count();
-    info!("Found {} files in proof parameters directory", file_count);
-
-    // Extract only the hash part (first field), not the file path
-    let mut hashes: Vec<&str> = file_hashes
-        .lines()
-        .filter_map(|line| line.split_whitespace().next())
-        .collect();
-    hashes.sort();
-
-    // Join with newlines and add trailing newline to match bash behavior:
-    // `echo hash1\nhash2\nhash3 | sha256sum` includes trailing newline
-    let combined = format!("{}\n", hashes.join("\n"));
-    let mut hasher = Sha256::new();
-    hasher.update(combined.as_bytes());
-    let hash = hasher.finalize();
-    let computed = format!("{:x}", hash);
-    info!("Computed proof parameters hash: {}", computed);
-    Ok(computed)
-}
 
 /// Ensure Filecoin proof parameters are downloaded.
 ///
@@ -79,30 +23,19 @@ fn compute_proof_params_hash(
 pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
     let params_dir = foc_localnet_proof_parameters();
 
-    // Check if parameters already exist and are valid
-    if params_dir.exists() {
+    // Check if parameters already exist
+    if params_dir.exists() && params_dir.read_dir()?.next().is_some() {
         info!(
-            "Checking existing proof parameters at: {}",
+            "✓ Proof parameters already exist at: {}",
             params_dir.display()
         );
-        match validate_proof_parameters(&params_dir) {
-            Ok(true) => {
-                info!("✓ Proof parameters already exist and are valid");
-                return Ok(());
-            }
-            Ok(false) => {
-                info!("Proof parameters exist but validation failed, will re-download");
-            }
-            Err(e) => {
-                warn!("Error validating proof parameters: {}, will re-download", e);
-            }
-        }
-    } else {
-        info!(
-            "Proof parameters directory does not exist: {}",
-            params_dir.display()
-        );
+        return Ok(());
     }
+
+    info!(
+        "Proof parameters directory does not exist: {}",
+        params_dir.display()
+    );
 
     info!("⬇ Downloading proof parameters (this may take a while)...");
 
@@ -245,33 +178,4 @@ fn get_dir_size(path: &std::path::Path) -> std::io::Result<u64> {
     }
 
     Ok(total_size)
-}
-
-/// Validate that proof parameters directory contains expected files and matches expected hash.
-fn validate_proof_parameters(
-    params_dir: &std::path::Path,
-) -> Result<bool, Box<dyn std::error::Error>> {
-    if !params_dir.exists() || !params_dir.is_dir() {
-        info!(
-            "Proof parameters directory does not exist or is not a directory: {}",
-            params_dir.display()
-        );
-        return Ok(false);
-    }
-
-    // Check hash
-    let computed_hash = compute_proof_params_hash(params_dir)?;
-    info!(
-        "Proof parameters hash check: expected={}, computed={}",
-        EXPECTED_PROOF_PARAMS_SHA256, computed_hash
-    );
-    if computed_hash != EXPECTED_PROOF_PARAMS_SHA256 {
-        warn!(
-            "Proof parameters hash mismatch: expected {}, got {}",
-            EXPECTED_PROOF_PARAMS_SHA256, computed_hash
-        );
-        return Ok(false);
-    }
-
-    Ok(true)
 }
