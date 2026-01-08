@@ -245,30 +245,41 @@ jobs:
 
     # Start the full Filecoin localnet cluster
     - name: "EXEC: {Start cluster}, independent"
+      id: start_cluster
       continue-on-error: true
       run: ./foc-localnet start --parallel
 
     # On failure, collect and print Docker container logs for debugging
     - name: "EXEC: {Collect Docker logs on failure}, independent"
       run: |
-        echo "========== DOCKER CONTAINER LOGS (Start cluster step failed) =========="
-        echo ""
-        echo "All Docker containers (running, exited, or removed):"
-        docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
-        echo ""
-        # Get list of all containers and print their logs
-        CONTAINERS=$(docker ps -a --format '{{.Names}}')
-        if [ -z "$CONTAINERS" ]; then
-          echo "No containers found."
-        else
-          for container in $CONTAINERS; do
-            echo "========== Logs for container: $container =========="
-            docker logs "$container" 2>&1 || echo "Failed to retrieve logs for $container"
-            echo ""
-          done
-        fi
-        echo "========== END DOCKER LOGS =========="
-        exit 1
+        echo "+++++++++++ foc-localnet version run"
+        cat ~/.foc-localnet/state/latest/version.txt || echo "No version file found"
+
+        echo "+++++++++++ Listing runs in foc-localnet..."
+        ls ~/.foc-localnet/run/ || echo "No runs directory found"
+
+        echo "+++++++++++ Disk space..."
+        sudo df -h || echo "df command failed"
+
+        echo "+++++++++++ Latest State"
+        ls -lath ~/.foc-localnet/state/latest/ || echo "No latest state directory found"
+        
+        echo "+++++++++++ Contract Addresses"
+        cat ~/.foc-localnet/state/latest/contract_addresses.json || echo "No contract addresses file found"
+
+        echo "+++++++++++ Step Context"
+        cat ~/.foc-localnet/state/latest/step_context.json || echo "No step context directory found"
+
+        echo "+++++++++++ FOC metadata"
+        cat ~/.foc-localnet/state/latest/foc_metadata.json || echo "No foc metadata file found"
+
+        echo "+++++++++++ Run Logs"
+        for logfile in ~/.foc-localnet/state/latest/logs/*; do
+          echo "\n\n\n\n📰📰📰📰📰📰📰📰📰📰📰 Logs from $logfile 📰📰📰📰📰📰📰📰📰📰📰📰📰"
+          cat "$logfile" || echo "Failed to read $logfile"
+          echo "📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰"
+          echo "\n"
+        done
 
     # Verify cluster is running correctly
     - name: "EXEC: {Check cluster status}, independent"
@@ -282,3 +293,10 @@ jobs:
     # Clean shutdown
     - name: "EXEC: {Stop cluster}, independent"
       run: ./foc-localnet stop
+
+    # Mark job as failed if the start step failed, but only after all steps
+    - name: "CHECK: {Fail job if start failed}"
+      if: ${{ always() && steps.start_cluster.outcome == 'failure' }}
+      run: |
+        echo "Start cluster failed earlier; marking job as failed." >&2
+        exit 1

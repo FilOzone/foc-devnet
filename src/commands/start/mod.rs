@@ -425,7 +425,7 @@ pub fn start_cluster(
     create_all_networks(&run_id, config.active_pdp_sp_count)?;
 
     // Execute steps
-    execute_cluster_steps(
+    let exec_result = execute_cluster_steps(
         &volumes_dir,
         &run_dir,
         &run_id,
@@ -433,8 +433,35 @@ pub fn start_cluster(
         parallel,
         portainer_port,
         notest,
-    )?;
+    );
+
+    // Always run post-start teardown: persist logs, cleanup dead containers, write status
+    if let Err(e) = finalize_start_teardown(&run_id) {
+        warn!("Post-start teardown encountered an error: {}", e);
+    }
+
+    // Propagate original execution result
+    exec_result?;
 
     info!("Cluster started successfully!");
+    Ok(())
+}
+
+/// Finalize the start attempt by collecting logs, cleaning dead containers, and writing status.
+fn finalize_start_teardown(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    use crate::docker::{
+        persist_foc_container_logs, remove_dead_foc_containers, write_post_start_status_log,
+    };
+
+    // Persist logs for all foc* image containers
+    persist_foc_container_logs(run_id)?;
+
+    // Remove dead containers to keep environment tidy
+    remove_dead_foc_containers()?;
+
+    // Write status snapshot to the run directory
+    let path = write_post_start_status_log(run_id)?;
+    info!("Post-start status written to: {}", path.display());
+
     Ok(())
 }
