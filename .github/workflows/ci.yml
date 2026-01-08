@@ -253,33 +253,48 @@ jobs:
     - name: "EXEC: {Collect Docker logs on failure}, independent"
       run: |
         echo "+++++++++++ foc-localnet version run"
-        cat ~/.foc-localnet/state/latest/version.txt || echo "No version file found"
+        cat ~/.foc-localnet/state/latest/version.txt 2>/dev/null || echo "No version file found"
 
         echo "+++++++++++ Listing runs in foc-localnet..."
-        ls ~/.foc-localnet/run/ || echo "No runs directory found"
+        ls -1 ~/.foc-localnet/run/ 2>/dev/null || echo "No runs directory found"
+
+        echo "+++++++++++ Get latest run ID"
+        LATEST_RUN=$(ls -t ~/.foc-localnet/run/ 2>/dev/null | head -1)
+        if [ -n "$LATEST_RUN" ]; then
+          echo "Latest run: $LATEST_RUN"
+          RUN_DIR="$HOME/.foc-localnet/run/$LATEST_RUN"
+        else
+          RUN_DIR="$HOME/.foc-localnet/state/latest"
+        fi
 
         echo "+++++++++++ Disk space..."
-        sudo df -h || echo "df command failed"
+        sudo df -h 2>/dev/null || echo "df command failed"
 
-        echo "+++++++++++ Latest State"
-        ls -lath ~/.foc-localnet/state/latest/ || echo "No latest state directory found"
+        echo "+++++++++++ Latest Run Directory"
+        ls -lath "$RUN_DIR" 2>/dev/null || echo "No run directory found at $RUN_DIR"
         
         echo "+++++++++++ Contract Addresses"
-        cat ~/.foc-localnet/state/latest/contract_addresses.json || echo "No contract addresses file found"
+        cat "$RUN_DIR/contract_addresses.json" 2>/dev/null || echo "No contract addresses file found"
 
         echo "+++++++++++ Step Context"
-        cat ~/.foc-localnet/state/latest/step_context.json || echo "No step context directory found"
+        cat "$RUN_DIR/step_context.json" 2>/dev/null || echo "No step context file found"
 
         echo "+++++++++++ FOC metadata"
-        cat ~/.foc-localnet/state/latest/foc_metadata.json || echo "No foc metadata file found"
+        cat "$RUN_DIR/foc_metadata.json" 2>/dev/null || echo "No foc metadata file found"
 
-        echo "+++++++++++ Run Logs"
-        for logfile in ~/.foc-localnet/state/latest/logs/*; do
-          echo "\n\n\n\n📰📰📰📰📰📰📰📰📰📰📰 Logs from $logfile 📰📰📰📰📰📰📰📰📰📰📰📰📰"
-          cat "$logfile" || echo "Failed to read $logfile"
-          echo "📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰"
-          echo "\n"
-        done
+        echo "+++++++++++ Container Logs"
+        if [ -d "$RUN_DIR/logs" ]; then
+          for logfile in "$RUN_DIR/logs"/*; do
+            if [ -f "$logfile" ]; then
+              echo ""
+              echo "📰📰📰📰📰📰📰📰📰📰📰 Logs from $(basename "$logfile") 📰📰📰📰📰📰📰📰📰📰📰📰📰"
+              cat "$logfile" 2>/dev/null || echo "Failed to read $logfile"
+              echo "📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰"
+            fi
+          done
+        else
+          echo "No container logs directory found at $RUN_DIR/logs"
+        fi
 
     # Verify cluster is running correctly
     - name: "EXEC: {Check cluster status}, independent"

@@ -12,6 +12,7 @@ use crate::paths::foc_localnet_run_dir;
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
+use tracing::{info, warn};
 
 /// Information about a Docker container for logging and cleanup.
 #[derive(Debug, Clone)]
@@ -51,21 +52,36 @@ pub fn persist_foc_container_logs(run_id: &str) -> Result<(), Box<dyn Error>> {
     let logs_dir = foc_localnet_run_dir(run_id).join("logs");
     fs::create_dir_all(&logs_dir)?;
 
+    info!(
+        "Persisting logs for {} foc* containers to {}",
+        containers.len(),
+        logs_dir.display()
+    );
+
     for c in containers {
         let safe_image = c.image.replace(':', "_");
         let file_path = logs_dir.join(format!("{}.{}.docker.log", c.name, safe_image));
         let content = match get_container_logs(&c.name) {
-            Ok(logs) => logs,
-            Err(e) => format!("Failed to get logs for container '{}': {}\n", c.name, e),
+            Ok(logs) => {
+                info!("✓ Captured logs for container '{}'", c.name);
+                logs
+            }
+            Err(e) => {
+                warn!("Failed to get logs for container '{}': {}", c.name, e);
+                format!("Failed to get logs for container '{}': {}\n", c.name, e)
+            }
         };
         fs::write(&file_path, content)?;
     }
+    info!("✓ All container logs persisted");
     Ok(())
 }
 
 /// Remove all containers whose image starts with "foc" and are not running.
 pub fn remove_dead_foc_containers() -> Result<(), Box<dyn Error>> {
     let containers = list_containers_by_image_prefix("foc")?;
+    let mut removed_count = 0;
+
     for c in containers {
         // Heuristic: remove if status contains "Exited" or "Dead" or "Created"
         let status_lower = c.status.to_lowercase();
@@ -76,9 +92,21 @@ pub fn remove_dead_foc_containers() -> Result<(), Box<dyn Error>> {
             || status_lower.contains("paused");
         if is_dead {
             // Best-effort remove; ignore errors so cleanup continues
-            let _ = docker_command(&["rm", &c.name]);
+            match docker_command(&["rm", &c.name]) {
+                Ok(_) => {
+                    info!(
+                        "✓ Removed dead container: {} (status: {})",
+                        c.name, c.status
+                    );
+                    removed_count += 1;
+                }
+                Err(e) => {
+                    warn!("Failed to remove container '{}': {}", c.name, e);
+                }
+            }
         }
     }
+    info!("✓ Removed {} dead foc* containers", removed_count);
     Ok(())
 }
 
@@ -87,6 +115,8 @@ pub fn write_post_start_status_log(run_id: &str) -> Result<PathBuf, Box<dyn Erro
     let run_dir = foc_localnet_run_dir(run_id);
     fs::create_dir_all(&run_dir)?;
     let status_file = run_dir.join("post_start_status.log");
+
+    info!("Writing post-start status to: {}", status_file.display());
 
     let exe = std::env::current_exe()?;
     let output = std::process::Command::new(exe).arg("status").output()?;
@@ -99,5 +129,6 @@ pub fn write_post_start_status_log(run_id: &str) -> Result<PathBuf, Box<dyn Erro
     }
 
     fs::write(&status_file, content)?;
+    info!("✓ Post-start status logged");
     Ok(status_file)
 }

@@ -33,7 +33,7 @@ use crate::config::Config;
 use crate::docker::core::{container_is_running, remove_container, stop_container};
 use crate::docker::{create_all_networks, start_portainer};
 use crate::paths::{foc_localnet_config, foc_localnet_run_dir};
-use crate::run_id::save_current_run_id;
+use crate::run_id::{create_latest_symlink, save_current_run_id};
 use crate::version_info::write_version_file;
 pub use eth_acc_funding::constants::FEVM_ACCOUNTS_PREFUNDED;
 use std::path::PathBuf;
@@ -75,6 +75,9 @@ fn setup_directories_and_run_id(
     // Write version information to the run directory
     let version_info = crate::version_info::VersionInfo::from_env();
     write_version_file(&run_dir, &version_info)?;
+
+    // Create symlink from state/latest to this run directory for easier access
+    create_latest_symlink(&run_id)?;
 
     Ok((volumes_dir, run_dir, run_id))
 }
@@ -453,15 +456,25 @@ fn finalize_start_teardown(run_id: &str) -> Result<(), Box<dyn std::error::Error
         persist_foc_container_logs, remove_dead_foc_containers, write_post_start_status_log,
     };
 
+    info!("═══════════════════════════════════════════════════════════");
+    info!("Running post-start teardown for run ID: {}", run_id);
+    info!("═══════════════════════════════════════════════════════════");
+
     // Persist logs for all foc* image containers
+    info!("[1/3] Persisting logs for all foc* image containers...");
     persist_foc_container_logs(run_id)?;
 
     // Remove dead containers to keep environment tidy
+    info!("[2/3] Removing dead foc* containers...");
     remove_dead_foc_containers()?;
 
     // Write status snapshot to the run directory
-    let path = write_post_start_status_log(run_id)?;
-    info!("Post-start status written to: {}", path.display());
+    info!("[3/3] Writing post-start status snapshot...");
+    write_post_start_status_log(run_id)?;
+
+    info!("═══════════════════════════════════════════════════════════");
+    info!("Post-start teardown completed successfully");
+    info!("═══════════════════════════════════════════════════════════");
 
     Ok(())
 }
