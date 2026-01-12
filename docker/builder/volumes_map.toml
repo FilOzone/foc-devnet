@@ -1,6 +1,6 @@
 # Volume mappings for builder Docker image
 # Format: host_subdirectory = "container_path"
-# Host paths will be relative to ~/.foc-localnet/artifacts/docker/volumes/builder/
+# Host paths will be relative to ~/.foc-devnet/artifacts/docker/volumes/builder/
 
 [volumes]
 cargo = "/home/foc-user/.cargo"

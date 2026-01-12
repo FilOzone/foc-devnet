@@ -8,7 +8,7 @@ pub mod logging;
 pub mod repository;
 
 use crate::config::Config;
-use crate::paths::foc_localnet_bin;
+use crate::paths::foc_devnet_bin;
 use repository::prepare_repository;
 use std::fs;
 use tracing::info;
@@ -34,7 +34,7 @@ pub fn build_project(project: &Project, config: &Config) -> Result<(), Box<dyn s
     let repo_path = prepare_repository(project, location)?;
 
     // Build in Docker container
-    let output_dir = foc_localnet_bin();
+    let output_dir = foc_devnet_bin();
     fs::create_dir_all(&output_dir)?;
 
     build_in_container(

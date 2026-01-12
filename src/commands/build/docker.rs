@@ -7,7 +7,7 @@ use crate::docker::{
     core::{get_current_gid, get_current_uid, image_exists},
 };
 use crate::embedded_assets;
-use crate::paths::foc_localnet_docker_volumes_cache;
+use crate::paths::foc_devnet_docker_volumes_cache;
 use std::collections::HashMap;
 use std::fs;
 use tracing::info;
@@ -99,7 +99,7 @@ pub fn setup_docker_run_args(
     // Load and apply volume mappings for this image
     let volume_map = load_volume_map("builder")?;
     if !volume_map.is_empty() {
-        let cache_dir = foc_localnet_docker_volumes_cache();
+        let cache_dir = foc_devnet_docker_volumes_cache();
         let image_volumes_dir = cache_dir.join(crate::constants::BUILDER_CONTAINER);
 
         for (host_subdir, container_path) in volume_map {

@@ -11,8 +11,8 @@ use crate::commands::start::step::SetupContext;
 use crate::docker::containers::{lotus_container_name, lotus_miner_container_name};
 use crate::docker::network::lotus_network_name;
 use crate::paths::{
-    foc_localnet_bin, foc_localnet_docker_volumes_cache, foc_localnet_genesis_sectors_lotus_miner,
-    foc_localnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
+    foc_devnet_bin, foc_devnet_docker_volumes_cache, foc_devnet_genesis_sectors_lotus_miner,
+    foc_devnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
 };
 
 /// Build the Docker run command for Lotus-Miner
@@ -35,11 +35,11 @@ pub fn build_miner_docker_command(
     let fullnode_api_info = build_fullnode_api_info(&lotus_token, &lotus_name);
 
     // Get paths
-    let bin_dir = foc_localnet_bin();
-    let sectors_dir = foc_localnet_genesis_sectors_lotus_miner(run_id);
+    let bin_dir = foc_devnet_bin();
+    let sectors_dir = foc_devnet_genesis_sectors_lotus_miner(run_id);
     let builder_volumes_dir =
-        foc_localnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
-    let params_dir = foc_localnet_proof_parameters();
+        foc_devnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
+    let params_dir = foc_devnet_proof_parameters();
 
     // Get allocated miner API port from context
     let miner_api_port: u16 = context

@@ -7,7 +7,7 @@
 use super::foc_metadata::FOCMetadata;
 use crate::constants::*;
 use crate::docker::core::docker_command;
-use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes_cache};
+use crate::paths::{foc_devnet_bin, foc_devnet_docker_volumes_cache};
 use std::error::Error;
 use tracing::{info, warn};
 
@@ -68,9 +68,9 @@ pub fn deploy_foc_contracts(
         return Err(format!("Deployment script not found at {}", deploy_script.display()).into());
     }
 
-    let bin_dir = foc_localnet_bin();
+    let bin_dir = foc_devnet_bin();
     let builder_volumes_dir =
-        foc_localnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
+        foc_devnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
 
     // Get the private key from lotus for the deployer address
     let private_key = get_private_key(foc_deployer, lotus_container)?;
@@ -79,7 +79,7 @@ pub fn deploy_foc_contracts(
     let env_vars = [
         ("ETH_RPC_URL", lotus_rpc_url.to_string()),
         ("USDFC_TOKEN_ADDRESS", mock_usdfc_address.to_string()),
-        ("SERVICE_NAME", "FOC LocalNet Warm Storage".to_string()),
+        ("SERVICE_NAME", "FOC DevNet Warm Storage".to_string()),
         (
             "SERVICE_DESCRIPTION",
             "Warm storage service for FOC local development network".to_string(),
@@ -224,7 +224,7 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
     let mut addresses = std::collections::HashMap::new();
     let mut filbeam_controller = None;
     let mut filbeam_beneficiary = None;
-    let mut network_name = String::from("localnet");
+    let mut network_name = String::from("devnet");
     let mut challenge_finality = String::new();
     let mut max_proving_period = String::new();
     let mut challenge_window_size = String::new();
@@ -272,7 +272,7 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
             in_summary = false;
             info!("Found Network Configuration section");
 
-            // Extract network name from "Network Configuration (localnet):"
+            // Extract network name from "Network Configuration (devnet):"
             if let Some(start) = line.find('(') {
                 if let Some(end) = line.find(')') {
                     network_name = line[start + 1..end].to_string();

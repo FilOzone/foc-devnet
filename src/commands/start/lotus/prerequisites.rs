@@ -6,15 +6,14 @@
 use super::super::genesis::constants::GENESIS_FILE;
 use crate::constants::LOTUS_DOCKER_IMAGE;
 use crate::paths::{
-    foc_localnet_bin, foc_localnet_genesis, foc_localnet_genesis_sectors,
-    foc_localnet_proof_parameters,
+    foc_devnet_bin, foc_devnet_genesis, foc_devnet_genesis_sectors, foc_devnet_proof_parameters,
 };
 use std::error::Error;
 use tracing::info;
 
 /// Verify that the genesis block file exists
 pub fn verify_genesis_file(run_id: &str) -> Result<std::path::PathBuf, Box<dyn Error>> {
-    let genesis_dir = foc_localnet_genesis(run_id);
+    let genesis_dir = foc_devnet_genesis(run_id);
     let genesis_file = genesis_dir.join(GENESIS_FILE);
 
     if !genesis_file.exists() {
@@ -32,7 +31,7 @@ pub fn check_image_and_binary() -> Result<(), Box<dyn Error>> {
     // Verify Docker image exists
     if !crate::docker::core::image_exists(LOTUS_DOCKER_IMAGE).unwrap_or(true) {
         return Err(format!(
-            "Docker image '{}' not found. Please run 'foc-localnet init' to build the image.",
+            "Docker image '{}' not found. Please run 'foc-devnet init' to build the image.",
             LOTUS_DOCKER_IMAGE
         )
         .into());
@@ -40,9 +39,9 @@ pub fn check_image_and_binary() -> Result<(), Box<dyn Error>> {
     info!("✓ Docker image '{}' found", LOTUS_DOCKER_IMAGE);
 
     // Verify lotus binary exists
-    let lotus_bin = foc_localnet_bin().join("lotus");
+    let lotus_bin = foc_devnet_bin().join("lotus");
     if !lotus_bin.exists() {
-        return Err("Lotus binary not found. Please run 'foc-localnet build lotus' first.".into());
+        return Err("Lotus binary not found. Please run 'foc-devnet build lotus' first.".into());
     }
 
     info!("✓ Lotus binary found");
@@ -56,7 +55,7 @@ pub fn check_genesis_and_params(run_id: &str) -> Result<(), Box<dyn Error>> {
     info!("✓ Genesis file found at {}", genesis_file.display());
 
     // Verify proof parameters exist
-    let params_dir = foc_localnet_proof_parameters();
+    let params_dir = foc_devnet_proof_parameters();
     if !params_dir.exists() || params_dir.read_dir()?.next().is_none() {
         return Err(
             "Filecoin proof parameters not found. They should have been downloaded during genesis preparation.".into(),
@@ -66,7 +65,7 @@ pub fn check_genesis_and_params(run_id: &str) -> Result<(), Box<dyn Error>> {
     info!("✓ Proof parameters found");
 
     // Verify pre-sealed sectors exist
-    let sectors_dir = foc_localnet_genesis_sectors(run_id);
+    let sectors_dir = foc_devnet_genesis_sectors(run_id);
     if !sectors_dir.exists() || sectors_dir.read_dir()?.next().is_none() {
         return Err(
             "Pre-sealed sectors not found. They should have been created during genesis preparation.".into(),

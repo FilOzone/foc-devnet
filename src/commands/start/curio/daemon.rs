@@ -10,8 +10,8 @@ use crate::docker::command_logger::run_and_log_command_strings;
 use crate::docker::network::{lotus_network_name, pdp_miner_network_name};
 use crate::docker::{container_exists, stop_and_remove_container};
 use crate::paths::{
-    foc_localnet_bin, foc_localnet_curio_sp_volume, foc_localnet_genesis_sectors_pdp_sp,
-    foc_localnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
+    foc_devnet_bin, foc_devnet_curio_sp_volume, foc_devnet_genesis_sectors_pdp_sp,
+    foc_devnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
 };
 use std::error::Error;
 use std::fs;
@@ -55,7 +55,7 @@ pub fn start_curio_daemon(
 /// Create necessary directories for Curio
 fn create_curio_directories(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
     let run_id = context.run_id();
-    let curio_sp_dir = foc_localnet_curio_sp_volume(run_id, sp_index);
+    let curio_sp_dir = foc_devnet_curio_sp_volume(run_id, sp_index);
 
     let dirs = vec![
         curio_sp_dir.join(".curio"),
@@ -121,10 +121,10 @@ fn build_docker_run_args(
     container_name: &str,
 ) -> Result<Vec<String>, Box<dyn Error>> {
     let run_id = context.run_id();
-    let curio_sp_dir = foc_localnet_curio_sp_volume(run_id, sp_index);
-    let bin_dir = foc_localnet_bin();
-    let proof_params_dir = foc_localnet_proof_parameters();
-    let genesis_sectors_dir = foc_localnet_genesis_sectors_pdp_sp(run_id, sp_index);
+    let curio_sp_dir = foc_devnet_curio_sp_volume(run_id, sp_index);
+    let bin_dir = foc_devnet_bin();
+    let proof_params_dir = foc_devnet_proof_parameters();
+    let genesis_sectors_dir = foc_devnet_genesis_sectors_pdp_sp(run_id, sp_index);
 
     let mut docker_args = vec![
         "run".to_string(),

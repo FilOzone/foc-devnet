@@ -11,7 +11,7 @@ use std::fs;
 /// FOC network configuration metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FOCMetadata {
-    /// Network name (e.g., "localnet")
+    /// Network name (e.g., "devnet")
     pub network_name: String,
     /// Challenge finality in epochs
     pub challenge_finality: String,

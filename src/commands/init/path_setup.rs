@@ -1,4 +1,4 @@
-//! PATH setup utilities for foc-localnet initialization.
+//! PATH setup utilities for foc-devnet initialization.
 //!
 //! This module handles the setup of PATH environment variables in shell
 //! configuration files (.bashrc and .zshrc).
@@ -9,18 +9,18 @@ use std::fs;
 use std::path::Path;
 use tracing::{info, warn};
 
-use crate::paths::foc_localnet_bin;
+use crate::paths::foc_devnet_bin;
 
 /// Set up PATH variables in shell configuration files.
 ///
-/// This function adds the foc-localnet bin directory to the PATH in both
+/// This function adds the foc-devnet bin directory to the PATH in both
 /// .bashrc and .zshrc files if it's not already present. It checks if the
 /// path is already in the current environment before modifying files.
 ///
 /// # Returns
 /// Returns `Ok(())` if PATH setup is successful, or an error if file operations fail.
 pub fn setup_path_variables() -> Result<(), Box<dyn std::error::Error>> {
-    let bin_path = foc_localnet_bin();
+    let bin_path = foc_devnet_bin();
     let bin_path_str = bin_path.to_string_lossy().to_string();
 
     if is_path_in_env(&bin_path_str) {
@@ -64,7 +64,7 @@ fn is_path_in_env(bin_path: &str) -> bool {
 /// Add the bin path to a shell configuration file if not already present.
 ///
 /// This function appends an export statement to the shell config file
-/// to add the foc-localnet bin directory to PATH. It includes a marker
+/// to add the foc-devnet bin directory to PATH. It includes a marker
 /// comment to prevent duplicate additions.
 ///
 /// # Arguments
@@ -82,7 +82,7 @@ fn add_path_to_shell_config(
     }
 
     let mut content = fs::read_to_string(config_path)?;
-    let marker = "# foc-localnet PATH addition";
+    let marker = "# foc-devnet PATH addition";
 
     if content.contains(marker) {
         return Ok(());

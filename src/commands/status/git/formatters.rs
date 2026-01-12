@@ -22,9 +22,9 @@ use crate::config::Location;
 /// # Examples
 ///
 /// ```rust,no_run
-/// use foc_localnet::commands::status::git::formatters::format_location_info;
-/// use foc_localnet::commands::status::git::git_info::GitInfo;
-/// use foc_localnet::config::{Location, GitBranch};
+/// use foc_devnet::commands::status::git::formatters::format_location_info;
+/// use foc_devnet::commands::status::git::git_info::GitInfo;
+/// use foc_devnet::config::{Location, GitBranch};
 /// use std::path::Path;
 ///
 /// let location = Location::GitBranch(GitBranch {

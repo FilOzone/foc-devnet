@@ -6,7 +6,7 @@ use super::key_management;
 use super::prerequisites::check_required_addresses;
 use crate::commands::start::lotus_utils::get_lotus_rpc_url;
 use crate::docker::command_logger::run_and_log_command_strings;
-use crate::paths::foc_localnet_multicall3_repo;
+use crate::paths::foc_devnet_multicall3_repo;
 use std::error::Error;
 use tracing::{error, info};
 
@@ -20,7 +20,7 @@ pub fn deploy_multicall3(
     info!("Deploying Multicall3 contract...");
 
     // Get the multicall3 repository path
-    let multicall3_repo = foc_localnet_multicall3_repo();
+    let multicall3_repo = foc_devnet_multicall3_repo();
 
     if !multicall3_repo.exists() {
         return Err(format!(

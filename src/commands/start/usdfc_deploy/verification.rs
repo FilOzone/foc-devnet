@@ -38,10 +38,13 @@ pub fn verify_mock_usdfc(
             );
 
             let key = format!("usdfc_verify_{}", run_id);
+            let container_name = format!("foc-{}-usdfc-verify", run_id);
             let output = run_and_log_command(
                 "docker",
                 &[
                     "run",
+                    "--name",
+                    &container_name,
                     "-u",
                     "foc-user",
                     "--network",

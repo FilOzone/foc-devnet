@@ -1,6 +1,6 @@
 //! Requirements checker command.
 //!
-//! This module checks if all system requirements are met to run the foc-localnet system.
+//! This module checks if all system requirements are met to run the foc-devnet system.
 
 use std::process::{Command, Stdio};
 use tracing::{error, info, warn};
@@ -80,7 +80,7 @@ fn check_docker_requirement(setup: bool) -> Result<(), Box<dyn std::error::Error
         }
     } else {
         error!("Error: Docker is not installed or not available in PATH.");
-        info!("Docker is required to run the Filecoin localnet.");
+        info!("Docker is required to run the Filecoin devnet.");
         info!("Please install Docker from https://www.docker.com/");
         info!("Or run with --setup flag to attempt automatic installation.");
         return Err("Docker not available".into());

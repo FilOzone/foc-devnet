@@ -2,11 +2,11 @@ use std::fs;
 use std::path::PathBuf;
 use tracing::{info, warn};
 
-use crate::paths::foc_localnet_state;
+use crate::paths::foc_devnet_state;
 
 /// Get the path to the poison file
 fn poison_file_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let state_dir = foc_localnet_state();
+    let state_dir = foc_devnet_state();
 
     // Ensure state directory exists
     fs::create_dir_all(&state_dir)?;

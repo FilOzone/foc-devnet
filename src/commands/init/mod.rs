@@ -1,6 +1,6 @@
 //! Init command implementation.
 //!
-//! This module handles comprehensive initialization of foc-localnet including:
+//! This module handles comprehensive initialization of foc-devnet including:
 //! - Creating all necessary directories
 //! - Generating default configuration
 //! - Setting up PATH variables in shell configs
@@ -18,9 +18,9 @@ pub mod repositories;
 
 use tracing::{info, warn};
 
-/// Clean up previous foc-localnet installation.
+/// Clean up previous foc-devnet installation.
 ///
-/// Removes the entire ~/.foc-localnet directory and optionally all foc-* Docker
+/// Removes the entire ~/.foc-devnet directory and optionally all foc-* Docker
 /// images to ensure a clean slate for initialization.
 ///
 /// # Arguments
@@ -30,24 +30,24 @@ use tracing::{info, warn};
 /// # Returns
 /// Returns `Ok(())` if cleanup succeeds, or an error if cleanup fails.
 fn cleanup_previous_installation(remove_images: bool) -> Result<(), Box<dyn std::error::Error>> {
-    use crate::paths::foc_localnet_home;
+    use crate::paths::foc_devnet_home;
     use std::process::Command;
 
     info!("Cleaning up previous installation...");
 
-    // Remove the entire foc-localnet home directory
-    let home_dir = foc_localnet_home();
+    // Remove the entire foc-devnet home directory
+    let home_dir = foc_devnet_home();
     if home_dir.exists() {
         info!("Removing {}", home_dir.display());
         std::fs::remove_dir_all(&home_dir)?;
-        info!("Removed previous foc-localnet installation");
+        info!("Removed previous foc-devnet installation");
     } else {
         info!("No previous installation found");
     }
 
-    // Optionally remove foc-localnet Docker images
+    // Optionally remove foc-devnet Docker images
     if remove_images {
-        info!("Removing existing foc-localnet Docker images");
+        info!("Removing existing foc-devnet Docker images");
         let output = Command::new("docker")
             .args(["images", "--format", "{{.Repository}}:{{.Tag}}"])
             .output()?;
@@ -70,7 +70,7 @@ fn cleanup_previous_installation(remove_images: bool) -> Result<(), Box<dyn std:
             if removed_count > 0 {
                 info!("Removed {} Docker image(s)", removed_count);
             } else {
-                info!("No foc-localnet Docker images found");
+                info!("No foc-devnet Docker images found");
             }
         } else {
             warn!("Could not list Docker images (Docker may not be running)");
@@ -80,10 +80,10 @@ fn cleanup_previous_installation(remove_images: bool) -> Result<(), Box<dyn std:
     Ok(())
 }
 
-/// Initialize foc-localnet comprehensively.
+/// Initialize foc-devnet comprehensively.
 ///
 /// This command performs complete initialization:
-/// 1. Cleans up previous installation (removes ~/.foc-localnet and docker images)
+/// 1. Cleans up previous installation (removes ~/.foc-devnet and docker images)
 /// 2. Creates all necessary directories
 /// 3. Generates default config.toml
 /// 4. Sets up PATH variables in shell configs
@@ -116,7 +116,7 @@ pub fn init_environment(
     use_random_mnemonic: bool,
     no_docker_build: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    info!("Initializing foc-localnet environment...");
+    info!("Initializing foc-devnet environment...");
 
     // Clean up previous installation
     // Preserve cached Docker images when --no-docker-build is used (CI cache path)
@@ -156,7 +156,7 @@ pub fn init_environment(
     }
 
     info!("✓ Initialization completed successfully");
-    info!("You can now start the localnet with 'foc-localnet start'");
+    info!("You can now start the devnet with 'foc-devnet start'");
 
     Ok(())
 }

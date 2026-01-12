@@ -48,7 +48,7 @@ pub fn import_pdp_key(context: &SetupContext, sp_index: usize) -> Result<(), Box
 
 /// Get PDP SP credentials from addresses.json
 fn get_pdp_sp_credentials(pdp_sp_name: &str) -> Result<(String, String), Box<dyn Error>> {
-    let state_file = crate::paths::foc_localnet_keys().join("addresses.json");
+    let state_file = crate::paths::foc_devnet_keys().join("addresses.json");
     if !state_file.exists() {
         return Err(format!("State addresses file not found: {}", state_file.display()).into());
     }

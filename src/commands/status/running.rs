@@ -1,6 +1,6 @@
 //! # Running Status
 //!
-//! This module handles the display of system running status for foc-localnet services.
+//! This module handles the display of system running status for foc-devnet services.
 //!
 //! It provides functionality to:
 //! - Check Docker container status
@@ -18,14 +18,14 @@ use crate::run_id::load_current_run_id;
 
 /// Print running status of the system in tabular format.
 ///
-/// This function displays the status of all expected foc-localnet services,
+/// This function displays the status of all expected foc-devnet services,
 /// including Docker containers, their uptime, and port accessibility.
 /// If a run ID exists, it shows the actual container names with run ID prefix.
 ///
 /// # Examples
 ///
 /// ```rust,no_run
-/// use foc_localnet::commands::status::running_status::print_running_status;
+/// use foc_devnet::commands::status::running_status::print_running_status;
 ///
 /// print_running_status().expect("Failed to print running status");
 /// ```

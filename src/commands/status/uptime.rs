@@ -1,6 +1,6 @@
 //! # System Uptime
 //!
-//! This module handles the display of system uptime information for foc-localnet.
+//! This module handles the display of system uptime information for foc-devnet.
 //!
 //! It provides functionality to:
 //! - Calculate total system uptime based on container start times
@@ -22,7 +22,7 @@ use crate::docker::status::{get_container_start_time, get_running_foc_containers
 /// # Examples
 ///
 /// ```rust,no_run
-/// use foc_localnet::commands::status::uptime::get_lotus_block_height;
+/// use foc_devnet::commands::status::uptime::get_lotus_block_height;
 ///
 /// if let Some(height) = get_lotus_block_height() {
 ///     println!("Current block height: {}", height);
@@ -59,7 +59,7 @@ fn get_lotus_block_height() -> Option<u64> {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use foc_localnet::commands::status::uptime::get_containers_cpu_usage;
+/// use foc_devnet::commands::status::uptime::get_containers_cpu_usage;
 ///
 /// if let Some(cpu) = get_containers_cpu_usage() {
 ///     println!("Containers CPU usage: {:.1}%", cpu);
@@ -105,7 +105,7 @@ fn get_containers_cpu_usage() -> Option<f32> {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use foc_localnet::commands::status::uptime::get_containers_memory_usage;
+/// use foc_devnet::commands::status::uptime::get_containers_memory_usage;
 ///
 /// if let Some((used, limit)) = get_containers_memory_usage() {
 ///     println!("Containers memory: {:.1}GB / {:.1}GB", used, limit);
@@ -171,13 +171,13 @@ fn parse_memory_value(mem_str: &str) -> Option<f64> {
 
 /// Print uptime information if system is running.
 ///
-/// This function displays the total uptime of the foc-localnet system by finding
+/// This function displays the total uptime of the foc-devnet system by finding
 /// the oldest running container and calculating how long the system has been running.
 ///
 /// # Examples
 ///
 /// ```rust,no_run
-/// use foc_localnet::commands::status::uptime::print_uptime;
+/// use foc_devnet::commands::status::uptime::print_uptime;
 ///
 /// print_uptime().expect("Failed to print uptime");
 /// ```

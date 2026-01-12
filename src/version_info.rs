@@ -37,7 +37,7 @@ impl VersionInfo {
 /// Write version information to a version.txt file.
 ///
 /// Creates a version.txt file in the specified directory containing:
-/// - foc-localnet version
+/// - foc-devnet version
 /// - Git commit hash (with dirty indicator if uncommitted changes exist)
 /// - Git branch
 /// - Build timestamps
@@ -66,7 +66,7 @@ pub fn write_version_file(dir: &Path, version_info: &VersionInfo) -> Result<(), 
     };
 
     let content = format!(
-        "foc-localnet {}\n\
+        "foc-devnet {}\n\
          Commit: {}{}\n\
          Branch: {}\n\
          Built (UTC): {} {}\n\

@@ -69,7 +69,7 @@ impl ETHAccFundingStep {
         context: &SetupContext,
     ) -> Result<String, Box<dyn Error + 'static>> {
         let run_id = context.run_id();
-        let keys_dir = crate::paths::foc_localnet_lotus_keys(run_id);
+        let keys_dir = crate::paths::foc_devnet_lotus_keys(run_id);
         let faucet_key_dir = keys_dir.join(GLOBAL_FIL_FAUCET_KEY);
         let keyinfo_files: Vec<_> = fs::read_dir(&faucet_key_dir)?
             .filter_map(|e| e.ok())

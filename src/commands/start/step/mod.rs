@@ -55,7 +55,7 @@ pub struct SetupContext {
     /// Run ID for this execution (e.g., "251203-1246-thirsty-wolf")
     run_id: String,
 
-    /// Run-specific directory (e.g., ~/.foc-localnet/run/251203-1246-thirsty-wolf)
+    /// Run-specific directory (e.g., ~/.foc-devnet/run/251203-1246-thirsty-wolf)
     run_dir: PathBuf,
 
     /// Port allocator for dynamic port assignment (thread-safe)

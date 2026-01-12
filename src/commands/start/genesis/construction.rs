@@ -8,7 +8,7 @@ pub mod creation;
 pub mod miner;
 pub mod signers;
 
-use crate::paths::foc_localnet_genesis;
+use crate::paths::foc_devnet_genesis;
 use tracing::info;
 
 /// Construct the complete genesis configuration.
@@ -31,7 +31,7 @@ pub fn construct_genesis(
     active_pdp_sp_count: usize,
     run_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let genesis_dir = foc_localnet_genesis(run_id);
+    let genesis_dir = foc_devnet_genesis(run_id);
     let genesis_file_path = genesis_dir.join(super::constants::GENESIS_FILE);
 
     // Check if genesis file already exists - if so, skip all construction

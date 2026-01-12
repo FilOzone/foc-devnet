@@ -11,7 +11,7 @@ use tracing::info;
 use crate::commands::start::step::SetupContext;
 use crate::docker::command_logger::run_and_log_command;
 use crate::docker::containers::lotus_container_name;
-use crate::paths::foc_localnet_lotus_keys;
+use crate::paths::foc_devnet_lotus_keys;
 
 /// Import the GLOBAL_FIL_FAUCET key into Lotus wallet
 pub fn import_faucet_key(
@@ -37,7 +37,7 @@ pub fn import_faucet_key(
         .map_err(|e| format!("Failed to write hex key file: {}", e))?;
 
     // Get the container path for the temp file
-    let keys_dir = foc_localnet_lotus_keys(run_id);
+    let keys_dir = foc_devnet_lotus_keys(run_id);
     let relative_path = temp_key_file
         .strip_prefix(&keys_dir)
         .map_err(|_| "Failed to get relative path for hex key file")?;

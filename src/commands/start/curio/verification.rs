@@ -7,7 +7,7 @@
 
 use super::super::step::SetupContext;
 use super::constants::TEST_FILE_SIZE_BYTES;
-use crate::paths::foc_localnet_bin;
+use crate::paths::foc_devnet_bin;
 use rand::Rng;
 use std::error::Error;
 use std::fs;
@@ -126,7 +126,7 @@ fn upload_test_file(
         "--verbose",
     ];
 
-    let output = Command::new(foc_localnet_bin().join("pdptool"))
+    let output = Command::new(foc_devnet_bin().join("pdptool"))
         .args(args)
         .output()?;
 

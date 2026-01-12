@@ -5,7 +5,7 @@
 
 use crate::commands::build::Project;
 use crate::config::Location;
-use crate::paths::{foc_localnet_curio_repo, foc_localnet_lotus_repo};
+use crate::paths::{foc_devnet_curio_repo, foc_devnet_lotus_repo};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -24,8 +24,8 @@ pub fn prepare_repository(
     location: &Location,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let repo_path = match project {
-        Project::Lotus => foc_localnet_lotus_repo(),
-        Project::Curio => foc_localnet_curio_repo(),
+        Project::Lotus => foc_devnet_lotus_repo(),
+        Project::Curio => foc_devnet_curio_repo(),
     };
 
     info!(

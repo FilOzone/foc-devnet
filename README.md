@@ -1,4 +1,4 @@
-# foc-localnet
+# foc-devnet
 
 **Run a local Filecoin network with FOC (Filecoin Onchain Contracts) in minutes.**
 
@@ -88,7 +88,7 @@ Each can be:
 ### 🔒 Deterministic Setup
 - **Pinned versions**: All components use specific git tags/commits for reproducibility
 - **Deterministic keys**: Uses fixed seeds, generating the same keys on every setup
-- **Consistent state**: Each run preserves its context in `~/.foc-localnet/run/<run-id>/step_context.json`
+- **Consistent state**: Each run preserves its context in `~/.foc-devnet/run/<run-id>/step_context.json`
 
 ### 🤖 Fully Automated
 From building Docker images to deploying contracts—everything is automated:
@@ -101,13 +101,13 @@ From building Docker images to deploying contracts—everything is automated:
 Built with modular steps for easy extension and customization:
 - Add custom deployment steps
 - Configure multiple PDP service providers
-- Control "allowed" SP nodes via `~/.foc-localnet/config.toml`
+- Control "allowed" SP nodes via `~/.foc-devnet/config.toml`
 
 ### 📜 Programmable
 Built for scripting and automation:
-- **Contract addresses**: `~/.foc-localnet/run/<run-id>/contract_addresses.json`
-- **Step context**: `~/.foc-localnet/run/<run-id>/step_context.json`
-- **Latest run symlink**: `~/.foc-localnet/state/latest/` → points to most recent run
+- **Contract addresses**: `~/.foc-devnet/run/<run-id>/contract_addresses.json`
+- **Step context**: `~/.foc-devnet/run/<run-id>/step_context.json`
+- **Latest run symlink**: `~/.foc-devnet/state/latest/` → points to most recent run
 - Write scripts for testing, demos, CI/CD pipelines, etc.
 
 ### 🌐 Isolated Networks
@@ -160,4 +160,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 💬 Support
 
-- **Issues**: [GitHub Issues](https://github.com/FilOzone/foc-localnet/issues)
+- **Issues**: [GitHub Issues](https://github.com/FilOzone/foc-devnet/issues)

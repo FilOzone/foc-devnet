@@ -13,7 +13,7 @@ pub const CURIO_LAYERS: &str = "seal,post,pdp-only,gui";
 /// PDP layer configuration template
 pub const PDP_LAYER_CONFIG_TEMPLATE: &str = r#"[HTTP]
 DelegateTLS = true
-DomainName = "pdp-sp-{sp_index}.foc-localnet.internal"
+DomainName = "pdp-sp-{sp_index}.foc-devnet.internal"
 Enable = true
 ListenAddress = "0.0.0.0:4702"
 

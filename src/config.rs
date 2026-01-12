@@ -1,4 +1,4 @@
-//! Configuration module for foc-localnet.
+//! Configuration module for foc-devnet.
 //!
 //! This module defines the configuration structures used to manage the local
 //! Filecoin on-chain cloud cluster. It includes settings for node counts,
@@ -114,7 +114,7 @@ impl Location {
     }
 }
 
-/// Main configuration structure for the foc-localnet application.
+/// Main configuration structure for the foc-devnet application.
 ///
 /// This struct contains all the settings needed to configure and run a local
 /// Filecoin cluster for testing filecoin-onchain-cloud functionality. It includes
@@ -123,7 +123,7 @@ impl Location {
 pub struct Config {
     /// Starting port number for the contiguous port range.
     ///
-    /// All ports used by the localnet will be dynamically allocated from a contiguous
+    /// All ports used by the devnet will be dynamically allocated from a contiguous
     /// range starting at this port. This ensures no port conflicts and allows
     /// easy firewall configuration.
     /// Default: 5700
@@ -133,7 +133,7 @@ pub struct Config {
     ///
     /// This defines the size of the port range available for allocation.
     /// For example, with port_range_start=5700 and port_range_count=300,
-    /// ports 5700-5999 are reserved for the localnet.
+    /// ports 5700-5999 are reserved for the devnet.
     /// Default: 100
     pub port_range_count: u16,
 
@@ -206,7 +206,7 @@ impl Default for Config {
             port_range_count: 100,
             lotus: Location::GitBranch {
                 url: "https://github.com/filecoin-project/lotus.git".to_string(),
-                branch: "feat/redpanda/localnet-support".to_string(),
+                branch: "feat/redpanda/devnet-support".to_string(),
             },
             curio: Location::GitBranch {
                 url: "https://github.com/redpanda-f/curio.git".to_string(),
@@ -214,7 +214,7 @@ impl Default for Config {
             },
             filecoin_services: Location::GitBranch {
                 url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
-                branch: "feat/redpanda/localnet-deployment-aware".to_string(),
+                branch: "feat/redpanda/devnet-deployment-aware".to_string(),
             },
             multicall3: Location::GitBranch {
                 url: "https://github.com/mds1/multicall3.git".to_string(),
@@ -222,7 +222,7 @@ impl Default for Config {
             },
             synapse_sdk: Location::GitBranch {
                 url: "https://github.com/FilOzone/synapse-sdk.git".to_string(),
-                branch: "feat/redpanda/localnet-support".to_string(),
+                branch: "feat/redpanda/devnet-support".to_string(),
             },
             yugabyte_download_url: "https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz".to_string(),
             approved_pdp_sp_count: 1,

@@ -1,4 +1,4 @@
-use crate::paths::{foc_localnet_run_dir, foc_localnet_run_log_file, foc_localnet_state_latest};
+use crate::paths::{foc_devnet_run_dir, foc_devnet_run_log_file, foc_devnet_state_latest};
 use std::fs;
 use std::os::unix::fs::symlink;
 use std::path::Path;
@@ -12,10 +12,10 @@ use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, Env
 ///
 /// It also updates the `state/latest` symlink to point to the current run directory.
 pub fn init_logging(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let run_dir = foc_localnet_run_dir(run_id);
+    let run_dir = foc_devnet_run_dir(run_id);
     fs::create_dir_all(&run_dir)?;
 
-    let log_file_path = foc_localnet_run_log_file(run_id);
+    let log_file_path = foc_devnet_run_log_file(run_id);
     let log_file = fs::File::create(log_file_path)?;
 
     let file_layer = fmt::layer().with_ansi(false).with_writer(log_file);
@@ -39,7 +39,7 @@ pub fn init_logging(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn update_latest_symlink(run_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let latest = foc_localnet_state_latest();
+    let latest = foc_devnet_state_latest();
 
     // Remove existing symlink or directory if it exists
     if latest.exists() || latest.is_symlink() {

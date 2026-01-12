@@ -1,6 +1,6 @@
 //! # Disk Usage
 //!
-//! This module handles the display of disk usage information for foc-localnet directories.
+//! This module handles the display of disk usage information for foc-devnet directories.
 //!
 //! It provides functionality to:
 //! - Calculate directory sizes
@@ -10,21 +10,21 @@
 use tracing::info;
 
 use crate::paths::{
-    foc_localnet_artifacts, foc_localnet_bin, foc_localnet_code, foc_localnet_docker_volumes,
-    foc_localnet_home, foc_localnet_logs, foc_localnet_state, foc_localnet_tmp,
+    foc_devnet_artifacts, foc_devnet_bin, foc_devnet_code, foc_devnet_docker_volumes,
+    foc_devnet_home, foc_devnet_logs, foc_devnet_state, foc_devnet_tmp,
 };
 
 use super::utils::{format_size, get_directory_size};
 
-/// Print disk usage information for foc-localnet directories.
+/// Print disk usage information for foc-devnet directories.
 ///
-/// This function displays disk usage statistics for all foc-localnet directories,
+/// This function displays disk usage statistics for all foc-devnet directories,
 /// including code, binaries, logs, state, temporary files, and artifacts.
 ///
 /// # Examples
 ///
 /// ```rust,no_run
-/// use foc_localnet::commands::status::disk_usage::print_disk_usage;
+/// use foc_devnet::commands::status::disk_usage::print_disk_usage;
 ///
 /// print_disk_usage().expect("Failed to print disk usage");
 /// ```
@@ -35,7 +35,7 @@ use super::utils::{format_size, get_directory_size};
 pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
     info!("Disk Usage");
 
-    let home_dir = foc_localnet_home();
+    let home_dir = foc_devnet_home();
 
     // Print header
     info!("{:<25}  {:<10}  {:<40}", "Directory", "Size", "Path");
@@ -43,12 +43,12 @@ pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
 
     // Main directories
     let directories = vec![
-        ("Home", foc_localnet_home()),
-        ("Logs", foc_localnet_logs()),
-        ("State", foc_localnet_state()),
-        ("Tmp", foc_localnet_tmp()),
-        ("Code", foc_localnet_code()),
-        ("Binaries", foc_localnet_bin()),
+        ("Home", foc_devnet_home()),
+        ("Logs", foc_devnet_logs()),
+        ("State", foc_devnet_state()),
+        ("Tmp", foc_devnet_tmp()),
+        ("Code", foc_devnet_code()),
+        ("Binaries", foc_devnet_bin()),
     ];
 
     for (name, path) in &directories {
@@ -64,7 +64,7 @@ pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Artifacts breakdown
-    let artifacts_dir = foc_localnet_artifacts();
+    let artifacts_dir = foc_devnet_artifacts();
     let artifacts_size = get_directory_size(&artifacts_dir)?;
 
     info!(
@@ -75,7 +75,7 @@ pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Docker volumes
-    let docker_volumes_dir = foc_localnet_docker_volumes();
+    let docker_volumes_dir = foc_devnet_docker_volumes();
     let docker_volumes_size = get_directory_size(&docker_volumes_dir)?;
     info!(
         "{:<25}  {:<10}  {:<40}",
@@ -96,7 +96,7 @@ pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
 
     // Total size
     let total_size = get_directory_size(&home_dir)?;
-    info!("Total foc-localnet size: {}", format_size(total_size));
+    info!("Total foc-devnet size: {}", format_size(total_size));
 
     Ok(())
 }

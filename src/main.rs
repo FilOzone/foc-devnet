@@ -1,12 +1,12 @@
-//! Main entry point for foc-localnet.
+//! Main entry point for foc-devnet.
 //!
 //! This module provides the main application entry point with command routing.
 
 use clap::Parser;
-use foc_localnet::cli::{Cli, Commands};
-use foc_localnet::logger::init_logging;
-use foc_localnet::poison;
-use foc_localnet::run_id::generate_run_id;
+use foc_devnet::cli::{Cli, Commands};
+use foc_devnet::logger::init_logging;
+use foc_devnet::poison;
+use foc_devnet::run_id::generate_run_id;
 
 mod main_app;
 

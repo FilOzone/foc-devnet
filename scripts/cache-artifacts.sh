@@ -1,13 +1,13 @@
 #!/bin/bash
 # cache-artifacts.sh - Helper script to cache large artifacts for fast development iteration
 #
-# This script copies pre-downloaded artifacts from ~/stash/ to ~/.foc-localnet/artifacts/
+# This script copies pre-downloaded artifacts from ~/stash/ to ~/.foc-devnet/artifacts/
 # to avoid re-downloading them during init.
 
 set -e
 
 STASH_DIR="${STASH_DIR:-$HOME/stash}"
-FOC_ARTIFACTS="$HOME/.foc-localnet/artifacts"
+FOC_ARTIFACTS="$HOME/.foc-devnet/artifacts"
 FOC_VOLUMES="$FOC_ARTIFACTS/docker/volumes"
 
 echo "🚀 Caching artifacts for fast init..."

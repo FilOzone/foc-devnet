@@ -1,4 +1,4 @@
-//! Running system information display for foc-localnet.
+//! Running system information display for foc-devnet.
 //!
 //! This module displays detailed information about the currently running
 //! system, including block height, service ports, and file locations.

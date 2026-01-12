@@ -5,10 +5,10 @@
 //! containers after a start attempt, regardless of success or failure.
 //!
 //! The log files are stored under the run-specific directory:
-//! ~/.foc-localnet/run/<run_id>/logs/<container_name>.<image_name>.docker.log
+//! ~/.foc-devnet/run/<run_id>/logs/<container_name>.<image_name>.docker.log
 
 use crate::docker::core::{docker_command, get_container_logs};
-use crate::paths::foc_localnet_run_dir;
+use crate::paths::foc_devnet_run_dir;
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
@@ -49,7 +49,7 @@ pub fn list_containers_by_image_prefix(prefix: &str) -> Result<Vec<ContainerInfo
 /// Persist logs for all containers whose image starts with "foc" under the run logs directory.
 pub fn persist_foc_container_logs(run_id: &str) -> Result<(), Box<dyn Error>> {
     let containers = list_containers_by_image_prefix("foc")?;
-    let logs_dir = foc_localnet_run_dir(run_id).join("logs");
+    let logs_dir = foc_devnet_run_dir(run_id).join("logs");
     fs::create_dir_all(&logs_dir)?;
 
     info!(
@@ -110,9 +110,9 @@ pub fn remove_dead_foc_containers() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Write the output of `foc-localnet status` to the run's post-start status log file.
+/// Write the output of `foc-devnet status` to the run's post-start status log file.
 pub fn write_post_start_status_log(run_id: &str) -> Result<PathBuf, Box<dyn Error>> {
-    let run_dir = foc_localnet_run_dir(run_id);
+    let run_dir = foc_devnet_run_dir(run_id);
     fs::create_dir_all(&run_dir)?;
     let status_file = run_dir.join("post_start_status.log");
 

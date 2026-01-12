@@ -5,8 +5,7 @@
 use crate::commands::start::genesis::constants;
 use crate::commands::start::genesis::keys::get_bls_addresses;
 use crate::paths::{
-    foc_localnet_bin, foc_localnet_docker_volumes_cache, foc_localnet_genesis,
-    foc_localnet_lotus_keys,
+    foc_devnet_bin, foc_devnet_docker_volumes_cache, foc_devnet_genesis, foc_devnet_lotus_keys,
 };
 use std::process::Command;
 use tracing::info;
@@ -18,8 +17,8 @@ use tracing::info;
 pub fn add_signers_to_genesis(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
     info!("🔑 Adding signers to genesis...");
 
-    let genesis_dir = foc_localnet_genesis(run_id);
-    let keys_dir = foc_localnet_lotus_keys(run_id);
+    let genesis_dir = foc_devnet_genesis(run_id);
+    let keys_dir = foc_devnet_lotus_keys(run_id);
 
     // Get signer BLS addresses
     let addresses = get_bls_addresses(
@@ -49,9 +48,9 @@ pub fn add_signers_to_genesis(run_id: &str) -> Result<(), Box<dyn std::error::Er
     }
 
     // Run lotus-seed genesis set-signers in builder container
-    let bin_dir = foc_localnet_bin();
+    let bin_dir = foc_devnet_bin();
     let builder_volumes_dir =
-        foc_localnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
+        foc_devnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
 
     // Build docker args with network environment variables
     let mut docker_args = vec![

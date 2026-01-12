@@ -1,7 +1,7 @@
 //! Core Docker utilities and abstractions.
 //!
 //! This module provides the fundamental Docker operations and shell command abstractions
-//! used throughout foc-localnet. It consolidates the functionality from the old docker.rs
+//! used throughout foc-devnet. It consolidates the functionality from the old docker.rs
 //! and shell.rs modules into a single, well-organized structure.
 
 use std::error::Error;

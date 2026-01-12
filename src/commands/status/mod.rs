@@ -1,6 +1,6 @@
 //! # Status Module
 //!
-//! This module provides comprehensive status reporting for the FOC LocalNet system.
+//! This module provides comprehensive status reporting for the FOC DevNet system.
 //!
 //! The status command displays information about:
 //! - Code versions and git status for repositories (Lotus, Curio, Filecoin-Services, Synapse-SDK)
@@ -14,7 +14,7 @@
 //! ## Usage
 //!
 //! ```rust
-//! use foc_localnet::commands::status;
+//! use foc_devnet::commands::status;
 //!
 //! // Display full system status
 //! status::status()?;
@@ -46,13 +46,13 @@ pub mod utils;
 
 /// Execute the status command.
 ///
-/// This function displays a pretty-printed status of the foc-localnet system,
+/// This function displays a pretty-printed status of the foc-devnet system,
 /// including code version, build status, running status, and uptime information.
 ///
 /// # Examples
 ///
 /// ```rust,no_run
-/// use foc_localnet::commands::status;
+/// use foc_devnet::commands::status;
 ///
 /// // Display the current system status
 /// status::status().expect("Failed to display status");

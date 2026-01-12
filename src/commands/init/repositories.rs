@@ -1,4 +1,4 @@
-//! Code repository download utilities for foc-localnet initialization.
+//! Code repository download utilities for foc-devnet initialization.
 //!
 //! This module handles the downloading and setup of Git repositories
 //! for Lotus and Curio components.
@@ -9,9 +9,9 @@ use std::process::Command;
 use tracing::info;
 
 use crate::config::{Config, Location};
-use crate::paths::{foc_localnet_code, foc_localnet_config};
+use crate::paths::{foc_devnet_code, foc_devnet_config};
 
-/// Download code repositories for foc-localnet.
+/// Download code repositories for foc-devnet.
 ///
 /// This function clones Git repositories for lotus and curio if their
 /// locations are Git-based. It reads the repository locations from the
@@ -23,7 +23,7 @@ pub fn download_code_repositories() -> Result<(), Box<dyn std::error::Error>> {
     info!("Downloading code repositories...");
 
     // Load configuration
-    let config_path = foc_localnet_config();
+    let config_path = foc_devnet_config();
     let config_content = fs::read_to_string(&config_path)
         .map_err(|e| format!("Failed to read config file at {:?}: {}", config_path, e))?;
     let config: Config = toml::from_str(&config_content)
@@ -69,7 +69,7 @@ fn download_repository(name: &str, location: &Location) -> Result<(), Box<dyn st
                 "{} using local source at {}, creating symlink...",
                 name, dir
             );
-            let target_link = foc_localnet_code().join(name);
+            let target_link = foc_devnet_code().join(name);
 
             if target_link.exists() {
                 // If it exists, we check if it's a symlink or a directory
@@ -128,7 +128,7 @@ fn clone_and_checkout(
     tag: Option<&str>,
     branch: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let repo_dir = foc_localnet_code().join(name);
+    let repo_dir = foc_devnet_code().join(name);
 
     if repo_dir.exists() {
         info!(

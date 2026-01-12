@@ -6,7 +6,7 @@
 use crate::config::{Config, Location};
 use crate::docker::containers::lotus_container_name;
 use crate::docker::core::container_is_running;
-use crate::paths::{foc_localnet_config, foc_localnet_filecoin_services_repo};
+use crate::paths::{foc_devnet_config, foc_devnet_filecoin_services_repo};
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
@@ -17,7 +17,7 @@ use std::path::PathBuf;
 /// The path to the filecoin-services repository
 pub fn get_filecoin_services_repo_path() -> Result<PathBuf, Box<dyn Error>> {
     // Load configuration
-    let config_path = foc_localnet_config();
+    let config_path = foc_devnet_config();
     let config_content = fs::read_to_string(&config_path)
         .map_err(|e| format!("Failed to read config file at {:?}: {}", config_path, e))?;
     let config: Config = toml::from_str(&config_content)
@@ -30,8 +30,8 @@ pub fn get_filecoin_services_repo_path() -> Result<PathBuf, Box<dyn Error>> {
             PathBuf::from(dir)
         }
         _ => {
-            // For Git-based locations, use the foc-localnet directory
-            foc_localnet_filecoin_services_repo()
+            // For Git-based locations, use the foc-devnet directory
+            foc_devnet_filecoin_services_repo()
         }
     };
 

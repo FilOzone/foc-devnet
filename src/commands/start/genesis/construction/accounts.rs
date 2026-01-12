@@ -5,7 +5,7 @@
 use crate::commands::init::keys::load_keys;
 use crate::commands::start::genesis::constants;
 use crate::commands::start::genesis::keys::get_bls_addresses;
-use crate::paths::foc_localnet_genesis;
+use crate::paths::foc_devnet_genesis;
 use std::fs;
 use tracing::info;
 
@@ -19,7 +19,7 @@ pub const PREFUNDED_ACCOUNTS_INIT_FIL: u64 = 10_000_000; // 10 million FIL
 pub fn add_global_fil_faucet_account(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
     info!("💰 Adding pre-funded accounts to genesis...");
 
-    let genesis_dir = foc_localnet_genesis(run_id);
+    let genesis_dir = foc_devnet_genesis(run_id);
     let genesis_file_path = genesis_dir.join(constants::GENESIS_FILE);
 
     // Get GLOBAL_FIL_FAUCET BLS address
@@ -61,7 +61,7 @@ pub fn add_global_fil_faucet_account(run_id: &str) -> Result<(), Box<dyn std::er
 pub fn add_foc_accounts(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
     info!("💰 Adding FOC accounts to genesis...");
 
-    let genesis_dir = foc_localnet_genesis(run_id);
+    let genesis_dir = foc_devnet_genesis(run_id);
     let genesis_file_path = genesis_dir.join(constants::GENESIS_FILE);
 
     // Load keys

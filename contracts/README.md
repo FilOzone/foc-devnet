@@ -17,7 +17,7 @@ MockUSDFC is a toy implementation of the USDFC (USD Filecoin) token used in prod
   - Mintable by owner
   - Simple access control (owner can mint)
 
-## Usage in foc-localnet
+## Usage in foc-devnet
 
 The MockUSDFC token is automatically deployed during the FOC deployment step when starting the local network:
 

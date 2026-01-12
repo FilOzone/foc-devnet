@@ -4,12 +4,12 @@
 
 use std::fs;
 
-use foc_localnet::cli::BuildCommands;
-use foc_localnet::commands;
-use foc_localnet::commands::build::Project;
-use foc_localnet::config::Config;
-use foc_localnet::paths::foc_localnet_config;
-use foc_localnet::poison;
+use foc_devnet::cli::BuildCommands;
+use foc_devnet::commands;
+use foc_devnet::commands::build::Project;
+use foc_devnet::config::Config;
+use foc_devnet::paths::foc_devnet_config;
+use foc_devnet::poison;
 
 /// Execute the start command
 pub fn handle_start(
@@ -62,7 +62,7 @@ pub fn handle_build(build_command: BuildCommands) -> Result<(), Box<dyn std::err
     poison::create_poison("Build")?;
 
     // Load configuration
-    let config_path = foc_localnet_config();
+    let config_path = foc_devnet_config();
     let config_content = fs::read_to_string(&config_path)
         .map_err(|e| format!("Failed to read config file at {:?}: {}", config_path, e))?;
     let config: Config = toml::from_str(&config_content)

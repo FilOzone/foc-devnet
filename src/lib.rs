@@ -1,4 +1,4 @@
-//! foc-localnet library crate
+//! foc-devnet library crate
 //!
 //! This crate provides the core functionality for managing local Filecoin
 //! on-chain cloud clusters for testing purposes.

@@ -1,4 +1,4 @@
-//! Configuration generation utilities for foc-localnet initialization.
+//! Configuration generation utilities for foc-devnet initialization.
 //!
 //! This module handles the generation of default configuration files
 //! and application of location overrides.
@@ -7,11 +7,11 @@ use std::fs;
 use tracing::{info, warn};
 
 use crate::config::{Config, Location};
-use crate::paths::foc_localnet_config;
+use crate::paths::foc_devnet_config;
 
 /// Generate default configuration file if it doesn't exist.
 ///
-/// This function creates a default `config.toml` file in the foc-localnet
+/// This function creates a default `config.toml` file in the foc-devnet
 /// configuration directory. If the file already exists and `force` is false,
 /// it skips generation. If `force` is true, it overwrites the existing file.
 ///
@@ -35,7 +35,7 @@ pub fn generate_default_config(
     yugabyte_url: Option<String>,
     force: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config_path = foc_localnet_config();
+    let config_path = foc_devnet_config();
 
     if config_path.exists() && !force {
         info!("Config file already exists: {}", config_path.display());

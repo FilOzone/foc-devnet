@@ -19,7 +19,7 @@ pub const STORAGE_PRICE_PER_TIB_PER_DAY: u64 = 1000000000000000000;
 pub const MIN_PROVING_PERIOD_EPOCHS: u64 = 2880;
 
 /// Geographic location identifier
-pub const LOCATION: &str = "LocalNet";
+pub const LOCATION: &str = "DevNet";
 
 /// Provider description
-pub const PROVIDER_DESCRIPTION: &str = "PDP Service Provider 0 for LocalNet";
+pub const PROVIDER_DESCRIPTION: &str = "PDP Service Provider 0 for DevNet";

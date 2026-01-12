@@ -12,7 +12,7 @@
 /// # Examples
 ///
 /// ```rust
-/// use foc_localnet::commands::status::utils::format_size;
+/// use foc_devnet::commands::status::utils::format_size;
 ///
 /// assert_eq!(format_size(1024), "1.0 KB");
 /// assert_eq!(format_size(1048576), "1.0 MB");
@@ -40,7 +40,7 @@ pub fn format_size(bytes: u64) -> String {
 /// # Examples
 ///
 /// ```rust
-/// use foc_localnet::commands::status::utils::format_duration;
+/// use foc_devnet::commands::status::utils::format_duration;
 ///
 /// assert_eq!(format_duration(3661), "1h 1m 1s");
 /// assert_eq!(format_duration(86461), "1d 0h 1m 1s");
@@ -67,7 +67,7 @@ pub fn format_duration(total_seconds: i64) -> String {
 /// # Examples
 ///
 /// ```rust
-/// use foc_localnet::commands::status::utils::format_time_ago;
+/// use foc_devnet::commands::status::utils::format_time_ago;
 /// use chrono::{Duration, Utc};
 ///
 /// let duration = Duration::hours(2) + Duration::minutes(30);
@@ -97,7 +97,7 @@ pub fn format_time_ago(duration: chrono::Duration) -> String {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use foc_localnet::commands::status::utils::get_directory_size;
+/// use foc_devnet::commands::status::utils::get_directory_size;
 /// use std::path::Path;
 ///
 /// let size = get_directory_size(Path::new("/tmp")).unwrap();

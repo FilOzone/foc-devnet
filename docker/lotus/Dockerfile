@@ -35,7 +35,7 @@ RUN mkdir -p /var/tmp/filecoin-proof-parameters \
 USER foc-user
 
 # Copy the lotus binary from the host (will be mounted)
-# Binary will be mounted from ~/.foc-localnet/bin
+# Binary will be mounted from ~/.foc-devnet/bin
 
 # Expose lotus daemon ports
 # 1234 - Lotus API

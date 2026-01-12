@@ -1,13 +1,13 @@
 //! # Build Status
 //!
-//! This module handles the display of build status information for foc-localnet binaries.
+//! This module handles the display of build status information for foc-devnet binaries.
 //!
 //! It provides functionality to:
 //! - Check if expected binaries exist
 //! - Display build timestamps
 //! - Show relative time since build
 
-use crate::paths::foc_localnet_bin;
+use crate::paths::foc_devnet_bin;
 use chrono::{DateTime, Utc};
 use std::process::Command;
 use tracing::info;
@@ -16,13 +16,13 @@ use super::utils::format_time_ago;
 
 /// Print build status of artifacts in tabular format.
 ///
-/// This function displays the build status of all expected foc-localnet binaries,
+/// This function displays the build status of all expected foc-devnet binaries,
 /// including whether they exist, their file sizes, and when they were last built.
 ///
 /// # Examples
 ///
 /// ```rust,no_run
-/// use foc_localnet::commands::status::build_status::print_build_status;
+/// use foc_devnet::commands::status::build_status::print_build_status;
 ///
 /// print_build_status().expect("Failed to print build status");
 /// ```
@@ -31,7 +31,7 @@ use super::utils::format_time_ago;
 ///
 /// Returns an error if file system operations fail.
 pub fn print_build_status() -> Result<(), Box<dyn std::error::Error>> {
-    let bin_dir = foc_localnet_bin();
+    let bin_dir = foc_devnet_bin();
 
     // Check for expected binaries
     let expected_binaries = vec![
@@ -95,7 +95,7 @@ mod tests {
     #[test]
     fn test_print_build_status() {
         // This test mainly verifies that the function doesn't panic
-        // In a real scenario, you'd mock the foc_localnet_bin function
+        // In a real scenario, you'd mock the foc_devnet_bin function
         // or set up the environment properly
         let result = print_build_status();
         // We expect this to work even if no binaries exist

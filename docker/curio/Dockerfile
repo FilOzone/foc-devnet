@@ -35,7 +35,7 @@ RUN mkdir -p /var/tmp/filecoin-proof-parameters \
 USER foc-user
 
 # Copy binaries will be mounted from host
-# Binary will be mounted from ~/.foc-localnet/bin
+# Binary will be mounted from ~/.foc-devnet/bin
 
 # Expose curio ports
 # 12300 - Curio API

@@ -2,8 +2,8 @@
 //!
 //! This module handles displaying version and build information.
 
-use foc_localnet::config::{Config, Location};
-use foc_localnet::version_info::VersionInfo;
+use foc_devnet::config::{Config, Location};
+use foc_devnet::version_info::VersionInfo;
 use tracing::info;
 
 /// Execute the version command
@@ -16,7 +16,7 @@ pub fn handle_version() -> Result<(), Box<dyn std::error::Error>> {
         "-dirty"
     };
 
-    info!("foc-localnet {}", version_info.version);
+    info!("foc-devnet {}", version_info.version);
     info!("Commit: {}{}", version_info.commit, dirty_suffix);
     info!("Branch: {}", version_info.branch);
 

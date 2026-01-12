@@ -13,7 +13,7 @@ use crate::docker::network::pdp_miner_network_name;
 use crate::docker::{
     container_exists, container_is_running, stop_and_remove_container, wait_for_port,
 };
-use crate::paths::foc_localnet_yugabyte_sp_volume;
+use crate::paths::foc_devnet_yugabyte_sp_volume;
 
 /// Spawn a single Yugabyte instance (used for parallel spawning).
 ///
@@ -34,7 +34,7 @@ fn spawn_yugabyte_instance(
     // Create data directory for this instance
     // This will be mounted to /home/foc-user/yb_base in the container
     // yugabyted will create subdirectories (data/, conf/, logs/) under this base directory
-    let data_dir = foc_localnet_yugabyte_sp_volume(run_id, sp_idx);
+    let data_dir = foc_devnet_yugabyte_sp_volume(run_id, sp_idx);
     std::fs::create_dir_all(&data_dir)?;
 
     // Stop and remove existing container if it exists
@@ -237,7 +237,7 @@ impl Step for YugabyteStep {
         // Verify Docker image exists
         if !crate::docker::core::image_exists(YUGABYTE_DOCKER_IMAGE).unwrap_or(true) {
             return Err(format!(
-                "Docker image '{}' not found. Please run 'foc-localnet init' to build the image.",
+                "Docker image '{}' not found. Please run 'foc-devnet init' to build the image.",
                 YUGABYTE_DOCKER_IMAGE
             )
             .into());

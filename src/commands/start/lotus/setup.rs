@@ -65,9 +65,8 @@ pub fn build_docker_command(
 ) -> Result<Vec<String>, Box<dyn Error>> {
     use super::super::genesis::constants::GENESIS_FILE;
     use crate::paths::{
-        foc_localnet_bin, foc_localnet_genesis, foc_localnet_genesis_sectors,
-        foc_localnet_lotus_keys, foc_localnet_proof_parameters,
-        CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
+        foc_devnet_bin, foc_devnet_genesis, foc_devnet_genesis_sectors, foc_devnet_lotus_keys,
+        foc_devnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
     };
 
     // Read allocated ports from context
@@ -86,11 +85,11 @@ pub fn build_docker_command(
     let network_name = lotus_network_name(run_id);
 
     // Get paths
-    let bin_dir = foc_localnet_bin();
-    let params_dir = foc_localnet_proof_parameters();
-    let genesis_dir = foc_localnet_genesis(run_id);
-    let sectors_dir = foc_localnet_genesis_sectors(run_id);
-    let keys_dir = foc_localnet_lotus_keys(run_id);
+    let bin_dir = foc_devnet_bin();
+    let params_dir = foc_devnet_proof_parameters();
+    let genesis_dir = foc_devnet_genesis(run_id);
+    let sectors_dir = foc_devnet_genesis_sectors(run_id);
+    let keys_dir = foc_devnet_lotus_keys(run_id);
     let genesis_file = genesis_dir.join(GENESIS_FILE);
 
     // Build docker run command

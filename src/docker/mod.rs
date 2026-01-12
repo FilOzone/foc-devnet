@@ -1,4 +1,4 @@
-//! Docker utilities and abstractions for foc-localnet.
+//! Docker utilities and abstractions for foc-devnet.
 //!
 //! This module consolidates all Docker-related functionality into a single,
 //! well-organized structure. It replaces the old scattered docker.rs and shell.rs

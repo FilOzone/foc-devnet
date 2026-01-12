@@ -57,8 +57,8 @@ pub fn generate_run_id() -> String {
 
 /// Create a symlink to the latest run directory.
 pub fn create_latest_symlink(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let latest_link = crate::paths::foc_localnet_state_latest();
-    let run_dir = crate::paths::foc_localnet_run_dir(run_id);
+    let latest_link = crate::paths::foc_devnet_state_latest();
+    let run_dir = crate::paths::foc_devnet_run_dir(run_id);
 
     // Remove existing symlink if it exists
     if latest_link.exists() || latest_link.is_symlink() {

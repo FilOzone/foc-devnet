@@ -1,6 +1,6 @@
 //! # Code Version Status
 //!
-//! This module handles the display of code version information for the foc-localnet system.
+//! This module handles the display of code version information for the foc-devnet system.
 //!
 //! It provides functionality to:
 //! - Display git repository information for Lotus and Curio
@@ -8,7 +8,7 @@
 //! - Indicate readiness status of code repositories
 
 use crate::config::Config;
-use crate::paths::foc_localnet_config;
+use crate::paths::foc_devnet_config;
 use std::{fs, io::Error};
 use tracing::info;
 
@@ -23,7 +23,7 @@ use super::git::{format_location_info, get_git_info, get_repo_path_from_config};
 /// # Examples
 ///
 /// ```rust,no_run
-/// use foc_localnet::commands::status::code_version::print_code_version;
+/// use foc_devnet::commands::status::code_version::print_code_version;
 ///
 /// print_code_version().expect("Failed to print code version");
 /// ```
@@ -35,13 +35,13 @@ use super::git::{format_location_info, get_git_info, get_repo_path_from_config};
 /// - Git repository information cannot be retrieved
 pub fn print_code_version() -> Result<(), Box<dyn std::error::Error>> {
     // Load configuration
-    let config_path = foc_localnet_config();
+    let config_path = foc_devnet_config();
 
     // Check if config exists
     if !config_path.exists() {
         return Err(Error::new(
             std::io::ErrorKind::Unsupported,
-            "Configuration not initialized. Run 'foc-localnet init' first.",
+            "Configuration not initialized. Run 'foc-devnet init' first.",
         )
         .into());
     }

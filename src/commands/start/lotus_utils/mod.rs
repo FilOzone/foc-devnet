@@ -6,7 +6,7 @@ use std::error::Error;
 use std::fs;
 
 use super::step::SetupContext;
-use crate::paths::foc_localnet_docker_volumes_run_specific;
+use crate::paths::foc_devnet_docker_volumes_run_specific;
 
 /// Read the Lotus API token from the lotus-data directory.
 ///
@@ -16,7 +16,7 @@ use crate::paths::foc_localnet_docker_volumes_run_specific;
 /// # Returns
 /// The token string if found, or an error if the token file doesn't exist or can't be read.
 pub fn read_lotus_token(run_id: &str) -> Result<String, Box<dyn Error>> {
-    let token_path = foc_localnet_docker_volumes_run_specific(run_id)
+    let token_path = foc_devnet_docker_volumes_run_specific(run_id)
         .join("lotus-data")
         .join("token");
 

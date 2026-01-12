@@ -1,9 +1,9 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-/// CLI structure for foc-localnet
+/// CLI structure for foc-devnet
 #[derive(Parser)]
-#[command(name = "foc-localnet")]
+#[command(name = "foc-devnet")]
 #[command(about = "CLI for managing local filecoin-onchain-cloud cluster")]
 pub struct Cli {
     #[command(subcommand)]
@@ -30,7 +30,7 @@ pub enum Commands {
     },
     /// Stop the local cluster
     Stop,
-    /// Initialize foc-localnet by building and caching Docker images
+    /// Initialize foc-devnet by building and caching Docker images
     Init {
         /// Curio source location (e.g., 'gittag:tag', 'gittag:url:tag', 'gitcommit:commit', 'gitcommit:url:commit', 'gitbranch:branch', 'gitbranch:url:branch', 'local:/path/to/curio')
         #[arg(long)]
@@ -68,7 +68,7 @@ pub enum Commands {
         #[command(subcommand)]
         build_command: BuildCommands,
     },
-    /// Show status of the foc-localnet system
+    /// Show status of the foc-devnet system
     Status,
     /// Show version information
     Version,

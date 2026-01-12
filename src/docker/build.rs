@@ -115,9 +115,9 @@ pub fn build_yugabyte_image(name: &str) -> Result<(), Box<dyn std::error::Error>
 
 /// Validate that YugabyteDB artifacts are available for building.
 fn validate_yugabyte_artifacts() -> Result<(), Box<dyn std::error::Error>> {
-    use crate::paths::foc_localnet_artifacts;
+    use crate::paths::foc_devnet_artifacts;
 
-    let artifacts_dir = foc_localnet_artifacts();
+    let artifacts_dir = foc_devnet_artifacts();
     let yugabyte_dir = artifacts_dir.join("yugabyte");
 
     if !yugabyte_dir.exists() {
@@ -132,12 +132,12 @@ fn validate_yugabyte_artifacts() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Perform the actual YugabyteDB image build process.
 fn perform_yugabyte_build(name: &str, image_tag: &str) -> Result<(), Box<dyn std::error::Error>> {
-    use crate::paths::foc_localnet_artifacts;
+    use crate::paths::foc_devnet_artifacts;
 
     let dockerfile_content = embedded_assets::get_dockerfile(name)
         .ok_or_else(|| format!("Embedded Dockerfile not found for: {}", name))?;
 
-    let artifacts_dir = foc_localnet_artifacts();
+    let artifacts_dir = foc_devnet_artifacts();
 
     print_yugabyte_build_info(image_tag, &artifacts_dir);
 
@@ -233,7 +233,7 @@ fn finalize_build_progress(
     }
 }
 
-/// Build and cache all required Docker images for foc-localnet.
+/// Build and cache all required Docker images for foc-devnet.
 ///
 /// This function builds the following images from embedded Dockerfiles:
 /// - BUILDER_DOCKER_IMAGE (Foundry tools)

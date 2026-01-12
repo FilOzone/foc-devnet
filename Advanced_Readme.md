@@ -1,6 +1,6 @@
-# Advanced Guide: foc-localnet
+# Advanced Guide: foc-devnet
 
-This guide covers advanced usage, internal architecture, and operational details of foc-localnet.
+This guide covers advanced usage, internal architecture, and operational details of foc-devnet.
 
 ---
 
@@ -22,10 +22,10 @@ This guide covers advanced usage, internal architecture, and operational details
 ## Commands Reference
 
 ### `init`
-Initializes foc-localnet by downloading repositories, building Docker images, and preparing the environment.
+Initializes foc-devnet by downloading repositories, building Docker images, and preparing the environment.
 
 ```bash
-foc-localnet init [OPTIONS]
+foc-devnet init [OPTIONS]
 ```
 
 **Options:**
@@ -48,7 +48,7 @@ foc-localnet init [OPTIONS]
 
 **Example:**
 ```bash
-foc-localnet init \
+foc-devnet init \
     --lotus local:/home/user/lotus \
     --curio gitbranch:pdpv0 \
     --force
@@ -58,21 +58,21 @@ foc-localnet init \
 Builds Filecoin components in Docker containers.
 
 ```bash
-foc-localnet build lotus [PATH] [--output-dir <DIR>]
-foc-localnet build curio [PATH] [--output-dir <DIR>]
+foc-devnet build lotus [PATH] [--output-dir <DIR>]
+foc-devnet build curio [PATH] [--output-dir <DIR>]
 ```
 
 **Example:**
 ```bash
-foc-localnet build lotus
-foc-localnet build curio /path/to/custom/curio --output-dir ~/bins
+foc-devnet build lotus
+foc-devnet build curio /path/to/custom/curio --output-dir ~/bins
 ```
 
 ### `start`
 Starts the local Filecoin network cluster.
 
 ```bash
-foc-localnet start [OPTIONS]
+foc-devnet start [OPTIONS]
 ```
 
 **Options:**
@@ -83,12 +83,12 @@ foc-localnet start [OPTIONS]
 
 **Recommended for faster startup:**
 ```bash
-foc-localnet start --parallel
+foc-devnet start --parallel
 ```
 
 **Skip tests during development:**
 ```bash
-foc-localnet start --parallel --notest
+foc-devnet start --parallel --notest
 ```
 
 > **💡 Pro Tip:** Use `--parallel` by default! It runs independent steps concurrently (contract deployments, database startup, etc.) while respecting dependencies. This can reduce startup time from ~5 minutes to ~3 minutes.
@@ -102,7 +102,7 @@ foc-localnet start --parallel --notest
 Stops all running containers and cleans up Docker networks.
 
 ```bash
-foc-localnet stop
+foc-devnet stop
 ```
 
 **What it does:**
@@ -113,10 +113,10 @@ foc-localnet stop
 - Clears run ID
 
 ### `status`
-Shows the current status of the foc-localnet system.
+Shows the current status of the foc-devnet system.
 
 ```bash
-foc-localnet status
+foc-devnet status
 ```
 
 Displays:
@@ -129,7 +129,7 @@ Displays:
 Shows version information.
 
 ```bash
-foc-localnet version
+foc-devnet version
 ```
 
 ---
@@ -139,14 +139,14 @@ foc-localnet version
 ### Config File Location
 
 ```
-~/.foc-localnet/config.toml
+~/.foc-devnet/config.toml
 ```
 
 ### Config Structure
 
 ```toml
 # Port range for dynamic allocation
-# foc-localnet uses a contiguous range of ports to avoid conflicts with other
+# foc-devnet uses a contiguous range of ports to avoid conflicts with other
 # services on your machine. All components (Lotus, Curio SPs, Yugabyte, etc.)
 # dynamically allocate ports from this range. Using a dedicated range ensures:
 # - No conflicts with system services (MySQL, PostgreSQL, etc.)
@@ -201,10 +201,10 @@ tag = "synapse-sdk-v0.36.1"
 
 ```bash
 # Edit manually
-vim ~/.foc-localnet/config.toml
+vim ~/.foc-devnet/config.toml
 
 # Or use init --force to regenerate
-foc-localnet init --force
+foc-devnet init --force
 ```
 
 ---
@@ -212,7 +212,7 @@ foc-localnet init --force
 ## Directory Structure
 
 ```
-~/.foc-localnet/
+~/.foc-devnet/
 ├── config.toml                      # Main configuration file
 ├── bin/                             # Compiled binaries (lotus, curio)
 ├── code/                            # Cloned repositories, or symlinks
@@ -281,7 +281,7 @@ foc-localnet init --force
 **`foc_metadata.json`** - FOC service configuration:
 ```json
 {
-  "service_name": "FOC LocalNet Warm Storage",
+  "service_name": "FOC DevNet Warm Storage",
   "service_description": "Warm storage service...",
   "mockusdfc_address": "0x1234...",
   "warm_storage_service_address": "0x5678..."
@@ -301,7 +301,7 @@ foc-localnet init --force
 - Each run is completely isolated by its run ID
 
 ```bash
-foc-localnet start  # Creates new run, preserves old ones
+foc-devnet start  # Creates new run, preserves old ones
 ```
 
 **Why preserve old runs?**
@@ -315,47 +315,47 @@ foc-localnet start  # Creates new run, preserves old ones
 **Delete specific old run:**
 ```bash
 # Stop cluster first
-foc-localnet stop
+foc-devnet stop
 
 # Delete specific run by run ID
-rm -rf ~/.foc-localnet/run/26jan01-1200_OldRun
-rm -rf ~/.foc-localnet/docker/volumes/run-specific/26jan01-1200_OldRun
+rm -rf ~/.foc-devnet/run/26jan01-1200_OldRun
+rm -rf ~/.foc-devnet/docker/volumes/run-specific/26jan01-1200_OldRun
 ```
 
 **Delete all old runs (keep only current):**
 ```bash
 # Stop cluster
-foc-localnet stop
+foc-devnet stop
 
 # Find current run ID
-CURRENT_RUN=$(cat ~/.foc-localnet/state/current_run_id.txt)
+CURRENT_RUN=$(cat ~/.foc-devnet/state/current_run_id.txt)
 
 # Delete all runs except current
-cd ~/.foc-localnet/run
+cd ~/.foc-devnet/run
 ls | grep --invert-match "$CURRENT_RUN" | xargs rm -rf
 
-cd ~/.foc-localnet/docker/volumes/run-specific
+cd ~/.foc-devnet/docker/volumes/run-specific
 ls | grep --invert-match "$CURRENT_RUN" | xargs rm -rf
 ```
 
 **Complete nuclear reset (delete EVERYTHING including config):**
 ```bash
 # This deletes all runs, config, repos, binaries, keys - use with caution!
-rm -rf ~/.foc-localnet
+rm -rf ~/.foc-devnet
 ```
 
 ### Manual Cleanup
 
 ```bash
 # Stop cluster
-foc-localnet stop
+foc-devnet stop
 
 # Delete specific run
-rm -rf ~/.foc-localnet/run/26jan02-1430_ZanyPip
-rm -rf ~/.foc-localnet/docker/volumes/run-specific/26jan02-1430_ZanyPip
+rm -rf ~/.foc-devnet/run/26jan02-1430_ZanyPip
+rm -rf ~/.foc-devnet/docker/volumes/run-specific/26jan02-1430_ZanyPip
 
 # Complete nuclear reset (delete everything)
-rm -rf ~/.foc-localnet
+rm -rf ~/.foc-devnet
 ```
 
 ---
@@ -385,8 +385,8 @@ rm -rf ~/.foc-localnet
 ```
 
 **Storage:**
-- Current run: `~/.foc-localnet/state/current_run_id.txt`
-- Latest symlink: `~/.foc-localnet/state/latest` → `../run/<run-id>/`
+- Current run: `~/.foc-devnet/state/current_run_id.txt`
+- Latest symlink: `~/.foc-devnet/state/latest` → `../run/<run-id>/`
 
 ### Step Context (SetupContext)
 
@@ -463,7 +463,7 @@ fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
 
 **What is Portainer?**
 
-Portainer is a lightweight container management UI that gives you visual, browser-based access to all your Docker containers, networks, and volumes. foc-localnet automatically starts Portainer using the first port in your configured range.
+Portainer is a lightweight container management UI that gives you visual, browser-based access to all your Docker containers, networks, and volumes. foc-devnet automatically starts Portainer using the first port in your configured range.
 
 **Access:** http://localhost:5700 (default, or first port from `port_range_start` in config.toml)
 
@@ -543,7 +543,7 @@ Portainer is a lightweight container management UI that gives you visual, browse
 
 ### Network Topology
 
-foc-localnet uses **user-defined bridge networks** to separate components:
+foc-devnet uses **user-defined bridge networks** to separate components:
 
 **What are user-defined bridge networks?**
 
@@ -673,7 +673,7 @@ port_range_count = 100
 **For active development:**
 
 ```bash
-foc-localnet init \
+foc-devnet init \
     --lotus local:/home/user/dev/lotus \
     --curio local:/home/user/dev/curio \
     --filecoin-services local:/home/user/dev/filecoin-services \
@@ -684,7 +684,7 @@ foc-localnet init \
 **Mixed approach:**
 
 ```bash
-foc-localnet init \
+foc-devnet init \
     --lotus gitbranch:master \
     --curio local:/home/user/dev/curio \
     --force
@@ -696,7 +696,7 @@ foc-localnet init \
 
 1. **Export config:**
    ```bash
-   cat ~/.foc-localnet/config.toml
+   cat ~/.foc-devnet/config.toml
    ```
 
 2. **Document versions:**
@@ -725,11 +725,11 @@ foc-localnet init \
 3. **Share config file:**
    ```bash
    # Recipient copies config
-   mkdir -p ~/.foc-localnet
-   cp shared-config.toml ~/.foc-localnet/config.toml
+   mkdir -p ~/.foc-devnet
+   cp shared-config.toml ~/.foc-devnet/config.toml
    
    # Run init to download and build
-   foc-localnet init
+   foc-devnet init
    ```
 
 **For reproducible builds, specify exact commits:**
@@ -770,7 +770,7 @@ commit = "789012345678..."
 
 | Flag | Type | Description |
 |------|------|-------------|
-| `--output-dir` | Path | Directory for built binaries (default: `~/.foc-localnet/bin`) |
+| `--output-dir` | Path | Directory for built binaries (default: `~/.foc-devnet/bin`) |
 
 **Why `--output-dir`:** Specify custom location for compiled binaries.
 
@@ -962,7 +962,7 @@ pub trait Step: Send + Sync {
 
 **Configuration:**
 ```toml
-# ~/.foc-localnet/config.toml
+# ~/.foc-devnet/config.toml
 approved_pdp_sp_count = 0
 active_pdp_sp_count = 1
 ```
@@ -977,18 +977,18 @@ active_pdp_sp_count = 1
 **Steps:**
 ```bash
 # Edit config
-vim ~/.foc-localnet/config.toml
+vim ~/.foc-devnet/config.toml
 # Set: approved_pdp_sp_count = 0, active_pdp_sp_count = 1
 
 # Start cluster
-foc-localnet start --parallel
+foc-devnet start --parallel
 
 # Verify
 docker ps | grep curio
 # Should see: foc-<run-id>-curio-1
 
 # Check registration
-cat ~/.foc-localnet/run/<run-id>/pdp_sps/1.provider_id.json
+cat ~/.foc-devnet/run/<run-id>/pdp_sps/1.provider_id.json
 # SP exists but not in approved list
 ```
 
@@ -998,7 +998,7 @@ cat ~/.foc-localnet/run/<run-id>/pdp_sps/1.provider_id.json
 
 **Configuration:**
 ```toml
-# ~/.foc-localnet/config.toml
+# ~/.foc-devnet/config.toml
 approved_pdp_sp_count = 2
 active_pdp_sp_count = 3
 ```
@@ -1013,11 +1013,11 @@ active_pdp_sp_count = 3
 **Steps:**
 ```bash
 # Edit config
-vim ~/.foc-localnet/config.toml
+vim ~/.foc-devnet/config.toml
 # Set: approved_pdp_sp_count = 2, active_pdp_sp_count = 3
 
 # Start cluster
-foc-localnet start
+foc-devnet start
 
 # Verify all 3 SPs running
 docker ps | grep curio
@@ -1027,9 +1027,9 @@ docker ps | grep curio
 #   foc-<run-id>-curio-3
 
 # Check provider IDs
-cat ~/.foc-localnet/run/<run-id>/pdp_sps/1.provider_id.json
-cat ~/.foc-localnet/run/<run-id>/pdp_sps/2.provider_id.json
-cat ~/.foc-localnet/run/<run-id>/pdp_sps/3.provider_id.json
+cat ~/.foc-devnet/run/<run-id>/pdp_sps/1.provider_id.json
+cat ~/.foc-devnet/run/<run-id>/pdp_sps/2.provider_id.json
+cat ~/.foc-devnet/run/<run-id>/pdp_sps/3.provider_id.json
 
 # Query registry (from builder container)
 docker exec foc-<run-id>-builder cast call \
@@ -1073,11 +1073,11 @@ active_pdp_sp_count = 5
 **Steps:**
 ```bash
 # Edit config
-vim ~/.foc-localnet/config.toml
+vim ~/.foc-devnet/config.toml
 # Set: approved_pdp_sp_count = 5, active_pdp_sp_count = 5
 
 # Start cluster (may take longer)
-foc-localnet start
+foc-devnet start
 
 # Verify all 5 running
 docker ps | grep curio
@@ -1103,7 +1103,7 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 docker logs foc-<run-id>-curio-2
 
 # Query provider IDs
-cat ~/.foc-localnet/state/latest/pdp_sps/*.provider_id.json
+cat ~/.foc-devnet/state/latest/pdp_sps/*.provider_id.json
 
 # Access Yugabyte (shared by all SPs)
 docker exec -it foc-<run-id>-yugabyte ysqlsh -h localhost -p 5433
@@ -1113,7 +1113,7 @@ docker exec foc-<run-id>-lotus lotus state miner-info f01000
 
 # Check contract via cast
 docker exec foc-<run-id>-builder cast call \
-    $(cat ~/.foc-localnet/state/latest/contract_addresses.json | jq -r .ServiceProviderRegistry) \
+    $(cat ~/.foc-devnet/state/latest/contract_addresses.json | jq -r .ServiceProviderRegistry) \
     "getServiceProvider(uint256)" \
     <provider_id>
 ```
@@ -1128,7 +1128,7 @@ docker exec foc-<run-id>-builder cast call \
 lsof -i :5700
 
 # Change port range in config
-vim ~/.foc-localnet/config.toml
+vim ~/.foc-devnet/config.toml
 # Set: port_range_start = 6000
 ```
 
@@ -1141,7 +1141,7 @@ docker logs foc-<run-id>-lotus
 docker images | grep foc-lotus
 
 # Rebuild if needed
-foc-localnet init --force
+foc-devnet init --force
 ```
 
 ### Build failures
@@ -1165,9 +1165,9 @@ docker network ls | grep foc
 docker network inspect foc-<run-id>-lot-net
 
 # Recreate if corrupted
-foc-localnet stop
+foc-devnet stop
 docker network rm foc-<run-id>-lot-net
-foc-localnet start
+foc-devnet start
 ```
 
 ---

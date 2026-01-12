@@ -32,7 +32,7 @@ use crate::commands::start::usdfc_funding::USDFCFundingStep;
 use crate::config::Config;
 use crate::docker::core::{container_is_running, remove_container, stop_container};
 use crate::docker::{create_all_networks, start_portainer};
-use crate::paths::{foc_localnet_config, foc_localnet_run_dir};
+use crate::paths::{foc_devnet_config, foc_devnet_run_dir};
 use crate::run_id::{create_latest_symlink, save_current_run_id};
 use crate::version_info::write_version_file;
 pub use eth_acc_funding::constants::FEVM_ACCOUNTS_PREFUNDED;
@@ -62,11 +62,11 @@ fn setup_directories_and_run_id(
     let volumes_dir = if let Some(dir) = volumes_dir {
         PathBuf::from(dir)
     } else {
-        crate::paths::foc_localnet_docker_volumes_run_specific(&run_id)
+        crate::paths::foc_devnet_docker_volumes_run_specific(&run_id)
     };
 
     // Determine run directory
-    let run_dir = foc_localnet_run_dir(&run_id);
+    let run_dir = foc_devnet_run_dir(&run_id);
 
     // Create directories if they don't exist
     std::fs::create_dir_all(&volumes_dir)?;
@@ -115,8 +115,8 @@ fn stop_running_containers() -> Result<(), Box<dyn std::error::Error>> {
 fn perform_regenesis_legacy() -> Result<(), Box<dyn std::error::Error>> {
     warn!("Legacy regenesis called - this deletes ALL previous runs!");
 
-    let run_specific_volumes_root = crate::paths::foc_localnet_docker_volumes_run_specific_root();
-    let runs_dir = crate::paths::foc_localnet_runs();
+    let run_specific_volumes_root = crate::paths::foc_devnet_docker_volumes_run_specific_root();
+    let runs_dir = crate::paths::foc_devnet_runs();
 
     // Files and directories to delete (ALL runs)
     let paths_to_delete = vec![run_specific_volumes_root, runs_dir];
@@ -180,10 +180,10 @@ fn perform_regenesis_legacy() -> Result<(), Box<dyn std::error::Error>> {
 /// Load and validate the configuration file.
 fn load_and_validate_config() -> Result<Config, Box<dyn std::error::Error>> {
     // Load config to get port range settings
-    let config_path = foc_localnet_config();
+    let config_path = foc_devnet_config();
     let config_content = std::fs::read_to_string(&config_path).map_err(|e| {
         format!(
-            "Failed to read config file at {:?}: {}. Run 'foc-localnet init' first.",
+            "Failed to read config file at {:?}: {}. Run 'foc-devnet init' first.",
             config_path, e
         )
     })?;

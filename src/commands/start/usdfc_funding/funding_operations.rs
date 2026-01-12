@@ -42,10 +42,17 @@ pub fn transfer_mock_usdfc(
     // println!("Executing command: {}", cast_cmd);
 
     let key = format!("usdfc_transfer_{}", description.replace(" ", "_"));
+    let container_name = format!(
+        "foc-{}-usdfc-transfer-{}",
+        context.run_id(),
+        description.replace(" ", "-").replace("→", "to")
+    );
     let output = run_and_log_command(
         "docker",
         &[
             "run",
+            "--name",
+            &container_name,
             "--network",
             "host", // Use host network to access localhost:1234
             "-v",
@@ -79,10 +86,18 @@ pub fn check_mock_usdfc_balance(
     retry_with_fixed_delay(
         || {
             let key = format!("usdfc_balance_check_{}", eth_address);
+            let container_name = format!(
+                "foc-{}-usdfc-balance-check-{}",
+                context.run_id(),
+                &eth_address[..8]
+            );
             let output = run_and_log_command(
                 "docker",
                 &[
                     "run",
+                    "--rm",
+                    "--name",
+                    &container_name,
                     "--network",
                     "host",
                     "-v",

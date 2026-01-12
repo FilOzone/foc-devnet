@@ -1,7 +1,7 @@
 //! High-level shell command abstractions.
 //!
 //! This module provides high-level abstractions for blockchain-related shell commands
-//! like Lotus, Forge, Cast, and other tools used in foc-localnet.
+//! like Lotus, Forge, Cast, and other tools used in foc-devnet.
 
 use crate::docker::core::{docker_command, exec_in_container};
 use std::error::Error;

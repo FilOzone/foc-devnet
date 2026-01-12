@@ -1,14 +1,14 @@
 //! Docker initialization utilities.
 //!
 //! This module provides functions for initializing Docker volumes,
-//! containers, and other setup tasks required for foc-localnet.
+//! containers, and other setup tasks required for foc-devnet.
 
 use crate::docker::core::{
     chown_command, container_exists, copy_from_container, create_container, get_current_gid,
     get_current_uid, image_exists,
 };
 use crate::embedded_assets;
-use crate::paths::foc_localnet_docker_volumes;
+use crate::paths::foc_devnet_docker_volumes;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -20,7 +20,7 @@ struct VolumesMap {
 
 /// Create volume directories for all Docker images.
 pub fn create_volume_directories_for_images() -> Result<(), Box<dyn std::error::Error>> {
-    let volumes_base_dir = foc_localnet_docker_volumes();
+    let volumes_base_dir = foc_devnet_docker_volumes();
     let volume_map_names = ["builder", "curio", "lotus-miner", "lotus", "yugabyte"];
 
     for image_name in volume_map_names {
