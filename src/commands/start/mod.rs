@@ -424,6 +424,9 @@ pub fn start_cluster(
     info!("Volumes directory: {}", volumes_dir.display());
     info!("Run directory: {}", run_dir.display());
 
+    // Log system information
+    crate::utils::system_info::log_system_info();
+
     let config = load_and_validate_config()?;
 
     // Allocate port for Portainer (first port in dynamic range)
