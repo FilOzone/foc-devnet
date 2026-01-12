@@ -204,9 +204,9 @@ impl Default for Config {
         Self {
             port_range_start: 5700,
             port_range_count: 100,
-            lotus: Location::GitBranch {
+            lotus: Location::GitTag {
                 url: "https://github.com/filecoin-project/lotus.git".to_string(),
-                branch: "feat/redpanda/devnet-support".to_string(),
+                tag: "v1.34.4-rc1".to_string(),
             },
             curio: Location::GitBranch {
                 url: "https://github.com/redpanda-f/curio.git".to_string(),
