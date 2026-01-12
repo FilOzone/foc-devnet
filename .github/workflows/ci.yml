@@ -274,7 +274,8 @@ jobs:
 
         echo "+++++++++++ Latest Run Directory"
         ls -lath "$RUN_DIR" 2>/dev/null || echo "No run directory found at $RUN_DIR"
-        
+        ls -lath "$RUN_DIR/logs" 2>/dev/null || echo "No logs directory found at $RUN_DIR/logs"
+
         echo "+++++++++++ Contract Addresses"
         cat "$RUN_DIR/contract_addresses.json" 2>/dev/null || echo "No contract addresses file found"
 
