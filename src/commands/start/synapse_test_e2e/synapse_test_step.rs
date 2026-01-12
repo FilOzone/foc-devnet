@@ -15,6 +15,22 @@ use tracing::{info, warn};
 
 const POST_DEPLOY_WAIT_SECONDS: u64 = 5;
 
+/// Type alias for extracted contract addresses and keys
+pub type ContractAddresses = (String, String, String, String, String);
+
+/// Parameters for Docker test execution
+struct DockerTestParams<'a> {
+    run_id: &'a str,
+    synapse_sdk_path: &'a Path,
+    builder_volumes_dir: &'a Path,
+    random_file_path: &'a Path,
+    script: &'a str,
+    user_key: &'a str,
+    lotus_rpc_url: &'a str,
+    warm_storage_addr: &'a str,
+    sp_registry_addr: &'a str,
+}
+
 pub struct SynapseTestE2EStep {
     #[allow(dead_code)]
     volumes_dir: PathBuf,
@@ -94,17 +110,17 @@ impl Step for SynapseTestE2EStep {
         );
 
         // Build and execute docker command
-        execute_docker_test(
+        execute_docker_test(&DockerTestParams {
             run_id,
-            &synapse_sdk_path,
-            &builder_volumes_dir,
-            &random_file_path,
-            &script,
-            &user_key,
-            &lotus_rpc_url,
-            &warm_storage_addr,
-            &sp_registry_addr,
-        )
+            synapse_sdk_path: &synapse_sdk_path,
+            builder_volumes_dir: &builder_volumes_dir,
+            random_file_path: &random_file_path,
+            script: &script,
+            user_key: &user_key,
+            lotus_rpc_url: &lotus_rpc_url,
+            warm_storage_addr: &warm_storage_addr,
+            sp_registry_addr: &sp_registry_addr,
+        })
     }
 
     fn post_execute(&self, _context: &SetupContext) -> Result<(), Box<dyn Error>> {
@@ -113,28 +129,8 @@ impl Step for SynapseTestE2EStep {
 }
 
 /// Build and execute docker test container.
-fn execute_docker_test(
-    run_id: &str,
-    synapse_sdk_path: &Path,
-    builder_volumes_dir: &Path,
-    random_file_path: &Path,
-    script: &str,
-    user_key: &str,
-    lotus_rpc_url: &str,
-    warm_storage_addr: &str,
-    sp_registry_addr: &str,
-) -> Result<(), Box<dyn Error>> {
-    let docker_args = build_docker_command(
-        run_id,
-        synapse_sdk_path,
-        builder_volumes_dir,
-        random_file_path,
-        script,
-        user_key,
-        lotus_rpc_url,
-        warm_storage_addr,
-        sp_registry_addr,
-    )?;
+fn execute_docker_test(params: &DockerTestParams) -> Result<(), Box<dyn Error>> {
+    let docker_args = build_docker_command(params)?;
 
     let args_ref: Vec<&str> = docker_args.iter().map(|s| s.as_str()).collect();
 
@@ -155,21 +151,11 @@ fn execute_docker_test(
 }
 
 /// Build docker command arguments for test execution.
-fn build_docker_command(
-    run_id: &str,
-    synapse_sdk_path: &Path,
-    builder_volumes_dir: &Path,
-    random_file_path: &Path,
-    script: &str,
-    user_key: &str,
-    lotus_rpc_url: &str,
-    warm_storage_addr: &str,
-    sp_registry_addr: &str,
-) -> Result<Vec<String>, Box<dyn Error>> {
+fn build_docker_command(params: &DockerTestParams) -> Result<Vec<String>, Box<dyn Error>> {
     let mut docker_args = vec![
         "run".to_string(),
         "--name".to_string(),
-        format!("foc-{}-synapse-test", run_id),
+        format!("foc-{}-synapse-test", params.run_id),
         "--network".to_string(),
         "host".to_string(),
         "-u".to_string(),
@@ -178,15 +164,15 @@ fn build_docker_command(
 
     // Add environment variables required by synapse-sdk scripts
     let env_vars = vec![
-        ("CLIENT_PRIVATE_KEY", user_key.to_string()),
-        ("PRIVATE_KEY", user_key.to_string()),
+        ("CLIENT_PRIVATE_KEY", params.user_key.to_string()),
+        ("PRIVATE_KEY", params.user_key.to_string()),
         ("NETWORK", "devnet".to_string()),
-        ("RPC_URL", lotus_rpc_url.to_string()),
+        ("RPC_URL", params.lotus_rpc_url.to_string()),
         (
             "WARM_STORAGE_CONTRACT_ADDRESS",
-            warm_storage_addr.to_string(),
+            params.warm_storage_addr.to_string(),
         ),
-        ("SP_REGISTRY_ADDRESS", sp_registry_addr.to_string()),
+        ("SP_REGISTRY_ADDRESS", params.sp_registry_addr.to_string()),
         ("CI", "true".to_string()),
     ];
 
@@ -196,9 +182,10 @@ fn build_docker_command(
     }
 
     // Mount synapse-sdk
-    let synapse_sdk_real_path = synapse_sdk_path
+    let synapse_sdk_real_path = params
+        .synapse_sdk_path
         .canonicalize()
-        .unwrap_or_else(|_| synapse_sdk_path.to_path_buf());
+        .unwrap_or_else(|_| params.synapse_sdk_path.to_path_buf());
     docker_args.push("-v".to_string());
     docker_args.push(format!("{}:/synapse-sdk", synapse_sdk_real_path.display()));
 
@@ -206,21 +193,21 @@ fn build_docker_command(
     docker_args.push("-v".to_string());
     docker_args.push(format!(
         "{}:/tmp/random_test_file.txt",
-        random_file_path.display()
+        params.random_file_path.display()
     ));
 
     // Mount cargo cache
     docker_args.push("-v".to_string());
     docker_args.push(format!(
         "{}:/root/.cargo",
-        builder_volumes_dir.join("cargo").display()
+        params.builder_volumes_dir.join("cargo").display()
     ));
 
     // Add image and command
     docker_args.push(BUILDER_DOCKER_IMAGE.to_string());
     docker_args.push("/bin/bash".to_string());
     docker_args.push("-c".to_string());
-    docker_args.push(script.to_string());
+    docker_args.push(params.script.to_string());
 
     Ok(docker_args)
 }
@@ -247,7 +234,7 @@ fn load_wallet_keys() -> Result<Vec<KeyInfo>, Box<dyn Error>> {
 fn extract_required_addresses(
     addresses: &serde_json::Value,
     keys: &[KeyInfo],
-) -> Result<(String, String, String, String, String), Box<dyn Error>> {
+) -> Result<ContractAddresses, Box<dyn Error>> {
     let user_key = keys
         .iter()
         .find(|k| k.name == "USER_1")

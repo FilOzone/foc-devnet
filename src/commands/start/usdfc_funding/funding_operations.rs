@@ -10,19 +10,23 @@ use hex;
 use std::error::Error;
 use tracing::info;
 
+/// Parameters for MockUSDFC transfer operations
+pub struct USDFCTransferParams<'a> {
+    pub from_private_key: &'a str,
+    pub to_eth_address: &'a str,
+    pub amount: &'a str,
+    pub token_address: &'a str,
+    pub description: &'a str,
+    pub nonce: Option<u64>,
+    pub lotus_rpc_url: &'a str,
+}
+
 /// Transfer MockUSDFC tokens from one address to another using cast
 pub fn transfer_mock_usdfc(
+    params: &USDFCTransferParams,
     context: &SetupContext,
-    from_private_key: &str,
-    _from_eth_address: &str,
-    to_eth_address: &str,
-    amount: &str,
-    token_address: &str,
-    description: &str,
-    nonce: Option<u64>,
-    lotus_rpc_url: &str,
 ) -> Result<(), Box<dyn Error>> {
-    info!("Transferring MockUSDFC tokens: {}...", description);
+    info!("Transferring MockUSDFC tokens: {}...", params.description);
 
     let mut cast_cmd = format!(
         "cd /workspace && cast send {} \
@@ -30,22 +34,26 @@ pub fn transfer_mock_usdfc(
          --rpc-url {} \
          'transfer(address,uint256)' {} {} \
          --gas-limit 100000000",
-        token_address, from_private_key, lotus_rpc_url, to_eth_address, amount
+        params.token_address,
+        params.from_private_key,
+        params.lotus_rpc_url,
+        params.to_eth_address,
+        params.amount
     );
 
     // Add nonce if provided
-    if let Some(nonce_val) = nonce {
+    if let Some(nonce_val) = params.nonce {
         cast_cmd.push_str(&format!(" --nonce {}", nonce_val));
     }
 
     // Debug output
     // println!("Executing command: {}", cast_cmd);
 
-    let key = format!("usdfc_transfer_{}", description.replace(" ", "_"));
+    let key = format!("usdfc_transfer_{}", params.description.replace(" ", "_"));
     let container_name = format!(
         "foc-{}-usdfc-transfer-{}",
         context.run_id(),
-        description.replace(" ", "-").replace("→", "to")
+        params.description.replace(" ", "-").replace("→", "to")
     );
     let output = run_and_log_command(
         "docker",

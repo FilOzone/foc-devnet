@@ -9,34 +9,49 @@ use crate::docker::command_logger::run_and_log_command_strings;
 use crate::utils::retry::{retry_with_fixed_delay, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS};
 use std::error::Error;
 
+/// Parameters for provider registration
+pub struct ProviderRegistrationParams<'a> {
+    pub run_id: &'a str,
+    pub registry_address: &'a str,
+    pub pdp_sp_address: &'a str,
+    pub pdp_sp_eth_address: &'a str,
+    pub mock_usdfc_address: &'a str,
+    pub lotus_rpc_url: &'a str,
+    pub service_url: &'a str,
+    pub sp_index: usize,
+}
+
+/// Parameters for adding provider to approved list
+pub struct ApprovedListParams<'a> {
+    pub run_id: &'a str,
+    pub warm_storage_address: &'a str,
+    pub provider_id: u64,
+    pub deployer_foc_address: &'a str,
+    pub lotus_rpc_url: &'a str,
+}
+
 /// Register a single provider in ServiceProviderRegistry contract
 ///
 /// Returns the provider ID assigned by the registry.
 pub fn register_single_provider(
-    run_id: &str,
-    registry_address: &str,
-    pdp_sp_address: &str,
-    pdp_sp_eth_address: &str,
-    mock_usdfc_address: &str,
-    lotus_rpc_url: &str,
-    service_url: &str,
-    sp_index: usize,
+    params: &ProviderRegistrationParams,
     context: &SetupContext,
 ) -> Result<u64, Box<dyn Error>> {
-    let label = format!("PDP_SP_{}", sp_index);
-    let container_name = format!("foc-{}-pdp-register-sp{}", run_id, sp_index);
+    let label = format!("PDP_SP_{}", params.sp_index);
+    let container_name = format!("foc-{}-pdp-register-sp{}", params.run_id, params.sp_index);
 
     info!("Registering {} in ServiceProviderRegistry...", label);
 
     // Get private key for this PDP SP
     let pdp_sp_private_key =
-        crate::commands::start::foc_deployer::get_private_key(pdp_sp_address, "")?;
+        crate::commands::start::foc_deployer::get_private_key(params.pdp_sp_address, "")?;
 
     // Build capability keys array
     let cap_keys = build_capability_keys();
 
     // Build capability values array with the specific service URL
-    let cap_values = build_capability_values_with_url(mock_usdfc_address, service_url)?;
+    let cap_values =
+        build_capability_values_with_url(params.mock_usdfc_address, params.service_url)?;
 
     // Calculate registration fee in wei
     let registration_fee_wei = format!("{}000000000000000000", REGISTRATION_FEE_FIL);
@@ -56,14 +71,14 @@ pub fn register_single_provider(
         --rpc-url {} \
         --private-key {} \
         --gas-limit 10000000000"#,
-        registry_address,
-        pdp_sp_eth_address,
+        params.registry_address,
+        params.pdp_sp_eth_address,
         label,
         PROVIDER_DESCRIPTION,
         cap_keys,
         cap_values,
         registration_fee_wei,
-        lotus_rpc_url,
+        params.lotus_rpc_url,
         pdp_sp_private_key,
     );
 
@@ -81,7 +96,7 @@ pub fn register_single_provider(
         cast_cmd,
     ];
 
-    let key = format!("pdp_register_provider_sp{}", sp_index);
+    let key = format!("pdp_register_provider_sp{}", params.sp_index);
     let output = run_and_log_command_strings("docker", &args, context, &key)?;
 
     if !output.status.success() {
@@ -103,10 +118,10 @@ pub fn register_single_provider(
 
     // Query provider ID
     let provider_id = query_provider_id(
-        run_id,
-        registry_address,
-        pdp_sp_eth_address,
-        lotus_rpc_url,
+        params.run_id,
+        params.registry_address,
+        params.pdp_sp_eth_address,
+        params.lotus_rpc_url,
         context,
     )?;
 
@@ -116,27 +131,21 @@ pub fn register_single_provider(
 
 /// Add provider to approved list in WarmStorage contract
 pub fn add_to_approved_list(
-    run_id: &str,
-    warm_storage_address: &str,
-    provider_id: u64,
-    deployer_foc_address: &str,
-    _deployer_foc_eth_address: &str,
-    lotus_rpc_url: &str,
-    _sp_index: usize,
+    params: &ApprovedListParams,
     context: &SetupContext,
 ) -> Result<(), Box<dyn Error>> {
     info!(
         "Adding provider {} to WarmStorage approved list...",
-        provider_id
+        params.provider_id
     );
 
     // Get private key for DEPLOYER_FOC
     let deployer_foc_private_key =
-        crate::commands::start::foc_deployer::get_private_key(deployer_foc_address, "")?;
+        crate::commands::start::foc_deployer::get_private_key(params.deployer_foc_address, "")?;
 
     // Use high gas limit for FEVM (cast send doesn't support gas-estimate-multiplier)
-    let provider_id_str = provider_id.to_string();
-    let container_name = format!("foc-{}-pdp-approve-{}", run_id, provider_id);
+    let provider_id_str = params.provider_id.to_string();
+    let container_name = format!("foc-{}-pdp-approve-{}", params.run_id, params.provider_id);
 
     let args: Vec<String> = vec![
         "run".to_string(),
@@ -149,18 +158,18 @@ pub fn add_to_approved_list(
         BUILDER_DOCKER_IMAGE.to_string(),
         "cast".to_string(),
         "send".to_string(),
-        warm_storage_address.to_string(),
+        params.warm_storage_address.to_string(),
         "addApprovedProvider(uint256)".to_string(),
         provider_id_str,
         "--rpc-url".to_string(),
-        lotus_rpc_url.to_string(),
+        params.lotus_rpc_url.to_string(),
         "--private-key".to_string(),
         deployer_foc_private_key,
         "--gas-limit".to_string(),
         "10000000000".to_string(),
     ];
 
-    let key = format!("pdp_add_approved_provider_{}", provider_id);
+    let key = format!("pdp_add_approved_provider_{}", params.provider_id);
     let output = run_and_log_command_strings("docker", &args, context, &key)?;
 
     if !output.status.success() {

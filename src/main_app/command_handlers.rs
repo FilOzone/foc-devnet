@@ -7,6 +7,7 @@ use std::fs;
 use foc_devnet::cli::BuildCommands;
 use foc_devnet::commands;
 use foc_devnet::commands::build::Project;
+use foc_devnet::commands::init::InitOptions;
 use foc_devnet::config::Config;
 use foc_devnet::paths::foc_devnet_config;
 use foc_devnet::poison;
@@ -30,6 +31,7 @@ pub fn handle_stop() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Execute the init command
+#[allow(clippy::too_many_arguments)]
 pub fn handle_init(
     curio: Option<String>,
     lotus: Option<String>,
@@ -43,18 +45,18 @@ pub fn handle_init(
     no_docker_build: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     poison::create_poison("Init")?;
-    commands::init_environment(
-        curio,
-        lotus,
-        filecoin_services,
-        synapse_sdk,
+    commands::init_environment(InitOptions {
+        curio_location: curio,
+        lotus_location: lotus,
+        filecoin_services_location: filecoin_services,
+        synapse_sdk_location: synapse_sdk,
         yugabyte_url,
         yugabyte_archive,
         proof_params_dir,
         force,
-        rand,
+        use_random_mnemonic: rand,
         no_docker_build,
-    )
+    })
 }
 
 /// Execute the build command

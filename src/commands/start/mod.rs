@@ -332,8 +332,8 @@ fn create_step_epochs(
 
 /// Execute the cluster startup steps.
 fn execute_cluster_steps(
-    volumes_dir: &PathBuf,
-    run_dir: &PathBuf,
+    volumes_dir: &Path,
+    run_dir: &Path,
     run_id: &str,
     config: &Config,
     parallel: bool,
@@ -372,13 +372,15 @@ fn execute_cluster_steps(
 
         execute_steps_parallel(
             epoch_refs,
-            run_id.to_string(),
-            run_dir.clone(),
-            config.port_range_start,
-            config.port_range_count,
-            Some(portainer_port),
-            config.active_pdp_sp_count,
-            config.approved_pdp_sp_count,
+            step::StepExecutionConfig {
+                run_id: run_id.to_string(),
+                run_dir: run_dir.to_path_buf(),
+                port_start: config.port_range_start,
+                port_count: config.port_range_count,
+                portainer_port: Some(portainer_port),
+                active_pdp_sp_count: config.active_pdp_sp_count,
+                approved_pdp_sp_count: config.approved_pdp_sp_count,
+            },
         )?;
     } else {
         info!("Execution mode: SEQUENTIAL");
@@ -386,13 +388,15 @@ fn execute_cluster_steps(
 
         execute_steps(
             steps.iter().map(|s| s.as_ref()).collect::<Vec<_>>(),
-            run_id.to_string(),
-            run_dir.clone(),
-            config.port_range_start,
-            config.port_range_count,
-            Some(portainer_port),
-            config.active_pdp_sp_count,
-            config.approved_pdp_sp_count,
+            step::StepExecutionConfig {
+                run_id: run_id.to_string(),
+                run_dir: run_dir.to_path_buf(),
+                port_start: config.port_range_start,
+                port_count: config.port_range_count,
+                portainer_port: Some(portainer_port),
+                active_pdp_sp_count: config.active_pdp_sp_count,
+                approved_pdp_sp_count: config.approved_pdp_sp_count,
+            },
         )?;
     }
 

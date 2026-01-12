@@ -104,39 +104,42 @@ fn cleanup_previous_installation(remove_images: bool) -> Result<(), Box<dyn std:
 ///
 /// # Returns
 /// Returns `Ok(())` on successful initialization, or an error if any step fails.
-pub fn init_environment(
-    curio_location: Option<String>,
-    lotus_location: Option<String>,
-    filecoin_services_location: Option<String>,
-    synapse_sdk_location: Option<String>,
-    yugabyte_url: Option<String>,
-    yugabyte_archive: Option<String>,
-    proof_params_dir: Option<String>,
-    force: bool,
-    use_random_mnemonic: bool,
-    no_docker_build: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+/// Options for environment initialization
+pub struct InitOptions {
+    pub curio_location: Option<String>,
+    pub lotus_location: Option<String>,
+    pub filecoin_services_location: Option<String>,
+    pub synapse_sdk_location: Option<String>,
+    pub yugabyte_url: Option<String>,
+    pub yugabyte_archive: Option<String>,
+    pub proof_params_dir: Option<String>,
+    pub force: bool,
+    pub use_random_mnemonic: bool,
+    pub no_docker_build: bool,
+}
+
+pub fn init_environment(options: InitOptions) -> Result<(), Box<dyn std::error::Error>> {
     info!("Initializing foc-devnet environment...");
 
     // Clean up previous installation
     // Preserve cached Docker images when --no-docker-build is used (CI cache path)
-    cleanup_previous_installation(!no_docker_build)?;
+    cleanup_previous_installation(!options.no_docker_build)?;
 
     // Create all necessary directories
     directories::create_directories()?;
 
     // Generate default configuration
     config::generate_default_config(
-        curio_location.clone(),
-        lotus_location.clone(),
-        filecoin_services_location.clone(),
-        synapse_sdk_location.clone(),
-        yugabyte_url.clone(),
-        force,
+        options.curio_location.clone(),
+        options.lotus_location.clone(),
+        options.filecoin_services_location.clone(),
+        options.synapse_sdk_location.clone(),
+        options.yugabyte_url.clone(),
+        options.force,
     )?;
 
     // Generate keys
-    keys::generate_keys(use_random_mnemonic)?;
+    keys::generate_keys(options.use_random_mnemonic)?;
 
     // Set up PATH variables
     path_setup::setup_path_variables()?;
@@ -145,11 +148,11 @@ pub fn init_environment(
     repositories::download_code_repositories()?;
 
     // Download required artifacts and build Docker images (unless skipped)
-    if no_docker_build {
+    if options.no_docker_build {
         info!("Skipping artifact downloads and Docker image builds (--no-docker-build flag set)");
     } else {
         // Download required artifacts (or copy from local paths)
-        artifacts::download_artifacts(yugabyte_archive, proof_params_dir)?;
+        artifacts::download_artifacts(options.yugabyte_archive, options.proof_params_dir)?;
 
         // Build and cache Docker images
         crate::docker::build::build_and_cache_docker_images()?;
