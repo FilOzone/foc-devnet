@@ -3,7 +3,7 @@
 //! This module provides utilities for building Docker run commands for Lotus-Miner.
 
 use std::error::Error;
-use std::path::PathBuf;
+use std::path::Path;
 
 use super::constants::{IMAGE_NAME, LOTUS_API_WAIT_SLEEP_SECS};
 use crate::commands::start::lotus_utils::{build_fullnode_api_info, read_lotus_token};
@@ -17,7 +17,7 @@ use crate::paths::{
 
 /// Build the Docker run command for Lotus-Miner
 pub fn build_miner_docker_command(
-    volumes_dir: &PathBuf,
+    volumes_dir: &Path,
     preseal_files: &(String, String),
     context: &SetupContext,
 ) -> Result<Vec<String>, Box<dyn Error>> {

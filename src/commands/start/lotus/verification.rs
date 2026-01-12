@@ -8,7 +8,7 @@ use crate::docker::command_logger::run_and_log_command;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::wait_for_port;
 use std::error::Error;
-use std::path::PathBuf;
+use std::path::Path;
 use std::thread;
 use std::time::Duration;
 use tracing::{info, warn};
@@ -83,7 +83,7 @@ pub fn verify_ports(context: &SetupContext) -> Result<(), Box<dyn Error>> {
 }
 
 /// Wait for the Lotus API file to be created
-pub fn wait_for_api_file(volumes_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
+pub fn wait_for_api_file(volumes_dir: &Path) -> Result<(), Box<dyn Error>> {
     // Wait for Lotus API file to exist and daemon to be fully initialized
     info!("Waiting for Lotus API to be ready (this may take 1-2 minutes)...");
     let lotus_data_dir = volumes_dir.join("lotus-data");

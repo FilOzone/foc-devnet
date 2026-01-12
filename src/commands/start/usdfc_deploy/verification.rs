@@ -6,7 +6,7 @@ use crate::commands::start::step::SetupContext;
 use crate::docker::command_logger::run_and_log_command;
 use crate::utils::retry::{retry_with_fixed_delay, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS};
 use std::error::Error;
-use std::path::PathBuf;
+use std::path::Path;
 use tracing::{info, warn};
 
 /// Verify the deployed MockUSDFC contract
@@ -16,7 +16,7 @@ pub fn verify_mock_usdfc(
     contract_address: &str,
     lotus_rpc_url: &str,
     run_id: &str,
-    contract_dir: &PathBuf,
+    contract_dir: &Path,
 ) -> Result<(), Box<dyn Error>> {
     info!("Verifying MockUSDFC contract functions...");
 

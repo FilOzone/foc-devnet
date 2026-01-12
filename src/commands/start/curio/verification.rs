@@ -11,7 +11,7 @@ use crate::paths::foc_devnet_bin;
 use rand::Rng;
 use std::error::Error;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
@@ -103,7 +103,7 @@ fn create_random_test_file(temp_dir: &TempDir) -> Result<PathBuf, Box<dyn Error>
 /// Upload test file using pdptool.
 fn upload_test_file(
     context: &SetupContext,
-    file_path: &PathBuf,
+    file_path: &Path,
     sp_index: usize,
 ) -> Result<String, Box<dyn Error>> {
     // Get dynamically allocated PDP port from context

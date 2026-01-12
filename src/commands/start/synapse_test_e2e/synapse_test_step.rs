@@ -10,7 +10,7 @@ use rand::Rng;
 use std::error::Error;
 use std::fs::File;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 
 const POST_DEPLOY_WAIT_SECONDS: u64 = 5;
@@ -115,9 +115,9 @@ impl Step for SynapseTestE2EStep {
 /// Build and execute docker test container.
 fn execute_docker_test(
     run_id: &str,
-    synapse_sdk_path: &PathBuf,
-    builder_volumes_dir: &PathBuf,
-    random_file_path: &PathBuf,
+    synapse_sdk_path: &Path,
+    builder_volumes_dir: &Path,
+    random_file_path: &Path,
     script: &str,
     user_key: &str,
     lotus_rpc_url: &str,
@@ -157,9 +157,9 @@ fn execute_docker_test(
 /// Build docker command arguments for test execution.
 fn build_docker_command(
     run_id: &str,
-    synapse_sdk_path: &PathBuf,
-    builder_volumes_dir: &PathBuf,
-    random_file_path: &PathBuf,
+    synapse_sdk_path: &Path,
+    builder_volumes_dir: &Path,
+    random_file_path: &Path,
     script: &str,
     user_key: &str,
     lotus_rpc_url: &str,
@@ -198,7 +198,7 @@ fn build_docker_command(
     // Mount synapse-sdk
     let synapse_sdk_real_path = synapse_sdk_path
         .canonicalize()
-        .unwrap_or_else(|_| synapse_sdk_path.clone());
+        .unwrap_or_else(|_| synapse_sdk_path.to_path_buf());
     docker_args.push("-v".to_string());
     docker_args.push(format!("{}:/synapse-sdk", synapse_sdk_real_path.display()));
 
@@ -240,7 +240,7 @@ fn load_wallet_keys() -> Result<Vec<KeyInfo>, Box<dyn Error>> {
         return Err(format!("Keys file not found at {}", keys_file.display()).into());
     }
 
-    Ok(load_keys()?)
+    load_keys()
 }
 
 /// Extract required addresses and keys from loaded data.
@@ -284,7 +284,7 @@ fn extract_required_addresses(
 }
 
 /// Create a random test file for the E2E test.
-fn create_random_test_file(run_dir: &PathBuf) -> Result<PathBuf, Box<dyn Error>> {
+fn create_random_test_file(run_dir: &Path) -> Result<PathBuf, Box<dyn Error>> {
     let random_file_path = run_dir.join("random_test_file.txt");
     let mut file = File::create(&random_file_path)?;
     let mut rng = rand::thread_rng();
@@ -344,7 +344,7 @@ fn build_post_deploy_command(
     usdfc_addr: &str,
     sp_registry_addr: &str,
 ) -> String {
-    vec![
+    [
         "echo \"Running post-deploy setup...\"".to_string(),
         format!(
             concat!(

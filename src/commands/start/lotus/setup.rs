@@ -9,7 +9,7 @@ use crate::docker::containers::lotus_container_name;
 use crate::docker::network::lotus_network_name;
 use std::error::Error;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Enable FEVM in the Lotus config.toml
 ///
@@ -43,7 +43,7 @@ pub fn create_fevm_config(lotus_data_dir: &PathBuf) -> Result<(), Box<dyn Error>
 }
 
 /// Set up necessary directories for Lotus daemon
-pub fn setup_directories(volumes_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
+pub fn setup_directories(volumes_dir: &Path) -> Result<(), Box<dyn Error>> {
     // Create lotus data directory in volumes
     let lotus_data_dir = volumes_dir.join("lotus-data");
     fs::create_dir_all(&lotus_data_dir)?;
@@ -60,7 +60,7 @@ pub fn setup_directories(volumes_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
 
 /// Build the Docker run command for starting Lotus daemon
 pub fn build_docker_command(
-    volumes_dir: &PathBuf,
+    volumes_dir: &Path,
     context: &SetupContext,
 ) -> Result<Vec<String>, Box<dyn Error>> {
     use super::super::genesis::constants::GENESIS_FILE;

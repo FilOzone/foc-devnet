@@ -4,12 +4,12 @@
 
 use std::error::Error;
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 
 use crate::paths::foc_devnet_genesis_sectors_lotus_miner;
 
 /// Set up necessary directories for Lotus-Miner
-pub fn setup_miner_directories(volumes_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
+pub fn setup_miner_directories(volumes_dir: &Path) -> Result<(), Box<dyn Error>> {
     // Create lotus-miner data directory in volumes
     let miner_data_dir = volumes_dir.join("lotus-miner-data");
     fs::create_dir_all(&miner_data_dir)?;

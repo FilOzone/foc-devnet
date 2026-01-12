@@ -83,7 +83,7 @@ pub fn execute_build_process(
         let mut log_file = log_file.try_clone()?;
         move || {
             let reader = BufReader::new(stdout);
-            for line in reader.lines().flatten() {
+            for line in reader.lines().map_while(Result::ok) {
                 info!("(stdout): {}", line);
                 writeln!(log_file, "{}", line).ok();
             }
@@ -95,7 +95,7 @@ pub fn execute_build_process(
         let mut log_file = log_file.try_clone()?;
         move || {
             let reader = BufReader::new(stderr);
-            for line in reader.lines().flatten() {
+            for line in reader.lines().map_while(Result::ok) {
                 warn!("(stderr): {}", line);
                 writeln!(log_file, "{}", line).ok();
             }

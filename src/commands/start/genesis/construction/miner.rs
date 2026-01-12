@@ -7,7 +7,7 @@ use crate::paths::{
     foc_devnet_bin, foc_devnet_docker_volumes_cache, foc_devnet_genesis,
     foc_devnet_genesis_sectors_lotus_miner, foc_devnet_genesis_sectors_pdp_sp,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use tracing::info;
 
@@ -56,7 +56,7 @@ pub fn add_miner_to_genesis(
 /// Add a single miner to the genesis file.
 fn add_single_miner_to_genesis(
     miner_id: &str,
-    miner_dir: &PathBuf,
+    miner_dir: &Path,
     run_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     info!("⛏ Adding miner {} to genesis...", miner_id,);

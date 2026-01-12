@@ -36,7 +36,7 @@ use crate::paths::{foc_devnet_config, foc_devnet_run_dir};
 use crate::run_id::{create_latest_symlink, save_current_run_id};
 use crate::version_info::write_version_file;
 pub use eth_acc_funding::constants::FEVM_ACCOUNTS_PREFUNDED;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 
 /// Stop any existing cluster before starting a new one.
@@ -203,35 +203,39 @@ fn load_and_validate_config() -> Result<Config, Box<dyn std::error::Error>> {
 
 /// Create all the step instances for the cluster startup sequence.
 fn create_steps(
-    volumes_dir: &PathBuf,
-    run_dir: &PathBuf,
+    volumes_dir: &Path,
+    run_dir: &Path,
     config: &Config,
     notest: bool,
 ) -> Vec<Box<dyn Step>> {
-    let lotus_step = LotusStep::new(volumes_dir.clone(), run_dir.clone());
-    let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), run_dir.clone());
-    let eth_acc_funding_step = ETHAccFundingStep::new(run_dir.clone(), config.active_pdp_sp_count);
-    let usdfc_deploy_step = USDFCDeployStep::new(volumes_dir.clone(), run_dir.clone());
-    let usdfc_funding_step = USDFCFundingStep::new(run_dir.clone(), config.active_pdp_sp_count);
-    let multicall3_deploy_step = MultiCall3DeployStep::new(volumes_dir.clone(), run_dir.clone());
-    let foc_deploy_step = FOCDeployStep::new(volumes_dir.clone(), run_dir.clone());
+    let lotus_step = LotusStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
+    let lotus_miner_step = LotusMinerStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
+    let eth_acc_funding_step =
+        ETHAccFundingStep::new(run_dir.to_path_buf(), config.active_pdp_sp_count);
+    let usdfc_deploy_step = USDFCDeployStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
+    let usdfc_funding_step =
+        USDFCFundingStep::new(run_dir.to_path_buf(), config.active_pdp_sp_count);
+    let multicall3_deploy_step =
+        MultiCall3DeployStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
+    let foc_deploy_step = FOCDeployStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
     let pdp_sp_reg_step = PdpSpRegistrationStep::new(
-        volumes_dir.clone(),
-        run_dir.clone(),
+        volumes_dir.to_path_buf(),
+        run_dir.to_path_buf(),
         config.active_pdp_sp_count,
         config.approved_pdp_sp_count,
     );
     let yugabyte_step = YugabyteStep::new(
-        volumes_dir.clone(),
-        run_dir.clone(),
+        volumes_dir.to_path_buf(),
+        run_dir.to_path_buf(),
         config.active_pdp_sp_count,
     );
     let curio_step = CurioStep::new(
-        volumes_dir.clone(),
-        run_dir.clone(),
+        volumes_dir.to_path_buf(),
+        run_dir.to_path_buf(),
         config.active_pdp_sp_count,
     );
-    let synapse_test_step = SynapseTestE2EStep::new(volumes_dir.clone(), run_dir.clone(), notest);
+    let synapse_test_step =
+        SynapseTestE2EStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf(), notest);
 
     // Execute all steps
     // Note: PDP SP registration MUST happen after Curio because it needs
@@ -265,35 +269,39 @@ fn create_steps(
 /// - Epoch 5: MockUSDFC Funding + Curio daemons (can be parallelized, needs FOC Deploy)
 /// - Epoch 6: PDP SP Registration (needs Curio daemons started)
 fn create_step_epochs(
-    volumes_dir: &PathBuf,
-    run_dir: &PathBuf,
+    volumes_dir: &Path,
+    run_dir: &Path,
     config: &Config,
     notest: bool,
 ) -> Vec<Vec<Box<dyn Step>>> {
-    let lotus_step = LotusStep::new(volumes_dir.clone(), run_dir.clone());
+    let lotus_step = LotusStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
     let yugabyte_step = YugabyteStep::new(
-        volumes_dir.clone(),
-        run_dir.clone(),
+        volumes_dir.to_path_buf(),
+        run_dir.to_path_buf(),
         config.active_pdp_sp_count,
     );
-    let lotus_miner_step = LotusMinerStep::new(volumes_dir.clone(), run_dir.clone());
-    let eth_acc_funding_step = ETHAccFundingStep::new(run_dir.clone(), config.active_pdp_sp_count);
-    let usdfc_deploy_step = USDFCDeployStep::new(volumes_dir.clone(), run_dir.clone());
-    let multicall3_deploy_step = MultiCall3DeployStep::new(volumes_dir.clone(), run_dir.clone());
-    let foc_deploy_step = FOCDeployStep::new(volumes_dir.clone(), run_dir.clone());
-    let usdfc_funding_step = USDFCFundingStep::new(run_dir.clone(), config.active_pdp_sp_count);
+    let lotus_miner_step = LotusMinerStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
+    let eth_acc_funding_step =
+        ETHAccFundingStep::new(run_dir.to_path_buf(), config.active_pdp_sp_count);
+    let usdfc_deploy_step = USDFCDeployStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
+    let multicall3_deploy_step =
+        MultiCall3DeployStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
+    let foc_deploy_step = FOCDeployStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
+    let usdfc_funding_step =
+        USDFCFundingStep::new(run_dir.to_path_buf(), config.active_pdp_sp_count);
     let curio_step = CurioStep::new(
-        volumes_dir.clone(),
-        run_dir.clone(),
+        volumes_dir.to_path_buf(),
+        run_dir.to_path_buf(),
         config.active_pdp_sp_count,
     );
     let pdp_sp_reg_step = PdpSpRegistrationStep::new(
-        volumes_dir.clone(),
-        run_dir.clone(),
+        volumes_dir.to_path_buf(),
+        run_dir.to_path_buf(),
         config.active_pdp_sp_count,
         config.approved_pdp_sp_count,
     );
-    let synapse_test_step = SynapseTestE2EStep::new(volumes_dir.clone(), run_dir.clone(), notest);
+    let synapse_test_step =
+        SynapseTestE2EStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf(), notest);
 
     vec![
         // Epoch 1: Start Lotus

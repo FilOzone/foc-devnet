@@ -9,7 +9,7 @@ use crate::embedded_assets;
 use crate::paths::foc_devnet_run_dir;
 use std::error::Error;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing::info;
 
 /// Get or create the MockUSDFC project directory from embedded assets
@@ -45,7 +45,7 @@ pub fn get_mockusdfc_project_dir(run_id: &str) -> Result<PathBuf, Box<dyn Error>
 /// Setup the Foundry project (install dependencies if needed)
 pub fn setup_foundry_project(
     context: &SetupContext,
-    contract_dir: &PathBuf,
+    contract_dir: &Path,
     run_id: &str,
 ) -> Result<(), Box<dyn Error>> {
     let openzeppelin_path = contract_dir.join("lib/openzeppelin-contracts");
