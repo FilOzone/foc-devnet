@@ -53,8 +53,10 @@ jobs:
     - name: "EXEC: {Setup Docker}, independent"
       uses: docker/setup-buildx-action@v3
 
-    - name: "EXEC: {Install dependencies}, independent"
-      run: sudo apt-get update && sudo apt-get install -y tar openssl
+    - name: "EXEC: {Install build dependencies}, independent"
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y tar openssl pkg-config libssl-dev
 
     # Build the foc-localnet binary
     - name: "EXEC: {Build foc-localnet binary}, DEP: {C-rust-cache}"
