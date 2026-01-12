@@ -214,7 +214,7 @@ impl Default for Config {
             },
             filecoin_services: Location::GitBranch {
                 url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
-                branch: "feat/redpanda/devnet-deployment-aware".to_string(),
+                branch: "feat/redpanda/localnet-deployment-aware".to_string(),
             },
             multicall3: Location::GitBranch {
                 url: "https://github.com/mds1/multicall3.git".to_string(),
@@ -222,7 +222,7 @@ impl Default for Config {
             },
             synapse_sdk: Location::GitBranch {
                 url: "https://github.com/FilOzone/synapse-sdk.git".to_string(),
-                branch: "feat/redpanda/devnet-support".to_string(),
+                branch: "feat/redpanda/localnet-support".to_string(),
             },
             yugabyte_download_url: "https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz".to_string(),
             approved_pdp_sp_count: 1,
