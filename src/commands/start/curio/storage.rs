@@ -12,6 +12,39 @@ use std::thread;
 use std::time::Duration;
 use tracing::info;
 
+/// Wait for Curio RPC to be ready using the built-in wait-api command.
+fn wait_for_curio_rpc(context: &SetupContext, container_name: &str) -> Result<(), Box<dyn Error>> {
+    info!("Waiting for Curio RPC to be ready...");
+
+    let machine_addr = format!("{}:12300", container_name);
+    let key = format!("curio_wait_api_{}", container_name);
+    let output = run_and_log_command(
+        "docker",
+        &[
+            "exec",
+            container_name,
+            "/usr/local/bin/lotus-bins/curio",
+            "cli",
+            "--machine",
+            &machine_addr,
+            "wait-api",
+        ],
+        context,
+        &key,
+    )?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "Curio RPC failed to become ready: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
+    }
+
+    info!("Curio RPC is ready");
+    Ok(())
+}
+
 /// Attach storage locations for a specific PDP SP.
 ///
 /// Attaches:
@@ -25,6 +58,9 @@ pub fn attach_storage_locations(
 
     let run_id = context.run_id();
     let container_name = format!("foc-{}-curio-{}", run_id, sp_index);
+
+    // Wait for RPC to be ready before attaching storage
+    wait_for_curio_rpc(context, &container_name)?;
 
     // Attach fast storage
     attach_fast_storage(context, &container_name)?;

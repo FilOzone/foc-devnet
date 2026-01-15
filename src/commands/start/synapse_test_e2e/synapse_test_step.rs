@@ -28,6 +28,8 @@ struct DockerTestParams<'a> {
     user_key: &'a str,
     lotus_rpc_url: &'a str,
     warm_storage_addr: &'a str,
+    multicall3_addr: &'a str,
+    usdfc_addr: &'a str,
     sp_registry_addr: &'a str,
 }
 
@@ -119,6 +121,8 @@ impl Step for SynapseTestE2EStep {
             user_key: &user_key,
             lotus_rpc_url: &lotus_rpc_url,
             warm_storage_addr: &warm_storage_addr,
+            multicall3_addr: &multicall3_addr,
+            usdfc_addr: &usdfc_addr,
             sp_registry_addr: &sp_registry_addr,
         })
     }
@@ -163,15 +167,14 @@ fn build_docker_command(params: &DockerTestParams) -> Result<Vec<String>, Box<dy
     ];
 
     // Add environment variables required by synapse-sdk scripts
+    // Note: example-storage-e2e.js uses env vars, not CLI flags
     let env_vars = vec![
         ("CLIENT_PRIVATE_KEY", params.user_key.to_string()),
         ("PRIVATE_KEY", params.user_key.to_string()),
-        ("NETWORK", "devnet".to_string()),
         ("RPC_URL", params.lotus_rpc_url.to_string()),
-        (
-            "WARM_STORAGE_CONTRACT_ADDRESS",
-            params.warm_storage_addr.to_string(),
-        ),
+        ("WARM_STORAGE_ADDRESS", params.warm_storage_addr.to_string()),
+        ("MULTICALL3_ADDRESS", params.multicall3_addr.to_string()),
+        ("USDFC_ADDRESS", params.usdfc_addr.to_string()),
         ("SP_REGISTRY_ADDRESS", params.sp_registry_addr.to_string()),
         ("CI", "true".to_string()),
     ];
@@ -281,7 +284,7 @@ fn create_random_test_file(run_dir: &Path) -> Result<PathBuf, Box<dyn Error>> {
     Ok(random_file_path)
 }
 
-/// Generate the shell script using CLI flags expected by synapse-sdk.
+/// Generate the shell script for synapse-sdk E2E testing.
 fn generate_test_script(
     lotus_rpc_url: &str,
     warm_storage_addr: &str,
@@ -299,12 +302,7 @@ fn generate_test_script(
         sp_registry_addr,
     ));
     lines.extend(wait_commands());
-    lines.push(build_storage_e2e_command(
-        lotus_rpc_url,
-        warm_storage_addr,
-        multicall3_addr,
-        usdfc_addr,
-    ));
+    lines.push(build_storage_e2e_command());
 
     lines.join("\n")
 }
@@ -363,21 +361,9 @@ fn wait_commands() -> Vec<String> {
 }
 
 /// CLI invocation for the storage E2E test.
-fn build_storage_e2e_command(
-    lotus_rpc_url: &str,
-    warm_storage_addr: &str,
-    multicall3_addr: &str,
-    usdfc_addr: &str,
-) -> String {
-    format!(
-        "echo \"Running storage E2E test...\"\n\
-node utils/example-storage-e2e.js \\\n\
-    --network devnet \\\n\
-    --rpc-url {} \\\n\
-    --warm-storage {} \\\n\
-    --multicall3 {} \\\n\
-    --usdfc {} \\\n\
-    /tmp/random_test_file.txt",
-        lotus_rpc_url, warm_storage_addr, multicall3_addr, usdfc_addr
-    )
+/// The script uses environment variables for configuration (set via Docker -e flags).
+fn build_storage_e2e_command() -> String {
+    "echo \"Running storage E2E test...\"\n\
+node utils/example-storage-e2e.js /tmp/random_test_file.txt"
+        .to_string()
 }

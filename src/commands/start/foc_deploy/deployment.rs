@@ -43,6 +43,9 @@ pub fn perform_deployment(
 ) -> Result<(), Box<dyn Error>> {
     info!("Deploying FOC service contracts...");
 
+    // Clear cached devnet addresses so contracts are actually deployed
+    super::helpers::clear_cached_devnet_deployments()?;
+
     // Get required addresses from context
     let (foc_deployer, foc_deployer_eth, mock_usdfc_address, _global_faucet) =
         super::helpers::check_required_addresses(context)?;

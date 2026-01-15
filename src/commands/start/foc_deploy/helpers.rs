@@ -4,12 +4,14 @@
 //! including repository path resolution and deployment checks.
 
 use crate::config::{Config, Location};
+use crate::constants::LOCAL_NETWORK_CHAIN_ID;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::core::container_is_running;
 use crate::paths::{foc_devnet_config, foc_devnet_filecoin_services_repo};
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
+use tracing::info;
 
 /// Get the filecoin-services repository path based on configuration
 ///
@@ -92,4 +94,40 @@ pub fn check_required_addresses(
         mock_usdfc.clone(),
         global_faucet.clone(),
     ))
+}
+
+/// Clear cached devnet deployment addresses from deployments.json
+///
+/// The filecoin-services deployment script reads deployments.json and skips
+/// deployment if addresses already exist for the chain ID. This causes issues
+/// when starting a fresh devnet because the cached addresses point to contracts
+/// that don't exist on the new chain. This function removes the devnet entry
+/// so that contracts are actually deployed.
+pub fn clear_cached_devnet_deployments() -> Result<(), Box<dyn Error>> {
+    let services_repo = get_filecoin_services_repo_path()?;
+    let deployments_file = services_repo.join("service_contracts/deployments.json");
+
+    if !deployments_file.exists() {
+        info!("No deployments.json found, skipping cache clear");
+        return Ok(());
+    }
+
+    let content = fs::read_to_string(&deployments_file)?;
+    let mut deployments: serde_json::Value = serde_json::from_str(&content)?;
+
+    let chain_id_str = LOCAL_NETWORK_CHAIN_ID.to_string();
+    if let Some(obj) = deployments.as_object_mut() {
+        if obj.remove(&chain_id_str).is_some() {
+            info!(
+                "Cleared cached devnet (chain {}) addresses from deployments.json",
+                chain_id_str
+            );
+            let updated = serde_json::to_string_pretty(&deployments)?;
+            fs::write(&deployments_file, updated)?;
+        } else {
+            info!("No cached devnet addresses found in deployments.json");
+        }
+    }
+
+    Ok(())
 }
