@@ -33,35 +33,40 @@ pub fn build_foc_contract_env_vars(context: &SetupContext) -> Result<Vec<String>
 
     // Get standard contracts
     if let Some(usdfc) = addresses.contracts.get("usdfc") {
-        env_vars.push(format!("CURIO_USDFC={}", usdfc));
+        env_vars.push(format!("CURIO_DEVNET_USDFC_ADDRESS={}", usdfc));
     }
 
     // Get FOC service contracts
     if let Some(payment) = addresses.foc_contracts.get("payment_contract") {
-        env_vars.push(format!("CURIO_PAYMENT_CONTRACT={}", payment));
+        env_vars.push(format!("CURIO_DEVNET_PAYMENTS_ADDRESS={}", payment));
     }
     if let Some(multicall) = addresses.foc_contracts.get("multicall_address") {
-        env_vars.push(format!("CURIO_MULTICALL_ADDRESS={}", multicall));
+        env_vars.push(format!("CURIO_DEVNET_MULTICALL_ADDRESS={}", multicall));
     }
     if let Some(pdp) = addresses.foc_contracts.get("p_d_p_verifier_proxy") {
-        env_vars.push(format!("CURIO_PDP_VERIFIER={}", pdp));
+        env_vars.push(format!("CURIO_DEVNET_PDP_VERIFIER_ADDRESS={}", pdp));
     }
     if let Some(fwss) = addresses
         .foc_contracts
         .get("filecoin_warm_storage_service_proxy")
     {
-        env_vars.push(format!("CURIO_FWS_SERVICE={}", fwss));
+        env_vars.push(format!("CURIO_DEVNET_FWSS_ADDRESS={}", fwss));
     }
     if let Some(sp_registry) = addresses
         .foc_contracts
         .get("service_provider_registry_proxy")
     {
-        env_vars.push(format!("CURIO_SERVICE_REGISTRY={}", sp_registry));
+        env_vars.push(format!(
+            "CURIO_DEVNET_SERVICE_REGISTRY_ADDRESS={}",
+            sp_registry
+        ));
     }
 
     // Simple record keeper is always zero address
-    env_vars
-        .push("CURIO_SIMPLE_RECORD_KEEPER=0x0000000000000000000000000000000000000000".to_string());
+    env_vars.push(
+        "CURIO_DEVNET_RECORD_KEEPER_SIMPLE_ADDRESS=0x0000000000000000000000000000000000000000"
+            .to_string(),
+    );
 
     Ok(env_vars)
 }
