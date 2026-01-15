@@ -9,7 +9,7 @@ on:
 
 jobs:
   integration-test:
-    runs-on: ["bigrunner"]
+    runs-on: ["self-hosted", "linux", "x64", "5xlarge", "4xlarge"]
     timeout-minutes: 60
 
     steps:
