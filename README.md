@@ -66,7 +66,7 @@ This will:
 - Start storage provider(s)
 - Launch [Portainer UI](https://docs.docksal.io/use-cases/portainer/) for container management
 
-**If you are have troubles**: Use `cargo run -- start`, removing parallelism during start, this may take longer.
+**If you have troubles**: Use `cargo run -- start`, removing parallelism during start, this may take longer.
 
 **That's it!** Your local Filecoin network is running.
 
@@ -139,7 +139,7 @@ Bundled with Portainer for browser-based Docker management—no terminal wizardr
 | **Docker** | Desktop (macOS) or CE (Linux) |
 | **tar** | Archive utility (usually pre-installed) |
 | **Disk Space** | ~20GB for images and blockchain data |
-| **x86 Architecture** | ??? dependencies require x86 (Intel) architecture.  As a result, ARM-based architectures (including Apple Silicon) are not supported. |b.com/FilOzone/foc-devnet/issues) for current architecture compatibility status.
+| **x86 Architecture** | Some dependencies require x86 (Intel) architecture. As a result, ARM-based architectures (including Apple Silicon) may not be supported. See [GitHub Issues](https://github.com/FilOzone/foc-devnet/issues) for current architecture compatibility status. |
 
 ---
 
@@ -157,7 +157,7 @@ See **[README_ADVANCED.md](README_ADVANCED.md)** for comprehensive documentation
 - **Lifecycle overview** (full startup sequence, step implementation)
 - **Service Provider examples** (1 SP with 0 authorized, 3 SPs with top 2 authorized, etc.)
 - **Troubleshooting guides** (port conflicts, build failures, network issues)
-- **Advanced topics** (custom genesis, Lotus API access, contract interaction)
+- **Additional user actions** (custom genesis, Lotus API access, contract interaction)
 
 ---
 

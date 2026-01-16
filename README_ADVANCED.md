@@ -21,9 +21,8 @@ foc-devnet init [OPTIONS]
 - `--yugabyte-url <URL>` - Yugabyte download URL
 - `--yugabyte-archive <PATH>` - Local Yugabyte archive file
 - `--proof-params-dir <PATH>` - Local proof params directory
-- `--force` - Force regeneration of config file.  Useful when switching between configurations.
-
-- `--rand` - Use random mnemonic instead of deterministic one.  Use this for unique test scenarios.
+- `--force` - Force regeneration of config file. Useful when switching between configurations.
+- `--rand` - Use random mnemonic instead of deterministic one. Use this for unique test scenarios.
 
 **Source Format:**
 - `gittag:v1.0.0` - Specific git tag (uses default repo)
@@ -74,7 +73,7 @@ foc-devnet start [OPTIONS]
 - `--parallel` - **⚡ Run steps in parallel for ~40% faster startup (recommended)**
 
 **Why `--parallel` (Recommended):**
-- **⚡ Significant speedup:** Reduces startup time from ~10 min to ~6 min
+- **⚡ Significant speedup:** Reduces startup time from ~5 min to ~3 min
 - **Smart parallelization:** Steps that don't depend on each other run concurrently
 - **Production-ready:** Thread-safe implementation with proper synchronization
 - **Use case:** Default for most workflows, especially development iteration
@@ -852,15 +851,15 @@ Steps run sequentially by default, or in parallel when using the `--parallel` fl
    - Display summary
    - Print access URLs
 
-### running
-At this point the cluster is active and already has contracts deployed.  It is ready for further interaction.
+#### running
+At this point the cluster is active and already has contracts deployed. It is ready for further interaction.
 
-### stop
-- stop containers
-- cleanup networks
+#### stop
+- Stops containers
+- Cleans up networks
 
-### (re)start
-- Regenisis by following the [start steps](#steps) and creating a new blockchain.
+#### (re)start
+- Regenesis by following the [start steps](#steps) and creating a new blockchain.
 
 ### Step Implementation Pattern
 
@@ -1028,8 +1027,8 @@ docker logs foc-<run-id>-curio-2
 # Query provider IDs
 cat ~/.foc-devnet/state/latest/pdp_sps/*.provider_id.json
 
-# Access Yugabyte (shared by all SPs)
-docker exec -it foc-<run-id>-yugabyte ysqlsh -h localhost -p 5433
+# Access Yugabyte (one per SP)
+docker exec -it foc-<run-id>-yugabyte-1 ysqlsh -h localhost -p 5433
 
 # Query Lotus for miner info
 docker exec foc-<run-id>-lotus lotus state miner-info f01000
