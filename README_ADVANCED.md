@@ -1108,10 +1108,23 @@ foc-devnet start
 
 ---
 
-## Advanced Topics
+## Additional User Actions
 
 ### Custom Genesis Block
-Edit genesis templates before `start`:
+
+The genesis template is generated during the genesis prerequisites phase of the `start` command and is located at:
+
+```
+~/.foc-devnet/docker/volumes/run-specific/<run-id>/genesis/
+```
+
+To customize the genesis block, you can:
+- Modify the genesis generation code in `src/commands/start/lotus/` 
+- Edit the template files after they're generated (before the Lotus step completes)
+- Pass custom genesis parameters through the configuration system
+
+**Note:** Customizing genesis requires understanding the Filecoin genesis format. See the [Detailed Start Sequence](#detailed-start-sequence) for when genesis prerequisites run.
+
 ```bash
 # Modify sector size, block time, etc.
 # (Advanced - requires understanding Filecoin genesis format)
@@ -1168,5 +1181,3 @@ docker run --rm --network host \
 - **Docker Documentation:** https://docs.docker.com/
 
 ---
-
-**Last Updated:** January 2026
