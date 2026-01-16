@@ -1,9 +1,18 @@
 # Volume mappings for builder Docker image
 # Format: host_subdirectory = "container_path"
 # Host paths will be relative to ~/.foc-devnet/artifacts/docker/volumes/builder/
+#
+# NOTE: All volume mounts have been disabled because:
+# 1. These directories contain the tools themselves (cargo, forge, go modules, etc.)
+# 2. Mounting empty host directories would override the tools installed in the image
+# 3. The current design creates empty directories first, breaking first-time builds
+#
+# Future improvement: Implement proper initialization that copies tools from image
+# to host before mounting, so we can cache dependencies while keeping tools available.
 
 [volumes]
-cargo = "/home/foc-user/.cargo"
-rustup = "/home/foc-user/.rustup"
-go = "/home/foc-user/go"
-foundry = "/home/foc-user/.foundry"
+# cargo = "/home/foc-user/.cargo"      # DISABLED: Would override cargo tool
+# rustup = "/home/foc-user/.rustup"    # DISABLED: Would override rustup
+# foundry = "/home/foc-user/.foundry"  # DISABLED: Would override forge/cast
+# go = "/home/foc-user/go"             # DISABLED: Would override go modules cache
+
