@@ -186,6 +186,15 @@ tag = "synapse-sdk-v0.36.1"
 **Constraints:**
 - `approved_pdp_sp_count` ≤ `active_pdp_sp_count` ≤ `MAX_PDP_SP_COUNT` (5)
 
+### How Defaults Work
+
+Defaults are defined in code (see [`src/config.rs`](../src/config.rs) `Config::default()`) and written to `config.toml` during `init`. This means:
+
+- **First-time setup:** Running `foc-devnet init` creates `config.toml` with current defaults from code
+- **Updating defaults:** When a new version of `foc-devnet` includes updated defaults (e.g., newer Lotus version), run `foc-devnet init --force` to regenerate `config.toml` with the new defaults
+- **Preserving customizations:** After regenerating, you'll need to reapply any custom settings you had modified
+- **Source of truth:** The code defines what defaults are available; `config.toml` stores your specific configuration
+
 ### Editing Config
 
 ```bash
