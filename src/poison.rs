@@ -56,10 +56,16 @@ fn display_poison_contents(poison_path: &PathBuf) -> Result<(), Box<dyn std::err
 /// Perform recovery actions when a poison file is detected.
 ///
 /// Currently a placeholder for future recovery logic.
+///
+/// Future recovery logic should:
+/// - Stop all running foc-* containers
+/// - Clean up partial state from interrupted operations
+/// - Verify integrity of key files and volumes
+/// - Provide detailed diagnostics of what was interrupted
 fn perform_recovery() -> Result<(), Box<dyn std::error::Error>> {
-    // TODO: Implement actual recovery logic when more details are available
     warn!("Recovery logic not yet implemented. Please check system state manually.");
     warn!("You may need to manually clean up any running containers or inconsistent state.");
+    warn!("Run 'foc-devnet stop' to clean up containers, then try again.");
     Ok(())
 }
 

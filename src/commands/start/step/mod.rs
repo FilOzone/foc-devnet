@@ -344,8 +344,7 @@ pub fn execute_steps(
             }
         }
         if !crate::docker::core::is_port_available(port) {
-            // This is a bit of a hack since we're calling a private function from PortAllocator
-            // but we'll just do the check here.
+            // Check port availability directly to ensure no conflicts before starting containers
             return Err(format!("Port {} is already in use", port).into());
         }
     }

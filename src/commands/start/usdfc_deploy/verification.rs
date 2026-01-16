@@ -9,6 +9,9 @@ use std::error::Error;
 use std::path::Path;
 use tracing::{info, warn};
 
+/// Time to wait for transaction confirmation before verification (in seconds)
+const TRANSACTION_CONFIRMATION_WAIT_SECS: u64 = 6;
+
 /// Verify the deployed MockUSDFC contract
 pub fn verify_mock_usdfc(
     context: &SetupContext,
@@ -22,7 +25,9 @@ pub fn verify_mock_usdfc(
 
     // Wait a bit for transaction confirmation
     info!("Waiting for transaction confirmation...");
-    std::thread::sleep(std::time::Duration::from_secs(6));
+    std::thread::sleep(std::time::Duration::from_secs(
+        TRANSACTION_CONFIRMATION_WAIT_SECS,
+    ));
 
     // Retry verification with fixed delay
     let verification_result = retry_with_fixed_delay(

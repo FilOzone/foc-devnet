@@ -13,6 +13,9 @@ use std::process::{Command, Stdio};
 use tracing::info;
 use tracing::warn;
 
+/// Time to wait for build container initialization (in seconds)
+const BUILD_INIT_WAIT_SECS: u64 = 5;
+
 /// Run the build process inside the Docker container.
 pub fn run_build_in_container(
     source_dir: &str,
@@ -76,7 +79,7 @@ pub fn execute_build_process(
 
     info!("NOTE: StdErr output does not necessarily indicate failure");
 
-    std::thread::sleep(std::time::Duration::from_secs(5));
+    std::thread::sleep(std::time::Duration::from_secs(BUILD_INIT_WAIT_SECS));
 
     // Stream stdout to both console and log file
     let stdout_handle = std::thread::spawn({

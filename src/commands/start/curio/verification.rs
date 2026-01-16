@@ -114,6 +114,10 @@ fn upload_test_file(
 
     let service_url = format!("http://localhost:{}", port);
 
+    let file_path_str = file_path
+        .to_str()
+        .ok_or("Invalid file path: contains non-UTF8 characters")?;
+
     let args = [
         "upload-piece",
         "--service-url",
@@ -122,7 +126,7 @@ fn upload_test_file(
         "public",
         "--hash-type",
         "commp",
-        file_path.to_str().unwrap(),
+        file_path_str,
         "--verbose",
     ];
 

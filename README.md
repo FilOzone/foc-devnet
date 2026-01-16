@@ -11,7 +11,7 @@ A developer-friendly tool for spinning up complete Filecoin test networks with s
 Get up and running in three simple steps:
 
 ### Step 0: Ensure non-root user
-`foc-localnet` requires itself to be run by a non-root user. Please ensure that you are running as a non-root user which is part of `docker` group.
+`foc-devnet` requires itself to be run by a non-root user. Please ensure that you are running as a non-root user which is part of `docker` group.
 
 Run the following to see your User ID and groups you are a part of:
 ```

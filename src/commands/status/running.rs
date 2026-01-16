@@ -126,7 +126,12 @@ fn extract_base_image_name(container_name: &str) -> String {
         let service_parts = &parts[2..];
 
         // If it ends with a number (like curio-1), remove it
-        if service_parts.len() >= 2 && service_parts.last().unwrap().parse::<u32>().is_ok() {
+        let ends_with_number = service_parts
+            .last()
+            .and_then(|s| s.parse::<u32>().ok())
+            .is_some();
+
+        if service_parts.len() >= 2 && ends_with_number {
             format!("foc-{}", service_parts[..service_parts.len() - 1].join("-"))
         } else {
             format!("foc-{}", service_parts.join("-"))
