@@ -42,6 +42,8 @@ foc-devnet init \
 ### `build`
 Builds Filecoin components in Docker containers.
 
+> **Note:** This command must be run after `init` to ensure Docker images and environment are prepared.
+
 ```bash
 foc-devnet build lotus [PATH] [--output-dir <DIR>]
 foc-devnet build curio [PATH] [--output-dir <DIR>]
@@ -55,6 +57,8 @@ foc-devnet build curio /path/to/custom/curio --output-dir ~/bins
 
 ### `start`
 Starts the local Filecoin network cluster.
+
+> **Note:** This command should be run after `build` of `lotus` and `curio` to ensure binaries are available.
 
 ```bash
 foc-devnet start [OPTIONS]
