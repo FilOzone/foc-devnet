@@ -342,20 +342,6 @@ ls | grep --invert-match "$CURRENT_RUN" | xargs rm -rf
 rm -rf ~/.foc-devnet
 ```
 
-### Manual Cleanup
-
-```bash
-# Stop cluster
-foc-devnet stop
-
-# Delete specific run
-rm -rf ~/.foc-devnet/run/26jan02-1430_ZanyPip
-rm -rf ~/.foc-devnet/docker/volumes/run-specific/26jan02-1430_ZanyPip
-
-# Complete nuclear reset (delete everything)
-rm -rf ~/.foc-devnet
-```
-
 ---
 
 ## Run ID and Step Context
