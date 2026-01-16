@@ -236,7 +236,7 @@ foc-devnet init --force
 │   └── genesis/                     # Genesis block keys
 ├── logs/                            # Container logs
 ├── run/                             # Run-specific execution data
-│   └── <run-id>/                    # e.g., 26jan02-1430_ZanyPip/
+│   └── <run-id>/                    # e.g., 2026-01-02T14:30_ZanyPip/
 │       ├── setup.log                # Startup execution log
 │       ├── version.txt              # Component versions
 │       ├── contract_addresses.json  # Deployed contracts
@@ -316,8 +316,8 @@ foc-devnet start  # Creates new run, preserves old ones
 foc-devnet stop
 
 # Delete specific run by run ID
-rm -rf ~/.foc-devnet/run/26jan01-1200_OldRun
-rm -rf ~/.foc-devnet/docker/volumes/run-specific/26jan01-1200_OldRun
+rm -rf ~/.foc-devnet/run/2026-01-01T12:00_OldRun
+rm -rf ~/.foc-devnet/docker/volumes/run-specific/2026-01-01T12:00_OldRun
 ```
 
 **Delete all old runs (keep only current):**
@@ -350,9 +350,9 @@ rm -rf ~/.foc-devnet
 
 **What:** A unique identifier for each cluster execution.
 
-**Format:** `YYmmmDD-HHMM_RandomName`
+**Format:** `YYYY-MM-DDTHH:MM_RandomName`
 
-**Example:** `26jan02-1430_ZanyPip`
+**Example:** `2026-01-02T14:30_ZanyPip`
 
 **Why needed:**
 - **Isolation:** Separate concurrent runs without conflicts
@@ -362,10 +362,10 @@ rm -rf ~/.foc-devnet
 
 **Generation:**
 ```rust
-// Date: YYmmmDD (26jan02 = January 2, 2026)
-// Time: HHMM (1430 = 2:30 PM)
+// Date: YYYY-MM-DD (2026-01-02 = January 2, 2026)
+// Time: HH:MM (14:30 = 2:30 PM, ISO8601 format)
 // Name: RandomAdjective + RandomNoun (ZanyPip)
-"26jan02-1430_ZanyPip"
+"2026-01-02T14:30_ZanyPip"
 ```
 
 **Storage:**
@@ -523,7 +523,7 @@ Portainer is a lightweight container management UI that gives you visual, browse
 | `foc-builder` | foc-builder | Foundry tools (contract deployment) | Host network |
 | `foc-portainer` | portainer/portainer-ce | Container management UI | 5700 (first from range) |
 
-**Note:** Container names include run-id for isolation (e.g., `foc-26jan02-1430_ZanyPip-lotus`).
+**Note:** Container names include run-id for isolation (e.g., `foc-2026-01-02T14:30_ZanyPip-lotus`).
 
 ### Network Topology
 
