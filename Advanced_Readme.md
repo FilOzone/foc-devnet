@@ -55,7 +55,7 @@ foc-devnet init \
 ```
 
 ### `build`
-Builds Filecoin components in Docker containers.
+Builds Filecoin components in Docker containers. Must be run after `init`.
 
 ```bash
 foc-devnet build lotus [PATH] [--output-dir <DIR>]
@@ -69,7 +69,7 @@ foc-devnet build curio /path/to/custom/curio --output-dir ~/bins
 ```
 
 ### `start`
-Starts the local Filecoin network cluster.
+Starts the local Filecoin network cluster. Must be run after `init` and `build` commands have completed successfully.
 
 ```bash
 foc-devnet start [OPTIONS]
@@ -91,7 +91,7 @@ foc-devnet start --parallel
 foc-devnet start --parallel --notest
 ```
 
-> **💡 Pro Tip:** Use `--parallel` by default! It runs independent steps concurrently (contract deployments, database startup, etc.) while respecting dependencies. This can reduce startup time from ~5 minutes to ~3 minutes.
+> **💡 Pro Tip:** Use `--parallel` by default! It runs independent steps concurrently (contract deployments, database startup, etc.) while respecting dependencies. This can reduce startup time by ~40%.
 
 **After successful start:**
 - Portainer UI available at http://localhost:5700 (uses first port in configured range)
@@ -197,6 +197,12 @@ tag = "synapse-sdk-v0.36.1"
 **Constraints:**
 - `approved_pdp_sp_count` ≤ `active_pdp_sp_count` ≤ `MAX_PDP_SP_COUNT` (5)
 
+**How defaults work:**
+- On first run, `foc-devnet init` generates `config.toml` with hardcoded defaults from the source code
+- Default values are defined in `src/config.rs` (see [`Config::default()`](https://github.com/FilOzone/foc-devnet/blob/main/src/config.rs))
+- When you upgrade `foc-devnet`, existing `config.toml` is preserved to maintain your customizations
+- To adopt new defaults from an updated version, delete `config.toml` and run `foc-devnet init` again, or use `foc-devnet init --force`
+
 ### Editing Config
 
 ```bash
@@ -238,7 +244,7 @@ foc-devnet init --force
 │   └── genesis/                     # Genesis block keys
 ├── logs/                            # Container logs
 ├── run/                             # Run-specific execution data
-│   └── <run-id>/                    # e.g., 26jan02-1430_ZanyPip/
+│   └── <run-id>/                    # e.g., 20260102T1430_ZanyPip/
 │       ├── setup.log                # Startup execution log
 │       ├── version.txt              # Component versions
 │       ├── contract_addresses.json  # Deployed contracts
@@ -366,9 +372,9 @@ rm -rf ~/.foc-devnet
 
 **What:** A unique identifier for each cluster execution.
 
-**Format:** `YYmmmDD-HHMM_RandomName`
+**Format:** `YYYYMMDDTHHMM_RandomName` (datetime portion follows ISO8601 conventions)
 
-**Example:** `26jan02-1430_ZanyPip`
+**Example:** `20260102T1430_ZanyPip`
 
 **Why needed:**
 - **Isolation:** Separate concurrent runs without conflicts
@@ -378,10 +384,10 @@ rm -rf ~/.foc-devnet
 
 **Generation:**
 ```rust
-// Date: YYmmmDD (26jan02 = January 2, 2026)
-// Time: HHMM (1430 = 2:30 PM)
+// Date: YYYYMMDD (20260102 = January 2, 2026) - ISO8601 basic format
+// Time: HHMM (1430 = 2:30 PM, 24-hour format) - simplified, without seconds
 // Name: RandomAdjective + RandomNoun (ZanyPip)
-"26jan02-1430_ZanyPip"
+"20260102T1430_ZanyPip"
 ```
 
 **Storage:**
@@ -390,7 +396,9 @@ rm -rf ~/.foc-devnet
 
 ### Step Context (SetupContext)
 
-**What:** Thread-safe shared state container that passes data between steps.
+**What:** Thread-safe shared state container that passes data between [steps](#lifecycle-overview).
+
+**What are steps?** Steps are modular units of work during cluster startup (e.g., "Deploy MockUSDFC", "Start Lotus", "Register SPs"). Each step can read data from and write data to the shared context. See [Lifecycle Overview](#lifecycle-overview) for the complete list of steps and [Step Implementation Pattern](#step-implementation-pattern) for implementation details.
 
 **Why needed:**
 - **Dependency resolution:** Later steps need data from earlier steps
@@ -437,6 +445,9 @@ fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
 ```
 
 **Common context keys:**
+
+These keys are used to pass data between [steps](#lifecycle-overview). For a definitive list, see the step implementations in [`src/commands/start/steps/`](https://github.com/FilOzone/foc-devnet/tree/main/src/commands/start/steps).
+
 - `deployer_mockusdfc_eth_address` - MockUSDFC deployer address
 - `deployer_foc_eth_address` - FOC contracts deployer address
 - `mockusdfc_contract_address` - MockUSDFC token contract
@@ -461,9 +472,7 @@ fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
 
 ### Portainer: Your Debugging Companion
 
-**What is Portainer?**
-
-Portainer is a lightweight container management UI that gives you visual, browser-based access to all your Docker containers, networks, and volumes. foc-devnet automatically starts Portainer using the first port in your configured range.
+[Portainer](https://docs.portainer.io/) is a lightweight container management UI that gives you visual, browser-based access to all your Docker containers, networks, and volumes. foc-devnet automatically starts Portainer using the first port in your configured range.
 
 **Access:** http://localhost:5700 (default, or first port from `port_range_start` in config.toml)
 
@@ -532,10 +541,10 @@ Portainer is a lightweight container management UI that gives you visual, browse
 |-----------|-------|---------|-------|
 | `foc-<run-id>-lotus` | foc-lotus | Filecoin daemon (FEVM enabled) | 1234 (API), 1235 (P2P) |
 | `foc-<run-id>-lotus-miner` | foc-lotus-miner | First-gen miner (PoRep) | 2345 (API) |
-| `foc-<run-id>-yugabyte` | foc-yugabyte | Database for Curio | 5433 (PostgreSQL) |
-| `foc-<run-id>-curio-1` | foc-curio | First Curio SP (PDP) | Dynamic |
-| `foc-<run-id>-curio-2` | foc-curio | Second Curio SP (PDP) | Dynamic |
-| `foc-<run-id>-curio-N` | foc-curio | Nth Curio SP (PDP) | Dynamic |
+| `foc-<run-id>-yugabyte` | foc-yugabyte | Shared database for all Curio SPs | 5433 (PostgreSQL) |
+| `foc-<run-id>-curio-1` | foc-curio | First Curio SP (PDP) | Dynamic from range |
+| `foc-<run-id>-curio-2` | foc-curio | Second Curio SP (PDP) | Dynamic from range |
+| `foc-<run-id>-curio-N` | foc-curio | Nth Curio SP (PDP) | Dynamic from range |
 | `foc-builder` | foc-builder | Foundry tools (contract deployment) | Host network |
 | `foc-portainer` | portainer/portainer-ce | Container management UI | 5700 (first from range) |
 
@@ -662,11 +671,17 @@ port_range_count = 100
 
 | Repository | Default Source | Purpose |
 |------------|---------------|---------|
-| **lotus** | `github.com/filecoin-project/lotus:v1.34.0` | Filecoin daemon |
-| **curio** | `github.com/filecoin-project/curio:pdpv0` | Storage provider (PDP) |
-| **filecoin-services** | `github.com/FilOzone/filecoin-services:v1.0.0` | FOC smart contracts |
-| **multicall3** | `github.com/mds1/multicall3:main` | Multicall3 contract |
-| **synapse-sdk** | `github.com/FilOzone/synapse-sdk:synapse-sdk-v0.36.1` | PDP verification SDK |
+| **lotus** | `github.com/filecoin-project/lotus:v1.34.0` (pinned version) | Filecoin daemon |
+| **curio** | `github.com/filecoin-project/curio:pdpv0` (branch) | Storage provider (PDP) |
+| **filecoin-services** | `github.com/FilOzone/filecoin-services:v1.0.0` (pinned version) | FOC smart contracts |
+| **multicall3** | `github.com/mds1/multicall3:main` (latest) | Multicall3 contract |
+| **synapse-sdk** | `github.com/FilOzone/synapse-sdk:synapse-sdk-v0.36.1` (pinned version) | PDP verification SDK |
+
+**Version Strategy:**
+- **Lotus**: Pinned to tested stable version for reliability. If you need to use `main` branch, use: `foc-devnet init --lotus gitbranch:main --force`
+- **Curio**: Uses `pdpv0` branch (under active development). If you need a specific version, use: `foc-devnet init --curio gittag:v1.0.0 --force`
+- **Multicall3**: Uses `main` (stable, rarely changes)
+- Default versions are defined in [`src/config.rs`](https://github.com/FilOzone/foc-devnet/blob/main/src/config.rs). To update, either modify your `config.toml` or use `foc-devnet init --force` with desired source flags.
 
 ### Using Local Repositories
 
@@ -694,45 +709,18 @@ foc-devnet init \
 
 **To share your exact setup with others:**
 
-1. **Export config:**
-   ```bash
-   cat ~/.foc-devnet/config.toml
-   ```
+```bash
+# Copy your config to a shared location
+cp ~/.foc-devnet/config.toml /shared/foc-devnet-installation/config.toml
 
-2. **Document versions:**
-   ```toml
-   # Lotus v1.34.0
-   [lotus]
-   url = "https://github.com/filecoin-project/lotus.git"
-   tag = "v1.34.0"
-   
-   # Curio pdpv0 branch (commit: abc123)
-   [curio]
-   url = "https://github.com/filecoin-project/curio.git"
-   branch = "pdpv0"
-   
-   # FilOzone services v1.0.0
-   [filecoin_services]
-   url = "https://github.com/FilOzone/filecoin-services.git"
-   tag = "v1.0.0"
-   
-   # Synapse SDK
-   [synapse_sdk]
-   url = "git@github.com:FilOzone/synapse-sdk.git"
-   tag = "synapse-sdk-v0.36.1"
-   ```
+# Recipient copies config and runs init
+cp /shared/foc-devnet-installation/config.toml ~/.foc-devnet/config.toml
+foc-devnet init
+```
 
-3. **Share config file:**
-   ```bash
-   # Recipient copies config
-   mkdir -p ~/.foc-devnet
-   cp shared-config.toml ~/.foc-devnet/config.toml
-   
-   # Run init to download and build
-   foc-devnet init
-   ```
+### Reproducible Builds
 
-**For reproducible builds, specify exact commits:**
+Specify exact commits for reproducibility:
 
 ```toml
 [lotus]
@@ -784,7 +772,7 @@ commit = "789012345678..."
 | `--notest` | Boolean | Skip end-to-end Synapse tests |
 
 **Why `--parallel` (Recommended):**
-- **⚡ Significant speedup:** Reduces startup time from ~10 min to ~6 min
+- **⚡ Significant speedup:** Reduces startup time by ~40%
 - **Smart parallelization:** Steps that don't depend on each other run concurrently
 - **Production-ready:** Thread-safe implementation with proper synchronization
 - **Use case:** Default for most workflows, especially development iteration
