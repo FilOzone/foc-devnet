@@ -404,36 +404,50 @@ rm -rf ~/.foc-devnet
 **Architecture:**
 ```rust
 pub struct SetupContext {
-    state: Arc<Mutex<HashMap<String, String>>>,  // Shared state
-    run_id: String,                               // Current run ID
-    run_dir: PathBuf,                             // Run directory
-    port_allocator: Arc<Mutex<PortAllocator>>,   // Port manager
+    // Thread-safe key-value store for sharing data between steps
+    // Keys are string literals (see src/commands/start/ for examples)
+    state: Arc<Mutex<HashMap<String, String>>>,
+    // Unique identifier for this cluster run (format: YYYYMMDDTHHMM_RandomName)
+    run_id: String,
+    // Directory where all run-specific data is stored (~/.foc-devnet/run/<run-id>/)
+    run_dir: PathBuf,
+    // Manages dynamic port allocation to avoid conflicts with other services
+    port_allocator: Arc<Mutex<PortAllocator>>,
 }
 ```
 
 **Example flow:**
 
 ```rust
-// Step 1: ETHAccFundingStep creates deployer address
+// Step 1: ETHAccFundingStep creates deployer address and stores it for later steps
 fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
+    // Generate a new Ethereum address for contract deployment
     let address = create_eth_address()?;
+    // Store the address in context so other steps can retrieve it
+    // Context keys are string literals defined in each step's implementation
     context.set("deployer_mockusdfc_eth_address", &address);
     Ok(())
 }
 
-// Step 2: USDFCDeployStep uses that address
+// Step 2: USDFCDeployStep retrieves the address from context and uses it
 fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
+    // Retrieve the deployer address that was set by ETHAccFundingStep
+    // Returns error if key not found (dependency not met)
     let deployer = context
         .get("deployer_mockusdfc_eth_address")
         .ok_or("Deployer not found")?;
+    // Use the deployer address to deploy the MockUSDFC contract
     let contract = deploy_mockusdfc(&deployer)?;
+    // Store the contract address for subsequent steps that need it
     context.set("mockusdfc_contract_address", &contract);
     Ok(())
 }
 
-// Step 3: USDFCFundingStep uses the contract address
+// Step 3: USDFCFundingStep retrieves the contract address and uses it
 fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
+    // Retrieve the contract address set by USDFCDeployStep
     let contract = context.get("mockusdfc_contract_address")?;
+    // Use the contract address to fund test accounts with tokens
     fund_accounts(&contract)?;
     Ok(())
 }
@@ -854,10 +868,17 @@ Every step follows this trait:
 
 ```rust
 pub trait Step: Send + Sync {
+    // Human-readable name for logging and display (e.g., "Lotus", "FOC Deploy")
     fn name(&self) -> &str;
+    // Validation phase: check prerequisites before executing
+    // (e.g., verify Docker images exist, check port availability)
     fn pre_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>>;
+    // Main work: perform the actual step (e.g., start container, deploy contract)
     fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>>;
+    // Verification phase: confirm step succeeded (e.g., check API is responding)
     fn post_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>>;
+    // Orchestrates the full step lifecycle: pre_execute → execute → post_execute
+    // Returns the duration taken for the step
     fn run(&self, context: &SetupContext) -> Result<Duration, Box<dyn Error>>;
 }
 ```
