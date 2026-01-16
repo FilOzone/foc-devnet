@@ -698,7 +698,11 @@ cp shared-config.toml ~/.foc-devnet/config.toml
 foc-devnet init
 ```
 
-**For reproducible builds, specify exact commits:**
+---
+
+### Reproducible Builds
+
+For reproducible builds, specify exact commits in `config.toml`:
 
 ```toml
 [lotus]
