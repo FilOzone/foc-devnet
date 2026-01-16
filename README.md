@@ -109,7 +109,7 @@ From building Docker images to deploying contracts—everything is automated:
 Built with modular steps for easy extension and customization:
 - Add custom deployment steps
 - Configure multiple PDP service providers
-- Control "allowed" SP nodes via `~/.foc-devnet/config.toml`
+- Control "allowed" SP nodes via `~/.foc-devnet/config.toml` (see [Configuration System](README_ADVANCED.md#configuration-system))
 
 ### 📜 Programmable
 Built for scripting and automation:
@@ -139,6 +139,7 @@ Bundled with Portainer for browser-based Docker management—no terminal wizardr
 | **Docker** | Desktop (macOS) or CE (Linux) |
 | **tar** | Archive utility (usually pre-installed) |
 | **Disk Space** | ~20GB for images and blockchain data |
+| **x86 Architecture** | ??? dependencies require x86 (Intel) architecture.  As a result, ARM-based architectures (including Apple Silicon) are not supported. |b.com/FilOzone/foc-devnet/issues) for current architecture compatibility status.
 
 ---
 
