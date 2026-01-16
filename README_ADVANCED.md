@@ -236,7 +236,7 @@ foc-devnet init --force
 │   └── genesis/                     # Genesis block keys
 ├── logs/                            # Container logs
 ├── run/                             # Run-specific execution data
-│   └── <run-id>/                    # e.g., 2026-01-02T14:30_ZanyPip/
+│   └── <run-id>/                    # e.g., 20260102T1430_ZanyPip/
 │       ├── setup.log                # Startup execution log
 │       ├── version.txt              # Component versions
 │       ├── contract_addresses.json  # Deployed contracts
@@ -316,8 +316,8 @@ foc-devnet start  # Creates new run, preserves old ones
 foc-devnet stop
 
 # Delete specific run by run ID
-rm -rf ~/.foc-devnet/run/2026-01-01T12:00_OldRun
-rm -rf ~/.foc-devnet/docker/volumes/run-specific/2026-01-01T12:00_OldRun
+rm -rf ~/.foc-devnet/run/20260101T1200_OldRun
+rm -rf ~/.foc-devnet/docker/volumes/run-specific/20260101T1200_OldRun
 ```
 
 **Delete all old runs (keep only current):**
@@ -350,9 +350,9 @@ rm -rf ~/.foc-devnet
 
 **What:** A unique identifier for each cluster execution.
 
-**Format:** `YYYY-MM-DDTHH:MM_RandomName`
+**Format:** `YYYYMMDDTHHMM_RandomName`
 
-**Example:** `2026-01-02T14:30_ZanyPip`
+**Example:** `20260102T1430_ZanyPip`
 
 **Why needed:**
 - **Isolation:** Separate concurrent runs without conflicts
@@ -362,10 +362,10 @@ rm -rf ~/.foc-devnet
 
 **Generation:**
 ```rust
-// Date: YYYY-MM-DD (2026-01-02 = January 2, 2026)
-// Time: HH:MM (14:30 = 2:30 PM, ISO8601 format)
+// Date: YYYYMMDD (20260102 = January 2, 2026, condensed ISO8601)
+// Time: HHMM (1430 = 2:30 PM, no colons for Docker compatibility)
 // Name: RandomAdjective + RandomNoun (ZanyPip)
-"2026-01-02T14:30_ZanyPip"
+"20260102T1430_ZanyPip"
 ```
 
 **Storage:**
@@ -525,12 +525,11 @@ These keys are string literals used throughout the codebase (see step implementa
 | `foc-<run-id>-yugabyte-1` | foc-yugabyte | Database for Curio SP 1 | 5433 (PostgreSQL) |
 | `foc-<run-id>-yugabyte-N` | foc-yugabyte | Database for Curio SP N (one per SP) | Dynamic from range |
 | `foc-<run-id>-curio-1` | foc-curio | First Curio SP (PDP) | Dynamic from range |
-| `foc-<run-id>-curio-2` | foc-curio | Second Curio SP (PDP) | Dynamic from range |
 | `foc-<run-id>-curio-N` | foc-curio | Nth Curio SP (PDP) | Dynamic from range |
 | `foc-builder` | foc-builder | Foundry tools (contract deployment) | Host network |
 | `foc-portainer` | portainer/portainer-ce | Container management UI | 5700 (first from range) |
 
-**Note:** Container names include run-id for isolation (e.g., `foc-2026-01-02T14:30_ZanyPip-lotus`).
+**Note:** Container names include run-id for isolation (e.g., `foc-20260102T1430_ZanyPip-lotus`).
 
 ### Network Topology
 

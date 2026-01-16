@@ -1,7 +1,7 @@
 //! Run ID generation and management.
 //!
 //! This module handles generating unique run IDs for each cluster start.
-//! Format: YYYY-MM-DDTHH:MM-random-name (e.g., 2025-12-03T12:46-thirsty-wolf)
+//! Format: YYYYMMDDTHHMM-random-name (e.g., 20251203T1246-thirsty-wolf)
 
 mod persistence;
 
@@ -28,20 +28,22 @@ pub const NOUNS: &[&str] = &[
 
 /// Generate a unique run ID for this execution.
 ///
-/// Returns a string like "2025-12-15T22:06_ZanyPip" where:
-/// - 2025-12-15 is the date (YYYY-MM-DD, ISO8601 format)
+/// Returns a string like "20251215T2206_ZanyPip" where:
+/// - 20251215 is the date (YYYYMMDD, condensed ISO8601 format)
 /// - T is the date/time separator (ISO8601)
-/// - 22:06 is the time (HH:MM, 24-hour format)
+/// - 2206 is the time (HHMM, 24-hour format, no colons for Docker compatibility)
 /// - ZanyPip is the random name (adjective + noun)
+///
+/// Uses condensed ISO8601 format (no dashes or colons) for Docker network name compatibility.
 ///
 /// # Example
 /// ```no_run
 /// let run_id = generate_run_id();
-/// println!("{}", run_id); // e.g., "2025-12-15T22:06_ZanyPip"
+/// println!("{}", run_id); // e.g., "20251215T2206_ZanyPip"
 /// ```
 pub fn generate_run_id() -> String {
     let now = Local::now();
-    let datetime = now.format("%Y-%m-%dT%H:%M");
+    let datetime = now.format("%Y%m%dT%H%M");
 
     // Implement our own random name generator to control format
     let random_name = {
@@ -89,8 +91,8 @@ mod tests {
     fn test_run_id_format() {
         let run_id = generate_run_id();
 
-        // Should match pattern: YYYY-MM-DDTHH:MM_RandomName
-        let pattern = Regex::new(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}_.+$").unwrap();
+        // Should match pattern: YYYYMMDDTHHMM_RandomName (condensed ISO8601, no dashes/colons)
+        let pattern = Regex::new(r"^\d{8}T\d{4}_.+$").unwrap();
         assert!(
             pattern.is_match(&run_id),
             "Run ID should match format: {}",
