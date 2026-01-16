@@ -21,8 +21,9 @@ foc-devnet init [OPTIONS]
 - `--yugabyte-url <URL>` - Yugabyte download URL
 - `--yugabyte-archive <PATH>` - Local Yugabyte archive file
 - `--proof-params-dir <PATH>` - Local proof params directory
-- `--force` - Force regeneration of config file
-- `--rand` - Use random mnemonic instead of deterministic one
+- `--force` - Force regeneration of config file.  Useful when switching between configurations.
+
+- `--rand` - Use random mnemonic instead of deterministic one.  Use this for unique test scenarios.
 
 **Source Format:**
 - `gittag:v1.0.0` - Specific git tag (uses default repo)
@@ -49,6 +50,9 @@ foc-devnet build lotus [PATH] [--output-dir <DIR>]
 foc-devnet build curio [PATH] [--output-dir <DIR>]
 ```
 
+**Options:**
+- `--output-dir <DIR>` - Directory for built binaries (default: `~/.foc-devnet/bin`)
+
 **Example:**
 ```bash
 foc-devnet build lotus
@@ -65,10 +69,24 @@ foc-devnet start [OPTIONS]
 ```
 
 **Options:**
-- `--volumes-dir <DIR>` - Custom docker volumes directory
-- `--run-dir <DIR>` - Custom run-specific data directory
+- `--volumes-dir <DIR>` - Custom docker volumes directory. Use custom paths (e.g., faster SSD, network storage).
+- `--run-dir <DIR>` - Custom run-specific data directory. Use custom paths (e.g., faster SSD, network storage).
 - `--parallel` - **⚡ Run steps in parallel for ~40% faster startup (recommended)**
-- `--notest` - Skip end-to-end tests
+
+**Why `--parallel` (Recommended):**
+- **⚡ Significant speedup:** Reduces startup time from ~10 min to ~6 min
+- **Smart parallelization:** Steps that don't depend on each other run concurrently
+- **Production-ready:** Thread-safe implementation with proper synchronization
+- **Use case:** Default for most workflows, especially development iteration
+
+**When NOT to use `--parallel`:**
+- Debugging step ordering issues
+- Very low-resource machines (< 4GB RAM)
+- First-time setup (sequential is easier to follow)
+
+See [Detailed Start Sequence](#detailed-start-sequence) for information about which steps are parallelized.
+
+- `--notest` - Skip end-to-end tests. Use when rapid iteration is needed.
 
 **Recommended for faster startup:**
 ```bash
@@ -79,8 +97,6 @@ foc-devnet start --parallel
 ```bash
 foc-devnet start --parallel --notest
 ```
-
-> **💡 Pro Tip:** Use `--parallel` by default! It runs independent steps concurrently (contract deployments, database startup, etc.) while respecting dependencies. This can reduce startup time from ~5 minutes to ~3 minutes.
 
 **After successful start:**
 - Portainer UI available at http://localhost:5700 (uses first port in configured range)
@@ -716,78 +732,6 @@ commit = "789012345678..."
 
 ---
 
-## Command Flags
-
-### `init` Flags
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--curio` | String | Curio source location |
-| `--lotus` | String | Lotus source location |
-| `--filecoin-services` | String | Filecoin Services source location |
-| `--synapse-sdk` | String | Synapse SDK source location |
-| `--yugabyte-url` | String | Yugabyte download URL |
-| `--yugabyte-archive` | Path | Local Yugabyte archive (.tar.gz) |
-| `--proof-params-dir` | Path | Local proof parameters directory |
-| `--force` | Boolean | Force config regeneration |
-| `--rand` | Boolean | Use random mnemonic (non-deterministic keys) |
-
-**Why `--force`:** Regenerates `config.toml` even if it exists. Useful when switching between configurations.
-
-**Why `--rand`:** Generates random keys instead of deterministic ones. Use for unique test scenarios.
-
-### `build` Flags
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--output-dir` | Path | Directory for built binaries (default: `~/.foc-devnet/bin`) |
-
-**Why `--output-dir`:** Specify custom location for compiled binaries.
-
-### `start` Flags
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--volumes-dir` | Path | Custom docker volumes directory |
-| `--run-dir` | Path | Custom run-specific data directory |
-| `--parallel` | Boolean | ⚡ **Execute steps in parallel (~40% faster, recommended)** |
-| `--notest` | Boolean | Skip end-to-end Synapse tests |
-
-**Why `--parallel` (Recommended):**
-- **⚡ Significant speedup:** Reduces startup time from ~10 min to ~6 min
-- **Smart parallelization:** Steps that don't depend on each other run concurrently
-- **Production-ready:** Thread-safe implementation with proper synchronization
-- **Use case:** Default for most workflows, especially development iteration
-
-**When NOT to use `--parallel`:**
-- Debugging step ordering issues
-- Very low-resource machines (< 4GB RAM)
-- First-time setup (sequential is easier to follow)
-
-**Parallel execution epochs (with `--parallel`):**
-
-| Epoch | Steps | Parallelized? | Why |
-|-------|-------|---------------|-----|
-| 1 | Lotus | No | Foundational - everything depends on it |
-| 2 | Lotus Miner | No | Needs Lotus running |
-| 3 | ETH Account Funding | No | Needs blockchain active |
-| 4 | MockUSDFC Deploy + Multicall3 Deploy | **⚡ YES** | Independent contract deployments |
-| 5 | FOC Deploy + USDFC Funding + Yugabyte | **⚡ YES** | Parallel contract work + DB startup |
-| 6 | Curio SPs | No | Needs Yugabyte ready |
-| 7 | PDP SP Registration | No | Needs Curio running for ports |
-| 8 | Synapse E2E Test | No | Verification step |
-
-**Time savings:** Epochs 4 and 5 run ~40% faster in parallel mode.
-
-**Without `--parallel`:** All 8 epochs run sequentially (~5 minutes total).
-**With `--parallel`:** Epochs 4-5 run concurrently (~3 minutes total).
-
-**Why `--notest`:** Skip time-consuming E2E tests when rapid iteration needed.
-
-**Why `--volumes-dir` / `--run-dir`:** Use custom paths (e.g., faster SSD, network storage).
-
----
-
 ## Lifecycle Overview
 
 ### Full Lifecycle
@@ -847,6 +791,24 @@ commit = "789012345678..."
    - Create Curio networks (one per SP)
 
 **5. Step execution (sequential or parallel):**
+
+Steps run sequentially by default, or in parallel when using the `--parallel` flag. With `--parallel`, steps are grouped into execution epochs based on dependencies:
+
+| Epoch | Steps | Parallelized? | Why |
+|-------|-------|---------------|-----|
+| 1 | Lotus | No | Foundational - everything depends on it |
+| 2 | Lotus Miner | No | Needs Lotus running |
+| 3 | ETH Account Funding | No | Needs blockchain active |
+| 4 | MockUSDFC Deploy + Multicall3 Deploy | **⚡ YES** | Independent contract deployments |
+| 5 | FOC Deploy + USDFC Funding + Yugabyte | **⚡ YES** | Parallel contract work + DB startup |
+| 6 | Curio SPs | No | Needs Yugabyte ready |
+| 7 | PDP SP Registration | No | Needs Curio running for ports |
+| 8 | Synapse E2E Test | No | Verification step |
+
+**Time savings:** Epochs 4 and 5 run ~40% faster in parallel mode.
+
+**Without `--parallel`:** All 8 epochs run sequentially (~5 minutes total).
+**With `--parallel`:** Epochs 4-5 run concurrently (~3 minutes total).
 
    **a. Lotus Step:**
    - Start Lotus daemon container
