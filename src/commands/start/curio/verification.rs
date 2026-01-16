@@ -111,13 +111,9 @@ fn upload_test_file(
     _file_path: &Path,
     sp_index: usize,
 ) -> Result<String, Box<dyn Error>> {
-    // Get dynamically allocated PDP port from context
-    let port: u16 = context
-        .get(&format!("curio_sp_{}_pdp_port", sp_index))
-        .ok_or("Curio PDP port not found in context")?
-        .parse()?;
-
-    let service_url = format!("http://localhost:{}", port);
+    // When running pdptool inside the container, use the container's internal port (4702)
+    // not the host-mapped port
+    let service_url = "http://localhost:4702";
 
     // File is in fast-storage on host, which is mounted to /home/foc-user/curio/fast-storage in container
     let container_file_path = "/home/foc-user/curio/fast-storage/test_data.bin";
