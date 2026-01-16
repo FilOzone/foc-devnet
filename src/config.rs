@@ -227,7 +227,7 @@ impl Default for Config {
                 url: "https://github.com/FilOzone/synapse-sdk.git".to_string(),
                 commit: "773551bf1e9cf4cdc49aeb63a47a81f8dc5cb9e1".to_string(),
             },
-            yugabyte_download_url: "https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz".to_string(),
+            yugabyte_download_url: Self::get_default_yugabyte_url(),
             approved_pdp_sp_count: 1,
             active_pdp_sp_count: 1,
         }
@@ -235,6 +235,27 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Get the default YugabyteDB download URL based on system architecture.
+    ///
+    /// Returns the appropriate YugabyteDB tarball URL for the current platform:
+    /// - el8-aarch64 for ARM64 systems (Apple Silicon, AWS Graviton, etc.)
+    /// - linux-x86_64 for x86_64 systems
+    fn get_default_yugabyte_url() -> String {
+        const YUGABYTE_VERSION: &str = "2.25.1.0";
+        const YUGABYTE_BUILD: &str = "b381";
+
+        let arch_suffix = if cfg!(target_arch = "aarch64") {
+            "el8-aarch64"
+        } else {
+            "linux-x86_64"
+        };
+
+        format!(
+            "https://software.yugabyte.com/releases/{}/yugabyte-{}-{}-{}.tar.gz",
+            YUGABYTE_VERSION, YUGABYTE_VERSION, YUGABYTE_BUILD, arch_suffix
+        )
+    }
+
     /// Validate configuration values.
     ///
     /// Ensures that:
