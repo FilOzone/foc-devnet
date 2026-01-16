@@ -734,63 +734,36 @@ commit = "789012345678..."
 
 ## Lifecycle Overview
 
-### Full Lifecycle
-
-```
-┌──────────┐
-│   init   │  Download repos, build images, generate keys
-└────┬─────┘
-     │
-     ▼
-┌──────────┐
-│  build   │  Compile lotus and curio binaries
-└────┬─────┘
-     │
-     ▼
-┌──────────┐
-│  start   │  Launch cluster (see detailed flow below)
-└────┬─────┘
-     │
-     ▼
-┌──────────┐
-│ [running]│  Cluster active, contracts deployed
-└────┬─────┘
-     │
-     ▼
-┌──────────┐
-│   stop   │  Stop containers, cleanup networks
-└────┬─────┘
-     │
-     ▼
-┌──────────┐
-│  start   │  Regenesis + restart (fresh blockchain)
-└──────────┘
-```
+The typical workflow follows: `init` → `build` → `start` → `[running]` → `stop` → `start` (regenesis). Each `start` command performs a regenesis, creating a fresh blockchain state.
 
 ### Detailed Start Sequence
 
-**1. Pre-start cleanup:**
+The `start` command orchestrates multiple phases to launch the cluster. See the [Step Implementation Pattern](#step-implementation-pattern) section for how steps are structured.
+
+#### Before Steps
+
+**Pre-start cleanup:**
    - Stop any existing cluster
-   - Generate unique run ID
+   - Generate unique run ID (format: `YYYYMMDDTHHMM_RandomName`)
    - Create run directories
    - Perform regenesis (delete old run volumes)
 
-**2. Genesis prerequisites (one-time per start):**
+**Genesis prerequisites (one-time per start):**
    - Generate BLS keys for prefunded accounts
    - Create pre-sealed sectors
    - Build genesis block configuration
 
-**3. Port allocation:**
-   - Validate port range availability
+**Port allocation:**
+   - Validate port range availability (see [Configuration System](#configuration-system) for port range settings)
    - Allocate Portainer port
    - Initialize port allocator for dynamic assignment
 
-**4. Network creation:**
+**Network creation:**
    - Create Lotus network
    - Create Lotus Miner network
    - Create Curio networks (one per SP)
 
-**5. Step execution (sequential or parallel):**
+#### Steps
 
 Steps run sequentially by default, or in parallel when using the `--parallel` flag. With `--parallel`, steps are grouped into execution epochs based on dependencies:
 
@@ -810,60 +783,70 @@ Steps run sequentially by default, or in parallel when using the `--parallel` fl
 **Without `--parallel`:** All 8 epochs run sequentially (~5 minutes total).
 **With `--parallel`:** Epochs 4-5 run concurrently (~3 minutes total).
 
-   **a. Lotus Step:**
+**Lotus Step:**
    - Start Lotus daemon container
    - Wait for API file
    - Verify RPC connectivity
 
-   **b. Lotus Miner Step:**
+**Lotus Miner Step:**
    - Import pre-sealed sectors
    - Initialize miner
    - Start mining
 
-   **c. ETH Account Funding Step:**
+**ETH Account Funding Step:**
    - Transfer FIL to create FEVM addresses
    - Fund deployer accounts
    - Wait for address activation
 
-   **d. MockUSDFC Deploy Step:**
+**MockUSDFC Deploy Step:**
    - Deploy ERC-20 test token
    - Save contract address
 
-   **e. USDFC Funding Step:**
+**USDFC Funding Step:**
    - Transfer tokens to test accounts
    - Fund Curio SPs
 
-   **f. Multicall3 Deploy Step:**
+**Multicall3 Deploy Step:**
    - Deploy Multicall3 contract
    - Save contract address
 
-   **g. FOC Deploy Step:**
+**FOC Deploy Step:**
    - Deploy FOC service contracts
    - Deploy PDPVerifier, ServiceProviderRegistry, etc.
    - Save all contract addresses
 
-   **h. Yugabyte Step:**
-   - Start Yugabyte database
+**Yugabyte Step:**
+   - Start Yugabyte database (one instance per Curio SP, on the SP's network)
    - Verify PostgreSQL port
 
-   **i. Curio Step:**
+**Curio Step:**
    - Initialize Curio database schemas
    - Start N Curio SP containers
    - Configure PDP endpoints
 
-   **j. PDP SP Registration Step:**
+**PDP SP Registration Step:**
    - Register each Curio SP in registry
    - Approve authorized SPs
    - Save provider IDs
 
-   **k. Synapse E2E Test Step:**
+**Synapse E2E Test Step:**
    - Run end-to-end verification
-   - Test deal flow (unless `--notest`)
+   - Test deal flow (unless `--notest` flag is used)
 
-**6. Post-start:**
+#### Post Start Steps
    - Save step context
    - Display summary
    - Print access URLs
+
+### running
+At this point the cluster is active and already has contracts deployed.  It is ready for further interaction.
+
+### stop
+- stop containers
+- cleanup networks
+
+### (re)start
+- Regenisis by following the [start steps](#steps) and creating a new blockchain.
 
 ### Step Implementation Pattern
 
