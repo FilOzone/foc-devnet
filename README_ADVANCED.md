@@ -204,7 +204,7 @@ tag = "synapse-sdk-v0.36.1"
 
 ### How Defaults Work
 
-Defaults are defined in code (see [`src/config.rs`](../src/config.rs) `Config::default()`) and written to `config.toml` during `init`. This means:
+Defaults are defined in code (see [`src/config.rs`](src/config.rs) `Config::default()`) and written to `config.toml` during `init`. This means:
 
 - **First-time setup:** Running `foc-devnet init` creates `config.toml` with current defaults from code
 - **Updating defaults:** When a new version of `foc-devnet` includes updated defaults (e.g., newer Lotus version), run `foc-devnet init --force` to regenerate `config.toml` with the new defaults
@@ -455,7 +455,7 @@ fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
 
 **Common context keys:**
 
-These keys are string literals used throughout the codebase (see step implementations in [`src/commands/start/`](../src/commands/start/)). The definitive list is maintained in the code where steps use `context.get()` and `context.set()`. For an example, see [`src/commands/start/usdfc_deploy/prerequisites.rs`](../src/commands/start/usdfc_deploy/prerequisites.rs). 
+These keys are string literals used throughout the codebase (see step implementations in [`src/commands/start/`](src/commands/start/)). The definitive list is maintained in the code where steps use `context.get()` and `context.set()`. For an example, see [`src/commands/start/usdfc_deploy/prerequisites.rs`](src/commands/start/usdfc_deploy/prerequisites.rs). 
 
 - `deployer_mockusdfc_eth_address` - MockUSDFC deployer address
 - `deployer_foc_eth_address` - FOC contracts deployer address
@@ -686,7 +686,7 @@ port_range_count = 100
 
 ### Version Strategy
 
-Default versions for these repositories are defined in code (see [`src/config.rs`](../src/config.rs) `Config::default()`).
+Default versions for these repositories are defined in code (see [`src/config.rs`](src/config.rs) `Config::default()`).
 
 - **Git tags** (`GitTag`): Used for stable releases. Tags provide version pinning and stability.
 - **Git commits** (`GitCommit`): Used for repositories where specific commits are required and there isn't a corresponding tag yet.  (Generally tags should be preferred over commits.)
