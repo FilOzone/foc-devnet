@@ -875,18 +875,13 @@ pub trait Step: Send + Sync {
     fn pre_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>>;
     // Main work: perform the actual step (e.g., start container, deploy contract)
     fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>>;
-    // Verification phase: confirm step succeeded (e.g., check API is responding)
+    // Verification phase: confirm step succeeded (e.g., check API is responding, confirm deployment)
     fn post_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>>;
     // Orchestrates the full step lifecycle: pre_execute → execute → post_execute
     // Returns the duration taken for the step
     fn run(&self, context: &SetupContext) -> Result<Duration, Box<dyn Error>>;
 }
 ```
-
-**Phases:**
-1. **Pre-execute:** Validation (check images, ports, prerequisites)
-2. **Execute:** Main work (start container, deploy contract, etc.)
-3. **Post-execute:** Verification (check API, confirm deployment)
 
 ---
 
@@ -979,14 +974,6 @@ docker exec foc-<run-id>-builder cast call \
     "isApproved(uint256)" \
     <provider_id_3>
 # Returns: false
-```
-
-**Testing scenarios:**
-```bash
-# Send deal to approved SP (should succeed)
-# Send deal to unapproved SP (should fail)
-# Test failover from SP1 to SP2
-# Test SP3 attempting to accept deal (should reject)
 ```
 
 ### Example 3: Maximum SPs (5)
@@ -1170,14 +1157,3 @@ docker run --rm --network host \
   --broadcast
 ```
 
----
-
-## Reference Links
-
-- **Lotus Documentation:** https://lotus.filecoin.io/
-- **Curio Documentation:** https://github.com/filecoin-project/curio
-- **FEVM Documentation:** https://docs.filecoin.io/smart-contracts/
-- **Foundry Book:** https://book.getfoundry.sh/
-- **Docker Documentation:** https://docs.docker.com/
-
----
