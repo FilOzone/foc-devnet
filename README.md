@@ -10,6 +10,14 @@ A developer-friendly tool for spinning up complete Filecoin test networks with s
 
 Get up and running in three simple steps:
 
+### Step 0: Ensure non-root user
+`foc-localnet` requires itself to be run by a non-root user. Please ensure that you are running as a non-root user which is part of `docker` group.
+
+Run the following to see your User ID and groups you are a part of:
+```
+echo $(id -u); groups | grep 'docker'
+```
+
 ### Step 1: Initialize
 
 ```bash
@@ -136,7 +144,7 @@ Bundled with Portainer for browser-based Docker management—no terminal wizardr
 
 ## 🛠️ Need More?
 
-See **[Advanced_Readme.md](Advanced_Readme.md)** for comprehensive documentation on:
+See **[ADVANCED_README.md](ADVANCED_README.md)** for comprehensive documentation on:
 - **All commands reference** (init, build, start, stop, status, version)
 - **Configuration system** (config.toml structure, parameters, editing)
 - **Complete directory structure** (what's stored where and why)

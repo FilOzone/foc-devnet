@@ -4,21 +4,6 @@ This guide covers advanced usage, internal architecture, and operational details
 
 ---
 
-## Table of Contents
-
-- [Commands Reference](#commands-reference)
-- [Configuration System](#configuration-system)
-- [Directory Structure](#directory-structure)
-- [Resetting the System](#resetting-the-system)
-- [Run ID and Step Context](#run-id-and-step-context)
-- [Docker and Networking](#docker-and-networking)
-- [Repository Management](#repository-management)
-- [Command Flags](#command-flags)
-- [Lifecycle Overview](#lifecycle-overview)
-- [Service Provider Examples](#service-provider-examples)
-
----
-
 ## Commands Reference
 
 ### `init`

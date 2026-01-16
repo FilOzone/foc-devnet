@@ -7,9 +7,9 @@ use super::db_setup::{build_db_env_vars, build_foc_contract_env_vars, build_lotu
 use super::CurioStep;
 use crate::commands::start::curio::constants::CURIO_LAYERS;
 use crate::docker::command_logger::run_and_log_command_strings;
+use crate::docker::init::set_volume_ownership;
 use crate::docker::network::{lotus_network_name, pdp_miner_network_name};
 use crate::docker::{container_exists, stop_and_remove_container};
-use crate::docker::init::set_volume_ownership;
 use crate::paths::{
     foc_devnet_bin, foc_devnet_curio_sp_volume, foc_devnet_genesis_sectors_pdp_sp,
     foc_devnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,

@@ -200,6 +200,9 @@ impl Default for Config {
     /// The default configuration sets up a minimal cluster with one of each
     /// node type and assumes pre-built executables are available in standard
     /// system locations (/usr/local/bin/).
+    ///
+    /// The defaults should always use `GitCommit` or `GitTag` locations to ensure
+    /// reproducibility.
     fn default() -> Self {
         Self {
             port_range_start: 5700,
@@ -208,21 +211,21 @@ impl Default for Config {
                 url: "https://github.com/filecoin-project/lotus.git".to_string(),
                 tag: "v1.34.4-rc1".to_string(),
             },
-            curio: Location::GitBranch {
+            curio: Location::GitCommit {
                 url: "https://github.com/filecoin-project/curio.git".to_string(),
-                branch: "pdpv0".to_string(),
+                commit: "4d53c8017ad345410adfd80794fd7518b49c9128".to_string(),
             },
-            filecoin_services: Location::GitBranch {
+            filecoin_services: Location::GitCommit {
                 url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
-                branch: "main".to_string(),
+                commit: "0179f8b328c3dc36e81e44677e0078f064975377".to_string(),
             },
-            multicall3: Location::GitBranch {
+            multicall3: Location::GitTag {
                 url: "https://github.com/mds1/multicall3.git".to_string(),
-                branch: "main".to_string(),
+                tag: "v3.1.0".to_string(),
             },
-            synapse_sdk: Location::GitBranch {
+            synapse_sdk: Location::GitCommit {
                 url: "https://github.com/FilOzone/synapse-sdk.git".to_string(),
-                branch: "master".to_string(),
+                commit: "773551bf1e9cf4cdc49aeb63a47a81f8dc5cb9e1".to_string(),
             },
             yugabyte_download_url: "https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz".to_string(),
             approved_pdp_sp_count: 1,
