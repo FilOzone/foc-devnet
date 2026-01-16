@@ -522,7 +522,8 @@ These keys are string literals used throughout the codebase (see step implementa
 |-----------|-------|---------|-------|
 | `foc-<run-id>-lotus` | foc-lotus | Filecoin daemon (FEVM enabled) | 1234 (API), 1235 (P2P) |
 | `foc-<run-id>-lotus-miner` | foc-lotus-miner | First-gen miner (PoRep) | 2345 (API) |
-| `foc-<run-id>-yugabyte` | foc-yugabyte | Database for Curio (shared by all Curio SPs) | 5433 (PostgreSQL) |
+| `foc-<run-id>-yugabyte-1` | foc-yugabyte | Database for Curio SP 1 | 5433 (PostgreSQL) |
+| `foc-<run-id>-yugabyte-N` | foc-yugabyte | Database for Curio SP N (one per SP) | Dynamic from range |
 | `foc-<run-id>-curio-1` | foc-curio | First Curio SP (PDP) | Dynamic from range |
 | `foc-<run-id>-curio-2` | foc-curio | Second Curio SP (PDP) | Dynamic from range |
 | `foc-<run-id>-curio-N` | foc-curio | Nth Curio SP (PDP) | Dynamic from range |
@@ -552,46 +553,42 @@ Docker's user-defined bridge networks are virtual networks that provide:
 ```mermaid
 graph TB
     subgraph host["Host Machine (localhost)"]
-        style host fill:#f0f0f0,stroke:#333,stroke-width:2px
         portainer["🌐 Portainer<br/>:5700"]
         lotus_api["📡 Lotus API<br/>:5701"]
         miner_api["⛏️ Miner API<br/>:5702"]
         yugabyte_api["🗄️ Yugabyte<br/>:5710"]
     end
 
-    subgraph lotus_net["foc-&lt;run-id&gt;-lot-net<br/>(Lotus Network - Blockchain Communication)"]
-        style lotus_net fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    subgraph lotus_net["foc-&lt;run-id&gt;-lot-net (Lotus Network)"]
         lotus["foc-lotus<br/>(Filecoin Daemon)"]
         builder["foc-builder<br/>(--net=host)"]
-        curio1_lot["foc-curio-1<br/>(on lot-net)"]
+        curio_n_lot["foc-curio-n<br/>(on lot-net)"]
     end
 
-    subgraph miner_net["foc-&lt;run-id&gt;-lot-m-net<br/>(Lotus Miner Network)"]
-        style miner_net fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    subgraph miner_net["foc-&lt;run-id&gt;-lot-m-net (Lotus Miner Network)"]
         miner["foc-lotus-miner<br/>(PoRep Miner)"]
     end
 
-    subgraph curio_net["foc-&lt;run-id&gt;-cur-m-net-1<br/>(Curio SP 1 Network)"]
-        style curio_net fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-        yugabyte["foc-yugabyte<br/>(Database)"]
-        curio1["foc-curio-1<br/>(PDP Service Provider)"]
+    subgraph curio_net_n["foc-&lt;run-id&gt;-cur-m-net-n (Curio SP N Network)"]
+        yugabyte_n["foc-yugabyte-n<br/>(Database)"]
+        curio_n["foc-curio-n<br/>(PDP Service Provider)"]
     end
 
     %% Container to Host connections
     lotus -.->|exposes| lotus_api
     miner -.->|exposes| miner_api
-    yugabyte -.->|exposes| yugabyte_api
+    yugabyte_n -.->|exposes| yugabyte_api
 
     %% Network connections
     builder -->|uses host network| lotus
-    curio1 -->|same container| curio1_lot
+    curio_n -->|same container| curio_n_lot
     miner -->|connects to| lotus
-    curio1_lot -->|connects to| lotus
-    yugabyte <-->|database| curio1
+    curio_n_lot -->|connects to| lotus
+    yugabyte_n <-->|database| curio_n
 
     %% Styling
     classDef container fill:#fff,stroke:#333,stroke-width:1px
-    class lotus,builder,curio1_lot,miner,yugabyte,curio1 container
+    class lotus,builder,curio_n_lot,miner,yugabyte_n,curio_n container
 ```
 
 **Legend:**
@@ -612,8 +609,8 @@ graph TB
    
 3. **Curio Networks (`foc-<run-id>-cur-m-net-N`)**: 
    - Each Curio SP gets its own network
-   - All share Yugabyte database via network membership
-   - Provides DNS: Curio can use `foc-<run-id>-yugabyte` as database host
+   - Each Curio SP has its own Yugabyte database instance on its network
+   - Provides DNS: Curio SP N can use `foc-<run-id>-yugabyte-N` as database host
 
 **Builder uses host network** (`--network host`) to access Lotus RPC at `http://localhost:1234/rpc/v1`.
 
