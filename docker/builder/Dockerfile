@@ -56,9 +56,6 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
 WORKDIR /workspace
 
 # Define volumes for external access
-# NOTE: Removed tool directories (.cargo, .rustup, .foundry) from VOLUME
-# because mounting empty host directories would覆盖 the tools themselves.
-# Only proof parameters need external caching.
 VOLUME ["/var/tmp/filecoin-proof-parameters"]
 
 # Default command
