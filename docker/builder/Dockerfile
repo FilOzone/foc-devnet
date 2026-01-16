@@ -18,8 +18,10 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Go 1.24.7
-RUN wget -c https://golang.org/dl/go1.24.7.linux-amd64.tar.gz -O - | tar -xz -C /usr/local
+# Install Go 1.24.7 (auto-detect architecture)
+ARG TARGETARCH
+RUN GOARCH=${TARGETARCH:-amd64} && \
+    wget -c https://golang.org/dl/go1.24.7.linux-${GOARCH}.tar.gz -O - | tar -xz -C /usr/local
 ENV PATH=$PATH:/usr/local/go/bin
 
 # Create foc-user and foc-group with matching host UID/GID when it is run. The 1002 below is just a placeholder which will be replaced during build process. See `docker.rs`
