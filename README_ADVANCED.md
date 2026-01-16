@@ -424,6 +424,9 @@ fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
 ```
 
 **Common context keys:**
+
+These keys are string literals used throughout the codebase (see step implementations in [`src/commands/start/`](../src/commands/start/)). The definitive list is maintained in the code where steps use `context.get()` and `context.set()`. For an example, see [`src/commands/start/usdfc_deploy/prerequisites.rs`](../src/commands/start/usdfc_deploy/prerequisites.rs). 
+
 - `deployer_mockusdfc_eth_address` - MockUSDFC deployer address
 - `deployer_foc_eth_address` - FOC contracts deployer address
 - `mockusdfc_contract_address` - MockUSDFC token contract
