@@ -522,10 +522,10 @@ These keys are string literals used throughout the codebase (see step implementa
 |-----------|-------|---------|-------|
 | `foc-<run-id>-lotus` | foc-lotus | Filecoin daemon (FEVM enabled) | 1234 (API), 1235 (P2P) |
 | `foc-<run-id>-lotus-miner` | foc-lotus-miner | First-gen miner (PoRep) | 2345 (API) |
-| `foc-<run-id>-yugabyte` | foc-yugabyte | Database for Curio | 5433 (PostgreSQL) |
-| `foc-<run-id>-curio-1` | foc-curio | First Curio SP (PDP) | Dynamic |
-| `foc-<run-id>-curio-2` | foc-curio | Second Curio SP (PDP) | Dynamic |
-| `foc-<run-id>-curio-N` | foc-curio | Nth Curio SP (PDP) | Dynamic |
+| `foc-<run-id>-yugabyte` | foc-yugabyte | Database for Curio (shared by all Curio SPs) | 5433 (PostgreSQL) |
+| `foc-<run-id>-curio-1` | foc-curio | First Curio SP (PDP) | Dynamic from range |
+| `foc-<run-id>-curio-2` | foc-curio | Second Curio SP (PDP) | Dynamic from range |
+| `foc-<run-id>-curio-N` | foc-curio | Nth Curio SP (PDP) | Dynamic from range |
 | `foc-builder` | foc-builder | Foundry tools (contract deployment) | Host network |
 | `foc-portainer` | portainer/portainer-ce | Container management UI | 5700 (first from range) |
 
