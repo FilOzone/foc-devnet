@@ -84,6 +84,7 @@ pub fn setup_docker_run_args(
 
     let mut docker_run_args = vec![
         "run".to_string(),
+        "--rm".to_string(),
         "-u".to_string(),
         "foc-user".to_string(),
         "--name".to_string(),
