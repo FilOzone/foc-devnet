@@ -644,15 +644,25 @@ port_range_count = 100
 
 ## Repository Management
 
+
+
 ### Required Repositories
 
-| Repository | Default Source | Purpose |
-|------------|---------------|---------|
-| **lotus** | `github.com/filecoin-project/lotus:v1.34.0` | Filecoin daemon |
-| **curio** | `github.com/filecoin-project/curio:pdpv0` | Storage provider (PDP) |
-| **filecoin-services** | `github.com/FilOzone/filecoin-services:v1.0.0` | FOC smart contracts |
-| **multicall3** | `github.com/mds1/multicall3:main` | Multicall3 contract |
-| **synapse-sdk** | `github.com/FilOzone/synapse-sdk:synapse-sdk-v0.36.1` | PDP verification SDK |
+- **[lotus](https://github.com/filecoin-project/lotus)** - Filecoin daemon
+- **[curio](https://github.com/filecoin-project/curio)** - Storage provider (PDP)
+- **[filecoin-services](https://github.com/FilOzone/filecoin-services)** - FOC smart contracts
+- **[multicall3](https://github.com/mds1/multicall3)** - Multicall3 contract
+- **[synapse-sdk](https://github.com/FilOzone/synapse-sdk)** - PDP verification SDK
+
+### Version Strategy
+
+Default versions for these repositories are defined in code (see [`src/config.rs`](../src/config.rs) `Config::default()`).
+
+- **Git tags** (`GitTag`): Used for stable releases. Tags provide version pinning and stability.
+- **Git commits** (`GitCommit`): Used for repositories where specific commits are required and there isn't a corresponding tag yet.  (Generally tags should be preferred over commits.)
+- **Git branches** (`GitBranch`): Used for development or when tracking latest changes.
+
+**Updating defaults:** See [How Defaults Work](#how-defaults-work) for information on how defaults are defined and the steps to apply updates.
 
 ### Using Local Repositories
 
