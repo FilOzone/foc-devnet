@@ -374,9 +374,12 @@ rm -rf ~/.foc-devnet
 
 ### Step Context (SetupContext)
 
-**What:** Thread-safe shared state container that passes data between steps.
+**What is a "step"?** A step is a discrete unit of work in the cluster startup process (e.g., starting Lotus daemon, deploying contracts, starting Curio SPs). See [Detailed Start Sequence](#detailed-start-sequence) for a complete list of all steps.
 
-**Why needed:**
+**What is "step context"?** Thread-safe shared state container that passes data between steps.
+
+
+**Why is "step context" needed?**
 - **Dependency resolution:** Later steps need data from earlier steps
 - **Decoupling:** Steps don't directly call each other
 - **Parallelization:** Thread-safe for concurrent step execution
