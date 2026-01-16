@@ -7,7 +7,6 @@
 
 use super::super::step::SetupContext;
 use super::constants::TEST_FILE_SIZE_BYTES;
-use crate::paths::foc_devnet_bin;
 use rand::Rng;
 use std::error::Error;
 use std::fs;
@@ -15,7 +14,6 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
-use tempfile::TempDir;
 use tracing::info;
 
 /// Verify a single Curio PDP SP is functioning correctly.
@@ -65,11 +63,15 @@ fn verify_pdp_ping(context: &SetupContext, sp_index: usize) -> Result<(), Box<dy
 fn verify_upload_download(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
     info!("Testing upload/download functionality via pdptool...");
 
-    // Create temporary directory for test files
-    let temp_dir = TempDir::new()?;
-    let test_file_path = create_random_test_file(&temp_dir)?;
+    // Create test file in curio's fast-storage (already mounted to container)
+    let run_id = context.run_id();
+    let curio_sp_dir = crate::paths::foc_devnet_curio_sp_volume(run_id, sp_index);
+    let test_file_dir = curio_sp_dir.join("fast-storage");
+    fs::create_dir_all(&test_file_dir)?;
 
-    // Upload file via pdptool
+    let test_file_path = create_random_test_file(&test_file_dir)?;
+
+    // Upload file via pdptool (running in container)
     let piece_cid = upload_test_file(context, &test_file_path, sp_index)?;
 
     // Wait a bit for the piece to be available for download
@@ -84,14 +86,17 @@ fn verify_upload_download(context: &SetupContext, sp_index: usize) -> Result<(),
         return Err("Downloaded data does not match original".into());
     }
 
+    // Clean up test file
+    let _ = fs::remove_file(&test_file_path);
+
     info!("Upload/download verified");
 
     Ok(())
 }
 
 /// Create a random test file.
-fn create_random_test_file(temp_dir: &TempDir) -> Result<PathBuf, Box<dyn Error>> {
-    let test_file_path = temp_dir.path().join("test_data.bin");
+fn create_random_test_file(test_dir: &Path) -> Result<PathBuf, Box<dyn Error>> {
+    let test_file_path = test_dir.join("test_data.bin");
     let mut rng = rand::thread_rng();
     let random_data: Vec<u8> = (0..TEST_FILE_SIZE_BYTES).map(|_| rng.gen()).collect();
 
@@ -103,7 +108,7 @@ fn create_random_test_file(temp_dir: &TempDir) -> Result<PathBuf, Box<dyn Error>
 /// Upload test file using pdptool.
 fn upload_test_file(
     context: &SetupContext,
-    file_path: &Path,
+    _file_path: &Path,
     sp_index: usize,
 ) -> Result<String, Box<dyn Error>> {
     // Get dynamically allocated PDP port from context
@@ -114,11 +119,16 @@ fn upload_test_file(
 
     let service_url = format!("http://localhost:{}", port);
 
-    let file_path_str = file_path
-        .to_str()
-        .ok_or("Invalid file path: contains non-UTF8 characters")?;
+    // File is in fast-storage on host, which is mounted to /home/foc-user/curio/fast-storage in container
+    let container_file_path = "/home/foc-user/curio/fast-storage/test_data.bin";
+
+    let run_id = context.run_id();
+    let container_name = format!("foc-{}-curio-{}", run_id, sp_index);
 
     let args = [
+        "exec",
+        &container_name,
+        "/usr/local/bin/lotus-bins/pdptool",
         "upload-piece",
         "--service-url",
         &service_url,
@@ -126,11 +136,11 @@ fn upload_test_file(
         "public",
         "--hash-type",
         "commp",
-        file_path_str,
+        container_file_path,
         "--verbose",
     ];
 
-    let output = Command::new(foc_devnet_bin().join("pdptool"))
+    let output = Command::new("docker")
         .args(args)
         .output()?;
 
