@@ -690,43 +690,13 @@ foc-devnet init \
 
 **To share your exact setup with others:**
 
-1. **Export config:**
-   ```bash
-   cat ~/.foc-devnet/config.toml
-   ```
+```bash
+# Copy config file
+cp shared-config.toml ~/.foc-devnet/config.toml
 
-2. **Document versions:**
-   ```toml
-   # Lotus v1.34.0
-   [lotus]
-   url = "https://github.com/filecoin-project/lotus.git"
-   tag = "v1.34.0"
-   
-   # Curio pdpv0 branch (commit: abc123)
-   [curio]
-   url = "https://github.com/filecoin-project/curio.git"
-   branch = "pdpv0"
-   
-   # FilOzone services v1.0.0
-   [filecoin_services]
-   url = "https://github.com/FilOzone/filecoin-services.git"
-   tag = "v1.0.0"
-   
-   # Synapse SDK
-   [synapse_sdk]
-   url = "git@github.com:FilOzone/synapse-sdk.git"
-   tag = "synapse-sdk-v0.36.1"
-   ```
-
-3. **Share config file:**
-   ```bash
-   # Recipient copies config
-   mkdir -p ~/.foc-devnet
-   cp shared-config.toml ~/.foc-devnet/config.toml
-   
-   # Run init to download and build
-   foc-devnet init
-   ```
+# Run init to download and build
+foc-devnet init
+```
 
 **For reproducible builds, specify exact commits:**
 
