@@ -101,7 +101,7 @@ From building Docker images to deploying contracts—everything is automated:
 Built with modular steps for easy extension and customization:
 - Add custom deployment steps
 - Configure multiple PDP service providers
-- Control "allowed" SP nodes via `~/.foc-devnet/config.toml`
+- Control "allowed" SP nodes via `~/.foc-devnet/config.toml` ([docs](./Advanced_Readme.md#configuration-system))
 
 ### 📜 Programmable
 Built for scripting and automation:

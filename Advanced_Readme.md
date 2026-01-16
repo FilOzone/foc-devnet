@@ -69,7 +69,7 @@ foc-devnet build curio /path/to/custom/curio --output-dir ~/bins
 ```
 
 ### `start`
-Starts the local Filecoin network cluster. Must be run after `init` and `build` commands have completed successfully.
+Starts the local Filecoin network cluster. Must be run after `build lotus` and `build curio` commands have completed successfully.
 
 ```bash
 foc-devnet start [OPTIONS]
@@ -91,7 +91,7 @@ foc-devnet start --parallel
 foc-devnet start --parallel --notest
 ```
 
-> **💡 Pro Tip:** Use `--parallel` by default! It runs independent steps concurrently (contract deployments, database startup, etc.) while respecting dependencies. This can reduce startup time by ~40%.
+> **💡 Pro Tip:** Use `--parallel` by default! It runs independent steps concurrently (contract deployments, database startup, etc.) while respecting dependencies. This can reduce startup time from ~5 minutes to ~3 minutes.
 
 **After successful start:**
 - Portainer UI available at http://localhost:5700 (uses first port in configured range)
@@ -199,7 +199,7 @@ tag = "synapse-sdk-v0.36.1"
 
 **How defaults work:**
 - On first run, `foc-devnet init` generates `config.toml` with hardcoded defaults from the source code
-- Default values are defined in `src/config.rs` (see [`Config::default()`](https://github.com/FilOzone/foc-devnet/blob/main/src/config.rs))
+- Default values are defined in [`src/config.rs`](src/config.rs) (see `Config::default()`)
 - When you upgrade `foc-devnet`, existing `config.toml` is preserved to maintain your customizations
 - To adopt new defaults from an updated version, delete `config.toml` and run `foc-devnet init` again, or use `foc-devnet init --force`
 
@@ -446,7 +446,7 @@ fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
 
 **Common context keys:**
 
-These keys are used to pass data between [steps](#lifecycle-overview). For a definitive list, see the step implementations in [`src/commands/start/steps/`](https://github.com/FilOzone/foc-devnet/tree/main/src/commands/start/steps).
+These keys are used to pass data between [steps](#lifecycle-overview). For a definitive list, see the step implementations in [`src/commands/start/steps/`](src/commands/start/steps/).
 
 - `deployer_mockusdfc_eth_address` - MockUSDFC deployer address
 - `deployer_foc_eth_address` - FOC contracts deployer address
@@ -681,7 +681,7 @@ port_range_count = 100
 - **Lotus**: Pinned to tested stable version for reliability. If you need to use `main` branch, use: `foc-devnet init --lotus gitbranch:main --force`
 - **Curio**: Uses `pdpv0` branch (under active development). If you need a specific version, use: `foc-devnet init --curio gittag:v1.0.0 --force`
 - **Multicall3**: Uses `main` (stable, rarely changes)
-- Default versions are defined in [`src/config.rs`](https://github.com/FilOzone/foc-devnet/blob/main/src/config.rs). To update, either modify your `config.toml` or use `foc-devnet init --force` with desired source flags.
+- Default versions are defined in [`src/config.rs`](src/config.rs). To update, either modify your `config.toml` or use `foc-devnet init --force` with desired source flags.
 
 ### Using Local Repositories
 
