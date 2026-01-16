@@ -453,7 +453,7 @@ These keys are string literals used throughout the codebase (see step implementa
 
 **What is Portainer?**
 
-Portainer is a lightweight container management UI that gives you visual, browser-based access to all your Docker containers, networks, and volumes. foc-devnet automatically starts Portainer using the first port in your configured range.
+[Portainer](https://docs.docksal.io/use-cases/portainer/) is a lightweight container management UI that gives you visual, browser-based access to all your Docker containers, networks, and volumes. foc-devnet automatically starts Portainer using the first port in your configured range.
 
 **Access:** http://localhost:5700 (default, or first port from `port_range_start` in config.toml)
 
