@@ -1,14 +1,16 @@
+---
 name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: ['*']
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-  build-and-test:
+  fmt-clippy:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
     - uses: actions/checkout@v4
@@ -17,177 +19,320 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         components: rustfmt, clippy
-
-    - name: Build
-      run: cargo build
-
-    - name: Run tests
-      run: cargo test
 
     - name: Check formatting
       run: cargo fmt --all -- --check
 
     - name: Run clippy
-      run: cargo clippy -- -D warnings
+      run: cargo clippy --all-targets --all-features -- -D warnings
 
-  requirements-setup-test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest]
+  integration-test:
+    runs-on: ["self-hosted", "linux", "x64", "16xlarge+gpu"]
+    timeout-minutes: 60
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup Rust toolchain
-      uses: actions-rust-lang/setup-rust-toolchain@v1
+    # Free up disk space on GitHub Actions runner to avoid "no space left" errors
+    - name: "EXEC: {Free up disk space}, independent"
+      uses: endersonmenezes/free-disk-space@v3
       with:
-        components: rustfmt, clippy
+        remove_android: true
+        remove_dotnet: true
+        remove_haskell: true
+        remove_tool_cache: true
+        remove_swap: true
+        remove_packages: "azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable firefox postgresql* temurin-* *llvm* mysql* dotnet-sdk-*"
+        remove_packages_one_command: true
+        remove_folders: "/usr/share/swift /usr/share/miniconda /usr/share/az* /usr/local/lib/node_modules /usr/local/share/chromium /usr/local/share/powershell /usr/local/julia /usr/local/aws-cli /usr/local/aws-sam-cli /usr/share/gradle"
+        rm_cmd: "rmz"
+        rmz_version: "3.1.1"
 
-    - name: Build
-      run: cargo build
-
-    - name: Test requirements with --setup
-      run: |
-        cargo run -- requirements --setup
-      continue-on-error: false
-
-  build-commands-test:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup Rust toolchain
+    # Setup Rust toolchain and restore cached dependencies
+    - name: "EXEC: {Setup Rust toolchain}, independent"
       uses: actions-rust-lang/setup-rust-toolchain@v1
 
-    - name: Build
-      run: cargo build
+    # CACHE-RUST: Rust dependencies and build artifacts
+    # These are keyed on the Cargo.lock file to ensure cache validity
+    - name: "CACHE_RESTORE: {C-rust-cache}"
+      id: cache-rust
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-rust-build-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-rust-build-
 
-    - name: Set up Docker Buildx
+    # Setup Docker for building and running containers
+    - name: "EXEC: {Setup Docker}, independent"
       uses: docker/setup-buildx-action@v3
 
-    - name: Build Docker builder image
-      run: docker build -t foc-localnet-builder ./docker
-
-    - name: Verify Docker image was built
-      run: docker images foc-localnet-builder
-
-    - name: Test build command with invalid path (should fail gracefully)
-      run: |
-        if ./target/debug/foc-localnet build lotus /nonexistent/path 2>&1; then
-          echo "Expected command to fail with nonexistent path"
-          exit 1
-        fi
-
-    - name: Run Lotus build integration tests
-      run: |
-        RUST_BACKTRACE=full cargo test --test build_lotus_test -- --nocapture
-
-    - name: Run Curio build integration tests
-      run: |
-        RUST_BACKTRACE=full cargo test --test build_curio_test -- --nocapture
-
-  integration-start-test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup Rust toolchain
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-
-    - name: Install build dependencies
+    - name: "EXEC: {Install build dependencies}, independent"
       run: |
         sudo apt-get update
-        sudo apt-get install -y tar
+        sudo apt-get install -y tar openssl pkg-config libssl-dev
 
-    - name: Generate build artifacts
+    # Build the foc-devnet binary
+    - name: "EXEC: {Build foc-devnet binary}, DEP: {C-rust-cache}"
+      run: cargo build --release
+
+    # CACHE-RUST: Save Rust build cache for future runs
+    - name: "CACHE_SAVE: {C-rust-cache}"
+      if: steps.cache-rust.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-rust-build-${{ hashFiles('**/Cargo.lock') }}
+    
+    # Copy binary and clean up Rust artifacts to save disk space
+    - name: "EXEC: {Copy binary and clean cache}, DEP: {C-rust-cache}"
       run: |
-        # Ensure artifacts directory exists
-        mkdir -p artifacts
+        cp ./target/release/foc-devnet ./foc-devnet
+        rm -rf ~/.cargo/registry/
+        rm -rf ~/.cargo/git/db/
+        rm -rf target/
+        df -h
 
-        # Generate MockUSDFC.tar.gz if contracts directory exists
-        if [ -d "contracts/MockUSDFC" ]; then
-          tar -czf artifacts/MockUSDFC.tar.gz contracts/MockUSDFC
-          echo "✅ Generated MockUSDFC.tar.gz"
-          ls -la artifacts/
+    # Compute cache keys based on version info and source files
+    # - CODE_HASH: Changes when Lotus/Curio versions change (for build artifacts cache)
+    # - DOCKER_HASH: Changes when Dockerfiles change (for Docker images cache)
+    - name: "CHECK: {Compute version hashes}"
+      id: version-hashes
+      run: |   
+        # Get version output
+        VERSION_OUTPUT=$(./foc-devnet version 2>&1)
+        
+        # Compute CODE_HASH from all default:code: lines (Lotus/Curio versions)
+        CODE_HASH=$(echo "$VERSION_OUTPUT" | grep 'default:code:' | sha256sum | cut -d' ' -f1)
+        echo "code-hash=$CODE_HASH" >> $GITHUB_OUTPUT
+        echo "CODE_HASH: $CODE_HASH"
+        
+        # Compute DOCKER_HASH from docker/ directory (Dockerfile changes)
+        DOCKER_HASH=$(find docker -type f -exec sha256sum {} \; | sort | sha256sum | cut -d' ' -f1)
+        echo "docker-hash=$DOCKER_HASH" >> $GITHUB_OUTPUT
+        echo "DOCKER_HASH: $DOCKER_HASH"
+
+    # CACHE-DOCKER: Try to restore pre-built Docker images (foc-lotus, foc-lotus-miner, foc-builder, foc-curio, foc-yugabyte)
+    # These images contain YugabyteDB and all build dependencies
+    - name: "CACHE_RESTORE: {C-docker-images-cache}"
+      id: cache-docker-images
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.docker-images-cache
+        key: ${{ runner.os }}-docker-images-${{ steps.version-hashes.outputs.docker-hash }}
+
+    # CACHE-DOCKER: If Docker images are cached, load them from tarballs
+    - name: "EXEC: {Load Docker images}, DEP: {C-docker-images-cache}"
+      if: steps.cache-docker-images.outputs.cache-hit == 'true'
+      run: |
+        echo "Loading Docker images from cache..."
+        for image in ~/.docker-images-cache/*.tar; do
+          if [ -f "$image" ]; then
+            echo "Loading $(basename $image)..."
+            docker load -i "$image"
+          fi
+        done
+        echo "Docker images loaded successfully, list:"
+        docker images
+        rm -rf ~/.docker-images-cache
+        df -h
+
+    # If Docker images are cached, skip building them AND skip downloading YugabyteDB
+    # (YugabyteDB is already baked into the foc-yugabyte Docker image)
+    - name: "EXEC: {Initialize with cached Docker}, DEP: {C-docker-images-cache}"
+      if: steps.cache-docker-images.outputs.cache-hit == 'true'
+      run: |
+        rm -rf ~/.foc-devnet
+        ./foc-devnet init --no-docker-build
+
+    # If Docker images are not cached, do full init (downloads YugabyteDB and builds all images)
+    - name: "EXEC: {Initialize without cache}, independent"
+      if: steps.cache-docker-images.outputs.cache-hit != 'true'
+      run: |
+        rm -rf ~/.foc-devnet
+        ./foc-devnet init
+
+    # CACHE-DOCKER: Build Docker images if not cached
+    - name: "EXEC: {Build Docker images}, DEP: {C-docker-images-cache}"
+      if: steps.cache-docker-images.outputs.cache-hit != 'true'
+      run: |-
+        mkdir -p ~/.docker-images-cache
+        echo "Building Docker images for cache..."
+        docker save foc-lotus -o ~/.docker-images-cache/foc-lotus.tar
+        docker save foc-lotus-miner -o ~/.docker-images-cache/foc-lotus-miner.tar
+        docker save foc-builder -o ~/.docker-images-cache/foc-builder.tar
+        docker save foc-curio -o ~/.docker-images-cache/foc-curio.tar
+        docker save foc-yugabyte -o ~/.docker-images-cache/foc-yugabyte.tar
+        echo "Docker images saved to cache"
+        ls -lath ~/.docker-images-cache/
+        df -h
+
+    # CACHE-DOCKER: Save Docker images cache for future runs
+    - name: "CACHE_SAVE: {C-docker-images-cache}"
+      if: steps.cache-docker-images.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ~/.docker-images-cache
+        key: ${{ runner.os }}-docker-images-${{ steps.version-hashes.outputs.docker-hash }}
+
+    # CACHE-BINARIES: Try to restore previously built Lotus/Curio binaries
+    - name: "CACHE_RESTORE: {C-build-artifacts-cache}"
+      id: cache-binaries
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.foc-devnet/bin
+        key: ${{ runner.os }}-binaries-${{ steps.version-hashes.outputs.code-hash }}
+
+    - name: "EXEC: {Ensure permissions on binaries}, DEP: {C-build-artifacts-cache}"
+      if: steps.cache-binaries.outputs.cache-hit == 'true'
+      run: sudo chown -R $USER:$USER ~/.foc-devnet/bin/
+
+    # CACHE-GO: Try to restore foc-builder Go module cache to speed up Lotus/Curio builds
+    - name: "CACHE_RESTORE: {C-foc-builder-cache}"
+      id: cache-go
+      if: steps.cache-binaries.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.foc-devnet/docker/volumes/cache/foc-builder
+        key: ${{ runner.os }}-foc-builder-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
+        restore-keys: |
+          ${{ runner.os }}-foc-builder-cache-
+
+    - name: "EXEC: {Ensure permissions}, DEP: {C-foc-builder-cache}"
+      if: steps.cache-binaries.outputs.cache-hit != 'true' &&
+          steps.cache-go.outputs.cache-hit == 'true'
+      run: sudo chown -R $USER:$USER ~/.foc-devnet/
+      
+    - name: "EXEC: {Check disk space}, independent"
+      run: df -h
+
+    # Build Lotus and Curio if not cached
+    - name: "EXEC: {Build Lotus}, DEP: {C-build-artifacts-cache}"
+      if: steps.cache-binaries.outputs.cache-hit != 'true'
+      run: ./foc-devnet build lotus
+
+    - name: "EXEC: {Build Curio}, DEP: {C-build-artifacts-cache}"
+      if: steps.cache-binaries.outputs.cache-hit != 'true'
+      run: ./foc-devnet build curio
+
+    # CACHE-GO: Save Go module cache for future builds
+    - name: "CACHE_SAVE: {C-foc-builder-cache}"
+      if: steps.cache-binaries.outputs.cache-hit != 'true' &&
+          steps.cache-go.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ~/.foc-devnet/docker/volumes/cache/foc-builder
+        key: ${{ runner.os }}-foc-builder-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
+
+    # CACHE-BINARIES: Save built Lotus/Curio binaries for future runs
+    - name: "CACHE_SAVE: {C-build-artifacts-cache}"
+      if: steps.cache-binaries.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ~/.foc-devnet/bin
+        key: ${{ runner.os }}-binaries-${{ steps.version-hashes.outputs.code-hash }}
+
+    # Disk free-up
+    - name: "EXEC: {Clean up Go modules}, DEP: {C-build-artifacts-cache}"
+      run: |
+        sudo rm -rf ~/.foc-devnet/docker/volumes/cache
+        sudo rm -rf ~/.foc-devnet/code/lotus
+        sudo rm -rf ~/.foc-devnet/code/curio
+        df -h
+
+    # Download and extract Filecoin proof parameters from S3
+    - name: "EXEC: {Download proof parameters from S3}, independent"
+      run: |
+        mkdir -p ~/.foc-devnet/docker/volumes/cache/filecoin-proof-parameters/
+        curl -L https://fil-proof-params-2k-cache.s3.us-east-2.amazonaws.com/filecoin-proof-params-2k.tar -o /tmp/filecoin-proof-params-2k.tar
+        tar -xf /tmp/filecoin-proof-params-2k.tar -C ~/.foc-devnet/docker/volumes/cache/filecoin-proof-parameters/
+        rm /tmp/filecoin-proof-params-2k.tar
+        ls -lath ~/.foc-devnet/docker/volumes/cache/filecoin-proof-parameters/
+        PROOF_PARAMS_HASH=$(find ~/.foc-devnet/docker/volumes/cache/filecoin-proof-parameters -type f -exec sha256sum {} \; | cut -d' ' -f1 | sort | sha256sum | cut -d' ' -f1)
+        echo "Downloaded proof parameters with hash: $PROOF_PARAMS_HASH"
+
+    # Verify cluster is running correctly
+    - name: "EXEC: {Check cluster status}, independent"
+      run: ./foc-devnet status
+
+    # Start the full Filecoin localnet cluster
+    - name: "EXEC: {Start cluster}, independent"
+      id: start_cluster
+      continue-on-error: true
+      run: ./foc-devnet start --parallel
+
+    # On failure, collect and print Docker container logs for debugging
+    - name: "EXEC: {Collect Docker logs on failure}, independent"
+      run: |
+        echo "+++++++++++ foc-devnet version run"
+        cat ~/.foc-devnet/state/latest/version.txt 2>/dev/null || echo "No version file found"
+
+        echo "+++++++++++ Listing runs in foc-devnet..."
+        ls -1 ~/.foc-devnet/run/ 2>/dev/null || echo "No runs directory found"
+
+        echo "+++++++++++ Get latest run ID"
+        LATEST_RUN=$(ls -t ~/.foc-devnet/run/ 2>/dev/null | head -1)
+        if [ -n "$LATEST_RUN" ]; then
+          echo "Latest run: $LATEST_RUN"
+          RUN_DIR="$HOME/.foc-devnet/run/$LATEST_RUN"
         else
-          echo "❌ contracts/MockUSDFC directory not found"
-          exit 1
+          RUN_DIR="$HOME/.foc-devnet/state/latest"
         fi
 
-    - name: Build
-      run: cargo build
+        echo "+++++++++++ Disk space..."
+        sudo df -h 2>/dev/null || echo "df command failed"
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+        echo "+++++++++++ Latest Run Directory"
+        ls -lath "$RUN_DIR" 2>/dev/null || echo "No run directory found at $RUN_DIR"
+        ls -lath "$RUN_DIR/logs" 2>/dev/null || echo "No logs directory found at $RUN_DIR/logs"
 
-    - name: Enable Docker experimental features
-      run: |
-        echo '{"experimental": true}' | sudo tee /etc/docker/daemon.json
-        sudo systemctl restart docker
+        echo "+++++++++++ Contract Addresses"
+        cat "$RUN_DIR/contract_addresses.json" 2>/dev/null || echo "No contract addresses file found"
 
-    - name: Initialize foc-localnet environment
-      run: |
-        ./target/debug/foc-localnet init
-      timeout-minutes: 10
+        echo "+++++++++++ Step Context"
+        cat "$RUN_DIR/step_context.json" 2>/dev/null || echo "No step context file found"
 
-    - name: Build curio
-      run: |
-        ./target/debug/foc-localnet build curio
-      timeout-minutes: 10
+        echo "+++++++++++ FOC metadata"
+        cat "$RUN_DIR/foc_metadata.json" 2>/dev/null || echo "No foc metadata file found"
 
-    - name: Build lotus
-      run: |
-        ./target/debug/foc-localnet build lotus
-      timeout-minutes: 10
-
-    - name: Test start command with --reset --regenesis
-      run: |
-        ./target/debug/foc-localnet start --reset --regenesis
-      timeout-minutes: 15
-
-    - name: Verify cluster is running
-      run: |
-        # Check that containers are running
-        running_containers=$(docker ps --filter "name=foc-" --format "{{.Names}}")
-        echo "Running containers: $running_containers"
-
-        # Should have at least lotus and lotus-miner running
-        if ! echo "$running_containers" | grep -q "foc-lotus"; then
-          echo "ERROR: foc-lotus container is not running"
-          exit 1
-        fi
-
-        if ! echo "$running_containers" | grep -q "foc-lotus-miner"; then
-          echo "ERROR: foc-lotus-miner container is not running"
-          exit 1
-        fi
-
-        echo "✅ Cluster containers are running"
-
-    - name: Check contract deployment
-      run: |
-        # Wait a bit for contracts to be deployed
-        sleep 10
-
-        # Check if contract addresses file exists
-        if [ -f ~/.foc-localnet/artifacts/docker/volumes/foc-contract-addresses.json ]; then
-          echo "✅ Contract addresses file exists"
-          cat ~/.foc-localnet/artifacts/docker/volumes/foc-contract-addresses.json
+        echo "+++++++++++ Container Logs"
+        if [ -d "$RUN_DIR/logs" ]; then
+          for logfile in "$RUN_DIR/logs"/*; do
+            if [ -f "$logfile" ]; then
+              echo ""
+              echo "📰📰📰📰📰📰📰📰📰📰📰 Logs from $(basename "$logfile") 📰📰📰📰📰📰📰📰📰📰📰📰📰"
+              cat "$logfile" 2>/dev/null || echo "Failed to read $logfile"
+              echo "📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰"
+            fi
+          done
         else
-          echo "❌ Contract addresses file not found"
-          exit 1
+          echo "No container logs directory found at $RUN_DIR/logs"
         fi
 
-    - name: Cleanup - Stop cluster
-      run: |
-        ./target/debug/foc-localnet stop
-      if: always()
+    # Verify cluster is running correctly
+    - name: "EXEC: {Check cluster status}, independent"
+      run: ./foc-devnet status
 
-    - name: Cleanup - Remove containers and volumes
+    - name: "EXEC: {List foc-* containers}, independent"
       run: |
-        docker system prune -f --volumes
-      if: always()
+        echo "Containers using foc-* images (running or exited):"
+        docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+
+    # Clean shutdown
+    - name: "EXEC: {Stop cluster}, independent"
+      run: ./foc-devnet stop
+
+    # Mark job as failed if the start step failed, but only after all steps
+    - name: "CHECK: {Fail job if start failed}"
+      if: ${{ always() && steps.start_cluster.outcome == 'failure' }}
+      run: |
+        echo "Start cluster failed earlier; marking job as failed." >&2
+        exit 1

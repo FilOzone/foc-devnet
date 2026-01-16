@@ -3,7 +3,7 @@
 //! This module provides utilities for building Docker run commands for Lotus-Miner.
 
 use std::error::Error;
-use std::path::PathBuf;
+use std::path::Path;
 
 use super::constants::{IMAGE_NAME, LOTUS_API_WAIT_SLEEP_SECS};
 use crate::commands::start::lotus_utils::{build_fullnode_api_info, read_lotus_token};
@@ -11,13 +11,13 @@ use crate::commands::start::step::SetupContext;
 use crate::docker::containers::{lotus_container_name, lotus_miner_container_name};
 use crate::docker::network::lotus_network_name;
 use crate::paths::{
-    foc_localnet_bin, foc_localnet_docker_volumes_cache, foc_localnet_genesis_sectors_lotus_miner,
-    foc_localnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
+    foc_devnet_bin, foc_devnet_docker_volumes_cache, foc_devnet_genesis_sectors_lotus_miner,
+    foc_devnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
 };
 
 /// Build the Docker run command for Lotus-Miner
 pub fn build_miner_docker_command(
-    volumes_dir: &PathBuf,
+    volumes_dir: &Path,
     preseal_files: &(String, String),
     context: &SetupContext,
 ) -> Result<Vec<String>, Box<dyn Error>> {
@@ -35,10 +35,11 @@ pub fn build_miner_docker_command(
     let fullnode_api_info = build_fullnode_api_info(&lotus_token, &lotus_name);
 
     // Get paths
-    let bin_dir = foc_localnet_bin();
-    let sectors_dir = foc_localnet_genesis_sectors_lotus_miner(run_id);
-    let builder_volumes_dir = foc_localnet_docker_volumes_cache().join("foc-builder");
-    let params_dir = foc_localnet_proof_parameters();
+    let bin_dir = foc_devnet_bin();
+    let sectors_dir = foc_devnet_genesis_sectors_lotus_miner(run_id);
+    let builder_volumes_dir =
+        foc_devnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
+    let params_dir = foc_devnet_proof_parameters();
 
     // Get allocated miner API port from context
     let miner_api_port: u16 = context
@@ -114,7 +115,7 @@ pub fn build_miner_docker_command(
            echo "Lotus daemon API is ready!" && \
            if [ ! -f $LOTUS_MINER_PATH/config.toml ]; then \
              echo "Importing pre-sealed miner key..." && \
-             (/usr/local/bin/lotus-bins/lotus wallet import --as-default /sectors/{} 2>&1 | grep -v "key already exists" || true) && \
+             (/usr/local/bin/lotus-bins/lotus wallet import --as-default /sectors/{} 2>&1 | grep --invert-match "key already exists" || true) && \
              echo "Initializing lotus-miner..." && \
              /usr/local/bin/lotus-bins/lotus-miner init --genesis-miner --actor=t01000 --sector-size=2KiB \
                --pre-sealed-sectors=/sectors --pre-sealed-metadata=/sectors/{} --nosync; \

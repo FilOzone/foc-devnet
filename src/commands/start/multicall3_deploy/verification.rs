@@ -22,14 +22,17 @@ pub fn verify_multicall3(
     // Verify that the contract exists at the address using cast
     let verify_cmd = format!("cast code {} --rpc-url {}", contract_address, lotus_rpc_url);
 
+    let run_id = context.run_id();
+    let container_name = format!("foc-{}-multicall3-verify", run_id);
     let args: Vec<String> = vec![
         "run".to_string(),
-        "--rm".to_string(),
+        "--name".to_string(),
+        container_name,
         "-u".to_string(),
         "foc-user".to_string(),
         "--network".to_string(),
         "host".to_string(),
-        "foc-builder".to_string(),
+        crate::constants::BUILDER_DOCKER_IMAGE.to_string(),
         "bash".to_string(),
         "-c".to_string(),
         verify_cmd,

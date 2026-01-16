@@ -2,7 +2,8 @@
 //!
 //! This module handles displaying version and build information.
 
-use foc_localnet::version_info::VersionInfo;
+use foc_devnet::config::{Config, Location};
+use foc_devnet::version_info::VersionInfo;
 use tracing::info;
 
 /// Execute the version command
@@ -15,7 +16,7 @@ pub fn handle_version() -> Result<(), Box<dyn std::error::Error>> {
         "-dirty"
     };
 
-    info!("foc-localnet {}", version_info.version);
+    info!("foc-devnet {}", version_info.version);
     info!("Commit: {}{}", version_info.commit, dirty_suffix);
     info!("Branch: {}", version_info.branch);
 
@@ -38,5 +39,37 @@ pub fn handle_version() -> Result<(), Box<dyn std::error::Error>> {
         version_info.build_time_utc, relative_time
     );
     info!("Built (Local): {}", version_info.build_time_local);
+
+    // Print default configuration values
+    let default_config = Config::default();
+    info!("");
+    print_location_info("default:code:lotus", &default_config.lotus);
+    print_location_info("default:code:curio", &default_config.curio);
+    print_location_info(
+        "default:code:filecoin-services",
+        &default_config.filecoin_services,
+    );
+    print_location_info("default:code:multicall3", &default_config.multicall3);
+    print_location_info("default:code:synapse-sdk", &default_config.synapse_sdk);
+    info!("default:yugabyte: {}", default_config.yugabyte_download_url);
+
     Ok(())
+}
+
+/// Print location information in a formatted way
+fn print_location_info(label: &str, location: &Location) {
+    match location {
+        Location::LocalSource { dir } => {
+            info!("{}: local source at {}", label, dir);
+        }
+        Location::GitCommit { url, commit } => {
+            info!("{}: {}, commit {}", label, url, commit);
+        }
+        Location::GitTag { url, tag } => {
+            info!("{}: {}, tag {}", label, url, tag);
+        }
+        Location::GitBranch { url, branch } => {
+            info!("{}: {}, branch {}", label, url, branch);
+        }
+    }
 }

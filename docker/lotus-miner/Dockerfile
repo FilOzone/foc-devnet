@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y \
 # Create foc-user and foc-group with matching host UID/GID when it is run. The 1002 below is just a placeholder which will be replaced during build process. See `docker.rs`
 ARG USER_ID=1002
 ARG GROUP_ID=1002
+RUN userdel ubuntu || true
 RUN groupadd -g ${GROUP_ID} foc-group && \
     useradd -l -u ${USER_ID} -g foc-group -m -s /bin/bash foc-user
 
@@ -33,7 +34,7 @@ RUN mkdir -p /var/tmp/filecoin-proof-parameters \
 USER foc-user
 
 # Copy binaries will be mounted from host
-# Binary will be mounted from ~/.foc-localnet/bin
+# Binary will be mounted from ~/.foc-devnet/bin
 
 # Expose lotus-miner ports
 # 2345 - Lotus Miner API

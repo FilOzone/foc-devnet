@@ -4,24 +4,29 @@
 
 use crate::commands::start::step::SetupContext;
 use crate::docker::command_logger::run_and_log_command;
+use crate::utils::retry::{retry_with_fixed_delay, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS};
 use ethers_core::types::U256;
 use hex;
 use std::error::Error;
 use tracing::info;
 
+/// Parameters for MockUSDFC transfer operations
+pub struct USDFCTransferParams<'a> {
+    pub from_private_key: &'a str,
+    pub to_eth_address: &'a str,
+    pub amount: &'a str,
+    pub token_address: &'a str,
+    pub description: &'a str,
+    pub nonce: Option<u64>,
+    pub lotus_rpc_url: &'a str,
+}
+
 /// Transfer MockUSDFC tokens from one address to another using cast
 pub fn transfer_mock_usdfc(
+    params: &USDFCTransferParams,
     context: &SetupContext,
-    from_private_key: &str,
-    _from_eth_address: &str,
-    to_eth_address: &str,
-    amount: &str,
-    token_address: &str,
-    description: &str,
-    nonce: Option<u64>,
-    lotus_rpc_url: &str,
 ) -> Result<(), Box<dyn Error>> {
-    info!("Transferring MockUSDFC tokens: {}...", description);
+    info!("Transferring MockUSDFC tokens: {}...", params.description);
 
     let mut cast_cmd = format!(
         "cd /workspace && cast send {} \
@@ -29,28 +34,38 @@ pub fn transfer_mock_usdfc(
          --rpc-url {} \
          'transfer(address,uint256)' {} {} \
          --gas-limit 100000000",
-        token_address, from_private_key, lotus_rpc_url, to_eth_address, amount
+        params.token_address,
+        params.from_private_key,
+        params.lotus_rpc_url,
+        params.to_eth_address,
+        params.amount
     );
 
     // Add nonce if provided
-    if let Some(nonce_val) = nonce {
+    if let Some(nonce_val) = params.nonce {
         cast_cmd.push_str(&format!(" --nonce {}", nonce_val));
     }
 
     // Debug output
     // println!("Executing command: {}", cast_cmd);
 
-    let key = format!("usdfc_transfer_{}", description.replace(" ", "_"));
+    let key = format!("usdfc_transfer_{}", params.description.replace(" ", "_"));
+    let container_name = format!(
+        "foc-{}-usdfc-transfer-{}",
+        context.run_id(),
+        params.description.replace(" ", "-").replace("→", "to")
+    );
     let output = run_and_log_command(
         "docker",
         &[
             "run",
-            "--rm",
+            "--name",
+            &container_name,
             "--network",
             "host", // Use host network to access localhost:1234
             "-v",
             "/tmp:/workspace",
-            "foc-builder",
+            crate::constants::BUILDER_DOCKER_IMAGE,
             "bash",
             "-c",
             &cast_cmd,
@@ -75,63 +90,75 @@ pub fn check_mock_usdfc_balance(
     token_address: &str,
     lotus_rpc_url: &str,
 ) -> Result<U256, Box<dyn Error>> {
-    // info!("Checking MockUSDFC balance for {}...", eth_address);
+    // Retry balance check with fixed delay
+    retry_with_fixed_delay(
+        || {
+            let key = format!("usdfc_balance_check_{}", eth_address);
+            let container_name = format!(
+                "foc-{}-usdfc-balance-check-{}",
+                context.run_id(),
+                &eth_address[..8]
+            );
+            let output = run_and_log_command(
+                "docker",
+                &[
+                    "run",
+                    "--rm",
+                    "--name",
+                    &container_name,
+                    "--network",
+                    "host",
+                    "-v",
+                    &format!(
+                        "{}:/workspace",
+                        crate::paths::project_root()?
+                            .join("contracts/MockUSDFC")
+                            .display()
+                    ),
+                    crate::constants::BUILDER_DOCKER_IMAGE,
+                    "bash",
+                    "-c",
+                    &format!(
+                        "cd /workspace && cast call {} \
+                         --rpc-url {} \
+                         'balanceOf(address)' {}",
+                        token_address, lotus_rpc_url, eth_address
+                    ),
+                ],
+                context,
+                &key,
+            )?;
 
-    let key = format!("usdfc_balance_check_{}", eth_address);
-    let output = run_and_log_command(
-        "docker",
-        &[
-            "run",
-            "--rm",
-            "--network",
-            "host",
-            "-v",
-            &format!(
-                "{}:/workspace",
-                crate::paths::project_root()?
-                    .join("contracts/MockUSDFC")
-                    .display()
-            ),
-            "foc-builder",
-            "bash",
-            "-c",
-            &format!(
-                "cd /workspace && cast call {} \
-                 --rpc-url {} \
-                 'balanceOf(address)' {}",
-                token_address, lotus_rpc_url, eth_address
-            ),
-        ],
-        context,
-        &key,
-    )?;
+            if !output.status.success() {
+                return Err(format!(
+                    "Failed to check balance for {}: {}",
+                    eth_address,
+                    String::from_utf8_lossy(&output.stderr)
+                )
+                .into());
+            }
 
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to check balance for {}: {}",
-            eth_address,
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
+            let balance_hex = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
-    let balance_hex = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if balance_hex.is_empty() || balance_hex == "0x" {
+                return Ok(U256::zero());
+            }
 
-    if balance_hex.is_empty() || balance_hex == "0x" {
-        return Ok(U256::zero());
-    }
+            // Remove "0x" prefix if it exists
+            let hex_str = balance_hex.strip_prefix("0x").unwrap_or(&balance_hex);
 
-    // Remove "0x" prefix if it exists
-    let hex_str = balance_hex.strip_prefix("0x").unwrap_or(&balance_hex);
+            // Decode hex to bytes
+            let bytes = hex::decode(hex_str).map_err(|e| -> Box<dyn Error> {
+                format!("Failed to decode hex string: {}: {}", hex_str, e).into()
+            })?;
 
-    // Decode hex to bytes
-    let bytes = match hex::decode(hex_str) {
-        Ok(bytes) => bytes,
-        Err(e) => return Err(format!("Failed to decode hex string: {}: {}", hex_str, e).into()),
-    };
+            // Convert bytes to U256
+            let balance_u256 = U256::from_big_endian(&bytes);
 
-    // Convert bytes to U256
-    let balance_u256 = U256::from_big_endian(&bytes);
-
-    Ok(balance_u256)
+            Ok(balance_u256)
+        },
+        DEFAULT_MAX_RETRIES,
+        DEFAULT_RETRY_DELAY_SECS,
+        &format!("MockUSDFC balance check for {}", eth_address),
+    )
 }

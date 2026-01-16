@@ -1,4 +1,4 @@
-//! Embedded assets for foc-localnet.
+//! Embedded assets for foc-devnet.
 //!
 //! This module contains all external files embedded into the binary
 //! using include_bytes! to make the binary self-contained.

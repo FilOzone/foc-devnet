@@ -1,4 +1,4 @@
-//! Configuration module for foc-localnet.
+//! Configuration module for foc-devnet.
 //!
 //! This module defines the configuration structures used to manage the local
 //! Filecoin on-chain cloud cluster. It includes settings for node counts,
@@ -114,7 +114,7 @@ impl Location {
     }
 }
 
-/// Main configuration structure for the foc-localnet application.
+/// Main configuration structure for the foc-devnet application.
 ///
 /// This struct contains all the settings needed to configure and run a local
 /// Filecoin cluster for testing filecoin-onchain-cloud functionality. It includes
@@ -123,7 +123,7 @@ impl Location {
 pub struct Config {
     /// Starting port number for the contiguous port range.
     ///
-    /// All ports used by the localnet will be dynamically allocated from a contiguous
+    /// All ports used by the devnet will be dynamically allocated from a contiguous
     /// range starting at this port. This ensures no port conflicts and allows
     /// easy firewall configuration.
     /// Default: 5700
@@ -133,7 +133,7 @@ pub struct Config {
     ///
     /// This defines the size of the port range available for allocation.
     /// For example, with port_range_start=5700 and port_range_count=300,
-    /// ports 5700-5999 are reserved for the localnet.
+    /// ports 5700-5999 are reserved for the devnet.
     /// Default: 100
     pub port_range_count: u16,
 
@@ -200,29 +200,32 @@ impl Default for Config {
     /// The default configuration sets up a minimal cluster with one of each
     /// node type and assumes pre-built executables are available in standard
     /// system locations (/usr/local/bin/).
+    ///
+    /// The defaults should always use `GitCommit` or `GitTag` locations to ensure
+    /// reproducibility.
     fn default() -> Self {
         Self {
             port_range_start: 5700,
             port_range_count: 100,
             lotus: Location::GitTag {
                 url: "https://github.com/filecoin-project/lotus.git".to_string(),
-                tag: "v1.34.0".to_string(),
+                tag: "v1.34.4-rc1".to_string(),
             },
-            curio: Location::GitBranch {
+            curio: Location::GitCommit {
                 url: "https://github.com/filecoin-project/curio.git".to_string(),
-                branch: "pdpv0".to_string(),
+                commit: "4d53c8017ad345410adfd80794fd7518b49c9128".to_string(),
             },
-            filecoin_services: Location::GitTag {
+            filecoin_services: Location::GitCommit {
                 url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
-                tag: "v1.0.0".to_string(),
+                commit: "0179f8b328c3dc36e81e44677e0078f064975377".to_string(),
             },
-            multicall3: Location::GitBranch {
+            multicall3: Location::GitTag {
                 url: "https://github.com/mds1/multicall3.git".to_string(),
-                branch: "main".to_string(),
+                tag: "v3.1.0".to_string(),
             },
-            synapse_sdk: Location::GitTag {
-                url: "git@github.com:FilOzone/synapse-sdk.git".to_string(),
-                tag: "synapse-sdk-v0.36.1".to_string(),
+            synapse_sdk: Location::GitCommit {
+                url: "https://github.com/FilOzone/synapse-sdk.git".to_string(),
+                commit: "773551bf1e9cf4cdc49aeb63a47a81f8dc5cb9e1".to_string(),
             },
             yugabyte_download_url: "https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz".to_string(),
             approved_pdp_sp_count: 1,

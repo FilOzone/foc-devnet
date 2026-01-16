@@ -1,8 +1,8 @@
-# foc-localnet - AI Coding Instructions
+# foc-devnet - AI Coding Instructions
 
 ## Project Overview
 
-**foc-localnet** is a Rust CLI tool for managing local Filecoin networks with FOC (Filecoin Onchain Contracts) support for warm storage services. It orchestrates Docker containers running Lotus nodes, miners, databases, and deploys smart contracts using Foundry (Forge/Cast).
+**foc-devnet** is a Rust CLI tool for managing local Filecoin networks with FOC (Filecoin Onchain Contracts) support for warm storage services. It orchestrates Docker containers running Lotus nodes, miners, databases, and deploys smart contracts using Foundry (Forge/Cast).
 
 **Key Technologies**: Rust, Docker, Filecoin Lotus, FEVM (Filecoin EVM), Foundry, YugabyteDB, Solidity
 
@@ -59,10 +59,10 @@ foc-curio           # Second-gen miner (WIP)
 ## Directory Structure & Conventions
 
 ### User Data Directories
-All persistent data lives under `~/.foc-localnet/` (see `src/paths.rs`):
+All persistent data lives under `~/.foc-devnet/` (see `src/paths.rs`):
 
 ```
-~/.foc-localnet/
+~/.foc-devnet/
 ├── artifacts/
 │   ├── bin/                    # Built Lotus/Curio binaries
 │   └── docker/volumes/         # Container persistent data
@@ -82,11 +82,11 @@ All persistent data lives under `~/.foc-localnet/` (see `src/paths.rs`):
 ```
 
 ### Key Path Functions (src/paths.rs)
-- `foc_localnet_home()` - Root directory `~/.foc-localnet/`
-- `foc_localnet_docker_volumes()` - Docker volumes directory
-- `foc_localnet_lotus_keys()` - BLS key storage
+- `foc_devnet_home()` - Root directory `~/.foc-devnet/`
+- `foc_devnet_docker_volumes()` - Docker volumes directory
+- `foc_devnet_lotus_keys()` - BLS key storage
 - `contract_addresses_file()` - JSON file with deployed contracts
-- `foc_localnet_bin()` - Built binaries directory
+- `foc_devnet_bin()` - Built binaries directory
 
 ## Smart Contract Deployment
 
@@ -226,7 +226,7 @@ Deletes: BLS keys, genesis sectors, genesis config, blockchain data, contract ad
 **Files Deleted**:
 - `lotus-keys/key-1`, `lotus-keys/key-2`, `lotus-keys/prefunded-*`
 - `genesis-sectors/`
-- `genesis/foc-localnet.json`
+- `genesis/foc-devnet.json`
 - `lotus-data/`, `lotus-miner-data/`
 
 ### Reset (Chain Reset Only)
@@ -275,7 +275,7 @@ docker run --rm --network host \
 
 ### Port Conflicts
 **Problem**: Container fails to start due to port already in use
-**Solution**: Check with `lsof -i :1234` or use `foc-localnet stop` to clean up
+**Solution**: Check with `lsof -i :1234` or use `foc-devnet stop` to clean up
 
 ### Volume Permission Issues
 **Problem**: Container can't write to mounted volumes
@@ -319,7 +319,7 @@ Use descriptive error messages with context:
 ```rust
 return Err(format!(
     "Lotus container is not running. FOC deployment requires Lotus to be running with FEVM enabled. \
-    Run 'foc-localnet start' to start Lotus first."
+    Run 'foc-devnet start' to start Lotus first."
 ).into());
 ```
 
@@ -359,7 +359,7 @@ const MOCK_USDFC_INITIAL_SUPPLY: &str = "1000000000000000000000000";
 ## When Making Changes
 
 1. **Adding New Steps**: Implement the `Step` trait, add to startup sequence in correct order
-2. **Modifying Dockerfiles**: Update embedded assets, rebuild with `foc-localnet init --rebuild`
+2. **Modifying Dockerfiles**: Update embedded assets, rebuild with `foc-devnet init --rebuild`
 3. **Changing Paths**: Update `src/paths.rs` and ensure backward compatibility
 4. **Contract Updates**: Update embedded asset, test deployment manually first
 5. **Error Handling**: Always provide context (which container, which file, which command failed)

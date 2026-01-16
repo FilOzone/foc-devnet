@@ -55,7 +55,7 @@ pub struct SetupContext {
     /// Run ID for this execution (e.g., "251203-1246-thirsty-wolf")
     run_id: String,
 
-    /// Run-specific directory (e.g., ~/.foc-localnet/run/251203-1246-thirsty-wolf)
+    /// Run-specific directory (e.g., ~/.foc-devnet/run/251203-1246-thirsty-wolf)
     run_dir: PathBuf,
 
     /// Port allocator for dynamic port assignment (thread-safe)
@@ -153,8 +153,8 @@ impl SetupContext {
     ///
     /// # Example
     /// ```
-    /// context.save_command("lotus_container_create", "docker run -d foc-lotus");
-    /// // Stored as: "lotus_container_create" = "docker run -d foc-lotus"
+    /// context.save_command("lotus_container_create", "docker run -d [LOTUS_CONTAINER]");
+    /// // Stored as: "lotus_container_create" = "docker run -d [LOTUS_CONTAINER]"
     /// // Also appended to: "command_history" list
     /// ```
     pub fn save_command(&self, key: &str, command_str: &str) {
@@ -308,55 +308,67 @@ pub trait Step: Send + Sync {
 /// * `port_start` - Starting port for the contiguous port range
 /// * `port_count` - Number of ports in the range
 /// * `portainer_port` - Optional port already allocated for Portainer
+///
+/// Configuration for step execution
+pub struct StepExecutionConfig {
+    pub run_id: String,
+    pub run_dir: PathBuf,
+    pub port_start: u16,
+    pub port_count: u16,
+    pub portainer_port: Option<u16>,
+    pub active_pdp_sp_count: usize,
+    pub approved_pdp_sp_count: usize,
+}
+
 pub fn execute_steps(
     steps: Vec<&dyn Step>,
-    run_id: String,
-    run_dir: PathBuf,
-    port_start: u16,
-    port_count: u16,
-    portainer_port: Option<u16>,
-    active_pdp_sp_count: usize,
-    approved_pdp_sp_count: usize,
+    config: StepExecutionConfig,
 ) -> Result<(), Box<dyn Error>> {
     // Create port allocator and verify all ports are available
-    let mut port_allocator = PortAllocator::new(port_start, port_count)?;
+    let mut port_allocator = PortAllocator::new(config.port_start, config.port_count)?;
 
     info!(
         "Port range check: {}-{} ({} ports)",
-        port_start,
-        port_start + port_count - 1,
-        port_count
+        config.port_start,
+        config.port_start + config.port_count - 1,
+        config.port_count
     );
 
     // If Portainer is using a port in our range, we don't want to fail the availability check
     // because Portainer is already running (started by us).
     // So we verify all ports EXCEPT the portainer port if it's in range.
-    for port in port_start..(port_start + port_count) {
-        if let Some(p_port) = portainer_port {
+    for port in config.port_start..(config.port_start + config.port_count) {
+        if let Some(p_port) = config.portainer_port {
             if port == p_port {
                 continue;
             }
         }
         if !crate::docker::core::is_port_available(port) {
-            // This is a bit of a hack since we're calling a private function from PortAllocator
-            // but we'll just do the check here.
+            // Check port availability directly to ensure no conflicts before starting containers
             return Err(format!("Port {} is already in use", port).into());
         }
     }
     info!("All ports in range are available");
 
     // If Portainer port was provided, mark it as allocated in our allocator
-    if let Some(p_port) = portainer_port {
-        if p_port >= port_start && p_port < (port_start + port_count) {
+    if let Some(p_port) = config.portainer_port {
+        if p_port >= config.port_start && p_port < (config.port_start + config.port_count) {
             port_allocator.mark_allocated(p_port)?;
         }
     }
 
-    let context = SetupContext::with_run_id_and_ports(run_id, run_dir, port_allocator);
+    let context =
+        SetupContext::with_run_id_and_ports(config.run_id, config.run_dir, port_allocator);
 
     // Set initial state
-    context.set("active_pdp_sp_count", active_pdp_sp_count.to_string());
-    context.set("approved_pdp_sp_count", approved_pdp_sp_count.to_string());
+    context.set(
+        "active_pdp_sp_count",
+        config.active_pdp_sp_count.to_string(),
+    );
+    context.set(
+        "approved_pdp_sp_count",
+        config.approved_pdp_sp_count.to_string(),
+    );
 
     let overall_start = Instant::now();
     let mut all_step_timings = Vec::new();
@@ -401,28 +413,22 @@ pub fn execute_steps(
 /// Returns Ok(()) if all steps in all epochs complete successfully, or an error if any step fails.
 pub fn execute_steps_parallel(
     step_epochs: Vec<Vec<&dyn Step>>,
-    run_id: String,
-    run_dir: PathBuf,
-    port_start: u16,
-    port_count: u16,
-    portainer_port: Option<u16>,
-    active_pdp_sp_count: usize,
-    approved_pdp_sp_count: usize,
+    config: StepExecutionConfig,
 ) -> Result<(), Box<dyn Error>> {
     // Create port allocator and verify all ports are available
-    let mut port_allocator = PortAllocator::new(port_start, port_count)?;
+    let mut port_allocator = PortAllocator::new(config.port_start, config.port_count)?;
 
     info!(
         "Port range check: {}-{} ({} ports)",
-        port_start,
-        port_start + port_count - 1,
-        port_count
+        config.port_start,
+        config.port_start + config.port_count - 1,
+        config.port_count
     );
 
     // If Portainer is using a port in our range, we don't want to fail the availability check
     // because Portainer is already running (started by us).
-    for port in port_start..(port_start + port_count) {
-        if let Some(p_port) = portainer_port {
+    for port in config.port_start..(config.port_start + config.port_count) {
+        if let Some(p_port) = config.portainer_port {
             if port == p_port {
                 continue;
             }
@@ -434,19 +440,25 @@ pub fn execute_steps_parallel(
     info!("✓ All ports in range are available");
 
     // Mark portainer port as allocated if provided
-    if let Some(port) = portainer_port {
+    if let Some(port) = config.portainer_port {
         port_allocator.mark_allocated(port)?;
     }
 
     let context = Arc::new(SetupContext::with_run_id_and_ports(
-        run_id,
-        run_dir,
+        config.run_id,
+        config.run_dir,
         port_allocator,
     ));
 
     // Set initial state
-    context.set("active_pdp_sp_count", active_pdp_sp_count.to_string());
-    context.set("approved_pdp_sp_count", approved_pdp_sp_count.to_string());
+    context.set(
+        "active_pdp_sp_count",
+        config.active_pdp_sp_count.to_string(),
+    );
+    context.set(
+        "approved_pdp_sp_count",
+        config.approved_pdp_sp_count.to_string(),
+    );
 
     let overall_start = Instant::now();
     let mut all_step_timings: Vec<(String, Duration)> = Vec::new();

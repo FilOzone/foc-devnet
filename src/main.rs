@@ -1,13 +1,12 @@
-//! Main entry point for foc-localnet.
+//! Main entry point for foc-devnet.
 //!
 //! This module provides the main application entry point with command routing.
 
 use clap::Parser;
-use foc_localnet::cli::{Cli, Commands};
-use foc_localnet::logger::init_logging;
-use foc_localnet::poison;
-use foc_localnet::run_id::generate_run_id;
-use tracing::error;
+use foc_devnet::cli::{Cli, Commands};
+use foc_devnet::logger::init_logging;
+use foc_devnet::poison;
+use foc_devnet::run_id::generate_run_id;
 
 mod main_app;
 
@@ -42,6 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             proof_params_dir,
             force,
             rand,
+            no_docker_build,
         } => main_app::command_handlers::handle_init(
             curio,
             lotus,
@@ -52,6 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             proof_params_dir,
             force,
             rand,
+            no_docker_build,
         ),
         Commands::Build { build_command } => {
             main_app::command_handlers::handle_build(build_command)
@@ -67,13 +68,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             poison::remove_poison()?;
             Ok(())
         }
-        Err(e) => {
-            // Leave poison file in place on error
-            error!(
-                "Command failed, poison file left in place for safety: {}",
-                e
-            );
-            Err(e)
-        }
+        Err(e) => Err(e),
     }
 }

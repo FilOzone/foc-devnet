@@ -1,11 +1,11 @@
-//! Key generation and management for foc-localnet addresses.
+//! Key generation and management for foc-devnet addresses.
 //!
 //! This module handles generating deterministic addresses and private keys
-//! for various components of the foc-localnet system using HD wallet derivation.
+//! for various components of the foc-devnet system using HD wallet derivation.
 
 use crate::{
     commands::start::FEVM_ACCOUNTS_PREFUNDED, crypto::mnemonic::store_mnemonic,
-    paths::foc_localnet_keys,
+    paths::foc_devnet_keys,
 };
 use bip39::{Language, Mnemonic};
 use serde::{Deserialize, Serialize};
@@ -47,7 +47,7 @@ pub const STATIC_MNEMONIC_ENTROPY: [u8; 32] = [
 
 pub const NATIVE_KEYS: [&str; 3] = ["BLS_SIGNER_1", "BLS_SIGNER_2", "GLOBAL_FIL_FAUCET"];
 
-/// Generate all required keys for foc-localnet.
+/// Generate all required keys for foc-devnet.
 ///
 /// This function generates keys for:
 /// - BLS_SIGNER_1 (t3 address)
@@ -113,9 +113,9 @@ pub fn generate_keys(use_random: bool) -> Result<Vec<KeyInfo>, Box<dyn std::erro
     Ok(keys)
 }
 
-/// Save generated keys to ~/.foc-localnet/keys/addresses.json
+/// Save generated keys to ~/.foc-devnet/keys/addresses.json
 fn save_keys(keys: &[KeyInfo]) -> Result<(), Box<dyn std::error::Error>> {
-    let keys_dir = foc_localnet_keys();
+    let keys_dir = foc_devnet_keys();
     fs::create_dir_all(&keys_dir)?;
     let keys_file = keys_dir.join("addresses.json");
     let json = serde_json::to_string_pretty(keys)?;
@@ -124,9 +124,9 @@ fn save_keys(keys: &[KeyInfo]) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Load keys from ~/.foc-localnet/keys/addresses.json
+/// Load keys from ~/.foc-devnet/keys/addresses.json
 pub fn load_keys() -> Result<Vec<KeyInfo>, Box<dyn std::error::Error>> {
-    let keys_dir = foc_localnet_keys();
+    let keys_dir = foc_devnet_keys();
     let keys_file = keys_dir.join("addresses.json");
     let json = fs::read_to_string(keys_file)?;
     let keys: Vec<KeyInfo> = serde_json::from_str(&json)?;

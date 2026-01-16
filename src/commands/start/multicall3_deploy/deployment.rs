@@ -6,7 +6,7 @@ use super::key_management;
 use super::prerequisites::check_required_addresses;
 use crate::commands::start::lotus_utils::get_lotus_rpc_url;
 use crate::docker::command_logger::run_and_log_command_strings;
-use crate::paths::foc_localnet_multicall3_repo;
+use crate::paths::foc_devnet_multicall3_repo;
 use std::error::Error;
 use tracing::{error, info};
 
@@ -20,7 +20,7 @@ pub fn deploy_multicall3(
     info!("Deploying Multicall3 contract...");
 
     // Get the multicall3 repository path
-    let multicall3_repo = foc_localnet_multicall3_repo();
+    let multicall3_repo = foc_devnet_multicall3_repo();
 
     if !multicall3_repo.exists() {
         return Err(format!(
@@ -55,7 +55,6 @@ pub fn deploy_multicall3(
     let volume_mount = format!("{}:/workspace", multicall3_repo.display());
     let args: Vec<String> = vec![
         "run".to_string(),
-        "--rm".to_string(),
         "-u".to_string(),
         "foc-user".to_string(),
         "--name".to_string(),
@@ -64,7 +63,7 @@ pub fn deploy_multicall3(
         "host".to_string(), // Use host network to access Lotus RPC on dynamic port
         "-v".to_string(),
         volume_mount,
-        "foc-builder".to_string(),
+        crate::constants::BUILDER_DOCKER_IMAGE.to_string(),
         "bash".to_string(),
         "-c".to_string(),
         deploy_cmd,

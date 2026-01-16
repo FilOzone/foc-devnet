@@ -1,6 +1,6 @@
 # Volume mappings for foc-yugabyte Docker image
 # Format: host_subdirectory = "container_path"
-# Host paths will be relative to ~/.foc-localnet/artifacts/docker/volumes/foc-yugabyte/
+# Host paths will be relative to ~/.foc-devnet/artifacts/docker/volumes/foc-yugabyte/
 
 [volumes]
 data = "/var/ybdata"

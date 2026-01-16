@@ -7,7 +7,7 @@ use crate::docker::{
     core::{get_current_gid, get_current_uid, image_exists},
 };
 use crate::embedded_assets;
-use crate::paths::foc_localnet_docker_volumes_cache;
+use crate::paths::foc_devnet_docker_volumes_cache;
 use std::collections::HashMap;
 use std::fs;
 use tracing::info;
@@ -16,7 +16,7 @@ use super::Project;
 
 /// Build the builder Docker image.
 pub fn build_builder_image(dockerfile_dir: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let image_tag = "foc-localnet-builder:latest";
+    let image_tag = crate::constants::BUILDER_DOCKER_IMAGE;
 
     // Check if image already exists in Docker
     if image_exists(image_tag)? {
@@ -80,15 +80,16 @@ pub fn setup_docker_run_args(
     let container_output_dir = "/workspace/output";
 
     // Give each project a unique container name so they can build simultaneously
-    let container_name = format!("foc-builder-{}", project);
+    let container_name = format!("{}-{}", crate::constants::BUILDER_CONTAINER, project);
 
     let mut docker_run_args = vec![
         "run".to_string(),
-        "--rm".to_string(),
         "-u".to_string(),
         "foc-user".to_string(),
         "--name".to_string(),
         container_name,
+        "-e".to_string(),
+        "HOME=/home/foc-user".to_string(),
         "-v".to_string(),
         format!("{}:{}", source_dir, container_source_dir),
         "-v".to_string(),
@@ -98,8 +99,8 @@ pub fn setup_docker_run_args(
     // Load and apply volume mappings for this image
     let volume_map = load_volume_map("builder")?;
     if !volume_map.is_empty() {
-        let cache_dir = foc_localnet_docker_volumes_cache();
-        let image_volumes_dir = cache_dir.join("foc-builder");
+        let cache_dir = foc_devnet_docker_volumes_cache();
+        let image_volumes_dir = cache_dir.join(crate::constants::BUILDER_CONTAINER);
 
         for (host_subdir, container_path) in volume_map {
             let host_path = image_volumes_dir.join(&host_subdir);

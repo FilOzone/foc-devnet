@@ -2,11 +2,11 @@ use std::fs;
 use std::path::PathBuf;
 use tracing::{info, warn};
 
-use crate::paths::foc_localnet_state;
+use crate::paths::foc_devnet_state;
 
 /// Get the path to the poison file
 fn poison_file_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let state_dir = foc_localnet_state();
+    let state_dir = foc_devnet_state();
 
     // Ensure state directory exists
     fs::create_dir_all(&state_dir)?;
@@ -56,10 +56,16 @@ fn display_poison_contents(poison_path: &PathBuf) -> Result<(), Box<dyn std::err
 /// Perform recovery actions when a poison file is detected.
 ///
 /// Currently a placeholder for future recovery logic.
+///
+/// Future recovery logic should:
+/// - Stop all running foc-* containers
+/// - Clean up partial state from interrupted operations
+/// - Verify integrity of key files and volumes
+/// - Provide detailed diagnostics of what was interrupted
 fn perform_recovery() -> Result<(), Box<dyn std::error::Error>> {
-    // TODO: Implement actual recovery logic when more details are available
     warn!("Recovery logic not yet implemented. Please check system state manually.");
     warn!("You may need to manually clean up any running containers or inconsistent state.");
+    warn!("Run 'foc-devnet stop' to clean up containers, then try again.");
     Ok(())
 }
 

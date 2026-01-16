@@ -80,6 +80,15 @@ fn generate_mockusdfc_archive() {
         return;
     }
 
+    // Ensure artifacts directory exists
+    let artifacts_dir = Path::new("artifacts");
+    if !artifacts_dir.exists() {
+        if let Err(e) = std::fs::create_dir_all(artifacts_dir) {
+            eprintln!("Warning: Failed to create artifacts directory: {}", e);
+            return;
+        }
+    }
+
     // Create tar.gz archive in contracts/ directory
     let output = Command::new("tar")
         .args(["-czf", "artifacts/MockUSDFC.tar.gz", "contracts/MockUSDFC"])

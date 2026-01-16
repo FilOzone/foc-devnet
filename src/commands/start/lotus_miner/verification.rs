@@ -7,13 +7,12 @@ use std::thread;
 use std::time::Duration;
 use tracing::info;
 
-use super::constants::{
-    MINER_API_CHECK_DELAY_SECS, PORT_WAIT_TIMEOUT_SECS, TIPSET_CHECK_DELAY_SECS,
-};
+use super::constants::{MINER_API_CHECK_DELAY_SECS, PORT_WAIT_TIMEOUT_SECS};
 use crate::commands::start::step::SetupContext;
 use crate::docker::command_logger::run_and_log_command;
 use crate::docker::containers::{lotus_container_name, lotus_miner_container_name};
 use crate::docker::wait_for_port;
+use crate::utils::retry::{retry_with_fixed_delay, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS};
 
 // Additional timing constant for API file wait
 const API_FILE_TIMEOUT_SECS: u64 = 120;
@@ -87,45 +86,50 @@ pub fn check_tipset_generation(context: &SetupContext) -> Result<(), Box<dyn Err
     let chain_output1 = String::from_utf8_lossy(&output1.stdout);
     let height1 = parse_chain_height(&chain_output1)?;
 
-    info!(
-        "Waiting {} seconds to check for new blocks...",
-        TIPSET_CHECK_DELAY_SECS
-    );
-    thread::sleep(Duration::from_secs(TIPSET_CHECK_DELAY_SECS));
+    retry_with_fixed_delay(
+        || {
+            // Get new chain height
+            let key = format!("lotus_miner_chain_height_check_{}", lotus_name);
+            let output2 = run_and_log_command(
+                "docker",
+                &[
+                    "exec",
+                    &lotus_name,
+                    "/usr/local/bin/lotus-bins/lotus",
+                    "chain",
+                    "list",
+                    "--count=1",
+                ],
+                context,
+                &key,
+            )?;
 
-    // Get new chain height
-    let key = format!("lotus_miner_chain_height_check_2_{}", lotus_name);
-    let output2 = run_and_log_command(
-        "docker",
-        &[
-            "exec",
-            &lotus_name,
-            "/usr/local/bin/lotus-bins/lotus",
-            "chain",
-            "list",
-            "--count=1",
-        ],
-        context,
-        &key,
-    )?;
+            if !output2.status.success() {
+                return Err("Failed to get new chain height".into());
+            }
 
-    if !output2.status.success() {
-        return Err("Failed to get new chain height".into());
-    }
+            let chain_output2 = String::from_utf8_lossy(&output2.stdout);
+            let height2 = parse_chain_height(&chain_output2)?;
 
-    let chain_output2 = String::from_utf8_lossy(&output2.stdout);
-    let height2 = parse_chain_height(&chain_output2)?;
-
-    if height2 > height1 {
-        info!("✓ Chain is progressing (height {} -> {})", height1, height2);
-        Ok(())
-    } else {
-        Err(format!(
-            "Chain is not progressing. Height remained at {} after {} seconds.",
-            height1, TIPSET_CHECK_DELAY_SECS
+            if height2 > height1 {
+                info!("✓ Chain is progressing (height {} -> {})", height1, height2);
+                Ok(())
+            } else {
+                Err(format!("Chain height still at {}", height1).into())
+            }
+        },
+        DEFAULT_MAX_RETRIES,
+        DEFAULT_RETRY_DELAY_SECS,
+        "Chain progression verification",
+    )
+    .map_err(|_| {
+        format!(
+            "Chain is not progressing. Height remained at {} after {} attempts.",
+            height1, DEFAULT_MAX_RETRIES,
         )
-        .into())
-    }
+    })?;
+
+    Ok(())
 }
 
 /// Perform all post-execution verifications for Lotus-Miner

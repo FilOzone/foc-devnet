@@ -4,10 +4,10 @@
 
 use crate::commands::start::genesis::constants;
 use crate::paths::{
-    foc_localnet_bin, foc_localnet_docker_volumes_cache, foc_localnet_genesis,
-    foc_localnet_genesis_sectors_lotus_miner, foc_localnet_genesis_sectors_pdp_sp,
+    foc_devnet_bin, foc_devnet_docker_volumes_cache, foc_devnet_genesis,
+    foc_devnet_genesis_sectors_lotus_miner, foc_devnet_genesis_sectors_pdp_sp,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use tracing::info;
 
@@ -31,13 +31,13 @@ pub fn add_miner_to_genesis(
     // Build list of all miners to add: lotus-miner + PDP SPs
     let mut miner_configs: Vec<(String, PathBuf)> = vec![(
         constants::LOTUS_MINER_ID.to_string(),
-        foc_localnet_genesis_sectors_lotus_miner(run_id),
+        foc_devnet_genesis_sectors_lotus_miner(run_id),
     )];
 
     // Add PDP SP miners
     for i in 1..=active_pdp_sp_count {
         let miner_id = format!("t0{}", constants::PDP_SP_MINER_ID_START + (i as u32) - 1);
-        let miner_dir = foc_localnet_genesis_sectors_pdp_sp(run_id, i);
+        let miner_dir = foc_devnet_genesis_sectors_pdp_sp(run_id, i);
         miner_configs.push((miner_id, miner_dir));
     }
 
@@ -56,7 +56,7 @@ pub fn add_miner_to_genesis(
 /// Add a single miner to the genesis file.
 fn add_single_miner_to_genesis(
     miner_id: &str,
-    miner_dir: &PathBuf,
+    miner_dir: &Path,
     run_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     info!("⛏ Adding miner {} to genesis...", miner_id,);
@@ -73,14 +73,14 @@ fn add_single_miner_to_genesis(
     }
 
     // Run lotus-seed genesis add-miner in builder container
-    let genesis_dir = foc_localnet_genesis(run_id);
-    let bin_dir = foc_localnet_bin();
-    let builder_volumes_dir = foc_localnet_docker_volumes_cache().join("foc-builder");
+    let genesis_dir = foc_devnet_genesis(run_id);
+    let bin_dir = foc_devnet_bin();
+    let builder_volumes_dir =
+        foc_devnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
 
     // Build docker args with network environment variables
     let mut docker_args = vec![
         "run".to_string(),
-        "--rm".to_string(),
         "-u".to_string(),
         "foc-user".to_string(),
         "--name".to_string(),
@@ -97,7 +97,7 @@ fn add_single_miner_to_genesis(
         format!("{}:/genesis", genesis_dir.display()),
         "-v".to_string(),
         format!("{}:/home/foc-user/.genesis-sectors", miner_dir.display()),
-        "foc-builder".to_string(),
+        crate::constants::BUILDER_DOCKER_IMAGE.to_string(),
         "/bin/bash".to_string(),
         "-c".to_string(),
         format!(

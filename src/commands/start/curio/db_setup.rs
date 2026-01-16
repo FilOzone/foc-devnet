@@ -13,8 +13,8 @@ use crate::docker::command_logger::run_and_log_command;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::core::docker_command;
 use crate::docker::network::{lotus_network_name, pdp_miner_network_name};
-use crate::paths::foc_localnet_bin;
-use crate::paths::foc_localnet_docker_volumes;
+use crate::paths::foc_devnet_bin;
+use crate::paths::foc_devnet_docker_volumes;
 use std::error::Error;
 use std::thread;
 use std::time::Duration;
@@ -33,28 +33,40 @@ pub fn build_foc_contract_env_vars(context: &SetupContext) -> Result<Vec<String>
 
     // Get standard contracts
     if let Some(usdfc) = addresses.contracts.get("usdfc") {
-        env_vars.push(format!("FOC_CONTRACT_USDFC={}", usdfc));
+        env_vars.push(format!("CURIO_DEVNET_USDFC_ADDRESS={}", usdfc));
     }
 
     // Get FOC service contracts
+    if let Some(payment) = addresses.foc_contracts.get("payment_contract") {
+        env_vars.push(format!("CURIO_DEVNET_PAYMENTS_ADDRESS={}", payment));
+    }
+    if let Some(multicall) = addresses.foc_contracts.get("multicall_address") {
+        env_vars.push(format!("CURIO_DEVNET_MULTICALL_ADDRESS={}", multicall));
+    }
+    if let Some(pdp) = addresses.foc_contracts.get("p_d_p_verifier_proxy") {
+        env_vars.push(format!("CURIO_DEVNET_PDP_VERIFIER_ADDRESS={}", pdp));
+    }
     if let Some(fwss) = addresses
         .foc_contracts
         .get("filecoin_warm_storage_service_proxy")
     {
-        env_vars.push(format!("FOC_CONTRACT_FWSS={}", fwss));
+        env_vars.push(format!("CURIO_DEVNET_FWSS_ADDRESS={}", fwss));
     }
-    if let Some(multicall) = addresses.contracts.get("multicall") {
-        env_vars.push(format!("FOC_CONTRACT_MULTICALL={}", multicall));
-    }
-    if let Some(pay) = addresses.foc_contracts.get("filecoin_pay_v1_contract") {
-        env_vars.push(format!("FOC_CONTRACT_PAY={}", pay));
-    }
-    if let Some(pdp) = addresses.foc_contracts.get("p_d_p_verifier_proxy") {
-        env_vars.push(format!("FOC_PDP_VERIFIER_PROXY={}", pdp));
+    if let Some(sp_registry) = addresses
+        .foc_contracts
+        .get("service_provider_registry_proxy")
+    {
+        env_vars.push(format!(
+            "CURIO_DEVNET_SERVICE_REGISTRY_ADDRESS={}",
+            sp_registry
+        ));
     }
 
-    // SIMPLE contract is always zero address
-    env_vars.push("FOC_CONTRACT_SIMPLE=0x0000000000000000000000000000000000000000".to_string());
+    // Simple record keeper is always zero address
+    env_vars.push(
+        "CURIO_DEVNET_RECORD_KEEPER_SIMPLE_ADDRESS=0x0000000000000000000000000000000000000000"
+            .to_string(),
+    );
 
     Ok(env_vars)
 }
@@ -142,11 +154,11 @@ fn create_base_cluster(
     let lotus_network = lotus_network_name(run_id);
 
     // Get binary directory for volume mount
-    let bin_dir = foc_localnet_bin();
+    let bin_dir = foc_devnet_bin();
     let bin_mount = format!("{}:/usr/local/bin/lotus-bins", bin_dir.display());
 
     // Get lotus-data directory for volume mount (needed for token and LOTUS_PATH)
-    let lotus_data_dir = foc_localnet_docker_volumes().join("lotus-data");
+    let lotus_data_dir = foc_devnet_docker_volumes().join("lotus-data");
     let lotus_data_mount = format!("{}:/lotus-data", lotus_data_dir.display());
 
     // Create a unique container name for this operation
@@ -191,7 +203,12 @@ fn create_base_cluster(
         "sleep 3 && /usr/local/bin/lotus-bins/curio config new-cluster {}",
         miner_id
     );
-    docker_args.extend_from_slice(&["foc-curio", "/bin/bash", "-c", &bash_cmd]);
+    docker_args.extend_from_slice(&[
+        crate::constants::CURIO_DOCKER_IMAGE,
+        "/bin/bash",
+        "-c",
+        &bash_cmd,
+    ]);
 
     let docker_args_str: Vec<&str> = docker_args.iter().map(|s| s.as_ref()).collect();
     let key = format!("curio_new_cluster_sp_{}", sp_index);
@@ -244,11 +261,11 @@ fn create_pdp_layer(context: &SetupContext, sp_index: usize) -> Result<(), Box<d
     let lotus_network = lotus_network_name(run_id);
 
     // Get binary directory for volume mount
-    let bin_dir = foc_localnet_bin();
+    let bin_dir = foc_devnet_bin();
     let bin_mount = format!("{}:/usr/local/bin/lotus-bins", bin_dir.display());
 
     // Get lotus-data directory for volume mount (needed for token and LOTUS_PATH)
-    let lotus_data_dir = foc_localnet_docker_volumes().join("lotus-data");
+    let lotus_data_dir = foc_devnet_docker_volumes().join("lotus-data");
     let lotus_data_mount = format!("{}:/lotus-data", lotus_data_dir.display());
 
     // Generate PDP layer config with sp_index
@@ -297,7 +314,12 @@ fn create_pdp_layer(context: &SetupContext, sp_index: usize) -> Result<(), Box<d
         pdp_config
     );
 
-    docker_args.extend_from_slice(&["foc-curio", "/bin/bash", "-c", &bash_cmd]);
+    docker_args.extend_from_slice(&[
+        crate::constants::CURIO_DOCKER_IMAGE,
+        "/bin/bash",
+        "-c",
+        &bash_cmd,
+    ]);
 
     let docker_args_str: Vec<&str> = docker_args.iter().map(|s| s.as_ref()).collect();
     let key = format!("curio_pdp_layer_config_sp_{}", sp_index);

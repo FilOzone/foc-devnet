@@ -1,6 +1,6 @@
 //! Run ID persistence for saving and loading the current run ID.
 //!
-//! This module handles saving the current run ID to ~/.foc-localnet/state/current_runid.json
+//! This module handles saving the current run ID to ~/.foc-devnet/state/current_runid.json
 //! and loading it when needed for stop/status commands.
 
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,7 @@ pub struct RunIdMetadata {
 
 /// Get the path to the current run ID file
 fn current_run_id_file() -> PathBuf {
-    crate::paths::foc_localnet_state().join("current_runid.json")
+    crate::paths::foc_devnet_state().join("current_runid.json")
 }
 
 /// Save the current run ID to persistent storage.
@@ -35,7 +35,7 @@ fn current_run_id_file() -> PathBuf {
 /// save_current_run_id("251203-1246-thirsty-wolf")?;
 /// ```
 pub fn save_current_run_id(run_id: &str) -> Result<(), Box<dyn Error>> {
-    let state_dir = crate::paths::foc_localnet_state();
+    let state_dir = crate::paths::foc_devnet_state();
     fs::create_dir_all(&state_dir)?;
 
     let metadata = RunIdMetadata {
@@ -65,7 +65,7 @@ pub fn load_current_run_id() -> Result<String, Box<dyn Error>> {
 
     if !file_path.exists() {
         return Err(
-            "No current run ID found. Start a cluster first with 'foc-localnet start'".into(),
+            "No current run ID found. Start a cluster first with 'foc-devnet start'".into(),
         );
     }
 

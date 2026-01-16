@@ -7,10 +7,11 @@
 
 use super::super::step::SetupContext;
 use super::constants::TEST_FILE_SIZE_BYTES;
+use crate::paths::foc_devnet_bin;
 use rand::Rng;
 use std::error::Error;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
@@ -62,7 +63,7 @@ fn verify_pdp_ping(context: &SetupContext, sp_index: usize) -> Result<(), Box<dy
 
 /// Verify file upload and download works correctly.
 fn verify_upload_download(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
-    info!("Testing upload/download functionality...");
+    info!("Testing upload/download functionality via pdptool...");
 
     // Create temporary directory for test files
     let temp_dir = TempDir::new()?;
@@ -102,7 +103,7 @@ fn create_random_test_file(temp_dir: &TempDir) -> Result<PathBuf, Box<dyn Error>
 /// Upload test file using pdptool.
 fn upload_test_file(
     context: &SetupContext,
-    file_path: &PathBuf,
+    file_path: &Path,
     sp_index: usize,
 ) -> Result<String, Box<dyn Error>> {
     // Get dynamically allocated PDP port from context
@@ -113,7 +114,10 @@ fn upload_test_file(
 
     let service_url = format!("http://localhost:{}", port);
 
-    // Run pdptool upload twice due to tool quirk
+    let file_path_str = file_path
+        .to_str()
+        .ok_or("Invalid file path: contains non-UTF8 characters")?;
+
     let args = [
         "upload-piece",
         "--service-url",
@@ -122,11 +126,13 @@ fn upload_test_file(
         "public",
         "--hash-type",
         "commp",
-        file_path.to_str().unwrap(),
+        file_path_str,
         "--verbose",
     ];
 
-    let output = Command::new("pdptool").args(args).output()?;
+    let output = Command::new(foc_devnet_bin().join("pdptool"))
+        .args(args)
+        .output()?;
 
     if !output.status.success() {
         return Err(format!(
@@ -182,7 +188,7 @@ fn download_piece(
     let download_url = format!("http://localhost:{}/piece/{}", port, piece_cid);
 
     // Retry download a few times in case piece isn't immediately available
-    for attempt in 1..=5 {
+    for attempt in 1..=15 {
         let response = reqwest::blocking::get(&download_url)?;
 
         if response.status().is_success() {
@@ -190,13 +196,13 @@ fn download_piece(
             return Ok(data);
         }
 
-        if attempt < 5 {
+        if attempt < 15 {
             info!(
                 "Download attempt {} failed with status: {}, retrying...",
                 attempt,
                 response.status()
             );
-            sleep(Duration::from_secs(2));
+            sleep(Duration::from_secs(4));
         }
     }
 

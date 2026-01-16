@@ -1,10 +1,10 @@
 //! Configuration management commands.
 //!
-//! This module provides commands for updating the foc-localnet configuration,
+//! This module provides commands for updating the foc-devnet configuration,
 //! specifically for changing the source locations of Lotus and Curio components.
 
 use crate::config::{Config, Location};
-use crate::paths::foc_localnet_config;
+use crate::paths::foc_devnet_config;
 use std::fs;
 use tracing::info;
 
@@ -52,7 +52,7 @@ fn update_config_location(
     default_url: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load existing config
-    let config_path = foc_localnet_config();
+    let config_path = foc_devnet_config();
     let config_content = fs::read_to_string(&config_path)
         .map_err(|e| format!("Failed to read config file at {:?}: {}", config_path, e))?;
     let mut config: Config = toml::from_str(&config_content)

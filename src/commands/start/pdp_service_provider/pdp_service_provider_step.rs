@@ -160,7 +160,7 @@ impl Step for PdpSpRegistrationStep {
         let deployer_foc_address = context
             .get("deployer_foc_address")
             .ok_or("DEPLOYER_FOC address not found in context")?;
-        let deployer_foc_eth_address = context
+        let _deployer_foc_eth_address = context
             .get("deployer_foc_eth_address")
             .ok_or("DEPLOYER_FOC Ethereum address not found in context")?;
 
@@ -204,27 +204,29 @@ impl Step for PdpSpRegistrationStep {
             let service_url = format!("http://localhost:{}", pdp_port);
 
             match registration::register_single_provider(
-                run_id,
-                &registry_address,
-                &sp_address,
-                &sp_eth_address,
-                &mock_usdfc_address,
-                &lotus_rpc_url,
-                &service_url,
-                sp_index,
+                &registration::ProviderRegistrationParams {
+                    run_id,
+                    registry_address: &registry_address,
+                    pdp_sp_address: &sp_address,
+                    pdp_sp_eth_address: &sp_eth_address,
+                    mock_usdfc_address: &mock_usdfc_address,
+                    lotus_rpc_url: &lotus_rpc_url,
+                    service_url: &service_url,
+                    sp_index,
+                },
                 context,
             ) {
                 Ok(provider_id) => {
                     // Only approve if within approved count
                     if should_approve {
                         if let Err(e) = registration::add_to_approved_list(
-                            run_id,
-                            &warm_storage_address,
-                            provider_id,
-                            deployer_foc_address.as_str(),
-                            deployer_foc_eth_address.as_str(),
-                            &lotus_rpc_url,
-                            sp_index,
+                            &registration::ApprovedListParams {
+                                run_id,
+                                warm_storage_address: &warm_storage_address,
+                                provider_id,
+                                deployer_foc_address: deployer_foc_address.as_str(),
+                                lotus_rpc_url: &lotus_rpc_url,
+                            },
                             context,
                         ) {
                             errors.push(format!("SP {} approval failed: {}", sp_index, e));
@@ -252,11 +254,9 @@ impl Step for PdpSpRegistrationStep {
 
         // Check for errors
         if !errors.is_empty() {
-            return Err(format!(
-                "Failed to register some providers:\n{}",
-                errors.join("\n")
-            )
-            .into());
+            return Err(
+                format!("Failed to register some providers:\n{}", errors.join("\n")).into(),
+            );
         }
 
         // Store all provider IDs

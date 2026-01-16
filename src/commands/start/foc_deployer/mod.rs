@@ -7,7 +7,7 @@
 use super::foc_metadata::FOCMetadata;
 use crate::constants::*;
 use crate::docker::core::docker_command;
-use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes_cache};
+use crate::paths::{foc_devnet_bin, foc_devnet_docker_volumes_cache};
 use std::error::Error;
 use tracing::{info, warn};
 
@@ -52,6 +52,9 @@ pub fn deploy_foc_contracts(
 ) -> Result<DeploymentResult, Box<dyn Error>> {
     info!("Running deploy-all-warm-storage.sh...");
 
+    // Log the RPC URL for debugging
+    info!("Lotus RPC URL: {}", lotus_rpc_url);
+
     // Resolve symlinks to get the real path for Docker mounting
     let services_repo = services_repo_path
         .canonicalize()
@@ -65,8 +68,9 @@ pub fn deploy_foc_contracts(
         return Err(format!("Deployment script not found at {}", deploy_script.display()).into());
     }
 
-    let bin_dir = foc_localnet_bin();
-    let builder_volumes_dir = foc_localnet_docker_volumes_cache().join("foc-builder");
+    let bin_dir = foc_devnet_bin();
+    let builder_volumes_dir =
+        foc_devnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
 
     // Get the private key from lotus for the deployer address
     let private_key = get_private_key(foc_deployer, lotus_container)?;
@@ -75,7 +79,7 @@ pub fn deploy_foc_contracts(
     let env_vars = [
         ("ETH_RPC_URL", lotus_rpc_url.to_string()),
         ("USDFC_TOKEN_ADDRESS", mock_usdfc_address.to_string()),
-        ("SERVICE_NAME", "FOC LocalNet Warm Storage".to_string()),
+        ("SERVICE_NAME", "FOC DevNet Warm Storage".to_string()),
         (
             "SERVICE_DESCRIPTION",
             "Warm storage service for FOC local development network".to_string(),
@@ -93,9 +97,11 @@ pub fn deploy_foc_contracts(
     ];
 
     // Run the deployment script
-    // First, create a keystore from the private key with empty password
+    // Import wallet into keystore first (required by deploy-all-warm-storage.sh)
+    // The script uses forge create --password which requires a keystore file
     let deploy_cmd = format!(
         r#"set -e
+mkdir -p /home/foc-user/.foundry/keystores
 cast wallet import foc-deployer --private-key {} --unsafe-password ''
 cd /service_contracts
 bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-deploy.log"#,
@@ -104,13 +110,14 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
 
     info!("This may take several minutes...");
 
+    let container_name = format!("foc-{}-foc-deploy", run_id);
+
     let mut docker_args = vec![
         "run".to_string(),
-        "--rm".to_string(),
         "-u".to_string(),
         "foc-user".to_string(),
         "--name".to_string(),
-        format!("foc-{}-foc-deploy", run_id),
+        container_name.clone(),
         "--network".to_string(),
         "host".to_string(),
     ];
@@ -133,22 +140,75 @@ bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-dep
     docker_args.push(format!("{}:/service_contracts", contracts_dir.display()));
 
     // Add image and command
-    docker_args.push(BUILDER_CONTAINER.to_string());
+    docker_args.push(BUILDER_DOCKER_IMAGE.to_string());
     docker_args.push("/bin/bash".to_string());
     docker_args.push("-c".to_string());
     docker_args.push(deploy_cmd);
 
     let args_ref: Vec<&str> = docker_args.iter().map(|s| s.as_str()).collect();
+
+    info!("Executing deployment container: {}", container_name);
+    info!(
+        "Docker command: docker run [args with {} total args]",
+        args_ref.len()
+    );
+
+    // Log the command line length for debugging
+    let total_cmd_len: usize = args_ref.iter().map(|s| s.len()).sum();
+    info!("Total command line length: {} bytes", total_cmd_len);
+
     let output = docker_command(&args_ref)?;
 
     let output_str = String::from_utf8_lossy(&output.stdout);
 
     if !output.status.success() {
-        warn!("Deployment script failed");
+        warn!(
+            "Deployment container failed with exit status: {:?}",
+            output.status.code()
+        );
+
+        // Print stderr
         let stderr_str = String::from_utf8_lossy(&output.stderr);
-        for line in stderr_str.lines() {
-            warn!("{}", line);
+        if !stderr_str.is_empty() {
+            warn!("=== STDERR ===");
+            for line in stderr_str.lines() {
+                warn!("{}", line);
+            }
         }
+
+        // Print stdout as well
+        if !output_str.is_empty() {
+            warn!("=== STDOUT ===");
+            for line in output_str.lines() {
+                warn!("{}", line);
+            }
+        }
+
+        // Try to get container logs if the container still exists
+        if let Ok(logs) = crate::docker::core::get_container_logs(&container_name) {
+            if !logs.is_empty() {
+                warn!("=== CONTAINER LOGS ===");
+                for line in logs.lines() {
+                    warn!("{}", line);
+                }
+            }
+        } else {
+            info!(
+                "Container {} does not exist or logs not accessible",
+                container_name
+            );
+        }
+
+        // Also try to inspect the container for more info
+        let inspect_output = crate::docker::core::docker_command(&["inspect", &container_name]);
+        if let Ok(output) = inspect_output {
+            let inspect_str = String::from_utf8_lossy(&output.stdout);
+            warn!("=== CONTAINER INSPECT ===");
+            for line in inspect_str.lines() {
+                warn!("{}", line);
+            }
+        }
+
         return Err("FOC contract deployment failed".into());
     }
 
@@ -164,7 +224,7 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
     let mut addresses = std::collections::HashMap::new();
     let mut filbeam_controller = None;
     let mut filbeam_beneficiary = None;
-    let mut network_name = String::from("localnet");
+    let mut network_name = String::from("devnet");
     let mut challenge_finality = String::new();
     let mut max_proving_period = String::new();
     let mut challenge_window_size = String::new();
@@ -212,7 +272,7 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
             in_summary = false;
             info!("Found Network Configuration section");
 
-            // Extract network name from "Network Configuration (localnet):"
+            // Extract network name from "Network Configuration (devnet):"
             if let Some(start) = line.find('(') {
                 if let Some(end) = line.find(')') {
                     network_name = line[start + 1..end].to_string();

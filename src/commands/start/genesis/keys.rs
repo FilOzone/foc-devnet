@@ -3,7 +3,7 @@
 //! This module handles generating and managing BLS keys for lotus,
 //! including signer keys and additional pre-funded accounts.
 
-use crate::paths::foc_localnet_lotus_keys;
+use crate::paths::foc_devnet_lotus_keys;
 use std::fs;
 use std::path::Path;
 use tracing::info;
@@ -14,7 +14,7 @@ use tracing::info;
 pub fn ensure_bls_keys(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
     use crate::commands::init::keys::load_keys;
 
-    let keys_dir = foc_localnet_lotus_keys(run_id);
+    let keys_dir = foc_devnet_lotus_keys(run_id);
     let all_keys = load_keys()?;
 
     // Filter BLS keys
@@ -123,7 +123,7 @@ pub fn get_bls_addresses(
     count: usize,
     run_id: &str,
 ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let keys_dir = foc_localnet_lotus_keys(run_id);
+    let keys_dir = foc_devnet_lotus_keys(run_id);
     let mut keys_subdirs = Vec::with_capacity(count);
     let mut addresses = Vec::with_capacity(count);
 

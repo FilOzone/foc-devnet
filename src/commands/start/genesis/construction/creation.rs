@@ -3,7 +3,7 @@
 //! This module handles creating the initial genesis file using lotus-seed.
 
 use crate::commands::start::genesis::constants;
-use crate::paths::{foc_localnet_bin, foc_localnet_docker_volumes_cache, foc_localnet_genesis};
+use crate::paths::{foc_devnet_bin, foc_devnet_docker_volumes_cache, foc_devnet_genesis};
 use std::fs;
 use std::process::Command;
 use tracing::info;
@@ -16,7 +16,7 @@ use tracing::info;
 /// Note: This function assumes the genesis file does not already exist.
 /// The caller should check for existence first.
 pub fn create_genesis_file(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let genesis_dir = foc_localnet_genesis(run_id);
+    let genesis_dir = foc_devnet_genesis(run_id);
 
     info!("📜 Creating genesis file...");
 
@@ -30,13 +30,13 @@ pub fn create_genesis_file(run_id: &str) -> Result<(), Box<dyn std::error::Error
     let timestamp = datetime.format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
     // Run lotus-seed genesis new in builder container
-    let bin_dir = foc_localnet_bin();
-    let builder_volumes_dir = foc_localnet_docker_volumes_cache().join("foc-builder");
+    let bin_dir = foc_devnet_bin();
+    let builder_volumes_dir =
+        foc_devnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
 
     // Build docker args with network environment variables
     let mut docker_args = vec![
         "run".to_string(),
-        "--rm".to_string(),
         "-u".to_string(),
         "foc-user".to_string(),
         "--name".to_string(),
@@ -51,7 +51,7 @@ pub fn create_genesis_file(run_id: &str) -> Result<(), Box<dyn std::error::Error
         format!("{}:/home/foc-user/.cargo", builder_volumes_dir.join("cargo").display()),
         "-v".to_string(),
         format!("{}:/genesis", genesis_dir.display()),
-        "foc-builder".to_string(),
+        crate::constants::BUILDER_DOCKER_IMAGE.to_string(),
         "/bin/bash".to_string(),
         "-c".to_string(),
         format!(

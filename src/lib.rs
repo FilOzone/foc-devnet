@@ -1,4 +1,4 @@
-//! foc-localnet library crate
+//! foc-devnet library crate
 //!
 //! This crate provides the core functionality for managing local Filecoin
 //! on-chain cloud clusters for testing purposes.
@@ -16,4 +16,5 @@ pub mod paths;
 pub mod poison;
 pub mod port_allocator;
 pub mod run_id;
+pub mod utils;
 pub mod version_info;

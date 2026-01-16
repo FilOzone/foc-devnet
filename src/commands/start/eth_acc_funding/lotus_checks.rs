@@ -9,7 +9,7 @@ use crate::commands::start::eth_acc_funding::constants::GLOBAL_FIL_FAUCET_KEY;
 use crate::commands::start::step::SetupContext;
 use crate::docker::command_logger::run_and_log_command;
 use crate::docker::containers::lotus_container_name;
-use crate::paths::foc_localnet_lotus_keys;
+use crate::paths::foc_devnet_lotus_keys;
 
 /// Check if Lotus is running and accessible
 pub fn check_lotus_running(context: &SetupContext) -> Result<(), Box<dyn Error>> {
@@ -45,7 +45,7 @@ pub fn check_lotus_running(context: &SetupContext) -> Result<(), Box<dyn Error>>
 
 /// Get the global faucet address from the prefunded key
 pub fn get_global_faucet_address(run_id: &str) -> Result<String, Box<dyn Error>> {
-    let keys_dir = foc_localnet_lotus_keys(run_id);
+    let keys_dir = foc_devnet_lotus_keys(run_id);
     let faucet_key_dir = keys_dir.join(GLOBAL_FIL_FAUCET_KEY);
 
     if !faucet_key_dir.exists() {

@@ -4,13 +4,12 @@
 //! for starting the Lotus daemon container.
 
 use super::super::step::SetupContext;
+use crate::constants::LOTUS_DOCKER_IMAGE;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::network::lotus_network_name;
 use std::error::Error;
 use std::fs;
-use std::path::PathBuf;
-
-const IMAGE_NAME: &str = "foc-lotus";
+use std::path::{Path, PathBuf};
 
 /// Enable FEVM in the Lotus config.toml
 ///
@@ -44,7 +43,7 @@ pub fn create_fevm_config(lotus_data_dir: &PathBuf) -> Result<(), Box<dyn Error>
 }
 
 /// Set up necessary directories for Lotus daemon
-pub fn setup_directories(volumes_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
+pub fn setup_directories(volumes_dir: &Path) -> Result<(), Box<dyn Error>> {
     // Create lotus data directory in volumes
     let lotus_data_dir = volumes_dir.join("lotus-data");
     fs::create_dir_all(&lotus_data_dir)?;
@@ -61,14 +60,13 @@ pub fn setup_directories(volumes_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
 
 /// Build the Docker run command for starting Lotus daemon
 pub fn build_docker_command(
-    volumes_dir: &PathBuf,
+    volumes_dir: &Path,
     context: &SetupContext,
 ) -> Result<Vec<String>, Box<dyn Error>> {
     use super::super::genesis::constants::GENESIS_FILE;
     use crate::paths::{
-        foc_localnet_bin, foc_localnet_genesis, foc_localnet_genesis_sectors,
-        foc_localnet_lotus_keys, foc_localnet_proof_parameters,
-        CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
+        foc_devnet_bin, foc_devnet_genesis, foc_devnet_genesis_sectors, foc_devnet_lotus_keys,
+        foc_devnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
     };
 
     // Read allocated ports from context
@@ -87,11 +85,11 @@ pub fn build_docker_command(
     let network_name = lotus_network_name(run_id);
 
     // Get paths
-    let bin_dir = foc_localnet_bin();
-    let params_dir = foc_localnet_proof_parameters();
-    let genesis_dir = foc_localnet_genesis(run_id);
-    let sectors_dir = foc_localnet_genesis_sectors(run_id);
-    let keys_dir = foc_localnet_lotus_keys(run_id);
+    let bin_dir = foc_devnet_bin();
+    let params_dir = foc_devnet_proof_parameters();
+    let genesis_dir = foc_devnet_genesis(run_id);
+    let sectors_dir = foc_devnet_genesis_sectors(run_id);
+    let keys_dir = foc_devnet_lotus_keys(run_id);
     let genesis_file = genesis_dir.join(GENESIS_FILE);
 
     // Build docker run command
@@ -139,7 +137,7 @@ pub fn build_docker_command(
     docker_args.extend_from_slice(&["-w".to_string(), "/data".to_string()]);
 
     // Add image name
-    docker_args.push(IMAGE_NAME.to_string());
+    docker_args.push(LOTUS_DOCKER_IMAGE.to_string());
 
     // Add command to start lotus daemon
     let genesis_filename = genesis_file

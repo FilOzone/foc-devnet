@@ -1,7 +1,7 @@
 //! Port allocation module for managing dynamic port assignment.
 //!
 //! This module provides a `PortAllocator` that manages a contiguous range of ports
-//! for the localnet cluster. All components (Lotus, Lotus-Miner, Curio, Yugabyte)
+//! for the devnet cluster. All components (Lotus, Lotus-Miner, Curio, Yugabyte)
 //! dynamically allocate ports from this pool, ensuring no conflicts.
 
 use std::collections::HashSet;
@@ -178,7 +178,7 @@ impl PortAllocator {
                 "The following {} port(s) in the configured range are already in use: {}\n\
                 Please either:\n\
                 1. Stop the processes using these ports, or\n\
-                2. Configure a different port range in ~/.foc-localnet/config.toml",
+                2. Configure a different port range in ~/.foc-devnet/config.toml",
                 unavailable_ports.len(),
                 format_port_list(&unavailable_ports)
             )

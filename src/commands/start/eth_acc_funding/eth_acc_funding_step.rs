@@ -10,6 +10,7 @@ use crate::commands::start::eth_acc_funding::constants::FEVM_ACCOUNTS_PREFUNDED;
 use crate::commands::start::step::{SetupContext, Step};
 use crate::docker::command_logger::log_command;
 use crate::docker::containers::lotus_container_name;
+use crate::utils::retry::{retry_with_fixed_delay, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS};
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
@@ -68,7 +69,7 @@ impl ETHAccFundingStep {
         context: &SetupContext,
     ) -> Result<String, Box<dyn Error + 'static>> {
         let run_id = context.run_id();
-        let keys_dir = crate::paths::foc_localnet_lotus_keys(run_id);
+        let keys_dir = crate::paths::foc_devnet_lotus_keys(run_id);
         let faucet_key_dir = keys_dir.join(GLOBAL_FIL_FAUCET_KEY);
         let keyinfo_files: Vec<_> = fs::read_dir(&faucet_key_dir)?
             .filter_map(|e| e.ok())
@@ -285,93 +286,93 @@ impl ETHAccFundingStep {
             let account_name_clone = account_name.clone();
 
             let handle = thread::spawn(move || {
-                // Log the command
-                let key = format!(
-                    "eth_acc_verify_balance_{}_{}",
-                    account_name_clone, container
-                );
-                log_command(
-                    "docker",
-                    &[
-                        "exec",
-                        &container,
-                        "/usr/local/bin/lotus-bins/lotus",
-                        "wallet",
-                        "balance",
-                        &address,
-                    ],
-                    &context_clone,
-                    &key,
-                );
-
-                let output = Command::new("docker")
-                    .args([
-                        "exec",
-                        &container,
-                        "/usr/local/bin/lotus-bins/lotus",
-                        "wallet",
-                        "balance",
-                        &address,
-                    ])
-                    .output();
-
-                match output {
-                    Ok(out) if out.status.success() => {
-                        let balance_str = String::from_utf8_lossy(&out.stdout);
-                        let balance_str = balance_str.trim();
-
-                        // Parse balance (format: "XXX FIL")
-                        if let Some(balance_fil) = balance_str.strip_suffix(" FIL") {
-                            match balance_fil.trim().parse::<f64>() {
-                                Ok(balance) => {
-                                    let expected = expected_amount as f64;
-                                    if balance >= expected {
-                                        info!(
-                                            "{}: {} FIL (expected: {} FIL)",
-                                            account_name, balance, expected
-                                        );
-                                    } else {
-                                        let error_msg = format!(
-                                            "{}: Insufficient balance. Expected at least {} FIL, got {} FIL",
-                                            account_name, expected, balance
-                                        );
-                                        tracing::error!(" {}", error_msg);
-                                        errors_clone.lock().unwrap().push(error_msg);
-                                    }
-                                }
-                                Err(e) => {
-                                    let error_msg = format!(
-                                        "{}: Failed to parse balance '{}': {}",
-                                        account_name, balance_fil, e
-                                    );
-                                    tracing::error!(" {}", error_msg);
-                                    errors_clone.lock().unwrap().push(error_msg);
-                                }
-                            }
-                        } else {
-                            let error_msg = format!(
-                                "{}: Unexpected balance format: {}",
-                                account_name, balance_str
+                // Retry balance verification with fixed delay
+                let verify_result =
+                    retry_with_fixed_delay(
+                        || {
+                            // Log the command
+                            let key = format!(
+                                "eth_acc_verify_balance_{}_{}",
+                                account_name_clone, container
                             );
-                            tracing::error!(" {}", error_msg);
-                            errors_clone.lock().unwrap().push(error_msg);
-                        }
-                    }
-                    Ok(out) => {
-                        let error_msg = format!(
-                            "{}: Failed to check balance: {}",
-                            account_name,
-                            String::from_utf8_lossy(&out.stderr)
-                        );
-                        tracing::error!(" {}", error_msg);
-                        errors_clone.lock().unwrap().push(error_msg);
-                    }
-                    Err(e) => {
-                        let error_msg =
-                            format!("{}: Failed to execute balance check: {}", account_name, e);
-                        tracing::error!(" {}", error_msg);
-                        errors_clone.lock().unwrap().push(error_msg);
-                    }
+                            log_command(
+                                "docker",
+                                &[
+                                    "exec",
+                                    &container,
+                                    "/usr/local/bin/lotus-bins/lotus",
+                                    "wallet",
+                                    "balance",
+                                    &address,
+                                ],
+                                &context_clone,
+                                &key,
+                            );
+
+                            let output = Command::new("docker")
+                                .args([
+                                    "exec",
+                                    &container,
+                                    "/usr/local/bin/lotus-bins/lotus",
+                                    "wallet",
+                                    "balance",
+                                    &address,
+                                ])
+                                .output()
+                                .map_err(|e| -> Box<dyn Error> {
+                                    format!("Failed to execute balance check: {}", e).into()
+                                })?;
+
+                            if !output.status.success() {
+                                return Err(format!(
+                                    "Failed to check balance: {}",
+                                    String::from_utf8_lossy(&output.stderr)
+                                )
+                                .into());
+                            }
+
+                            let balance_str = String::from_utf8_lossy(&output.stdout);
+                            let balance_str = balance_str.trim();
+
+                            // Parse balance (format: "XXX FIL")
+                            let balance_fil = balance_str.strip_suffix(" FIL").ok_or_else(
+                                || -> Box<dyn Error> {
+                                    format!("Unexpected balance format: {}", balance_str).into()
+                                },
+                            )?;
+
+                            let balance = balance_fil.trim().parse::<f64>().map_err(
+                                |e| -> Box<dyn Error> {
+                                    format!("Failed to parse balance '{}': {}", balance_fil, e)
+                                        .into()
+                                },
+                            )?;
+
+                            let expected = expected_amount as f64;
+                            if balance >= expected {
+                                info!(
+                                    "{}: {} FIL (expected: {} FIL)",
+                                    account_name, balance, expected
+                                );
+                                Ok(())
+                            } else {
+                                Err(format!(
+                                    "Insufficient balance. Expected at least {} FIL, got {} FIL",
+                                    expected, balance
+                                )
+                                .into())
+                            }
+                        },
+                        DEFAULT_MAX_RETRIES,
+                        DEFAULT_RETRY_DELAY_SECS,
+                        &format!("Balance verification for {}", account_name),
+                    );
+
+                // Handle retry result
+                if let Err(e) = verify_result {
+                    let error_msg = format!("{}: {}", account_name, e);
+                    tracing::error!(" {}", error_msg);
+                    errors_clone.lock().unwrap().push(error_msg);
                 }
             });
 

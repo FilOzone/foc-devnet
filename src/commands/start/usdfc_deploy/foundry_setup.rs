@@ -6,10 +6,10 @@
 use crate::commands::start::step::SetupContext;
 use crate::docker::command_logger::run_and_log_command;
 use crate::embedded_assets;
-use crate::paths::foc_localnet_run_dir;
+use crate::paths::foc_devnet_run_dir;
 use std::error::Error;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing::info;
 
 /// Get or create the MockUSDFC project directory from embedded assets
@@ -17,7 +17,7 @@ use tracing::info;
 /// Extracts the embedded MockUSDFC Foundry project to a temporary directory
 /// and returns the path to that directory.
 pub fn get_mockusdfc_project_dir(run_id: &str) -> Result<PathBuf, Box<dyn Error>> {
-    let run_dir = foc_localnet_run_dir(run_id);
+    let run_dir = foc_devnet_run_dir(run_id);
     let extract_target = run_dir.join("mockusdfc-extract");
 
     // Always clean and re-extract to ensure we have the latest embedded version
@@ -45,7 +45,7 @@ pub fn get_mockusdfc_project_dir(run_id: &str) -> Result<PathBuf, Box<dyn Error>
 /// Setup the Foundry project (install dependencies if needed)
 pub fn setup_foundry_project(
     context: &SetupContext,
-    contract_dir: &PathBuf,
+    contract_dir: &Path,
     run_id: &str,
 ) -> Result<(), Box<dyn Error>> {
     let openzeppelin_path = contract_dir.join("lib/openzeppelin-contracts");
@@ -58,19 +58,21 @@ pub fn setup_foundry_project(
         if !git_dir.exists() {
             info!("Initializing git repository...");
             let key = format!("usdfc_setup_git_init_{}", run_id);
+            let container_name = format!("foc-{}-usdfc-git-init", run_id);
             let output = run_and_log_command(
                 "docker",
                 &[
                     "run",
-                    "--rm",
+                    "--name",
+                    &container_name,
                     "-u",
                     "foc-user",
                     "-v",
                     &format!("{}:/workspace", contract_dir.display()),
-                    "foc-builder",
+                    crate::constants::BUILDER_DOCKER_IMAGE,
                     "bash",
                     "-c",
-                    "cd /workspace && git init && git config user.email 'foc@localnet' && git config user.name 'FOC Localnet'",
+                    "cd /workspace && git init && git config user.email 'foc@devnet' && git config user.name 'FOC DevNet'",
                 ],
                 context,
                 &key,
@@ -87,16 +89,18 @@ pub fn setup_foundry_project(
 
         // Install dependencies
         let key = format!("usdfc_setup_install_deps_{}", run_id);
+        let container_name = format!("foc-{}-usdfc-install-deps", run_id);
         let output = run_and_log_command(
             "docker",
             &[
                 "run",
-                "--rm",
+                "--name",
+                &container_name,
                 "-u",
                 "foc-user",
                 "-v",
                 &format!("{}:/workspace", contract_dir.display()),
-                "foc-builder",
+                crate::constants::BUILDER_DOCKER_IMAGE,
                 "bash",
                 "-c",
                 "cd /workspace && \
@@ -121,14 +125,18 @@ pub fn setup_foundry_project(
     // Build contracts
     info!("Building MockUSDFC contract...");
     let key = format!("usdfc_setup_build_{}", run_id);
+    let container_name = format!("foc-{}-usdfc-build", run_id);
     let output = run_and_log_command(
         "docker",
         &[
             "run",
-            "--rm",
+            "--name",
+            &container_name,
+            "-u",
+            "foc-user",
             "-v",
             &format!("{}:/workspace", contract_dir.display()),
-            "foc-builder",
+            crate::constants::BUILDER_DOCKER_IMAGE,
             "bash",
             "-c",
             "cd /workspace && forge build",

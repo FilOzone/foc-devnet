@@ -49,7 +49,7 @@ impl Step for FOCDeployStep {
         if !services_repo.exists() {
             return Err(format!(
                 "filecoin-services repository not found at {}. \
-                 Please run 'foc-localnet init' to clone the repository.",
+                 Please run 'foc-devnet init' to clone the repository.",
                 services_repo.display()
             )
             .into());

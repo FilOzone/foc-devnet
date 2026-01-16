@@ -28,7 +28,7 @@ pub enum GitInfo {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use foc_localnet::commands::status::git::git_info::get_git_info;
+/// use foc_devnet::commands::status::git::git_info::get_git_info;
 /// use std::path::Path;
 ///
 /// let repo_path = Path::new("/path/to/repo");

@@ -1,4 +1,4 @@
-//! Artifact download utilities for foc-localnet initialization.
+//! Artifact download utilities for foc-devnet initialization.
 //!
 //! This module handles the downloading and extraction of required artifacts,
 //! primarily the Yugabyte database.
@@ -11,9 +11,9 @@ use std::process::Command;
 use tracing::info;
 
 use crate::config::Config;
-use crate::paths::{foc_localnet_artifacts, foc_localnet_config, foc_localnet_proof_parameters};
+use crate::paths::{foc_devnet_artifacts, foc_devnet_config, foc_devnet_proof_parameters};
 
-/// Download required artifacts for foc-localnet.
+/// Download required artifacts for foc-devnet.
 ///
 /// This function downloads Yugabyte database and extracts it to the
 /// artifacts directory, or copies from local paths if provided.
@@ -31,7 +31,7 @@ pub fn download_artifacts(
     info!("Downloading artifacts...");
 
     // Ensure artifacts directory exists
-    let artifacts_dir = foc_localnet_artifacts();
+    let artifacts_dir = foc_devnet_artifacts();
     fs::create_dir_all(&artifacts_dir)?;
 
     // Handle Yugabyte
@@ -39,7 +39,7 @@ pub fn download_artifacts(
         copy_yugabyte_from_local(&archive_path, &artifacts_dir)?;
     } else {
         // Load configuration to get download URL
-        let config_path = foc_localnet_config();
+        let config_path = foc_devnet_config();
         let config_content = fs::read_to_string(&config_path)
             .map_err(|e| format!("Failed to read config file at {:?}: {}", config_path, e))?;
         let config: Config = toml::from_str(&config_content)
@@ -252,7 +252,7 @@ fn copy_proof_params_from_local(params_path: &str) -> Result<(), Box<dyn std::er
         params_path.display()
     );
 
-    let dest_path = foc_localnet_proof_parameters();
+    let dest_path = foc_devnet_proof_parameters();
 
     // Create destination directory
     fs::create_dir_all(&dest_path)?;

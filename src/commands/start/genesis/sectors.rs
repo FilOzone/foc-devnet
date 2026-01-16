@@ -3,9 +3,9 @@
 //! This module handles pre-sealing sectors required for the genesis miners.
 
 use crate::paths::{
-    foc_localnet_bin, foc_localnet_docker_volumes_cache, foc_localnet_genesis,
-    foc_localnet_genesis_sectors, foc_localnet_genesis_sectors_lotus_miner,
-    foc_localnet_genesis_sectors_pdp_sp,
+    foc_devnet_bin, foc_devnet_docker_volumes_cache, foc_devnet_genesis,
+    foc_devnet_genesis_sectors, foc_devnet_genesis_sectors_lotus_miner,
+    foc_devnet_genesis_sectors_pdp_sp,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -27,15 +27,15 @@ pub fn ensure_presealed_sectors(
     active_pdp_sp_count: usize,
     run_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let sectors_dir = foc_localnet_genesis_sectors(run_id);
-    let genesis_dir = foc_localnet_genesis(run_id);
+    let sectors_dir = foc_devnet_genesis_sectors(run_id);
+    let genesis_dir = foc_devnet_genesis(run_id);
 
     // Build list of all miner directories to check: lotus-miner + PDP SPs
-    let mut miner_dirs = vec![foc_localnet_genesis_sectors_lotus_miner(run_id)];
+    let mut miner_dirs = vec![foc_devnet_genesis_sectors_lotus_miner(run_id)];
 
     // Add PDP SP directories
     for i in 1..=active_pdp_sp_count {
-        miner_dirs.push(foc_localnet_genesis_sectors_pdp_sp(run_id, i));
+        miner_dirs.push(foc_devnet_genesis_sectors_pdp_sp(run_id, i));
     }
 
     // Check if sectors already exist for all miners
@@ -71,7 +71,7 @@ pub fn ensure_presealed_sectors(
     // Pre-seal sectors for lotus-miner
     let mut miner_configs: Vec<(String, PathBuf)> = vec![(
         super::constants::LOTUS_MINER_ID.to_string(),
-        foc_localnet_genesis_sectors_lotus_miner(run_id),
+        foc_devnet_genesis_sectors_lotus_miner(run_id),
     )];
 
     // Add PDP SP miners
@@ -80,7 +80,7 @@ pub fn ensure_presealed_sectors(
             "t0{}",
             super::constants::PDP_SP_MINER_ID_START + (i as u32) - 1
         );
-        let miner_dir = foc_localnet_genesis_sectors_pdp_sp(run_id, i);
+        let miner_dir = foc_devnet_genesis_sectors_pdp_sp(run_id, i);
         miner_configs.push((miner_id, miner_dir));
     }
 
@@ -107,13 +107,13 @@ fn preseal_miner_sectors(
     fs::create_dir_all(miner_dir)?;
 
     // Run lotus-seed pre-seal in builder container
-    let bin_dir = foc_localnet_bin();
-    let builder_volumes_dir = foc_localnet_docker_volumes_cache().join("foc-builder");
+    let bin_dir = foc_devnet_bin();
+    let builder_volumes_dir =
+        foc_devnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
 
     // Build docker args with network environment variables
     let mut docker_args = vec![
         "run".to_string(),
-        "--rm".to_string(),
         "-u".to_string(),
         "foc-user".to_string(),
         "--name".to_string(),
@@ -131,7 +131,7 @@ fn preseal_miner_sectors(
         ),
         "-v".to_string(),
         format!("{}:/home/foc-user/.genesis-sectors", miner_dir.display()),
-        "foc-builder".to_string(),
+        crate::constants::BUILDER_DOCKER_IMAGE.to_string(),
         "/bin/bash".to_string(),
         "-c".to_string(),
         format!(

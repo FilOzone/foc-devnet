@@ -1,6 +1,6 @@
 //! Requirements checker command.
 //!
-//! This module checks if all system requirements are met to run the foc-localnet system.
+//! This module checks if all system requirements are met to run the foc-devnet system.
 
 use std::process::{Command, Stdio};
 use tracing::{error, info, warn};
@@ -80,7 +80,7 @@ fn check_docker_requirement(setup: bool) -> Result<(), Box<dyn std::error::Error
         }
     } else {
         error!("Error: Docker is not installed or not available in PATH.");
-        info!("Docker is required to run the Filecoin localnet.");
+        info!("Docker is required to run the Filecoin devnet.");
         info!("Please install Docker from https://www.docker.com/");
         info!("Or run with --setup flag to attempt automatic installation.");
         return Err("Docker not available".into());
@@ -95,25 +95,16 @@ fn install_docker() -> Result<(), Box<dyn std::error::Error>> {
         if setup_docker::linux::is_ubuntu_or_debian()? {
             setup_docker::linux::install_docker_ubuntu()?;
         } else {
-            eprintln!(
-                "{}",
-                "❌ Automatic Docker installation is only supported on Ubuntu/Debian Linux."
-            );
+            eprintln!("❌ Automatic Docker installation is only supported on Ubuntu/Debian Linux.");
             return Err("Unsupported Linux distribution".into());
         }
     } else if cfg!(target_os = "macos") {
         // On macOS, Docker installation is handled by Homebrew
-        eprintln!("{}", "❌ Please install Docker Desktop manually on macOS.");
-        eprintln!(
-            "{}",
-            "Download from: https://www.docker.com/products/docker-desktop"
-        );
+        eprintln!("❌ Please install Docker Desktop manually on macOS.");
+        eprintln!("Download from: https://www.docker.com/products/docker-desktop");
         return Err("Manual Docker installation required on macOS".into());
     } else {
-        eprintln!(
-            "{}",
-            "❌ Automatic Docker installation is not supported on this platform."
-        );
+        eprintln!("❌ Automatic Docker installation is not supported on this platform.");
         return Err("Unsupported platform".into());
     }
 

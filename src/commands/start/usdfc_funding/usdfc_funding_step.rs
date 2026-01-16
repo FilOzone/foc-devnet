@@ -4,7 +4,7 @@
 //! to user and service provider addresses.
 
 use super::constants::{token_amount_to_wei, TRANSACTION_CONFIRMATION_WAIT_SECS};
-use super::funding_operations::{check_mock_usdfc_balance, transfer_mock_usdfc};
+use super::funding_operations::{self, check_mock_usdfc_balance, transfer_mock_usdfc};
 use super::key_operations::get_user_private_key;
 use crate::commands::start::step::{SetupContext, Step};
 use crate::commands::start::usdfc_funding::key_operations::get_user_eth_address;
@@ -121,7 +121,7 @@ impl USDFCFundingStep {
                 let amount_wei_str = amount_wei.to_string();
                 let amount = *amount_tokens;
                 let pk = deployer_private_key.to_string();
-                let from = deployer_mockusdfc_eth.to_string();
+                let _from = deployer_mockusdfc_eth.to_string();
                 let contract = mockusdfc_address.to_string();
                 let rpc = lotus_rpc_url.to_string();
 
@@ -135,17 +135,19 @@ impl USDFCFundingStep {
                     info!("Transferring {} USDFC: {}...", amount, description);
 
                     match transfer_mock_usdfc(
+                        &funding_operations::USDFCTransferParams {
+                            from_private_key: &pk,
+                            to_eth_address: &eth_address,
+                            amount: &amount_wei_str,
+                            token_address: &contract,
+                            description: &description,
+                            nonce: Some(
+                                (batch_idx * MAX_CONCURRENT_TRANSFERS + batch_transfer_idx + 1)
+                                    as u64,
+                            ),
+                            lotus_rpc_url: &rpc,
+                        },
                         &context_clone,
-                        &pk,
-                        &from,
-                        &eth_address,
-                        &amount_wei_str,
-                        &contract,
-                        &description,
-                        Some(
-                            (batch_idx * MAX_CONCURRENT_TRANSFERS + batch_transfer_idx + 1) as u64,
-                        ),
-                        &rpc,
                     ) {
                         Ok(_) => {
                             info!("Transferred {} USDFC: {}", amount, description);

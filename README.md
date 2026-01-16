@@ -1,4 +1,4 @@
-# foc-localnet
+# foc-devnet
 
 **Run a local Filecoin network with FOC (Filecoin Onchain Contracts) in minutes.**
 
@@ -9,6 +9,14 @@ A developer-friendly tool for spinning up complete Filecoin test networks with s
 ## 🚀 Quick Start
 
 Get up and running in three simple steps:
+
+### Step 0: Ensure non-root user
+`foc-devnet` requires itself to be run by a non-root user. Please ensure that you are running as a non-root user which is part of `docker` group.
+
+Run the following to see your User ID and groups you are a part of:
+```
+echo $(id -u); groups | grep 'docker'
+```
 
 ### Step 1: Initialize
 
@@ -48,7 +56,7 @@ This will:
 ### Step 3: Start the Network
 
 ```bash
-cargo run -- start
+cargo run -- start --parallel
 ```
 
 This will:
@@ -56,9 +64,9 @@ This will:
 - Start Lotus daemon with FEVM enabled
 - Deploy FOC smart contracts (including MockUSDFC)
 - Start storage provider(s)
-- Launch Portainer UI for container management
+- Launch [Portainer UI](https://docs.docksal.io/use-cases/portainer/) for container management
 
-**If you are feeling adventurous**: Use `cargo run -- start --parallel`, an experimental feature that attempts to parallelize setup steps as much as possible. 
+**If you are have troubles**: Use `cargo run -- start`, removing parallelism during start, this may take longer.
 
 **That's it!** Your local Filecoin network is running.
 
@@ -88,7 +96,7 @@ Each can be:
 ### 🔒 Deterministic Setup
 - **Pinned versions**: All components use specific git tags/commits for reproducibility
 - **Deterministic keys**: Uses fixed seeds, generating the same keys on every setup
-- **Consistent addresses**: Find derived accounts in `~/.foc-localnet/state/addresses.json`
+- **Consistent state**: Each run preserves its context in `~/.foc-devnet/run/<run-id>/step_context.json`
 
 ### 🤖 Fully Automated
 From building Docker images to deploying contracts—everything is automated:
@@ -101,12 +109,13 @@ From building Docker images to deploying contracts—everything is automated:
 Built with modular steps for easy extension and customization:
 - Add custom deployment steps
 - Configure multiple PDP service providers
-- Control "allowed" SP nodes via `~/.foc-localnet/config.toml`
+- Control "allowed" SP nodes via `~/.foc-devnet/config.toml`
 
 ### 📜 Programmable
 Built for scripting and automation:
-- **Contract addresses**: `~/.foc-localnet/state/contract_addresses.json`
-- **Account addresses**: `~/.foc-localnet/state/addresses.json`
+- **Contract addresses**: `~/.foc-devnet/run/<run-id>/contract_addresses.json`
+- **Step context**: `~/.foc-devnet/run/<run-id>/step_context.json`
+- **Latest run symlink**: `~/.foc-devnet/state/latest/` → points to most recent run
 - Write scripts for testing, demos, CI/CD pipelines, etc.
 
 ### 🌐 Isolated Networks
@@ -133,34 +142,21 @@ Bundled with Portainer for browser-based Docker management—no terminal wizardr
 
 ---
 
-## 📂 Where's My Data?
-
-Everything lives in `~/.foc-localnet/`:
-
-```
-~/.foc-localnet/
-├── state/
-│   ├── addresses.json           # Derived account addresses
-│   └── contract_addresses.json  # Deployed smart contracts
-├── artifacts/
-│   └── docker/volumes/          # Persistent container data
-├── logs/                        # Container logs
-├── repos/                       # Cloned Git repositories
-└── config.toml                  # Configuration
-```
-
----
-
 ## 🛠️ Need More?
 
-For advanced topics like:
-- Custom repository configurations
-- Multiple storage provider setups
-- Architecture deep-dives
-- Troubleshooting guides
-- API access and scripting
-
-See **[README_ADVANCED.md](README_ADVANCED.md)** for detailed documentation (coming soon).
+See **[ADVANCED_README.md](ADVANCED_README.md)** for comprehensive documentation on:
+- **All commands reference** (init, build, start, stop, status, version)
+- **Configuration system** (config.toml structure, parameters, editing)
+- **Complete directory structure** (what's stored where and why)
+- **Resetting and cleanup** (manual cleanup, disk management)
+- **Run ID and Step Context** (isolation mechanism, state sharing)
+- **Docker and networking** (container architecture, network topology, Portainer debugging)
+- **Repository management** (using local repos, sharing configurations)
+- **Command flags** (detailed explanations of all flags and when to use them)
+- **Lifecycle overview** (full startup sequence, step implementation)
+- **Service Provider examples** (1 SP with 0 authorized, 3 SPs with top 2 authorized, etc.)
+- **Troubleshooting guides** (port conflicts, build failures, network issues)
+- **Advanced topics** (custom genesis, Lotus API access, contract interaction)
 
 ---
 
@@ -172,4 +168,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 💬 Support
 
-- **Issues**: [GitHub Issues](https://github.com/FilOzone/foc-localnet/issues)
+- **Issues**: [GitHub Issues](https://github.com/FilOzone/foc-devnet/issues)

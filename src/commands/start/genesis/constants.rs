@@ -20,7 +20,7 @@ pub const NUM_SECTORS: u32 = 2;
 /// The sector size parameter used when downloading Filecoin proof parameters.
 ///
 /// This corresponds to the sector size that lotus will use for proof generation.
-/// It must match the SECTOR_SIZE for consistency in the localnet setup.
+/// It must match the SECTOR_SIZE for consistency in the devnet setup.
 pub const PROOF_PARAMS_SECTOR_SIZE: &str = "2048";
 
 /// The name of the local Filecoin network being created.
@@ -32,7 +32,7 @@ pub const NETWORK_NAME: &str = "2k";
 ///
 /// This file contains the complete genesis configuration including accounts,
 /// miners, and network parameters. It will be created in the genesis directory.
-pub const GENESIS_FILE: &str = "foc-localnet.json";
+pub const GENESIS_FILE: &str = "foc-devnet.json";
 
 /// The threshold for multisig signer consensus.
 ///

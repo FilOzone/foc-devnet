@@ -1,6 +1,6 @@
 [package]
-name = "foc-localnet"
-version = "0.1.0"
+name = "foc-devnet"
+version = "1.0.0-rc.1"
 edition = "2021"
 
 [build-dependencies]
@@ -35,3 +35,5 @@ tar = "0.4"
 reqwest = { version = "0.11", features = ["blocking"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+sha2 = "0.10"
+num_cpus = "1.16"

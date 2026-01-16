@@ -1,12 +1,12 @@
-//! Genesis preparation module for foc-localnet.
+//! Genesis preparation module for foc-devnet.
 //!
-//! This module handles one-time setup tasks required before starting the localnet:
+//! This module handles one-time setup tasks required before starting the devnet:
 //! - Downloading Filecoin proof parameters
 //! - Generating BLS keys for lotus
 //! - Pre-sealing sectors for genesis block
 //!
-//! These operations are performed using the foc-builder container and their
-//! outputs are cached for reuse across localnet restarts.
+//! These operations are performed using the BUILDER_CONTAINER container and their
+//! outputs are cached for reuse across devnet restarts.
 
 use tracing::info;
 

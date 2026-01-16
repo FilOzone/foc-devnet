@@ -10,7 +10,11 @@ use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
-use tracing::{error, info};
+use tracing::info;
+use tracing::warn;
+
+/// Time to wait for build container initialization (in seconds)
+const BUILD_INIT_WAIT_SECS: u64 = 5;
 
 /// Run the build process inside the Docker container.
 pub fn run_build_in_container(
@@ -67,19 +71,23 @@ pub fn execute_build_process(
     let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
     let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
 
-    // Create clones of the log file for writing
-    let log_file_clone = OpenOptions::new()
+    // Create log file
+    let log_file = OpenOptions::new()
         .create(true)
         .append(true)
         .open(log_path)?;
 
+    info!("NOTE: StdErr output does not necessarily indicate failure");
+
+    std::thread::sleep(std::time::Duration::from_secs(BUILD_INIT_WAIT_SECS));
+
     // Stream stdout to both console and log file
     let stdout_handle = std::thread::spawn({
-        let mut log_file = log_file_clone;
+        let mut log_file = log_file.try_clone()?;
         move || {
             let reader = BufReader::new(stdout);
-            for line in reader.lines().flatten() {
-                info!("{}", line);
+            for line in reader.lines().map_while(Result::ok) {
+                info!("(stdout): {}", line);
                 writeln!(log_file, "{}", line).ok();
             }
         }
@@ -87,14 +95,11 @@ pub fn execute_build_process(
 
     // Stream stderr to both console and log file
     let stderr_handle = std::thread::spawn({
-        let mut log_file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log_path)?;
+        let mut log_file = log_file.try_clone()?;
         move || {
             let reader = BufReader::new(stderr);
-            for line in reader.lines().flatten() {
-                error!("{}", line);
+            for line in reader.lines().map_while(Result::ok) {
+                warn!("(stderr): {}", line);
                 writeln!(log_file, "{}", line).ok();
             }
         }

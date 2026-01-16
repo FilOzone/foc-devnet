@@ -1,7 +1,7 @@
 //! Core Docker utilities and abstractions.
 //!
 //! This module provides the fundamental Docker operations and shell command abstractions
-//! used throughout foc-localnet. It consolidates the functionality from the old docker.rs
+//! used throughout foc-devnet. It consolidates the functionality from the old docker.rs
 //! and shell.rs modules into a single, well-organized structure.
 
 use std::error::Error;
@@ -22,11 +22,19 @@ pub fn run_command(program: &str, args: &[&str]) -> Result<Output, Box<dyn Error
     let output = Command::new(program).args(args).output()?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        // Truncate command display if too long
+        let cmd_str = args.join(" ");
+        let cmd_display = if cmd_str.len() > 200 {
+            format!("{}... (truncated)", &cmd_str[..200])
+        } else {
+            cmd_str
+        };
+
         return Err(format!(
-            "Command failed: {} {} -> {}",
-            program,
-            args.join(" "),
-            stderr
+            "Command failed: {} {}\nSTDOUT:\n{}\nSTDERR:\n{}",
+            program, cmd_display, stdout, stderr
         )
         .into());
     }
@@ -44,6 +52,18 @@ pub fn docker_command(args: &[&str]) -> Result<Output, Box<dyn Error>> {
     run_command("docker", args)
 }
 
+/// Get logs from a Docker container.
+///
+/// # Arguments
+/// * `container_name` - The name of the container to get logs from
+///
+/// # Returns
+/// The container logs on success.
+pub fn get_container_logs(container_name: &str) -> Result<String, Box<dyn Error>> {
+    let output = docker_command(&["logs", container_name])?;
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
 /// Check if a port is available (not in use)
 pub fn is_port_available(port: u16) -> bool {
     TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok()
@@ -52,7 +72,7 @@ pub fn is_port_available(port: u16) -> bool {
 /// Check if a Docker image exists locally.
 ///
 /// # Arguments
-/// * `image_name` - The image name to check (e.g., "foc-lotus")
+/// * `image_name` - The image name to check (e.g., LOTUS_DOCKER_IMAGE)
 ///
 /// # Returns
 /// true if the image exists, false otherwise.

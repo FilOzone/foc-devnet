@@ -1,34 +1,38 @@
 //! High-level shell command abstractions.
 //!
 //! This module provides high-level abstractions for blockchain-related shell commands
-//! like Lotus, Forge, Cast, and other tools used in foc-localnet.
+//! like Lotus, Forge, Cast, and other tools used in foc-devnet.
 
 use crate::docker::core::{docker_command, exec_in_container};
 use std::error::Error;
 use std::process::Output;
 
-/// Execute a lotus command inside the foc-lotus container.
+/// Execute a lotus command inside the LOTUS_CONTAINER container.
 pub fn lotus_command(args: &[&str]) -> Result<Output, Box<dyn Error>> {
-    exec_in_container("foc-lotus", "/usr/local/bin/lotus-bins/lotus", args)
+    exec_in_container(
+        crate::constants::LOTUS_CONTAINER,
+        "/usr/local/bin/lotus-bins/lotus",
+        args,
+    )
 }
 
-/// Execute a lotus-miner command inside the foc-lotus-miner container.
+/// Execute a lotus-miner command inside the LOTUS_MINER_CONTAINER container.
 pub fn lotus_miner_command(args: &[&str]) -> Result<Output, Box<dyn Error>> {
     exec_in_container(
-        "foc-lotus-miner",
+        crate::constants::LOTUS_MINER_CONTAINER,
         "/usr/local/bin/lotus-bins/lotus-miner",
         args,
     )
 }
 
-/// Execute a forge command inside the foc-builder container.
+/// Execute a forge command inside the BUILDER_CONTAINER container.
 pub fn forge_command(args: &[&str]) -> Result<Output, Box<dyn Error>> {
-    exec_in_container("foc-builder", "forge", args)
+    exec_in_container(crate::constants::BUILDER_CONTAINER, "forge", args)
 }
 
-/// Execute a cast command inside the foc-builder container.
+/// Execute a cast command inside the BUILDER_CONTAINER container.
 pub fn cast_command(args: &[&str]) -> Result<Output, Box<dyn Error>> {
-    exec_in_container("foc-builder", "cast", args)
+    exec_in_container(crate::constants::BUILDER_CONTAINER, "cast", args)
 }
 
 /// Execute a lotus wallet command.
@@ -89,20 +93,21 @@ pub fn lotus_get_eth_address(f4_address: &str) -> Result<String, Box<dyn Error>>
 }
 
 /// Run a docker container with host networking.
+/// Note: Does not use --rm flag to allow log inspection after container exits.
 pub fn docker_run_host_network(image: &str, args: &[&str]) -> Result<Output, Box<dyn Error>> {
-    let mut full_args = vec!["run", "--rm", "--network", "host"];
+    let mut full_args = vec!["run", "--network", "host"];
     full_args.extend_from_slice(args);
     full_args.extend_from_slice(&["-i", image]);
     docker_command(&full_args)
 }
 
-/// Run a docker container with volume mounts.
+/// Note: Does not use --rm flag to allow log inspection after container exits.
 pub fn docker_run_with_volumes(
     image: &str,
     volumes: &[&str],
     args: &[&str],
 ) -> Result<Output, Box<dyn Error>> {
-    let mut full_args = vec!["run", "--rm"];
+    let mut full_args = vec!["run"];
     for volume in volumes {
         full_args.push("-v");
         full_args.push(volume);
@@ -112,18 +117,22 @@ pub fn docker_run_with_volumes(
     docker_command(&full_args)
 }
 
-/// Execute a bash command inside the foc-builder container.
+/// Execute a bash command inside the BUILDER_CONTAINER container.
 pub fn foc_builder_bash_command(command: &str) -> Result<Output, Box<dyn Error>> {
-    exec_in_container("foc-builder", "bash", &["-c", command])
+    exec_in_container(
+        crate::constants::BUILDER_CONTAINER,
+        "bash",
+        &["-c", command],
+    )
 }
 
-/// Execute a forge build command in the foc-builder container.
+/// Execute a forge build command in the BUILDER_CONTAINER container.
 pub fn forge_build_in_container(working_dir: &str) -> Result<Output, Box<dyn Error>> {
     let command = format!("cd {} && forge build", working_dir);
     foc_builder_bash_command(&command)
 }
 
-/// Execute a forge script command in the foc-builder container.
+/// Execute a forge script command in the BUILDER_CONTAINER container.
 pub fn forge_script_deploy(
     script_path: &str,
     rpc_url: &str,

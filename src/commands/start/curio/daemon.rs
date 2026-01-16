@@ -7,11 +7,12 @@ use super::db_setup::{build_db_env_vars, build_foc_contract_env_vars, build_lotu
 use super::CurioStep;
 use crate::commands::start::curio::constants::CURIO_LAYERS;
 use crate::docker::command_logger::run_and_log_command_strings;
+use crate::docker::init::set_volume_ownership;
 use crate::docker::network::{lotus_network_name, pdp_miner_network_name};
 use crate::docker::{container_exists, stop_and_remove_container};
 use crate::paths::{
-    foc_localnet_bin, foc_localnet_curio_sp_volume, foc_localnet_genesis_sectors_pdp_sp,
-    foc_localnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
+    foc_devnet_bin, foc_devnet_curio_sp_volume, foc_devnet_genesis_sectors_pdp_sp,
+    foc_devnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
 };
 use std::error::Error;
 use std::fs;
@@ -46,7 +47,7 @@ pub fn start_curio_daemon(
     create_curio_directories(context, sp_index)?;
 
     // Step 2: Create and start container
-    let docker_args = build_docker_run_args(context, sp_index, &container_name)?;
+    let docker_args = build_docker_create_args(context, sp_index, &container_name)?;
     start_curio_container(context, &container_name, docker_args)?;
 
     Ok(())
@@ -55,7 +56,7 @@ pub fn start_curio_daemon(
 /// Create necessary directories for Curio
 fn create_curio_directories(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
     let run_id = context.run_id();
-    let curio_sp_dir = foc_localnet_curio_sp_volume(run_id, sp_index);
+    let curio_sp_dir = foc_devnet_curio_sp_volume(run_id, sp_index);
 
     let dirs = vec![
         curio_sp_dir.join(".curio"),
@@ -63,14 +64,21 @@ fn create_curio_directories(context: &SetupContext, sp_index: usize) -> Result<(
         curio_sp_dir.join("long-term-storage"),
     ];
 
-    for dir in dirs {
-        fs::create_dir_all(&dir)?;
+    for dir in &dirs {
+        fs::create_dir_all(dir)?;
     }
+
+    set_volume_ownership(&curio_sp_dir)?;
 
     Ok(())
 }
 
 /// Create and start Curio container
+///
+/// Uses docker create + network connect + start pattern so that:
+/// 1. Container is created but not started
+/// 2. Networks are connected while container is stopped
+/// 3. Container is started with Curio as PID 1 (logs work properly)
 fn start_curio_container(
     context: &SetupContext,
     container_name: &str,
@@ -78,16 +86,16 @@ fn start_curio_container(
 ) -> Result<(), Box<dyn Error>> {
     info!("Creating container {}...", container_name);
 
-    // Add image and command - run curio directly as the main process
-    docker_args.push("foc-curio".to_string());
+    // Add image and command - Curio as main process
+    docker_args.push(crate::constants::CURIO_DOCKER_IMAGE.to_string());
     docker_args.push("/usr/local/bin/lotus-bins/curio".to_string());
     docker_args.push("run".to_string());
     docker_args.push("--nosync".to_string());
     docker_args.push("--layers".to_string());
     docker_args.push(CURIO_LAYERS.to_string());
 
-    // Execute docker run
-    let key = format!("curio_daemon_start_{}", container_name);
+    // Execute docker create (not run)
+    let key = format!("curio_daemon_create_{}", container_name);
     let output = run_and_log_command_strings("docker", &docker_args, context, &key)?;
 
     if !output.status.success() {
@@ -98,7 +106,7 @@ fn start_curio_container(
         .into());
     }
 
-    // Connect to filecoin network
+    // Connect to filecoin network before starting
     let lotus_network = lotus_network_name(context.run_id());
     let network_args = vec![
         "network".to_string(),
@@ -109,26 +117,38 @@ fn start_curio_container(
     let key = format!("curio_network_connect_{}", container_name);
     let _ = run_and_log_command_strings("docker", &network_args, context, &key); // Ignore errors if already connected
 
-    info!("Container created");
+    // Start the container
+    let start_args = vec!["start".to_string(), container_name.to_string()];
+    let key = format!("curio_daemon_start_{}", container_name);
+    let output = run_and_log_command_strings("docker", &start_args, context, &key)?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "Failed to start curio container: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
+    }
+
+    info!("Container created and started");
 
     Ok(())
 }
 
-/// Build docker run arguments for Curio
-fn build_docker_run_args(
+/// Build docker create arguments for Curio
+fn build_docker_create_args(
     context: &SetupContext,
     sp_index: usize,
     container_name: &str,
 ) -> Result<Vec<String>, Box<dyn Error>> {
     let run_id = context.run_id();
-    let curio_sp_dir = foc_localnet_curio_sp_volume(run_id, sp_index);
-    let bin_dir = foc_localnet_bin();
-    let proof_params_dir = foc_localnet_proof_parameters();
-    let genesis_sectors_dir = foc_localnet_genesis_sectors_pdp_sp(run_id, sp_index);
+    let curio_sp_dir = foc_devnet_curio_sp_volume(run_id, sp_index);
+    let bin_dir = foc_devnet_bin();
+    let proof_params_dir = foc_devnet_proof_parameters();
+    let genesis_sectors_dir = foc_devnet_genesis_sectors_pdp_sp(run_id, sp_index);
 
     let mut docker_args = vec![
-        "run".to_string(),
-        "-d".to_string(),
+        "create".to_string(),
         "--name".to_string(),
         container_name.to_string(),
         "--network".to_string(),
