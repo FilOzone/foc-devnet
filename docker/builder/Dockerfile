@@ -26,10 +26,13 @@ ENV PATH=$PATH:/usr/local/go/bin
 ARG USER_ID=1002
 ARG GROUP_ID=1002
 RUN userdel ubuntu || true
-RUN groupadd -g ${GROUP_ID} foc-group && \
-    useradd -l -u ${USER_ID} -g foc-group -m -s /bin/bash foc-user && \
+RUN GROUP_NAME=$(getent group ${GROUP_ID} | cut -d: -f1 || echo "") && \
+    if [ -z "$GROUP_NAME" ]; then \
+        groupadd -g ${GROUP_ID} foc-group && GROUP_NAME=foc-group; \
+    fi && \
+    useradd -l -u ${USER_ID} -g $GROUP_NAME -m -s /bin/bash foc-user && \
     mkdir -p /home/foc-user/go/pkg && \
-    chown -R foc-user:foc-group /home/foc-user
+    chown -R foc-user:$GROUP_NAME /home/foc-user
 
 # Install Rust as foc-user
 USER foc-user
