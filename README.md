@@ -144,7 +144,7 @@ Bundled with Portainer for browser-based Docker management—no terminal wizardr
 
 ## 🛠️ Need More?
 
-See **[ADVANCED_README.md](ADVANCED_README.md)** for comprehensive documentation on:
+See **[README_ADVANCED.md](README_ADVANCED.md)** for comprehensive documentation on:
 - **All commands reference** (init, build, start, stop, status, version)
 - **Configuration system** (config.toml structure, parameters, editing)
 - **Complete directory structure** (what's stored where and why)
