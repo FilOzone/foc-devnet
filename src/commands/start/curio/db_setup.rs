@@ -68,6 +68,9 @@ pub fn build_foc_contract_env_vars(context: &SetupContext) -> Result<Vec<String>
             .to_string(),
     );
 
+    // Allow insecure sources (HTTP, localhost, private IPs) for SP-to-SP pull in devnet
+    env_vars.push("CURIO_PULL_ALLOW_INSECURE=1".to_string());
+
     Ok(env_vars)
 }
 

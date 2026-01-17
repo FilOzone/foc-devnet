@@ -153,6 +153,8 @@ fn build_docker_create_args(
         container_name.to_string(),
         "--network".to_string(),
         pdp_miner_network_name(run_id, sp_index),
+        // Enable host.docker.internal for SP-to-SP fetch (resolves to host gateway)
+        "--add-host=host.docker.internal:host-gateway".to_string(),
     ];
 
     // Port mappings - get dynamically allocated ports from context

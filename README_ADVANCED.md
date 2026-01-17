@@ -1027,7 +1027,7 @@ docker logs foc-<run-id>-curio-2
 # Query provider IDs
 cat ~/.foc-devnet/state/latest/pdp_sps/*.provider_id.json
 
-# Access Yugabyte (one per SP)
+# Access Yugabyte (one per SP, see below for more detail)
 docker exec -it foc-<run-id>-yugabyte-1 ysqlsh -h localhost -p 5433
 
 # Query Lotus for miner info
@@ -1039,6 +1039,16 @@ docker exec foc-<run-id>-builder cast call \
     "getServiceProvider(uint256)" \
     <provider_id>
 ```
+
+### Querying Yugabyte Database
+
+Each Curio has its own Yugabyte (curio-N → yugabyte-N). Tables are in `curio` schema. Credentials: `yugabyte`/`yugabyte`/`yugabyte` (user/pass/db).
+
+```bash
+docker exec foc-<run-id>-yugabyte-1 bash -c "PGPASSWORD=yugabyte /yugabyte/bin/ysqlsh -h 127.0.0.1 -U yugabyte -d yugabyte -c \"<SQL>\""
+```
+
+Key tables: `curio.harmony_machines`, `curio.harmony_task`, `curio.harmony_task_history`, `curio.parked_pieces`.
 
 ---
 

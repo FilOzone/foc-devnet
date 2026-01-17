@@ -10,12 +10,25 @@ A developer-friendly tool for spinning up complete Filecoin test networks with s
 
 Get up and running in three simple steps:
 
-### Step 0: Ensure non-root user
-`foc-devnet` requires itself to be run by a non-root user. Please ensure that you are running as a non-root user which is part of `docker` group.
+### Prerequisites
 
-Run the following to see your User ID and groups you are a part of:
-```
+**Non-root user with Docker access**: `foc-devnet` must be run by a non-root user in the `docker` group.
+
+```bash
 echo $(id -u); groups | grep 'docker'
+```
+
+**Configure host.docker.internal**: Add this entry to `/etc/hosts` so SP URLs work from both host and containers:
+
+```bash
+echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts
+```
+
+This is required for SP-to-SP fetch. `foc-devnet start` will check for this and fail with instructions if not configured.
+
+For GitHub Actions, add this step before running foc-devnet:
+```yaml
+- run: echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts
 ```
 
 ### Step 1: Initialize
