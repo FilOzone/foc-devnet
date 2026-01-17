@@ -173,7 +173,9 @@ pub struct Config {
     /// URL to download Yugabyte database tarball.
     ///
     /// This is the direct link to the Yugabyte tarball required for running curio.
-    /// Default: https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz
+    /// The default URL is automatically selected based on system architecture:
+    /// - ARM64 (aarch64): yugabyte-2.25.1.0-b381-el8-aarch64.tar.gz
+    /// - x86_64: yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz
     pub yugabyte_download_url: String,
 
     /// Number of approved PDP service providers.
@@ -244,7 +246,7 @@ impl Config {
         const YUGABYTE_VERSION: &str = "2.25.1.0";
         const YUGABYTE_BUILD: &str = "b381";
 
-        let arch_suffix = if cfg!(target_arch = "aarch64") {
+        let arch_suffix = if std::env::consts::ARCH == "aarch64" {
             "el8-aarch64"
         } else {
             "linux-x86_64"
