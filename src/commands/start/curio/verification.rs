@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
+use tempfile::TempDir;
 use tracing::info;
 
 /// Verify a single Curio PDP SP is functioning correctly.
@@ -63,15 +64,11 @@ fn verify_pdp_ping(context: &SetupContext, sp_index: usize) -> Result<(), Box<dy
 fn verify_upload_download(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
     info!("Testing upload/download functionality via pdptool...");
 
-    // Create test file in curio's fast-storage (already mounted to container)
-    let run_id = context.run_id();
-    let curio_sp_dir = crate::paths::foc_devnet_curio_sp_volume(run_id, sp_index);
-    let test_file_dir = curio_sp_dir.join("fast-storage");
-    fs::create_dir_all(&test_file_dir)?;
+    // Create temporary directory for test files
+    let temp_dir = TempDir::new()?;
+    let test_file_path = create_random_test_file(&temp_dir)?;
 
-    let test_file_path = create_random_test_file(&test_file_dir)?;
-
-    // Upload file via pdptool (running in container)
+    // Upload file via pdptool
     let piece_cid = upload_test_file(context, &test_file_path, sp_index)?;
 
     // Wait a bit for the piece to be available for download
@@ -86,17 +83,14 @@ fn verify_upload_download(context: &SetupContext, sp_index: usize) -> Result<(),
         return Err("Downloaded data does not match original".into());
     }
 
-    // Clean up test file
-    let _ = fs::remove_file(&test_file_path);
-
     info!("Upload/download verified");
 
     Ok(())
 }
 
 /// Create a random test file.
-fn create_random_test_file(test_dir: &Path) -> Result<PathBuf, Box<dyn Error>> {
-    let test_file_path = test_dir.join("test_data.bin");
+fn create_random_test_file(temp_dir: &TempDir) -> Result<PathBuf, Box<dyn Error>> {
+    let test_file_path = temp_dir.path().join("test_data.bin");
     let mut rng = rand::thread_rng();
     let random_data: Vec<u8> = (0..TEST_FILE_SIZE_BYTES).map(|_| rng.gen()).collect();
 
@@ -106,24 +100,41 @@ fn create_random_test_file(test_dir: &Path) -> Result<PathBuf, Box<dyn Error>> {
 }
 
 /// Upload test file using pdptool.
+///
+/// Runs pdptool inside foc-builder container (which uses --network host)
+/// to test via external port, simulating real external client access.
 fn upload_test_file(
     context: &SetupContext,
-    _file_path: &Path,
+    file_path: &Path,
     sp_index: usize,
 ) -> Result<String, Box<dyn Error>> {
-    // When running pdptool inside the container, use the container's internal port (4702)
-    // not the host-mapped port
-    let service_url = "http://localhost:4702";
+    // Get dynamically allocated PDP port from context (external port)
+    let port: u16 = context
+        .get(&format!("curio_sp_{}_pdp_port", sp_index))
+        .ok_or("Curio PDP port not found in context")?
+        .parse()?;
 
-    // File is in fast-storage on host, which is mounted to /home/foc-user/curio/fast-storage in container
-    let container_file_path = "/home/foc-user/curio/fast-storage/test_data.bin";
+    // Use external port via host network for stricter testing
+    let service_url = format!("http://localhost:{}", port);
 
-    let run_id = context.run_id();
-    let container_name = format!("foc-{}-curio-{}", run_id, sp_index);
+    // Mount the test file directory into foc-builder and use it
+    let file_dir = file_path.parent().ok_or("Invalid file path")?;
+    let file_name = file_path.file_name().ok_or("Invalid file name")?;
+    let container_file_path = format!("/tmp/test-data/{}", file_name.to_string_lossy());
+
+    // Mount bin directory where pdptool is located
+    let bin_dir = crate::paths::foc_devnet_bin();
 
     let args = [
-        "exec",
-        &container_name,
+        "run",
+        "--rm",
+        "--network",
+        "host",
+        "-v",
+        &format!("{}:/tmp/test-data", file_dir.display()),
+        "-v",
+        &format!("{}:/usr/local/bin/lotus-bins", bin_dir.display()),
+        crate::constants::BUILDER_DOCKER_IMAGE,
         "/usr/local/bin/lotus-bins/pdptool",
         "upload-piece",
         "--service-url",
@@ -132,13 +143,11 @@ fn upload_test_file(
         "public",
         "--hash-type",
         "commp",
-        container_file_path,
+        &container_file_path,
         "--verbose",
     ];
 
-    let output = Command::new("docker")
-        .args(args)
-        .output()?;
+    let output = Command::new("docker").args(args).output()?;
 
     if !output.status.success() {
         return Err(format!(
@@ -148,7 +157,10 @@ fn upload_test_file(
         .into());
     }
 
-    info!("File uploaded via pdptool");
+    info!(
+        "File uploaded via pdptool (foc-builder, external port {})",
+        port
+    );
 
     // Extract piece CID from output
     let stdout = String::from_utf8_lossy(&output.stdout);
