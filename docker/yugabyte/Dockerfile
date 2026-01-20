@@ -18,8 +18,11 @@ ENV LC_ALL=en_US.UTF-8
 ARG USER_ID=1002
 ARG GROUP_ID=1002
 RUN userdel ubuntu || true
-RUN groupadd -g ${GROUP_ID} foc-group && \
-    useradd -l -u ${USER_ID} -g foc-group -m -s /bin/bash foc-user
+RUN GROUP_NAME=$(getent group ${GROUP_ID} | cut -d: -f1 || echo "") && \
+    if [ -z "$GROUP_NAME" ]; then \
+        groupadd -g ${GROUP_ID} foc-group && GROUP_NAME=foc-group; \
+    fi && \
+    useradd -l -u ${USER_ID} -g $GROUP_NAME -m -s /bin/bash foc-user
 
 # Set working directory
 WORKDIR /yugabyte
@@ -30,9 +33,10 @@ ARG YUGABYTE_SOURCE=yugabyte
 COPY ${YUGABYTE_SOURCE} /yugabyte
 
 # Run post-install script and set ownership
-RUN /yugabyte/bin/post_install.sh && \
+RUN GROUP_NAME=$(getent group ${GROUP_ID} | cut -d: -f1) && \
+    /yugabyte/bin/post_install.sh && \
     mkdir -p /yugabyte/data && \
-    chown -R foc-user:foc-group /yugabyte
+    chown -R foc-user:$GROUP_NAME /yugabyte
 
 # Switch to foc-user
 USER foc-user

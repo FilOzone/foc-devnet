@@ -18,18 +18,23 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Go 1.24.7
-RUN wget -c https://golang.org/dl/go1.24.7.linux-amd64.tar.gz -O - | tar -xz -C /usr/local
+# Install Go 1.24.7 (auto-detect architecture)
+ARG TARGETARCH
+RUN GOARCH=${TARGETARCH:-amd64} && \
+    wget -c https://golang.org/dl/go1.24.7.linux-${GOARCH}.tar.gz -O - | tar -xz -C /usr/local
 ENV PATH=$PATH:/usr/local/go/bin
 
 # Create foc-user and foc-group with matching host UID/GID when it is run. The 1002 below is just a placeholder which will be replaced during build process. See `docker.rs`
 ARG USER_ID=1002
 ARG GROUP_ID=1002
 RUN userdel ubuntu || true
-RUN groupadd -g ${GROUP_ID} foc-group && \
-    useradd -l -u ${USER_ID} -g foc-group -m -s /bin/bash foc-user && \
+RUN GROUP_NAME=$(getent group ${GROUP_ID} | cut -d: -f1 || echo "") && \
+    if [ -z "$GROUP_NAME" ]; then \
+        groupadd -g ${GROUP_ID} foc-group && GROUP_NAME=foc-group; \
+    fi && \
+    useradd -l -u ${USER_ID} -g $GROUP_NAME -m -s /bin/bash foc-user && \
     mkdir -p /home/foc-user/go/pkg && \
-    chown -R foc-user:foc-group /home/foc-user
+    chown -R foc-user:$GROUP_NAME /home/foc-user
 
 # Install Rust as foc-user
 USER foc-user
@@ -51,7 +56,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
 WORKDIR /workspace
 
 # Define volumes for external access
-VOLUME ["/home/foc-user/.cargo", "/home/foc-user/.rustup", "/home/foc-user/go", "/var/tmp/filecoin-proof-parameters"]
+VOLUME ["/var/tmp/filecoin-proof-parameters"]
 
 # Default command
 CMD ["/bin/bash"]
