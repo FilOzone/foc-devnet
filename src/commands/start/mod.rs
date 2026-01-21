@@ -403,8 +403,7 @@ pub fn start_cluster(
 ) -> Result<(), Box<dyn std::error::Error>> {
     stop_existing_cluster()?;
 
-    let (volumes_dir, run_dir, run_id) =
-        setup_directories_and_run_id(run_id)?;
+    let (volumes_dir, run_dir, run_id) = setup_directories_and_run_id(run_id)?;
 
     // Stop any running containers (but preserve old run data)
     stop_running_containers()?;

@@ -69,12 +69,8 @@ pub fn handle_build(build_command: BuildCommands) -> Result<(), Box<dyn std::err
         .map_err(|e| format!("Failed to parse config file: {}", e))?;
 
     match build_command {
-        BuildCommands::Lotus {
-            path: _,
-        } => commands::build_project(&Project::Lotus, &config),
-        BuildCommands::Curio {
-            path: _,
-        } => commands::build_project(&Project::Curio, &config),
+        BuildCommands::Lotus { path: _ } => commands::build_project(&Project::Lotus, &config),
+        BuildCommands::Curio { path: _ } => commands::build_project(&Project::Curio, &config),
     }
 }
 
