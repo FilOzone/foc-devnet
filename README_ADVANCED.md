@@ -40,22 +40,21 @@ foc-devnet init \
 ```
 
 ### `build`
-Builds Filecoin components in Docker containers.
+Builds Lotus and Curio binaries in Docker containers.
 
 > **Note:** This command must be run after `init` to ensure Docker images and environment are prepared.
 
 ```bash
-foc-devnet build lotus [PATH] [--output-dir <DIR>]
-foc-devnet build curio [PATH] [--output-dir <DIR>]
+foc-devnet build lotus [PATH]
+foc-devnet build curio [PATH]
 ```
 
-**Options:**
-- `--output-dir <DIR>` - Directory for built binaries (default: `~/.foc-devnet/bin`)
+**Note:** Binaries are built to `~/.foc-devnet/bin/` which is the expected location for the system.
 
 **Example:**
 ```bash
 foc-devnet build lotus
-foc-devnet build curio /path/to/custom/curio --output-dir ~/bins
+foc-devnet build curio /path/to/custom/curio
 ```
 
 ### `start`
@@ -68,8 +67,6 @@ foc-devnet start [OPTIONS]
 ```
 
 **Options:**
-- `--volumes-dir <DIR>` - Custom docker volumes directory. Use custom paths (e.g., faster SSD, network storage).
-- `--run-dir <DIR>` - Custom run-specific data directory. Use custom paths (e.g., faster SSD, network storage).
 - `--parallel` - **⚡ Run steps in parallel for ~40% faster startup (recommended)**
 
 **Why `--parallel` (Recommended):**
@@ -671,11 +668,11 @@ port_range_count = 100
 
 ---
 
-## Repository Management
+## Dependency Repository Management
 
 
 
-### Required Repositories
+### Required Dependent Repositories
 
 - **[lotus](https://github.com/filecoin-project/lotus)** - Filecoin daemon
 - **[curio](https://github.com/filecoin-project/curio)** - Storage provider (PDP)
@@ -683,17 +680,18 @@ port_range_count = 100
 - **[multicall3](https://github.com/mds1/multicall3)** - Multicall3 contract
 - **[synapse-sdk](https://github.com/FilOzone/synapse-sdk)** - PDP verification SDK
 
-### Version Strategy
+### Dependent Version Strategy
 
 Default versions for these repositories are defined in code (see [`src/config.rs`](src/config.rs) `Config::default()`).
 
+**Version specification methods:**
 - **Git tags** (`GitTag`): Used for stable releases. Tags provide version pinning and stability.
-- **Git commits** (`GitCommit`): Used for repositories where specific commits are required and there isn't a corresponding tag yet.  (Generally tags should be preferred over commits.)
+- **Git commits** (`GitCommit`): Used for repositories where specific commits are required and there isn't a corresponding tag yet. (Generally tags should be preferred over commits.)
 - **Git branches** (`GitBranch`): Used for development or when tracking latest changes.
 
 **Updating defaults:** See [How Defaults Work](#how-defaults-work) for information on how defaults are defined and the steps to apply updates.
 
-### Using Local Repositories
+### Using Local Dependency Repositories
 
 **For active development:**
 
@@ -724,6 +722,8 @@ foc-devnet init \
 cp shared-config.toml ~/.foc-devnet/config.toml
 
 # Run init to download and build
+# Note: this assumes that both parties are using the same commit of `foc-devnet`
+# and that dependency versions in `config.toml` are all tags or commits (rather than branches).
 foc-devnet init
 ```
 
@@ -731,7 +731,7 @@ foc-devnet init
 
 ### Reproducible Builds
 
-For reproducible builds, specify exact commits in `config.toml`:
+For reproducible builds, specify exact tags or commits in `config.toml`:
 
 ```toml
 [lotus]
