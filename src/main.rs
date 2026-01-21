@@ -23,12 +23,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Execute the command with poison file protection
     let result = match cli.command {
         Commands::Start {
-            volumes_dir,
-            run_dir,
             parallel,
             notest,
         } => {
-            main_app::command_handlers::handle_start(volumes_dir, run_dir, parallel, run_id, notest)
+            main_app::command_handlers::handle_start(parallel, run_id, notest)
         }
         Commands::Stop => main_app::command_handlers::handle_stop(),
         Commands::Init {

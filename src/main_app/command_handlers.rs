@@ -14,14 +14,12 @@ use foc_devnet::poison;
 
 /// Execute the start command
 pub fn handle_start(
-    volumes_dir: Option<String>,
-    run_dir: Option<String>,
     parallel: bool,
     run_id: String,
     notest: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     poison::create_poison("Start")?;
-    commands::start_cluster(volumes_dir, run_dir, parallel, run_id, notest)
+    commands::start_cluster(parallel, run_id, notest)
 }
 
 /// Execute the stop command
@@ -73,11 +71,9 @@ pub fn handle_build(build_command: BuildCommands) -> Result<(), Box<dyn std::err
     match build_command {
         BuildCommands::Lotus {
             path: _,
-            output_dir: _,
         } => commands::build_project(&Project::Lotus, &config),
         BuildCommands::Curio {
             path: _,
-            output_dir: _,
         } => commands::build_project(&Project::Curio, &config),
     }
 }

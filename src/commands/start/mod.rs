@@ -51,21 +51,13 @@ fn stop_existing_cluster() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Setup directories, run ID, and version information for the cluster startup.
 fn setup_directories_and_run_id(
-    volumes_dir: Option<String>,
-    _run_dir: Option<String>,
     run_id: String,
 ) -> Result<(PathBuf, PathBuf, String), Box<dyn std::error::Error>> {
     // Save run ID to persistent storage
     save_current_run_id(&run_id)?;
 
-    // Determine volumes directory
-    let volumes_dir = if let Some(dir) = volumes_dir {
-        PathBuf::from(dir)
-    } else {
-        crate::paths::foc_devnet_docker_volumes_run_specific(&run_id)
-    };
-
-    // Determine run directory
+    // Use default paths
+    let volumes_dir = crate::paths::foc_devnet_docker_volumes_run_specific(&run_id);
     let run_dir = foc_devnet_run_dir(&run_id);
 
     // Create directories if they don't exist
@@ -405,8 +397,6 @@ fn execute_cluster_steps(
 
 /// Start the local Filecoin network cluster.
 pub fn start_cluster(
-    volumes_dir: Option<String>,
-    run_dir: Option<String>,
     parallel: bool,
     run_id: String,
     notest: bool,
@@ -414,7 +404,7 @@ pub fn start_cluster(
     stop_existing_cluster()?;
 
     let (volumes_dir, run_dir, run_id) =
-        setup_directories_and_run_id(volumes_dir, run_dir, run_id)?;
+        setup_directories_and_run_id(run_id)?;
 
     // Stop any running containers (but preserve old run data)
     stop_running_containers()?;
