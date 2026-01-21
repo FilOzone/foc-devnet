@@ -139,7 +139,7 @@ Bundled with Portainer for browser-based Docker management—no terminal wizardr
 | **Docker** | Desktop (macOS) or CE (Linux) |
 | **tar** | Archive utility (usually pre-installed) |
 | **Disk Space** | ~20GB for images and blockchain data |
-| **x86 Architecture** | Some dependencies require x86 (Intel) architecture. As a result, ARM-based architectures (including Apple Silicon) may not be supported. See [GitHub Issues](https://github.com/FilOzone/foc-devnet/issues) for current architecture compatibility status. |
+| **Architecture** | Supports both x86 (Intel) and ARM64 (Apple Silicon, AWS Graviton, etc.) architectures. The system automatically selects the appropriate binaries based on your architecture. |
 
 ---
 
