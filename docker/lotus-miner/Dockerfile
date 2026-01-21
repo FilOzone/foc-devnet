@@ -19,16 +19,20 @@ RUN apt-get update && apt-get install -y \
 ARG USER_ID=1002
 ARG GROUP_ID=1002
 RUN userdel ubuntu || true
-RUN groupadd -g ${GROUP_ID} foc-group && \
-    useradd -l -u ${USER_ID} -g foc-group -m -s /bin/bash foc-user
+RUN GROUP_NAME=$(getent group ${GROUP_ID} | cut -d: -f1 || echo "") && \
+    if [ -z "$GROUP_NAME" ]; then \
+        groupadd -g ${GROUP_ID} foc-group && GROUP_NAME=foc-group; \
+    fi && \
+    useradd -l -u ${USER_ID} -g $GROUP_NAME -m -s /bin/bash foc-user
 
 # Create necessary directories with proper ownership
-RUN mkdir -p /var/tmp/filecoin-proof-parameters \
+RUN GROUP_NAME=$(getent group ${GROUP_ID} | cut -d: -f1) && \
+    mkdir -p /var/tmp/filecoin-proof-parameters \
     && mkdir -p /home/foc-user/.lotus-miner-local-net \
     && mkdir -p /home/foc-user/.lotus-local-net \
     && mkdir -p /home/foc-user/.genesis-sectors \
-    && chown -R foc-user:foc-group /var/tmp/filecoin-proof-parameters \
-    && chown -R foc-user:foc-group /home/foc-user
+    && chown -R foc-user:$GROUP_NAME /var/tmp/filecoin-proof-parameters \
+    && chown -R foc-user:$GROUP_NAME /home/foc-user
 
 # Switch to foc-user
 USER foc-user
