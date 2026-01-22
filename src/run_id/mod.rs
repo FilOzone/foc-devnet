@@ -1,7 +1,7 @@
 //! Run ID generation and management.
 //!
 //! This module handles generating unique run IDs for each cluster start.
-//! Format: YYMMDD-HHMM-random-name (e.g., 251203-1246-thirsty-wolf)
+//! Format: YYYYMMDDTHHMM-random-name (e.g., 20251203T1246-thirsty-wolf)
 
 mod persistence;
 
@@ -28,21 +28,22 @@ pub const NOUNS: &[&str] = &[
 
 /// Generate a unique run ID for this execution.
 ///
-/// Returns a string like "foc_25dec15-2206_blue_ibis_lotus" where:
-/// - foc_ is the prefix
-/// - 25dec15 is the date (YYmmmDD where mmm is the lowercase abbreviated month name)
-/// - 2206 is the time (HHMM)
-/// - blue_ibis_lotus is the modified random name with underscores and suffix
+/// Returns a string like "20251215T2206_ZanyPip" where:
+/// - 20251215 is the date (YYYYMMDD, condensed ISO8601 format)
+/// - T is the date/time separator (ISO8601)
+/// - 2206 is the time (HHMM, 24-hour format, no colons for Docker compatibility)
+/// - ZanyPip is the random name (adjective + noun)
+///
+/// Uses condensed ISO8601 format (no dashes or colons) for Docker network name compatibility.
 ///
 /// # Example
 /// ```no_run
 /// let run_id = generate_run_id();
-/// println!("{}", run_id); // e.g., "25dec15-2206_blue_ibis_lotus"
+/// println!("{}", run_id); // e.g., "20251215T2206_ZanyPip"
 /// ```
 pub fn generate_run_id() -> String {
     let now = Local::now();
-    let date = now.format("%y%b%d").to_string().to_lowercase();
-    let time = now.format("%H%M");
+    let datetime = now.format("%Y%m%dT%H%M");
 
     // Implement our own random name generator to control format
     let random_name = {
@@ -52,7 +53,7 @@ pub fn generate_run_id() -> String {
         format!("{}{}", adjective, noun)
     };
 
-    format!("{}-{}_{}", date, time, random_name)
+    format!("{}_{}", datetime, random_name)
 }
 
 /// Create a symlink to the latest run directory.
@@ -90,8 +91,8 @@ mod tests {
     fn test_run_id_format() {
         let run_id = generate_run_id();
 
-        // Should match pattern: foc_YYmmmDD-HHMM_word_word_lotus
-        let pattern = Regex::new(r"^foc_\d{2}[a-z]{3}\d{2}-\d{4}_.+$").unwrap();
+        // Should match pattern: YYYYMMDDTHHMM_RandomName (condensed ISO8601, no dashes/colons)
+        let pattern = Regex::new(r"^\d{8}T\d{4}_.+$").unwrap();
         assert!(
             pattern.is_match(&run_id),
             "Run ID should match format: {}",

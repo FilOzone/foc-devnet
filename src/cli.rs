@@ -15,12 +15,6 @@ pub struct Cli {
 pub enum Commands {
     /// Start the local cluster
     Start {
-        /// Directory where docker volumes to be loaded will be stored
-        #[arg(long)]
-        volumes_dir: Option<String>,
-        /// Directory where run-specific data and logs will be stored
-        #[arg(long)]
-        run_dir: Option<String>,
         /// Run steps in parallel where possible (experimental)
         #[arg(long)]
         parallel: bool,
@@ -81,17 +75,11 @@ pub enum BuildCommands {
     Lotus {
         /// Path to the Lotus source directory (optional, will clone if not provided)
         path: Option<PathBuf>,
-        /// Output directory for built binaries
-        #[arg(long)]
-        output_dir: Option<PathBuf>,
     },
     /// Build Curio
     Curio {
         /// Path to the Curio source directory (optional, will clone if not provided)
         path: Option<PathBuf>,
-        /// Output directory for built binaries
-        #[arg(long)]
-        output_dir: Option<PathBuf>,
     },
 }
 

@@ -66,7 +66,7 @@ This will:
 - Start storage provider(s)
 - Launch [Portainer UI](https://docs.docksal.io/use-cases/portainer/) for container management
 
-**If you are have troubles**: Use `cargo run -- start`, removing parallelism during start, this may take longer.
+**If you have troubles**: Use `cargo run -- start`, removing parallelism during start, this may take longer.
 
 **That's it!** Your local Filecoin network is running.
 
@@ -109,7 +109,7 @@ From building Docker images to deploying contracts—everything is automated:
 Built with modular steps for easy extension and customization:
 - Add custom deployment steps
 - Configure multiple PDP service providers
-- Control "allowed" SP nodes via `~/.foc-devnet/config.toml`
+- Control "allowed" SP nodes via `~/.foc-devnet/config.toml` (see [Configuration System](README_ADVANCED.md#configuration-system))
 
 ### 📜 Programmable
 Built for scripting and automation:
@@ -139,12 +139,13 @@ Bundled with Portainer for browser-based Docker management—no terminal wizardr
 | **Docker** | Desktop (macOS) or CE (Linux) |
 | **tar** | Archive utility (usually pre-installed) |
 | **Disk Space** | ~20GB for images and blockchain data |
+| **Architecture** | Supports both x86 (Intel) and ARM64 (Apple Silicon, AWS Graviton, etc.) architectures. The system automatically selects the appropriate binaries based on your architecture. |
 
 ---
 
 ## 🛠️ Need More?
 
-See **[ADVANCED_README.md](ADVANCED_README.md)** for comprehensive documentation on:
+See **[README_ADVANCED.md](README_ADVANCED.md)** for comprehensive documentation on:
 - **All commands reference** (init, build, start, stop, status, version)
 - **Configuration system** (config.toml structure, parameters, editing)
 - **Complete directory structure** (what's stored where and why)
@@ -156,7 +157,7 @@ See **[ADVANCED_README.md](ADVANCED_README.md)** for comprehensive documentation
 - **Lifecycle overview** (full startup sequence, step implementation)
 - **Service Provider examples** (1 SP with 0 authorized, 3 SPs with top 2 authorized, etc.)
 - **Troubleshooting guides** (port conflicts, build failures, network issues)
-- **Advanced topics** (custom genesis, Lotus API access, contract interaction)
+- **Additional user actions** (custom genesis, Lotus API access, contract interaction)
 
 ---
 

@@ -20,11 +20,9 @@ pub use status::status;
 pub use stop::stop_cluster;
 
 pub fn start_cluster(
-    volumes_dir: Option<String>,
-    run_dir: Option<String>,
     parallel: bool,
     run_id: String,
     notest: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    start::start_cluster(volumes_dir, run_dir, parallel, run_id, notest)
+    start::start_cluster(parallel, run_id, notest)
 }
