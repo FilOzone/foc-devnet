@@ -227,7 +227,7 @@ impl Default for Config {
             },
             synapse_sdk: Location::GitCommit {
                 url: "https://github.com/FilOzone/synapse-sdk.git".to_string(),
-                commit: "64c1601cbf9118de288a2c67cddd4c1b548d266e".to_string(),
+                commit: "3bc6a7fd2d0b66119163c6759241a6ff74ac03e1".to_string(),
             },
             yugabyte_download_url: Self::get_default_yugabyte_url(),
             approved_pdp_sp_count: 1,
