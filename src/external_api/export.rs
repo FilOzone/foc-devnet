@@ -139,9 +139,7 @@ fn build_contracts(ctx: &SetupContext) -> ContractsInfo {
         filecoin_pay_v1_addr: ctx
             .get("foc_contract_filecoin_pay_v1_contract")
             .unwrap_or_default(),
-        endorsements_addr: ctx
-            .get("foc_contract_endorsements")
-            .unwrap_or_default(),
+        endorsements_addr: ctx.get("foc_contract_endorsements").unwrap_or_default(),
     }
 }
 
