@@ -11,6 +11,7 @@ pub mod constants;
 pub mod crypto;
 pub mod docker;
 pub mod embedded_assets;
+pub mod external_api;
 pub mod logger;
 pub mod paths;
 pub mod poison;

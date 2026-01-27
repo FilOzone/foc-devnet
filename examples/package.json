@@ -1,0 +1,17 @@
+{
+  "name": "foc-devnet-examples",
+  "version": "1.0.0",
+  "description": "Examples for interacting with FOC DevNet",
+  "type": "module",
+  "scripts": {
+    "read-info": "node read-devnet-info.js",
+    "check-balances": "node check-balances.js"
+  },
+  "dependencies": {
+    "ethers": "^6.0.0"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

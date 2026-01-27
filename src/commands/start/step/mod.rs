@@ -323,7 +323,7 @@ pub struct StepExecutionConfig {
 pub fn execute_steps(
     steps: Vec<&dyn Step>,
     config: StepExecutionConfig,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<SetupContext, Box<dyn Error>> {
     // Create port allocator and verify all ports are available
     let mut port_allocator = PortAllocator::new(config.port_start, config.port_count)?;
 
@@ -391,7 +391,7 @@ pub fn execute_steps(
         .collect();
     context.set_multi(timing_items);
 
-    Ok(())
+    Ok(context)
 }
 
 /// Execute steps organized in parallel epochs
@@ -410,11 +410,11 @@ pub fn execute_steps(
 ///
 /// # Returns
 ///
-/// Returns Ok(()) if all steps in all epochs complete successfully, or an error if any step fails.
+/// Returns Ok(SetupContext) if all steps in all epochs complete successfully, or an error if any step fails.
 pub fn execute_steps_parallel(
     step_epochs: Vec<Vec<&dyn Step>>,
     config: StepExecutionConfig,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<SetupContext, Box<dyn Error>> {
     // Create port allocator and verify all ports are available
     let mut port_allocator = PortAllocator::new(config.port_start, config.port_count)?;
 
@@ -487,7 +487,10 @@ pub fn execute_steps_parallel(
         warn!("Failed to save step context: {}", e);
     }
 
-    Ok(())
+    // Unwrap Arc to return owned SetupContext
+    let context = Arc::try_unwrap(context).map_err(|_| "Failed to unwrap Arc<SetupContext>")?;
+
+    Ok(context)
 }
 
 /// Execute a single epoch of steps (either sequentially or in parallel)

@@ -331,7 +331,7 @@ fn execute_cluster_steps(
     parallel: bool,
     portainer_port: u16,
     notest: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<SetupContext, Box<dyn std::error::Error>> {
     // Ensure genesis prerequisites are ready (one-time setup, needs config for sector count)
     ensure_genesis_prerequisites(config.active_pdp_sp_count, run_id)?;
 
@@ -352,6 +352,16 @@ fn execute_cluster_steps(
         config.active_pdp_sp_count, config.approved_pdp_sp_count
     );
 
+    let step_config = step::StepExecutionConfig {
+        run_id: run_id.to_string(),
+        run_dir: run_dir.to_path_buf(),
+        port_start: config.port_range_start,
+        port_count: config.port_range_count,
+        portainer_port: Some(portainer_port),
+        active_pdp_sp_count: config.active_pdp_sp_count,
+        approved_pdp_sp_count: config.approved_pdp_sp_count,
+    };
+
     if parallel {
         info!("Execution mode: PARALLEL (experimental)");
         let step_epochs = create_step_epochs(volumes_dir, run_dir, config, notest);
@@ -362,37 +372,18 @@ fn execute_cluster_steps(
             .map(|epoch| epoch.iter().map(|s| s.as_ref()).collect())
             .collect();
 
-        execute_steps_parallel(
-            epoch_refs,
-            step::StepExecutionConfig {
-                run_id: run_id.to_string(),
-                run_dir: run_dir.to_path_buf(),
-                port_start: config.port_range_start,
-                port_count: config.port_range_count,
-                portainer_port: Some(portainer_port),
-                active_pdp_sp_count: config.active_pdp_sp_count,
-                approved_pdp_sp_count: config.approved_pdp_sp_count,
-            },
-        )?;
+        let context = execute_steps_parallel(epoch_refs, step_config)?;
+        Ok(context)
     } else {
         info!("Execution mode: SEQUENTIAL");
         let steps = create_steps(volumes_dir, run_dir, config, notest);
 
-        execute_steps(
+        let context = execute_steps(
             steps.iter().map(|s| s.as_ref()).collect::<Vec<_>>(),
-            step::StepExecutionConfig {
-                run_id: run_id.to_string(),
-                run_dir: run_dir.to_path_buf(),
-                port_start: config.port_range_start,
-                port_count: config.port_range_count,
-                portainer_port: Some(portainer_port),
-                active_pdp_sp_count: config.active_pdp_sp_count,
-                approved_pdp_sp_count: config.approved_pdp_sp_count,
-            },
+            step_config,
         )?;
+        Ok(context)
     }
-
-    Ok(())
 }
 
 /// Start the local Filecoin network cluster.
@@ -447,11 +438,18 @@ pub fn start_cluster(
         warn!("Post-start teardown encountered an error: {}", e);
     }
 
-    // Propagate original execution result
-    exec_result?;
-
-    info!("Cluster started successfully!");
-    Ok(())
+    // Export devnet info if steps succeeded
+    match exec_result {
+        Ok(context) => {
+            // Export the devnet info JSON for external consumers
+            if let Err(e) = crate::external_api::export_devnet_info(&context) {
+                warn!("Failed to export devnet info: {}", e);
+            }
+            info!("Cluster started successfully!");
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
 }
 
 /// Finalize the start attempt by collecting logs, cleaning dead containers, and writing status.

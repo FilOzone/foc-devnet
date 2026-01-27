@@ -326,6 +326,43 @@ jobs:
         echo "Containers using foc-* images (running or exited):"
         docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
 
+    # Verify devnet-info.json was exported successfully
+    - name: "CHECK: {Verify devnet-info.json exists}"
+      if: steps.start_cluster.outcome == 'success'
+      run: |
+        DEVNET_INFO="$HOME/.foc-devnet/state/latest/devnet-info.json"
+        if [ ! -f "$DEVNET_INFO" ]; then
+          echo "ERROR: devnet-info.json was not created at $DEVNET_INFO"
+          exit 1
+        fi
+        echo "✓ devnet-info.json exists at $DEVNET_INFO"
+        echo "--- Contents ---"
+        cat "$DEVNET_INFO"
+        echo ""
+        echo "--- Schema validation ---"
+        VERSION=$(cat "$DEVNET_INFO" | jq -r '.version')
+        RUN_ID=$(cat "$DEVNET_INFO" | jq -r '.info.run_id')
+        echo "Schema version: $VERSION"
+        echo "Run ID: $RUN_ID"
+        if [ "$VERSION" != "1" ]; then
+          echo "ERROR: Unexpected schema version: $VERSION"
+          exit 1
+        fi
+        if [ -z "$RUN_ID" ] || [ "$RUN_ID" == "null" ]; then
+          echo "ERROR: run_id is missing or null"
+          exit 1
+        fi
+        echo "✓ devnet-info.json schema is valid"
+
+    # Run the JavaScript example to verify it works
+    - name: "CHECK: {Verify read-devnet-info.js works}"
+      if: steps.start_cluster.outcome == 'success'
+      run: |
+        cd examples
+        npm install
+        node read-devnet-info.js ~/.foc-devnet/state/latest/devnet-info.json
+        echo "✓ read-devnet-info.js executed successfully"
+
     # Clean shutdown
     - name: "EXEC: {Stop cluster}, independent"
       run: ./foc-devnet stop
