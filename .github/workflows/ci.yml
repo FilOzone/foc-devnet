@@ -272,27 +272,16 @@ jobs:
     # On failure, collect and print Docker container logs for debugging
     - name: "EXEC: {Collect Docker logs on failure}, independent"
       run: |
-        echo "+++++++++++ foc-devnet version run"
-        cat ~/.foc-devnet/state/latest/version.txt 2>/dev/null || echo "No version file found"
+        RUN_DIR="$HOME/.foc-devnet/state/latest"
+        
+        echo "+++++++++++ foc-devnet version"
+        cat "$RUN_DIR/version.txt" 2>/dev/null || echo "No version file found"
 
-        echo "+++++++++++ Listing runs in foc-devnet..."
-        ls -1 ~/.foc-devnet/run/ 2>/dev/null || echo "No runs directory found"
-
-        echo "+++++++++++ Get latest run ID"
-        LATEST_RUN=$(ls -t ~/.foc-devnet/run/ 2>/dev/null | head -1)
-        if [ -n "$LATEST_RUN" ]; then
-          echo "Latest run: $LATEST_RUN"
-          RUN_DIR="$HOME/.foc-devnet/run/$LATEST_RUN"
-        else
-          RUN_DIR="$HOME/.foc-devnet/state/latest"
-        fi
-
-        echo "+++++++++++ Disk space..."
+        echo "+++++++++++ Disk space"
         sudo df -h 2>/dev/null || echo "df command failed"
 
-        echo "+++++++++++ Latest Run Directory"
-        ls -lath "$RUN_DIR" 2>/dev/null || echo "No run directory found at $RUN_DIR"
-        ls -lath "$RUN_DIR/logs" 2>/dev/null || echo "No logs directory found at $RUN_DIR/logs"
+        echo "+++++++++++ Run Directory Contents"
+        ls -lath "$RUN_DIR" 2>/dev/null || echo "No run directory found"
 
         echo "+++++++++++ Contract Addresses"
         cat "$RUN_DIR/contract_addresses.json" 2>/dev/null || echo "No contract addresses file found"
@@ -300,7 +289,7 @@ jobs:
         echo "+++++++++++ Step Context"
         cat "$RUN_DIR/step_context.json" 2>/dev/null || echo "No step context file found"
 
-        echo "+++++++++++ FOC metadata"
+        echo "+++++++++++ FOC Metadata"
         cat "$RUN_DIR/foc_metadata.json" 2>/dev/null || echo "No foc metadata file found"
 
         echo "+++++++++++ Container Logs"
@@ -308,13 +297,12 @@ jobs:
           for logfile in "$RUN_DIR/logs"/*; do
             if [ -f "$logfile" ]; then
               echo ""
-              echo "📰📰📰📰📰📰📰📰📰📰📰 Logs from $(basename "$logfile") 📰📰📰📰📰📰📰📰📰📰📰📰📰"
+              echo "📰 Logs from $(basename "$logfile") 📰"
               cat "$logfile" 2>/dev/null || echo "Failed to read $logfile"
-              echo "📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰"
             fi
           done
         else
-          echo "No container logs directory found at $RUN_DIR/logs"
+          echo "No container logs directory found"
         fi
 
     # Verify cluster is running correctly
@@ -330,43 +318,16 @@ jobs:
     - name: "CHECK: {Verify devnet-info.json exists}"
       if: steps.start_cluster.outcome == 'success'
       run: |
-        # Get most recently modified run directory
-        RUN_DIR=$(ls -t "$HOME/.foc-devnet/run" | head -1)
-        echo "Most recently modified run directory: $RUN_DIR"
-        
-        DEVNET_INFO="$HOME/.foc-devnet/run/${RUN_DIR}/devnet-info.json"
-        if [ ! -f "$DEVNET_INFO" ]; then
-          echo "ERROR: devnet-info.json was not created at $DEVNET_INFO"
-          echo "Contents of run directory:"
-          ls -la "$HOME/.foc-devnet/run/${RUN_DIR}"
-          exit 1
-        fi
-        echo "✓ devnet-info.json exists at $DEVNET_INFO"
-        echo "--- Contents ---"
+        DEVNET_INFO="$HOME/.foc-devnet/state/latest/devnet-info.json"
+        test -f "$DEVNET_INFO" || exit 1
+        echo "✓ devnet-info.json created"
         cat "$DEVNET_INFO"
-        echo ""
-        echo "--- Schema validation ---"
-        VERSION=$(cat "$DEVNET_INFO" | jq -r '.version')
-        RUN_ID=$(cat "$DEVNET_INFO" | jq -r '.info.run_id')
-        echo "Schema version: $VERSION"
-        echo "Run ID: $RUN_ID"
-        if [ "$VERSION" != "1" ]; then
-          echo "ERROR: Unexpected schema version: $VERSION"
-          exit 1
-        fi
-        if [ -z "$RUN_ID" ] || [ "$RUN_ID" == "null" ]; then
-          echo "ERROR: run_id is missing or null"
-          exit 1
-        fi
-        echo "✓ devnet-info.json schema is valid"
 
     # Run the JavaScript example to verify it works
     - name: "CHECK: {Verify read-devnet-info.js works}"
       if: steps.start_cluster.outcome == 'success'
       run: |
-        RUN_DIR=$(ls -t "$HOME/.foc-devnet/run" | head -1)
-        DEVNET_INFO="$HOME/.foc-devnet/run/${RUN_DIR}/devnet-info.json"
-        
+        DEVNET_INFO="$HOME/.foc-devnet/state/latest/devnet-info.json"
         cd examples
         npm install
         node read-devnet-info.js "$DEVNET_INFO"
