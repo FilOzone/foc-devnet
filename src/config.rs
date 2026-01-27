@@ -219,7 +219,7 @@ impl Default for Config {
             },
             filecoin_services: Location::GitCommit {
                 url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
-                commit: "04bc711047c55b52dd8ad08cdf5ff4adbf310bc2".to_string(),
+                commit: "2b247916ddd33e4112dc69fd3ea4fc88a3976f56".to_string(),
             },
             multicall3: Location::GitTag {
                 url: "https://github.com/mds1/multicall3.git".to_string(),
