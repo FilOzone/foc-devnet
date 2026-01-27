@@ -330,9 +330,19 @@ jobs:
     - name: "CHECK: {Verify devnet-info.json exists}"
       if: steps.start_cluster.outcome == 'success'
       run: |
-        DEVNET_INFO="$HOME/.foc-devnet/state/latest/devnet-info.json"
+        echo "Finding latest run directory..."
+        RUN_DIR=$(ls -td "$HOME/.foc-devnet/run"/*/ 2>/dev/null | head -1)
+        if [ -z "$RUN_DIR" ]; then
+          echo "ERROR: No run directory found"
+          exit 1
+        fi
+        echo "Latest run directory: $RUN_DIR"
+        
+        DEVNET_INFO="${RUN_DIR}devnet-info.json"
         if [ ! -f "$DEVNET_INFO" ]; then
           echo "ERROR: devnet-info.json was not created at $DEVNET_INFO"
+          echo "Contents of run directory:"
+          ls -la "$RUN_DIR"
           exit 1
         fi
         echo "✓ devnet-info.json exists at $DEVNET_INFO"
@@ -358,9 +368,13 @@ jobs:
     - name: "CHECK: {Verify read-devnet-info.js works}"
       if: steps.start_cluster.outcome == 'success'
       run: |
+        # Find the latest run directory
+        RUN_DIR=$(ls -td "$HOME/.foc-devnet/run"/*/ 2>/dev/null | head -1)
+        DEVNET_INFO="${RUN_DIR}devnet-info.json"
+        
         cd examples
         npm install
-        node read-devnet-info.js ~/.foc-devnet/state/latest/devnet-info.json
+        node read-devnet-info.js "$DEVNET_INFO"
         echo "✓ read-devnet-info.js executed successfully"
 
     # Clean shutdown
