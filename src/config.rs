@@ -219,7 +219,7 @@ impl Default for Config {
             },
             filecoin_services: Location::GitCommit {
                 url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
-                commit: "0179f8b328c3dc36e81e44677e0078f064975377".to_string(),
+                commit: "2b247916ddd33e4112dc69fd3ea4fc88a3976f56".to_string(),
             },
             multicall3: Location::GitTag {
                 url: "https://github.com/mds1/multicall3.git".to_string(),
@@ -227,7 +227,7 @@ impl Default for Config {
             },
             synapse_sdk: Location::GitCommit {
                 url: "https://github.com/FilOzone/synapse-sdk.git".to_string(),
-                commit: "773551bf1e9cf4cdc49aeb63a47a81f8dc5cb9e1".to_string(),
+                commit: "3bc6a7fd2d0b66119163c6759241a6ff74ac03e1".to_string(),
             },
             yugabyte_download_url: Self::get_default_yugabyte_url(),
             approved_pdp_sp_count: 1,
