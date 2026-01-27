@@ -76,6 +76,7 @@ function printContracts(contracts) {
   console.log(`PDP Verifier Proxy:          ${contracts.pdp_verifier_proxy_addr}`);
   console.log(`Service Provider Registry:   ${contracts.service_provider_registry_proxy_addr}`);
   console.log(`FilecoinPay V1:              ${contracts.filecoin_pay_v1_addr}`);
+  console.log(`Endorsements:                ${contracts.endorsements_addr}`);
 }
 
 /**
@@ -90,23 +91,26 @@ function printUsers(users) {
     console.log(`  EVM Address:    ${user.evm_addr}`);
     console.log(`  Native Address: ${user.native_addr}`);
     console.log(`  tFIL Balance:   ${user.native_balance_tfil}`);
-    console.log(`  USDFC Balance:  ${formatTokenBalance(user.mockusdfc_balance, 18)}`);
-    console.log(`  Private Key:    ${user.private_key_hex.substring(0, 8)}...`);
+    console.log(`  USDFC Balance:  ${user.mockusdfc_balance}`);
+    console.log(`  Private Key:    ${user.private_key_hex.substring(0, 10)}...`);
+    console.log();
     console.log();
   }
 }
 
 /**
- * Print Curio service provider information.
+ * Print PDP service provider information.
  * @param {Array} providers - Array of CurioInfo objects
  */
 function printCurioProviders(providers) {
-  console.log("\n─── Curio Service Providers ──────────────────────────────\n");
+  console.log("\n─── PDP Service Providers ────────────────────────────────\n");
 
   for (const provider of providers) {
     console.log(`Provider ${provider.provider_id}:`);
     console.log(`  ETH Address:      ${provider.eth_addr}`);
     console.log(`  PDP Service URL:  ${provider.pdp_service_url}`);
+    console.log(`  Container:        ${provider.container_name}`);
+    console.log(`  Container ID:     ${provider.container_id.substring(0, 12)}...`);
     console.log(`  YugabyteDB:`);
     console.log(`    Web UI:         ${provider.yugabyte.web_ui_url}`);
     console.log(`    YSQL Port:      ${provider.yugabyte.ysql_port}`);
@@ -121,11 +125,17 @@ function printCurioProviders(providers) {
  * @returns {string} Formatted balance
  */
 function formatTokenBalance(balance, decimals) {
-  const balanceBigInt = BigInt(balance);
-  const divisor = BigInt(10 ** decimals);
-  const whole = balanceBigInt / divisor;
-  const fraction = balanceBigInt % divisor;
-  return `${whole.toString()}.${fraction.toString().padStart(decimals, "0").substring(0, 4)}`;
+  try {
+    const balanceBigInt = BigInt(balance);
+    const divisor = BigInt(10 ** decimals);
+    const whole = balanceBigInt / divisor;
+    const fraction = balanceBigInt % divisor;
+    const fractionStr = fraction.toString().padStart(decimals, "0");
+    return `${whole}.${fractionStr.substring(0, 4)}`;
+  } catch (e) {
+    // If balance is already formatted, return as-is
+    return balance;
+  }
 }
 
 // Main execution
@@ -150,7 +160,7 @@ function main() {
     printLotusInfo(info.lotus);
     printContracts(info.contracts);
     printUsers(info.users);
-    printCurioProviders(info.curio_providers);
+    printCurioProviders(info.pdp_sps);
 
     console.log("═══════════════════════════════════════════════════════════\n");
   } catch (error) {

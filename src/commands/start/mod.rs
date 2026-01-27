@@ -444,11 +444,19 @@ pub fn start_cluster(
             // Export the devnet info JSON for external consumers
             if let Err(e) = crate::external_api::export_devnet_info(&context) {
                 warn!("Failed to export devnet info: {}", e);
+            } else {
+                info!(
+                    "✓ DevNet info exported to: {}",
+                    context.run_dir().join("devnet-info.json").display()
+                );
             }
             info!("Cluster started successfully!");
             Ok(())
         }
-        Err(e) => Err(e),
+        Err(e) => {
+            warn!("Cluster startup failed, devnet-info.json not exported");
+            Err(e)
+        }
     }
 }
 

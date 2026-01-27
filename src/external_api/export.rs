@@ -45,7 +45,7 @@ fn build_devnet_info(ctx: &SetupContext) -> Result<DevnetInfoV1, Box<dyn std::er
         contracts: build_contracts(ctx),
         lotus: build_lotus_info(ctx),
         lotus_miner: build_lotus_miner_info(ctx),
-        curio_providers: build_curio_providers(ctx),
+        pdp_sps: build_curio_providers(ctx),
     })
 }
 
@@ -81,15 +81,33 @@ fn build_single_user(
         .get(&format!("{}_address", name.to_lowercase()))
         .unwrap_or_else(|| derived.native_address.clone());
 
-    // TODO: Query actual balances from chain if needed
+    // Format USDFC balance: 100,000 tokens with 18 decimals = 100000000000000000000000 wei
+    // But display in human-readable form with decimals
+    let mockusdfc_wei = "100000000000000000000000"; // 100,000 USDFC
+    let mockusdfc_formatted = format_token_balance(mockusdfc_wei);
+
     Ok(UserInfo {
         name: name.to_string(),
         evm_addr,
         native_addr,
         native_balance_tfil: "1000".to_string(), // Default funding amount
-        mockusdfc_balance: "100000000000000000000000".to_string(), // 100,000 USDFC
-        private_key_hex: derived.private_key,
+        mockusdfc_balance: mockusdfc_formatted,
+        private_key_hex: format!("0x{}", derived.private_key),
     })
+}
+
+/// Format token balance from wei to human-readable form with 18 decimals
+fn format_token_balance(wei: &str) -> String {
+    if wei.len() <= 18 {
+        // Less than 1 token
+        let padded = format!("{:0>18}", wei);
+        format!("0.{}", padded)
+    } else {
+        let split_point = wei.len() - 18;
+        let whole = &wei[..split_point];
+        let fraction = &wei[split_point..];
+        format!("{}.{}", whole, fraction)
+    }
 }
 
 /// Build contracts info from context.
@@ -120,6 +138,9 @@ fn build_contracts(ctx: &SetupContext) -> ContractsInfo {
             .unwrap_or_default(),
         filecoin_pay_v1_addr: ctx
             .get("foc_contract_filecoin_pay_v1_contract")
+            .unwrap_or_default(),
+        endorsements_addr: ctx
+            .get("foc_contract_endorsements")
             .unwrap_or_default(),
     }
 }
@@ -173,6 +194,13 @@ fn build_single_curio_provider(ctx: &SetupContext, provider_id: u32) -> Option<C
         .and_then(|p| p.parse().ok())
         .unwrap_or(4702);
 
+    let container_id = ctx
+        .get(&format!("curio_sp_{}_container_id", provider_id))
+        .unwrap_or_default();
+    let container_name = ctx
+        .get(&format!("curio_sp_{}_container_name", provider_id))
+        .unwrap_or_default();
+
     let yugabyte = build_yugabyte_info(ctx, provider_id);
 
     Some(CurioInfo {
@@ -180,6 +208,8 @@ fn build_single_curio_provider(ctx: &SetupContext, provider_id: u32) -> Option<C
         eth_addr,
         native_addr,
         pdp_service_url: format!("http://localhost:{}", pdp_port),
+        container_id,
+        container_name,
         yugabyte,
     })
 }

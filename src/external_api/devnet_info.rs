@@ -35,8 +35,8 @@ pub struct DevnetInfoV1 {
     pub lotus: LotusInfo,
     /// Lotus miner information
     pub lotus_miner: LotusMinerInfo,
-    /// Curio service providers
-    pub curio_providers: Vec<CurioInfo>,
+    /// PDP service providers
+    pub pdp_sps: Vec<CurioInfo>,
 }
 
 /// Information about a user account.
@@ -79,6 +79,8 @@ pub struct ContractsInfo {
     pub service_provider_registry_impl_addr: String,
     /// FilecoinPay V1 contract address
     pub filecoin_pay_v1_addr: String,
+    /// Endorsements contract address
+    pub endorsements_addr: String,
 }
 
 /// Lotus node information.
@@ -114,6 +116,10 @@ pub struct CurioInfo {
     pub native_addr: String,
     /// PDP service URL accessible from host
     pub pdp_service_url: String,
+    /// Docker container ID
+    pub container_id: String,
+    /// Docker container name
+    pub container_name: String,
     /// YugabyteDB information for this provider
     pub yugabyte: YugabyteInfo,
 }
