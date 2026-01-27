@@ -95,8 +95,14 @@ impl Step for SynapseTestE2EStep {
         let keys = load_wallet_keys()?;
 
         // Extract required addresses and keys
-        let (user_key, warm_storage_addr, usdfc_addr, multicall3_addr, sp_registry_addr, endorsements_addr) =
-            extract_required_addresses(&addresses, &keys)?;
+        let (
+            user_key,
+            warm_storage_addr,
+            usdfc_addr,
+            multicall3_addr,
+            sp_registry_addr,
+            endorsements_addr,
+        ) = extract_required_addresses(&addresses, &keys)?;
 
         let lotus_rpc_url = crate::commands::start::lotus_utils::get_lotus_rpc_url(context)?;
 
