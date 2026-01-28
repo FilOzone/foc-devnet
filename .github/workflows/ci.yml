@@ -326,9 +326,9 @@ jobs:
     # Setup Node.js for JavaScript examples
     - name: "EXEC: {Setup Node.js}, independent"
       if: steps.start_cluster.outcome == 'success'
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
-        node-version: '20'
+        node-version: lts/*
 
     # Run the JavaScript example to verify it works
     - name: "CHECK: {Verify read-devnet-info.js works}"
