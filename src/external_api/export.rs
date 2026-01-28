@@ -8,6 +8,7 @@ use std::path::Path;
 use chrono::Utc;
 
 use crate::commands::start::step::SetupContext;
+use crate::constants::USER_ACCOUNT_COUNT;
 use crate::crypto::derive_ethereum_key;
 use crate::crypto::mnemonic::load_mnemonic;
 use crate::external_api::{
@@ -55,7 +56,7 @@ fn build_users(ctx: &SetupContext) -> Result<Vec<UserInfo>, Box<dyn std::error::
     let seed = mnemonic.to_seed("");
 
     let mut users = Vec::new();
-    for i in 1..=3 {
+    for i in 1..=USER_ACCOUNT_COUNT {
         let name = format!("USER_{}", i);
         let user = build_single_user(ctx, &name, &seed)?;
         users.push(user);
