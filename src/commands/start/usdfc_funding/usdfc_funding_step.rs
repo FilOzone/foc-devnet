@@ -8,6 +8,7 @@ use super::funding_operations::{self, check_mock_usdfc_balance, transfer_mock_us
 use super::key_operations::get_user_private_key;
 use crate::commands::start::step::{SetupContext, Step};
 use crate::commands::start::usdfc_funding::key_operations::get_user_eth_address;
+use crate::constants::USER_ACCOUNT_COUNT;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::core::container_is_running;
 use std::error::Error;
@@ -41,7 +42,7 @@ impl USDFCFundingStep {
         let mut accounts_to_check = Vec::new();
 
         // Add user accounts (base-1 numbering)
-        for user_num in 1..=3 {
+        for user_num in 1..=USER_ACCOUNT_COUNT {
             let account_name = format!("USER_{}", user_num);
             accounts_to_check.push((account_name, 100_000u64));
         }
@@ -250,7 +251,7 @@ impl Step for USDFCFundingStep {
         let mut token_transfers = Vec::new();
 
         // Add user accounts (base-1 numbering)
-        for user_num in 1..=3 {
+        for user_num in 1..=USER_ACCOUNT_COUNT {
             let account_name = format!("USER_{}", user_num);
             let eth_address = get_user_eth_address(&account_name)?;
             let amount_tokens = 100_000u64;
@@ -291,7 +292,7 @@ impl Step for USDFCFundingStep {
         // Build list of accounts to verify
         let mut accounts_to_verify = Vec::new();
 
-        for user_num in 1..=3 {
+        for user_num in 1..=USER_ACCOUNT_COUNT {
             let account_name = format!("USER_{}", user_num);
             accounts_to_verify.push((account_name, 100_000u64));
         }
