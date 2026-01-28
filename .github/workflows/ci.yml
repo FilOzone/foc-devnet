@@ -27,7 +27,7 @@ jobs:
       run: cargo clippy --all-targets --all-features -- -D warnings
 
   integration-test:
-    runs-on: ["self-hosted", "linux", "x64", "4xlarge+amd"]
+    runs-on: ["self-hosted", "linux", "x64", "8xlarge+amd"]
     timeout-minutes: 60
 
     steps:
