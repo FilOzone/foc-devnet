@@ -87,7 +87,6 @@ function printUsers(users) {
     console.log(`  USDFC Balance:  ${user.mockusdfc_balance}`);
     console.log(`  Private Key:    ${user.private_key_hex.substring(0, 10)}...`);
     console.log();
-    console.log();
   }
 }
 
