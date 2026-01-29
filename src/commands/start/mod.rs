@@ -454,7 +454,7 @@ pub fn start_cluster(
             Ok(())
         }
         Err(e) => {
-            warn!("Cluster startup failed, devnet-info.json not exported");
+            warn!("Cluster startup failed, external devnet information not exported");
             Err(e)
         }
     }
