@@ -42,7 +42,7 @@ fn build_devnet_info(ctx: &SetupContext) -> Result<DevnetInfoV1, Box<dyn std::er
         start_time: Utc::now().to_rfc3339(),
         startup_duration: ctx
             .get("step_timing_total_execution_time")
-            .unwrap_or_else(|| "unknown".to_string()),
+            .expect("step_timing_total_execution_time not found in context"),
         users: build_users(ctx)?,
         contracts: build_contracts(ctx)?,
         lotus: build_lotus_info(ctx)?,
@@ -77,11 +77,17 @@ fn build_single_user(
     let evm_addr = ctx
         .get(&format!("{}_eth_address", name.to_lowercase()))
         .or_else(|| derived.eth_address.clone())
-        .unwrap_or_default();
+        .expect(&format!(
+            "{}_eth_address not found in context",
+            name.to_lowercase()
+        ));
 
     let native_addr = ctx
         .get(&format!("{}_address", name.to_lowercase()))
-        .unwrap_or_else(|| derived.native_address.clone());
+        .expect(&format!(
+            "{}_address not found in context",
+            name.to_lowercase()
+        ));
 
     Ok(UserInfo {
         name: name.to_string(),
@@ -136,7 +142,7 @@ fn build_contracts(ctx: &SetupContext) -> Result<ContractsInfo, Box<dyn std::err
 fn build_lotus_info(ctx: &SetupContext) -> Result<LotusInfo, Box<dyn std::error::Error>> {
     let api_port = ctx
         .get("lotus_api_port")
-        .unwrap_or_else(|| "1234".to_string());
+        .expect("lotus_api_port not found in context");
     Ok(LotusInfo {
         host_rpc_url: format!("http://localhost:{}/rpc/v1", api_port),
         container_id: ctx
@@ -155,7 +161,7 @@ fn build_lotus_miner_info(
     let api_port: u16 = ctx
         .get("lotus_miner_api_port")
         .and_then(|p| p.parse().ok())
-        .unwrap_or(2345);
+        .expect("lotus_miner_api_port not found or invalid in context");
 
     Ok(LotusMinerInfo {
         container_id: ctx
@@ -173,7 +179,7 @@ fn build_pdp_service_providers(ctx: &SetupContext) -> Vec<CurioInfo> {
     let active_count: usize = ctx
         .get("active_pdp_sp_count")
         .and_then(|s| s.parse().ok())
-        .unwrap_or(1);
+        .expect("active_pdp_sp_count not found or invalid in context");
 
     (1..=active_count)
         .filter_map(|id| build_single_pdp_service_provider(ctx, id as u32))
@@ -185,23 +191,38 @@ fn build_single_pdp_service_provider(ctx: &SetupContext, provider_id: u32) -> Op
     let eth_addr = ctx.get(&format!("pdp_sp_{}_eth_address", provider_id))?;
     let native_addr = ctx
         .get(&format!("pdp_sp_{}_address", provider_id))
-        .unwrap_or_default();
+        .expect(&format!(
+            "pdp_sp_{}_address not found in context",
+            provider_id
+        ));
     let pdp_port: u16 = ctx
         .get(&format!("pdp_sp_{}_pdp_port", provider_id))
         .and_then(|p| p.parse().ok())
-        .unwrap_or(4702);
+        .expect(&format!(
+            "pdp_sp_{}_pdp_port not found or invalid in context",
+            provider_id
+        ));
 
     let container_id = ctx
         .get(&format!("pdp_sp_{}_container_id", provider_id))
-        .unwrap_or_default();
+        .expect(&format!(
+            "pdp_sp_{}_container_id not found in context",
+            provider_id
+        ));
     let container_name = ctx
         .get(&format!("pdp_sp_{}_container_name", provider_id))
-        .unwrap_or_default();
+        .expect(&format!(
+            "pdp_sp_{}_container_name not found in context",
+            provider_id
+        ));
 
     let is_approved = ctx
         .get(&format!("pdp_sp_{}_is_approved", provider_id))
         .and_then(|v| v.parse::<bool>().ok())
-        .unwrap_or(false);
+        .expect(&format!(
+            "pdp_sp_{}_is_approved not found or invalid in context",
+            provider_id
+        ));
 
     let yugabyte = build_yugabyte_info(ctx, provider_id);
 
@@ -222,17 +243,26 @@ fn build_yugabyte_info(ctx: &SetupContext, provider_id: u32) -> YugabyteInfo {
     let web_ui_port: u16 = ctx
         .get(&format!("yugabyte_{}_web_ui_port", provider_id))
         .and_then(|p| p.parse().ok())
-        .expect(&format!("yugabyte_{}_web_ui_port not found or invalid in context", provider_id));
+        .expect(&format!(
+            "yugabyte_{}_web_ui_port not found or invalid in context",
+            provider_id
+        ));
 
     let master_rpc_port: u16 = ctx
         .get(&format!("yugabyte_{}_master_rpc_port", provider_id))
         .and_then(|p| p.parse().ok())
-        .expect(&format!("yugabyte_{}_master_rpc_port not found or invalid in context", provider_id));
+        .expect(&format!(
+            "yugabyte_{}_master_rpc_port not found or invalid in context",
+            provider_id
+        ));
 
     let ysql_port: u16 = ctx
         .get(&format!("yugabyte_{}_ysql_port", provider_id))
         .and_then(|p| p.parse().ok())
-        .expect(&format!("yugabyte_{}_ysql_port not found or invalid in context", provider_id));
+        .expect(&format!(
+            "yugabyte_{}_ysql_port not found or invalid in context",
+            provider_id
+        ));
 
     YugabyteInfo {
         web_ui_url: format!("http://localhost:{}", web_ui_port),
