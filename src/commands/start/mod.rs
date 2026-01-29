@@ -447,7 +447,7 @@ pub fn start_cluster(
             } else {
                 info!(
                     "✓ DevNet info exported to: {}",
-                    crate::paths::devnet_info_file(&context.run_id().to_string()).display()
+                    crate::paths::devnet_info_file(context.run_id()).display()
                 );
             }
             info!("Cluster started successfully!");

@@ -28,7 +28,7 @@ pub fn export_devnet_info(context: &SetupContext) -> Result<(), Box<dyn std::err
         info,
     };
 
-    let output_path = paths::devnet_info_file(&context.run_id().to_string());
+    let output_path = paths::devnet_info_file(context.run_id());
     write_json_file(&output_path, &versioned)?;
 
     tracing::info!("Exported DevNet info to: {}", output_path.display());
