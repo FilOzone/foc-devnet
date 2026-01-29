@@ -44,9 +44,9 @@ fn build_devnet_info(ctx: &SetupContext) -> Result<DevnetInfoV1, Box<dyn std::er
             .get("step_timing_total_execution_time")
             .unwrap_or_else(|| "unknown".to_string()),
         users: build_users(ctx)?,
-        contracts: build_contracts(ctx),
-        lotus: build_lotus_info(ctx),
-        lotus_miner: build_lotus_miner_info(ctx),
+        contracts: build_contracts(ctx)?,
+        lotus: build_lotus_info(ctx)?,
+        lotus_miner: build_lotus_miner_info(ctx)?,
         pdp_sps: build_curio_providers(ctx),
     })
 }
@@ -92,62 +92,76 @@ fn build_single_user(
 }
 
 /// Build contracts info from context.
-fn build_contracts(ctx: &SetupContext) -> ContractsInfo {
-    ContractsInfo {
-        multicall3_addr: ctx.get("multicall3_address").unwrap_or_default(),
-        mockusdfc_addr: ctx.get("mockusdfc_contract_address").unwrap_or_default(),
+fn build_contracts(ctx: &SetupContext) -> Result<ContractsInfo, Box<dyn std::error::Error>> {
+    Ok(ContractsInfo {
+        multicall3_addr: ctx
+            .get("multicall3_address")
+            .ok_or("Missing multicall3_address in context")?,
+        mockusdfc_addr: ctx
+            .get("mockusdfc_contract_address")
+            .ok_or("Missing mockusdfc_contract_address in context")?,
         fwss_service_proxy_addr: ctx
             .get("foc_contract_filecoin_warm_storage_service_proxy")
-            .unwrap_or_default(),
+            .ok_or("Missing foc_contract_filecoin_warm_storage_service_proxy in context")?,
         fwss_state_view_addr: ctx
             .get("foc_contract_filecoin_warm_storage_service_state_view")
-            .unwrap_or_default(),
+            .ok_or("Missing foc_contract_filecoin_warm_storage_service_state_view in context")?,
         fwss_impl_addr: ctx
             .get("foc_contract_filecoin_warm_storage_service_implementation")
-            .unwrap_or_default(),
+            .ok_or("Missing foc_contract_filecoin_warm_storage_service_implementation in context")?,
         pdp_verifier_proxy_addr: ctx
             .get("foc_contract_p_d_p_verifier_proxy")
-            .unwrap_or_default(),
+            .ok_or("Missing foc_contract_p_d_p_verifier_proxy in context")?,
         pdp_verifier_impl_addr: ctx
             .get("foc_contract_p_d_p_verifier_implementation")
-            .unwrap_or_default(),
+            .ok_or("Missing foc_contract_p_d_p_verifier_implementation in context")?,
         service_provider_registry_proxy_addr: ctx
             .get("foc_contract_service_provider_registry_proxy")
-            .unwrap_or_default(),
+            .ok_or("Missing foc_contract_service_provider_registry_proxy in context")?,
         service_provider_registry_impl_addr: ctx
             .get("foc_contract_service_provider_registry_implementation")
-            .unwrap_or_default(),
+            .ok_or("Missing foc_contract_service_provider_registry_implementation in context")?,
         filecoin_pay_v1_addr: ctx
             .get("foc_contract_filecoin_pay_v1_contract")
-            .unwrap_or_default(),
-        endorsements_addr: ctx.get("foc_contract_endorsements").unwrap_or_default(),
-    }
+            .ok_or("Missing foc_contract_filecoin_pay_v1_contract in context")?,
+        endorsements_addr: ctx
+            .get("foc_contract_endorsements")
+            .ok_or("Missing foc_contract_endorsements in context")?,
+    })
 }
 
 /// Build Lotus node info from context.
-fn build_lotus_info(ctx: &SetupContext) -> LotusInfo {
+fn build_lotus_info(ctx: &SetupContext) -> Result<LotusInfo, Box<dyn std::error::Error>> {
     let api_port = ctx
         .get("lotus_api_port")
         .unwrap_or_else(|| "1234".to_string());
-    LotusInfo {
+    Ok(LotusInfo {
         host_rpc_url: format!("http://localhost:{}/rpc/v1", api_port),
-        container_id: ctx.get("lotus_container_id").unwrap_or_default(),
-        container_name: ctx.get("lotus_container_name").unwrap_or_default(),
-    }
+        container_id: ctx
+            .get("lotus_container_id")
+            .ok_or("Missing lotus_container_id in context")?,
+        container_name: ctx
+            .get("lotus_container_name")
+            .ok_or("Missing lotus_container_name in context")?,
+    })
 }
 
 /// Build Lotus miner info from context.
-fn build_lotus_miner_info(ctx: &SetupContext) -> LotusMinerInfo {
+fn build_lotus_miner_info(ctx: &SetupContext) -> Result<LotusMinerInfo, Box<dyn std::error::Error>> {
     let api_port: u16 = ctx
         .get("lotus_miner_api_port")
         .and_then(|p| p.parse().ok())
         .unwrap_or(2345);
 
-    LotusMinerInfo {
-        container_id: ctx.get("lotus_miner_container_id").unwrap_or_default(),
-        container_name: ctx.get("lotus_miner_container_name").unwrap_or_default(),
+    Ok(LotusMinerInfo {
+        container_id: ctx
+            .get("lotus_miner_container_id")
+            .ok_or("Missing lotus_miner_container_id in context")?,
+        container_name: ctx
+            .get("lotus_miner_container_name")
+            .ok_or("Missing lotus_miner_container_name in context")?,
         api_port,
-    }
+    })
 }
 
 /// Build Curio providers info from context.
