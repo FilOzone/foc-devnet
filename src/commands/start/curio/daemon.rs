@@ -50,10 +50,7 @@ pub fn start_curio_daemon(
     let container_id = start_curio_container(context, &container_name, docker_args)?;
 
     // Store container info in context for export
-    context.set(
-        format!("pdp_sp_{}_container_id", sp_index),
-        container_id,
-    );
+    context.set(format!("pdp_sp_{}_container_id", sp_index), container_id);
     context.set(
         format!("pdp_sp_{}_container_name", sp_index),
         container_name,
@@ -88,6 +85,7 @@ fn create_curio_directories(context: &SetupContext, sp_index: usize) -> Result<(
 /// 1. Container is created but not started
 /// 2. Networks are connected while container is stopped
 /// 3. Container is started with Curio as PID 1 (logs work properly)
+///
 /// Returns the container ID from docker create stdout
 fn start_curio_container(
     context: &SetupContext,
@@ -117,9 +115,7 @@ fn start_curio_container(
     }
 
     // Extract container ID from stdout
-    let container_id = String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .to_string();
+    let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
     if container_id.is_empty() {
         return Err("Docker create did not return container ID".into());
