@@ -187,16 +187,21 @@ fn build_single_pdp_service_provider(ctx: &SetupContext, provider_id: u32) -> Op
         .get(&format!("pdp_sp_{}_address", provider_id))
         .unwrap_or_default();
     let pdp_port: u16 = ctx
-        .get(&format!("curio_sp_{}_pdp_port", provider_id))
+        .get(&format!("pdp_sp_{}_pdp_port", provider_id))
         .and_then(|p| p.parse().ok())
         .unwrap_or(4702);
 
     let container_id = ctx
-        .get(&format!("curio_sp_{}_container_id", provider_id))
+        .get(&format!("pdp_sp_{}_container_id", provider_id))
         .unwrap_or_default();
     let container_name = ctx
-        .get(&format!("curio_sp_{}_container_name", provider_id))
+        .get(&format!("pdp_sp_{}_container_name", provider_id))
         .unwrap_or_default();
+
+    let is_approved = ctx
+        .get(&format!("pdp_sp_{}_is_approved", provider_id))
+        .and_then(|v| v.parse::<bool>().ok())
+        .unwrap_or(false);
 
     let yugabyte = build_yugabyte_info(ctx, provider_id);
 
@@ -207,6 +212,7 @@ fn build_single_pdp_service_provider(ctx: &SetupContext, provider_id: u32) -> Op
         pdp_service_url: format!("http://localhost:{}", pdp_port),
         container_id,
         container_name,
+        is_approved,
         yugabyte,
     })
 }

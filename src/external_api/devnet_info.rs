@@ -116,6 +116,8 @@ pub struct CurioInfo {
     pub container_id: String,
     /// Docker container name
     pub container_name: String,
+    /// Whether this provider is approved in FWSS
+    pub is_approved: bool,
     /// YugabyteDB information for this provider
     pub yugabyte: YugabyteInfo,
 }

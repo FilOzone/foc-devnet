@@ -43,7 +43,7 @@ fn verify_pdp_ping(context: &SetupContext, sp_index: usize) -> Result<(), Box<dy
 
     // Get dynamically allocated PDP port from context
     let port: u16 = context
-        .get(&format!("curio_sp_{}_pdp_port", sp_index))
+        .get(&format!("pdp_sp_{}_pdp_port", sp_index))
         .ok_or("Curio PDP port not found in context")?
         .parse()?;
 
@@ -110,7 +110,7 @@ fn upload_test_file(
 ) -> Result<String, Box<dyn Error>> {
     // Get dynamically allocated PDP port from context (external port)
     let port: u16 = context
-        .get(&format!("curio_sp_{}_pdp_port", sp_index))
+        .get(&format!("pdp_sp_{}_pdp_port", sp_index))
         .ok_or("Curio PDP port not found in context")?
         .parse()?;
 
@@ -199,7 +199,7 @@ fn download_piece(
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     // Get dynamically allocated PDP port from context
     let port: u16 = context
-        .get(&format!("curio_sp_{}_pdp_port", sp_index))
+        .get(&format!("pdp_sp_{}_pdp_port", sp_index))
         .ok_or("Curio PDP port not found in context")?
         .parse()?;
 

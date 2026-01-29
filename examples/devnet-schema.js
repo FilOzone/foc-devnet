@@ -21,6 +21,7 @@ const CurioInfo = z.object({
   pdp_service_url: z.string().url(),
   container_id: z.string().min(1),
   container_name: z.string().min(1),
+  is_approved: z.boolean(),
   yugabyte: YugabyteInfo,
 });
 
@@ -59,7 +60,7 @@ const LotusMinerInfo = z.object({
 
 const DevnetInfoV1 = z.object({
   run_id: z.string().min(1),
-  start_time: z.string().datetime(),
+  start_time: z.string(),
   startup_duration: z.string().min(1),
   users: z.array(UserInfo).min(1),
   contracts: ContractsInfo,
