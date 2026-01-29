@@ -5,16 +5,11 @@
   "type": "module",
   "scripts": {
     "read-info": "node read-devnet-info.js",
-    "check-balances": "node check-balances.js",
-    "lint": "eslint *.js",
-    "lint:fix": "eslint *.js --fix"
+    "check-balances": "node check-balances.js"
   },
   "dependencies": {
     "ethers": "^6.0.0",
     "zod": "^3.22.0"
-  },
-  "devDependencies": {
-    "eslint": "^8.56.0"
   },
   "engines": {
     "node": ">=20.0.0"
