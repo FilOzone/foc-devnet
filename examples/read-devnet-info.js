@@ -13,13 +13,12 @@
 import { readFileSync, existsSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
-
-const SCHEMA_VERSION = 1;
+import { validateDevnetInfo } from "./devnet-schema.js";
 
 /**
  * Load and validate the devnet-info.json file.
  * @param {string} filePath - Path to the devnet-info.json file
- * @returns {object} The parsed DevNet info
+ * @returns {object} The parsed and validated DevNet info
  */
 function loadDevnetInfo(filePath) {
   if (!existsSync(filePath)) {
@@ -29,14 +28,8 @@ function loadDevnetInfo(filePath) {
   const content = readFileSync(filePath, "utf8");
   const data = JSON.parse(content);
 
-  // Validate schema version
-  if (data.version !== SCHEMA_VERSION) {
-    console.warn(
-      `Warning: Expected schema version ${SCHEMA_VERSION}, got ${data.version}`
-    );
-  }
-
-  return data;
+  // Validate against schema - this will throw if invalid
+  return validateDevnetInfo(data);
 }
 
 /**

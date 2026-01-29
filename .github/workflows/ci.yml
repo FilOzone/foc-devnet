@@ -321,17 +321,25 @@ jobs:
         DEVNET_INFO="$HOME/.foc-devnet/state/latest/devnet-info.json"
         test -f "$DEVNET_INFO" || exit 1
         echo "✓ devnet-info.json created"
-        cat "$DEVNET_INFO"
+        jq '.version' "$DEVNET_INFO"
 
     # Setup Node.js for JavaScript examples
     - name: "EXEC: {Setup Node.js}, independent"
       if: steps.start_cluster.outcome == 'success'
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v4
       with:
-        node-version: lts/*
+        node-version: '20'
+
+    # Validate schema using zod
+    - name: "CHECK: {Validate devnet-info.json schema}"
+      if: steps.start_cluster.outcome == 'success'
+      run: |
+        DEVNET_INFO="$HOME/.foc-devnet/state/latest/devnet-info.json"
+        cd examples
+        npm install
+        node validate-schema.js "$DEVNET_INFO"
 
     # Run the JavaScript example to verify it works
-    - name: "CHECK: {Verify read-devnet-info.js works}"
       if: steps.start_cluster.outcome == 'success'
       run: |
         DEVNET_INFO="$HOME/.foc-devnet/state/latest/devnet-info.json"
