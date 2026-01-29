@@ -47,7 +47,7 @@ fn build_devnet_info(ctx: &SetupContext) -> Result<DevnetInfoV1, Box<dyn std::er
         contracts: build_contracts(ctx)?,
         lotus: build_lotus_info(ctx)?,
         lotus_miner: build_lotus_miner_info(ctx)?,
-        pdp_sps: build_pdp_service_providers(ctx),
+        pdp_sps: build_pdp_service_providers(ctx)?,
     })
 }
 
@@ -77,17 +77,17 @@ fn build_single_user(
     let evm_addr = ctx
         .get(&format!("{}_eth_address", name.to_lowercase()))
         .or_else(|| derived.eth_address.clone())
-        .expect(&format!(
+        .ok_or(format!(
             "{}_eth_address not found in context",
             name.to_lowercase()
-        ));
+        ))?;
 
     let native_addr = ctx
         .get(&format!("{}_address", name.to_lowercase()))
-        .expect(&format!(
+        .ok_or(format!(
             "{}_address not found in context",
             name.to_lowercase()
-        ));
+        ))?;
 
     Ok(UserInfo {
         name: name.to_string(),
@@ -175,58 +175,68 @@ fn build_lotus_miner_info(
 }
 
 /// Build PDP service providers info from context.
-fn build_pdp_service_providers(ctx: &SetupContext) -> Vec<CurioInfo> {
+fn build_pdp_service_providers(
+    ctx: &SetupContext,
+) -> Result<Vec<CurioInfo>, Box<dyn std::error::Error>> {
     let active_count: usize = ctx
         .get("active_pdp_sp_count")
         .and_then(|s| s.parse().ok())
-        .expect("active_pdp_sp_count not found or invalid in context");
+        .ok_or("active_pdp_sp_count not found or invalid in context")?;
 
     (1..=active_count)
-        .filter_map(|id| build_single_pdp_service_provider(ctx, id as u32))
+        .map(|id| build_single_pdp_service_provider(ctx, id as u32))
         .collect()
 }
 
 /// Build a single PDP service provider's info.
-fn build_single_pdp_service_provider(ctx: &SetupContext, provider_id: u32) -> Option<CurioInfo> {
-    let eth_addr = ctx.get(&format!("pdp_sp_{}_eth_address", provider_id))?;
+fn build_single_pdp_service_provider(
+    ctx: &SetupContext,
+    provider_id: u32,
+) -> Result<CurioInfo, Box<dyn std::error::Error>> {
+    let eth_addr = ctx
+        .get(&format!("pdp_sp_{}_eth_address", provider_id))
+        .ok_or(format!(
+            "pdp_sp_{}_eth_address not found in context",
+            provider_id
+        ))?;
     let native_addr = ctx
         .get(&format!("pdp_sp_{}_address", provider_id))
-        .expect(&format!(
+        .ok_or(format!(
             "pdp_sp_{}_address not found in context",
             provider_id
-        ));
+        ))?;
     let pdp_port: u16 = ctx
         .get(&format!("pdp_sp_{}_pdp_port", provider_id))
         .and_then(|p| p.parse().ok())
-        .expect(&format!(
+        .ok_or(format!(
             "pdp_sp_{}_pdp_port not found or invalid in context",
             provider_id
-        ));
+        ))?;
 
     let container_id = ctx
         .get(&format!("pdp_sp_{}_container_id", provider_id))
-        .expect(&format!(
+        .ok_or(format!(
             "pdp_sp_{}_container_id not found in context",
             provider_id
-        ));
+        ))?;
     let container_name = ctx
         .get(&format!("pdp_sp_{}_container_name", provider_id))
-        .expect(&format!(
+        .ok_or(format!(
             "pdp_sp_{}_container_name not found in context",
             provider_id
-        ));
+        ))?;
 
     let is_approved = ctx
         .get(&format!("pdp_sp_{}_is_approved", provider_id))
         .and_then(|v| v.parse::<bool>().ok())
-        .expect(&format!(
+        .ok_or(format!(
             "pdp_sp_{}_is_approved not found or invalid in context",
             provider_id
-        ));
+        ))?;
 
-    let yugabyte = build_yugabyte_info(ctx, provider_id);
+    let yugabyte = build_yugabyte_info(ctx, provider_id)?;
 
-    Some(CurioInfo {
+    Ok(CurioInfo {
         provider_id,
         eth_addr,
         native_addr,
@@ -239,36 +249,39 @@ fn build_single_pdp_service_provider(ctx: &SetupContext, provider_id: u32) -> Op
 }
 
 /// Build YugabyteDB info for a provider.
-fn build_yugabyte_info(ctx: &SetupContext, provider_id: u32) -> YugabyteInfo {
+fn build_yugabyte_info(
+    ctx: &SetupContext,
+    provider_id: u32,
+) -> Result<YugabyteInfo, Box<dyn std::error::Error>> {
     let web_ui_port: u16 = ctx
         .get(&format!("yugabyte_{}_web_ui_port", provider_id))
         .and_then(|p| p.parse().ok())
-        .expect(&format!(
+        .ok_or(format!(
             "yugabyte_{}_web_ui_port not found or invalid in context",
             provider_id
-        ));
+        ))?;
 
     let master_rpc_port: u16 = ctx
         .get(&format!("yugabyte_{}_master_rpc_port", provider_id))
         .and_then(|p| p.parse().ok())
-        .expect(&format!(
+        .ok_or(format!(
             "yugabyte_{}_master_rpc_port not found or invalid in context",
             provider_id
-        ));
+        ))?;
 
     let ysql_port: u16 = ctx
         .get(&format!("yugabyte_{}_ysql_port", provider_id))
         .and_then(|p| p.parse().ok())
-        .expect(&format!(
+        .ok_or(format!(
             "yugabyte_{}_ysql_port not found or invalid in context",
             provider_id
-        ));
+        ))?;
 
-    YugabyteInfo {
+    Ok(YugabyteInfo {
         web_ui_url: format!("http://localhost:{}", web_ui_port),
         master_rpc_port,
         ysql_port,
-    }
+    })
 }
 
 /// Write a serializable struct to a JSON file.
