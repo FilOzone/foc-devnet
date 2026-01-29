@@ -140,31 +140,37 @@ mod tests {
 
     #[test]
     fn test_create_latest_symlink_handles_broken_symlinks() {
-        // This test verifies that create_latest_symlink can remove broken symlinks
+        // This test verifies that create_latest_symlink properly handles
+        // removing broken symlinks and creating new ones
         use std::os::unix::fs::symlink;
         use tempfile::TempDir;
 
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let run_id = generate_run_id();
+        let _run_id = generate_run_id();
 
-        // Create mock run directories and state path
-        let runs_dir = temp_dir.path().join("runs");
+        // Mock the paths by using temp directory structure
+        let runs_dir = temp_dir.path().join("run");
         let state_dir = temp_dir.path().join("state");
         let latest_link = state_dir.join("latest");
 
         std::fs::create_dir_all(&runs_dir).expect("Failed to create runs dir");
         std::fs::create_dir_all(&state_dir).expect("Failed to create state dir");
 
-        // Create a run directory
-        let run_dir = runs_dir.join(&run_id);
-        std::fs::create_dir_all(&run_dir).expect("Failed to create run dir");
+        // Create first run directory
+        let run_dir1 = runs_dir.join("run1");
+        std::fs::create_dir_all(&run_dir1).expect("Failed to create run1 dir");
 
-        // First, create the symlink
-        symlink(&run_dir, &latest_link).expect("Failed to create initial symlink");
+        // Create initial symlink
+        symlink(&run_dir1, &latest_link).expect("Failed to create initial symlink");
         assert!(latest_link.is_symlink(), "Initial symlink should exist");
+        assert_eq!(
+            std::fs::read_link(&latest_link).unwrap(),
+            run_dir1,
+            "Symlink should point to run1"
+        );
 
-        // Now delete the target to create a broken symlink
-        std::fs::remove_dir_all(&run_dir).expect("Failed to remove run dir");
+        // Delete the target to create a broken symlink
+        std::fs::remove_dir_all(&run_dir1).expect("Failed to remove run1 dir");
         assert!(
             latest_link.is_symlink(),
             "Broken symlink should still be detected as symlink"
@@ -174,19 +180,23 @@ mod tests {
             "Broken symlink target should not exist"
         );
 
-        // Recreate the run directory
-        std::fs::create_dir_all(&run_dir).expect("Failed to recreate run dir");
+        // Create a new run directory
+        let run_dir2 = runs_dir.join("run2");
+        std::fs::create_dir_all(&run_dir2).expect("Failed to create run2 dir");
 
-        // Now test that we can remove the broken symlink and create a new one
+        // Remove the broken symlink and create new one
         if latest_link.is_symlink() {
             std::fs::remove_file(&latest_link).expect("Failed to remove broken symlink");
         }
         assert!(!latest_link.exists(), "Symlink should be removed");
 
-        symlink(&run_dir, &latest_link).expect("Failed to create new symlink");
-        assert!(
-            latest_link.is_symlink(),
-            "New symlink should exist and point to correct target"
+        symlink(&run_dir2, &latest_link).expect("Failed to create new symlink");
+        assert!(latest_link.is_symlink(), "New symlink should exist");
+        assert_eq!(
+            std::fs::read_link(&latest_link).unwrap(),
+            run_dir2,
+            "Symlink should point to run2"
         );
+        assert!(latest_link.exists(), "New symlink target should exist");
     }
 }
