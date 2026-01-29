@@ -83,8 +83,6 @@ function printUsers(users) {
     console.log(`${user.name}:`);
     console.log(`  EVM Address:    ${user.evm_addr}`);
     console.log(`  Native Address: ${user.native_addr}`);
-    console.log(`  tFIL Balance:   ${user.native_balance_tfil}`);
-    console.log(`  USDFC Balance:  ${user.mockusdfc_balance}`);
     console.log(`  Private Key:    ${user.private_key_hex.substring(0, 10)}...`);
     console.log();
   }
