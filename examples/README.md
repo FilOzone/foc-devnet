@@ -48,7 +48,7 @@ The `devnet-info.json` file contains:
     "contracts": {...},
     "lotus": {...},
     "lotus_miner": {...},
-    "curio_providers": [...]
+    "pdp_sps": [...]
   }
 }
 ```

@@ -47,7 +47,7 @@ fn build_devnet_info(ctx: &SetupContext) -> Result<DevnetInfoV1, Box<dyn std::er
         contracts: build_contracts(ctx)?,
         lotus: build_lotus_info(ctx)?,
         lotus_miner: build_lotus_miner_info(ctx)?,
-        pdp_sps: build_curio_providers(ctx),
+        pdp_sps: build_pdp_service_providers(ctx),
     })
 }
 
@@ -108,7 +108,9 @@ fn build_contracts(ctx: &SetupContext) -> Result<ContractsInfo, Box<dyn std::err
             .ok_or("Missing foc_contract_filecoin_warm_storage_service_state_view in context")?,
         fwss_impl_addr: ctx
             .get("foc_contract_filecoin_warm_storage_service_implementation")
-            .ok_or("Missing foc_contract_filecoin_warm_storage_service_implementation in context")?,
+            .ok_or(
+                "Missing foc_contract_filecoin_warm_storage_service_implementation in context",
+            )?,
         pdp_verifier_proxy_addr: ctx
             .get("foc_contract_p_d_p_verifier_proxy")
             .ok_or("Missing foc_contract_p_d_p_verifier_proxy in context")?,
@@ -147,7 +149,9 @@ fn build_lotus_info(ctx: &SetupContext) -> Result<LotusInfo, Box<dyn std::error:
 }
 
 /// Build Lotus miner info from context.
-fn build_lotus_miner_info(ctx: &SetupContext) -> Result<LotusMinerInfo, Box<dyn std::error::Error>> {
+fn build_lotus_miner_info(
+    ctx: &SetupContext,
+) -> Result<LotusMinerInfo, Box<dyn std::error::Error>> {
     let api_port: u16 = ctx
         .get("lotus_miner_api_port")
         .and_then(|p| p.parse().ok())
@@ -164,20 +168,20 @@ fn build_lotus_miner_info(ctx: &SetupContext) -> Result<LotusMinerInfo, Box<dyn 
     })
 }
 
-/// Build Curio providers info from context.
-fn build_curio_providers(ctx: &SetupContext) -> Vec<CurioInfo> {
+/// Build PDP service providers info from context.
+fn build_pdp_service_providers(ctx: &SetupContext) -> Vec<CurioInfo> {
     let active_count: usize = ctx
         .get("active_pdp_sp_count")
         .and_then(|s| s.parse().ok())
         .unwrap_or(1);
 
     (1..=active_count)
-        .filter_map(|id| build_single_curio_provider(ctx, id as u32))
+        .filter_map(|id| build_single_pdp_service_provider(ctx, id as u32))
         .collect()
 }
 
-/// Build a single Curio provider's info.
-fn build_single_curio_provider(ctx: &SetupContext, provider_id: u32) -> Option<CurioInfo> {
+/// Build a single PDP service provider's info.
+fn build_single_pdp_service_provider(ctx: &SetupContext, provider_id: u32) -> Option<CurioInfo> {
     let eth_addr = ctx.get(&format!("pdp_sp_{}_eth_address", provider_id))?;
     let native_addr = ctx
         .get(&format!("pdp_sp_{}_address", provider_id))
