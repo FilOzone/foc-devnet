@@ -13,8 +13,9 @@ use crate::crypto::derive_ethereum_key;
 use crate::crypto::mnemonic::load_mnemonic;
 use crate::external_api::{
     ContractsInfo, CurioInfo, DevnetInfoV1, LotusInfo, LotusMinerInfo, UserInfo,
-    VersionedDevnetInfo, YugabyteInfo, DEVNET_INFO_FILENAME, DEVNET_INFO_SCHEMA_VERSION,
+    VersionedDevnetInfo, YugabyteInfo, DEVNET_INFO_SCHEMA_VERSION,
 };
+use crate::paths;
 
 /// Export DevNet information to a JSON file.
 ///
@@ -27,7 +28,7 @@ pub fn export_devnet_info(context: &SetupContext) -> Result<(), Box<dyn std::err
         info,
     };
 
-    let output_path = context.run_dir().join(DEVNET_INFO_FILENAME);
+    let output_path = paths::devnet_info_file(&context.run_id().to_string());
     write_json_file(&output_path, &versioned)?;
 
     tracing::info!("Exported DevNet info to: {}", output_path.display());

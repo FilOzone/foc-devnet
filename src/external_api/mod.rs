@@ -15,6 +15,3 @@ pub use export::export_devnet_info;
 
 /// Current schema version for DevNet info export.
 pub const DEVNET_INFO_SCHEMA_VERSION: u32 = 1;
-
-/// Output filename for the DevNet info JSON.
-pub const DEVNET_INFO_FILENAME: &str = "devnet-info.json";
