@@ -222,17 +222,17 @@ fn build_yugabyte_info(ctx: &SetupContext, provider_id: u32) -> YugabyteInfo {
     let web_ui_port: u16 = ctx
         .get(&format!("yugabyte_{}_web_ui_port", provider_id))
         .and_then(|p| p.parse().ok())
-        .unwrap_or(15433);
+        .expect(&format!("yugabyte_{}_web_ui_port not found or invalid in context", provider_id));
 
     let master_rpc_port: u16 = ctx
         .get(&format!("yugabyte_{}_master_rpc_port", provider_id))
         .and_then(|p| p.parse().ok())
-        .unwrap_or(7100);
+        .expect(&format!("yugabyte_{}_master_rpc_port not found or invalid in context", provider_id));
 
     let ysql_port: u16 = ctx
         .get(&format!("yugabyte_{}_ysql_port", provider_id))
         .and_then(|p| p.parse().ok())
-        .unwrap_or(5433);
+        .expect(&format!("yugabyte_{}_ysql_port not found or invalid in context", provider_id));
 
     YugabyteInfo {
         web_ui_url: format!("http://localhost:{}", web_ui_port),
