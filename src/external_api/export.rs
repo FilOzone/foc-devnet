@@ -82,33 +82,12 @@ fn build_single_user(
         .get(&format!("{}_address", name.to_lowercase()))
         .unwrap_or_else(|| derived.native_address.clone());
 
-    // Format USDFC balance: 100,000 tokens with 18 decimals = 100000000000000000000000 wei
-    // But display in human-readable form with decimals
-    let mockusdfc_wei = "100000000000000000000000"; // 100,000 USDFC
-    let mockusdfc_formatted = format_token_balance(mockusdfc_wei);
-
     Ok(UserInfo {
         name: name.to_string(),
         evm_addr,
         native_addr,
-        native_balance_tfil: "1000".to_string(), // Default funding amount
-        mockusdfc_balance: mockusdfc_formatted,
         private_key_hex: format!("0x{}", derived.private_key),
     })
-}
-
-/// Format token balance from wei to human-readable form with 18 decimals
-fn format_token_balance(wei: &str) -> String {
-    if wei.len() <= 18 {
-        // Less than 1 token
-        let padded = format!("{:0>18}", wei);
-        format!("0.{}", padded)
-    } else {
-        let split_point = wei.len() - 18;
-        let whole = &wei[..split_point];
-        let fraction = &wei[split_point..];
-        format!("{}.{}", whole, fraction)
-    }
 }
 
 /// Build contracts info from context.

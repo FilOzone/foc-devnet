@@ -48,10 +48,6 @@ pub struct UserInfo {
     pub evm_addr: String,
     /// Native Filecoin address (t410f...)
     pub native_addr: String,
-    /// Balance in tFIL
-    pub native_balance_tfil: String,
-    /// Balance in MockUSDFC tokens
-    pub mockusdfc_balance: String,
     /// Private key in hex format (without 0x prefix)
     pub private_key_hex: String,
 }
