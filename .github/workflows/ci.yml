@@ -338,13 +338,6 @@ jobs:
         cd examples
         npm install
         node validate-schema.js "$DEVNET_INFO"
-
-    # Run the JavaScript example to verify it works
-      if: steps.start_cluster.outcome == 'success'
-      run: |
-        DEVNET_INFO="$HOME/.foc-devnet/state/latest/devnet-info.json"
-        cd examples
-        npm install
         node read-devnet-info.js "$DEVNET_INFO"
         echo "✓ read-devnet-info.js executed successfully"
 

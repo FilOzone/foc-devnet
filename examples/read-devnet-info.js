@@ -111,26 +111,6 @@ function printCurioProviders(providers) {
   }
 }
 
-/**
- * Format a token balance from wei to human-readable form.
- * @param {string} balance - Balance in wei (as string)
- * @param {number} decimals - Token decimals
- * @returns {string} Formatted balance
- */
-function formatTokenBalance(balance, decimals) {
-  try {
-    const balanceBigInt = BigInt(balance);
-    const divisor = BigInt(10 ** decimals);
-    const whole = balanceBigInt / divisor;
-    const fraction = balanceBigInt % divisor;
-    const fractionStr = fraction.toString().padStart(decimals, "0");
-    return `${whole}.${fractionStr.substring(0, 4)}`;
-  } catch (e) {
-    // If balance is already formatted, return as-is
-    return balance;
-  }
-}
-
 // Main execution
 function main() {
   // Determine file path
