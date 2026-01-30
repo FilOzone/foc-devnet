@@ -8,10 +8,10 @@
     "check-balances": "node check-balances.js"
   },
   "dependencies": {
-    "ethers": "^6.0.0",
+    "viem": "^2.0.0",
     "zod": "^3.22.0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=24.0.0"
   }
 }

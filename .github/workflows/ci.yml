@@ -339,7 +339,8 @@ jobs:
         npm install
         node validate-schema.js "$DEVNET_INFO"
         node read-devnet-info.js "$DEVNET_INFO"
-        echo "✓ read-devnet-info.js executed successfully"
+        node check-balances.js "$DEVNET_INFO"
+        echo "✓ All examples ran well"
 
     # Clean shutdown
     - name: "EXEC: {Stop cluster}, independent"

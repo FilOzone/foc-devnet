@@ -13,14 +13,15 @@
 import { readFileSync, existsSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
-import { ethers } from "ethers";
+import { createPublicClient, http, parseAbi } from "viem";
+import { formatUnits } from "viem";
 
 // ERC20 ABI (minimal for balanceOf)
-const ERC20_ABI = [
+const ERC20_ABI = parseAbi([
   "function balanceOf(address owner) view returns (uint256)",
   "function decimals() view returns (uint8)",
   "function symbol() view returns (string)",
-];
+]);
 
 /**
  * Load the devnet-info.json file.
@@ -42,33 +43,45 @@ function loadDevnetInfo(filePath) {
  * @returns {string} Formatted amount
  */
 function formatBalance(wei, decimals = 18) {
-  return ethers.formatUnits(wei, decimals);
+  return formatUnits(wei, decimals);
 }
 
 /**
  * Check native FIL balance for an address.
- * @param {ethers.Provider} provider - Ethers provider
+ * @param {object} client - Viem public client
  * @param {string} address - Address to check
  * @returns {Promise<string>} Balance in FIL
  */
-async function checkNativeBalance(provider, address) {
-  const balance = await provider.getBalance(address);
+async function checkNativeBalance(client, address) {
+  const balance = await client.getBalance({ address });
   return formatBalance(balance);
 }
 
 /**
  * Check ERC20 token balance for an address.
- * @param {ethers.Provider} provider - Ethers provider
+ * @param {object} client - Viem public client
  * @param {string} tokenAddress - Token contract address
  * @param {string} userAddress - User address to check
  * @returns {Promise<{balance: string, symbol: string}>} Balance and symbol
  */
-async function checkTokenBalance(provider, tokenAddress, userAddress) {
-  const contract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+async function checkTokenBalance(client, tokenAddress, userAddress) {
   const [balance, decimals, symbol] = await Promise.all([
-    contract.balanceOf(userAddress),
-    contract.decimals(),
-    contract.symbol(),
+    client.readContract({
+      address: tokenAddress,
+      abi: ERC20_ABI,
+      functionName: "balanceOf",
+      args: [userAddress],
+    }),
+    client.readContract({
+      address: tokenAddress,
+      abi: ERC20_ABI,
+      functionName: "decimals",
+    }),
+    client.readContract({
+      address: tokenAddress,
+      abi: ERC20_ABI,
+      functionName: "symbol",
+    }),
   ]);
   return {
     balance: formatBalance(balance, decimals),
@@ -94,11 +107,13 @@ async function main() {
     const { info } = loadDevnetInfo(filePath);
 
     // Connect to the Lotus RPC
-    const provider = new ethers.JsonRpcProvider(info.lotus.host_rpc_url);
+    const client = createPublicClient({
+      transport: http(info.lotus.host_rpc_url),
+    });
     console.log(`Connected to: ${info.lotus.host_rpc_url}`);
 
     // Check if network is accessible
-    const blockNumber = await provider.getBlockNumber();
+    const blockNumber = await client.getBlockNumber();
     console.log(`Current block: ${blockNumber}\n`);
 
     console.log("═══════════════════════════════════════════════════════════");
@@ -110,14 +125,14 @@ async function main() {
       console.log(`${user.name} (${user.evm_addr}):`);
 
       // Check native FIL balance
-      const filBalance = await checkNativeBalance(provider, user.evm_addr);
+      const filBalance = await checkNativeBalance(client, user.evm_addr);
       console.log(`  Native FIL:  ${filBalance} tFIL`);
 
       // Check MockUSDFC balance
       if (info.contracts.mockusdfc_addr) {
         try {
           const { balance, symbol } = await checkTokenBalance(
-            provider,
+            client,
             info.contracts.mockusdfc_addr,
             user.evm_addr
           );
