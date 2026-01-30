@@ -116,6 +116,7 @@ Built for scripting and automation:
 - **Contract addresses**: `~/.foc-devnet/run/<run-id>/contract_addresses.json`
 - **Step context**: `~/.foc-devnet/run/<run-id>/step_context.json`
 - **Latest run symlink**: `~/.foc-devnet/state/latest/` → points to most recent run
+- **Custom base directory**: Set `FOC_DEVNET_BASEDIR` env var to override default `~/.foc-devnet` location (see [Environment Variables](README_ADVANCED.md#environment-variables))
 - Write scripts for testing, demos, CI/CD pipelines, etc.
 
 ### 🌐 Isolated Networks
