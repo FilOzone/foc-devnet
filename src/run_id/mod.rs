@@ -57,23 +57,50 @@ pub fn generate_run_id() -> String {
 }
 
 /// Create a symlink to the latest run directory.
+///
+/// This function is responsible for maintaining `~/.foc-devnet/state/latest`,
+/// a symlink that always points to the most recent run directory.
+///
+/// It handles:
+/// - Creating the parent directory if needed
+/// - Removing any existing symlink (including broken ones)
+/// - Creating the new symlink
+///
+/// # Arguments
+/// * `run_id` - The run ID of the current execution
+///
+/// # Failures
+/// This is a critical operation. If it fails, the state directory will be
+/// inconsistent and subsequent runs may have issues.
 pub fn create_latest_symlink(run_id: &str) -> Result<(), Box<dyn std::error::Error>> {
     let latest_link = crate::paths::foc_devnet_state_latest();
     let run_dir = crate::paths::foc_devnet_run_dir(run_id);
 
-    // Remove existing symlink if it exists
-    if latest_link.exists() || latest_link.is_symlink() {
+    // Ensure parent directory exists (state/) before trying to create symlink
+    if let Some(parent) = latest_link.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    // Remove existing symlink if it exists (including broken symlinks)
+    // We need to handle broken symlinks carefully:
+    // - exists() returns false for broken symlinks (target doesn't exist)
+    // - is_symlink() returns true even if target is broken
+    // So we check is_symlink() first, which is true for both valid and broken symlinks
+    if latest_link.is_symlink() {
         #[cfg(unix)]
         std::fs::remove_file(&latest_link)?;
         #[cfg(windows)]
+        std::fs::remove_file(&latest_link)?;
+    } else if latest_link.exists() {
+        // It's a real directory or file (shouldn't happen, but handle it)
         if latest_link.is_dir() {
-            std::fs::remove_dir(&latest_link)?;
+            std::fs::remove_dir_all(&latest_link)?;
         } else {
             std::fs::remove_file(&latest_link)?;
         }
     }
 
-    // Create new symlink
+    // Create new symlink pointing to the run directory
     #[cfg(unix)]
     std::os::unix::fs::symlink(&run_dir, &latest_link)?;
     #[cfg(windows)]
@@ -109,5 +136,67 @@ mod tests {
 
         // At least the random name part should differ
         assert_ne!(id1, id2, "Run IDs should be different");
+    }
+
+    #[test]
+    fn test_create_latest_symlink_handles_broken_symlinks() {
+        // This test verifies that create_latest_symlink properly handles
+        // removing broken symlinks and creating new ones
+        use std::os::unix::fs::symlink;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let _run_id = generate_run_id();
+
+        // Mock the paths by using temp directory structure
+        let runs_dir = temp_dir.path().join("run");
+        let state_dir = temp_dir.path().join("state");
+        let latest_link = state_dir.join("latest");
+
+        std::fs::create_dir_all(&runs_dir).expect("Failed to create runs dir");
+        std::fs::create_dir_all(&state_dir).expect("Failed to create state dir");
+
+        // Create first run directory
+        let run_dir1 = runs_dir.join("run1");
+        std::fs::create_dir_all(&run_dir1).expect("Failed to create run1 dir");
+
+        // Create initial symlink
+        symlink(&run_dir1, &latest_link).expect("Failed to create initial symlink");
+        assert!(latest_link.is_symlink(), "Initial symlink should exist");
+        assert_eq!(
+            std::fs::read_link(&latest_link).unwrap(),
+            run_dir1,
+            "Symlink should point to run1"
+        );
+
+        // Delete the target to create a broken symlink
+        std::fs::remove_dir_all(&run_dir1).expect("Failed to remove run1 dir");
+        assert!(
+            latest_link.is_symlink(),
+            "Broken symlink should still be detected as symlink"
+        );
+        assert!(
+            !latest_link.exists(),
+            "Broken symlink target should not exist"
+        );
+
+        // Create a new run directory
+        let run_dir2 = runs_dir.join("run2");
+        std::fs::create_dir_all(&run_dir2).expect("Failed to create run2 dir");
+
+        // Remove the broken symlink and create new one
+        if latest_link.is_symlink() {
+            std::fs::remove_file(&latest_link).expect("Failed to remove broken symlink");
+        }
+        assert!(!latest_link.exists(), "Symlink should be removed");
+
+        symlink(&run_dir2, &latest_link).expect("Failed to create new symlink");
+        assert!(latest_link.is_symlink(), "New symlink should exist");
+        assert_eq!(
+            std::fs::read_link(&latest_link).unwrap(),
+            run_dir2,
+            "Symlink should point to run2"
+        );
+        assert!(latest_link.exists(), "New symlink target should exist");
     }
 }

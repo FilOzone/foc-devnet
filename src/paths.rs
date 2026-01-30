@@ -78,6 +78,12 @@ pub fn step_context_file(run_id: &str) -> PathBuf {
     foc_devnet_run_dir(run_id).join("step_context.json")
 }
 
+/// Returns the path to the devnet info file for a specific run
+/// This is the versioned, stable schema JSON file for external consumers.
+pub fn devnet_info_file(run_id: &str) -> PathBuf {
+    foc_devnet_run_dir(run_id).join("devnet-info.json")
+}
+
 /// Returns the path to the PDP_SP_X provider ID file for a specific run
 pub fn pdp_sp_provider_id_file(run_id: &str, sp_idx: usize) -> PathBuf {
     foc_devnet_run_dir(run_id)

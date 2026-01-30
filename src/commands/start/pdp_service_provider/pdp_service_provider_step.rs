@@ -93,7 +93,7 @@ impl Step for PdpSpRegistrationStep {
         for sp_index in 1..=self.active_sp_count {
             let pdp_key = format!("pdp_sp_{}_address", sp_index);
             let eth_key = format!("pdp_sp_{}_eth_address", sp_index);
-            let port_key = format!("curio_sp_{}_pdp_port", sp_index);
+            let port_key = format!("pdp_sp_{}_pdp_port", sp_index);
 
             let sp_address = context
                 .get(&pdp_key)
@@ -169,7 +169,7 @@ impl Step for PdpSpRegistrationStep {
         for sp_index in 1..=self.active_sp_count {
             let pdp_key = format!("pdp_sp_{}_address", sp_index);
             let eth_key = format!("pdp_sp_{}_eth_address", sp_index);
-            let port_key = format!("curio_sp_{}_pdp_port", sp_index);
+            let port_key = format!("pdp_sp_{}_pdp_port", sp_index);
 
             let sp_address = context
                 .get(&pdp_key)
@@ -217,6 +217,12 @@ impl Step for PdpSpRegistrationStep {
                 context,
             ) {
                 Ok(provider_id) => {
+                    // Store is_approved status in context
+                    context.set(
+                        format!("pdp_sp_{}_is_approved", sp_index),
+                        should_approve.to_string(),
+                    );
+
                     // Only approve if within approved count
                     if should_approve {
                         if let Err(e) = registration::add_to_approved_list(

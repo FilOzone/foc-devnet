@@ -41,6 +41,9 @@ pub const PORT_CHECK_TIMEOUT_MS: u64 = 5000;
 /// PDP Service Provider configuration
 pub const MAX_PDP_SP_COUNT: usize = 5;
 
+/// Number of user test accounts (USER_1, USER_2, USER_3)
+pub const USER_ACCOUNT_COUNT: usize = 3;
+
 /// Service configuration
 pub const SERVICE_NAME: &str = "FOC DevNet Warm Storage";
 pub const SERVICE_DESCRIPTION: &str = "Warm storage service for FOC local development network";

@@ -48,19 +48,19 @@ pub fn verify_prerequisites(context: &SetupContext, sp_count: usize) -> Result<(
         let pdp_port = context.allocate_port()?;
 
         context.set(
-            format!("curio_sp_{}_api_port", sp_index),
+            format!("pdp_sp_{}_api_port", sp_index),
             api_port.to_string(),
         );
         context.set(
-            format!("curio_sp_{}_api_port_alt", sp_index),
+            format!("pdp_sp_{}_api_port_alt", sp_index),
             api_port_alt.to_string(),
         );
         context.set(
-            format!("curio_sp_{}_gui_port", sp_index),
+            format!("pdp_sp_{}_gui_port", sp_index),
             gui_port.to_string(),
         );
         context.set(
-            format!("curio_sp_{}_pdp_port", sp_index),
+            format!("pdp_sp_{}_pdp_port", sp_index),
             pdp_port.to_string(),
         );
 

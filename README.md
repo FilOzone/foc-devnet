@@ -70,6 +70,10 @@ This will:
 
 **That's it!** Your local Filecoin network is running.
 
+### Step 4: Use the Network
+
+See [examples/README.md](examples/README.md) for how you can easily consume network addresses, parameters, etc. and hook them into Synapse, etc. 
+
 ---
 
 ## ✨ Key Features
@@ -158,6 +162,12 @@ See **[README_ADVANCED.md](README_ADVANCED.md)** for comprehensive documentation
 - **Service Provider examples** (1 SP with 0 authorized, 3 SPs with top 2 authorized, etc.)
 - **Troubleshooting guides** (port conflicts, build failures, network issues)
 - **Additional user actions** (custom genesis, Lotus API access, contract interaction)
+
+---
+
+## 🚶 Examples
+
+See [examples/README.md](examples/README.md).
 
 ---
 
