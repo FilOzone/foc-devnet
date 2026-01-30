@@ -27,7 +27,18 @@ jobs:
       run: cargo clippy --all-targets --all-features -- -D warnings
 
   integration-test:
-    runs-on: ["self-hosted", "linux", "x64", "12xlarge+amd"]
+    strategy:
+      matrix:
+        include:
+          - runner: ["self-hosted", "linux", "x64", "12xlarge+amd"]
+            name: "12xlarge-amd"
+          - runner: ["self-hosted", "linux", "x64", "9xlarge"]
+            name: "9xlarge"
+          - runner: ["self-hosted", "linux", "x64", "8xlarge+amd"]
+            name: "8xlarge-amd"
+      fail-fast: false
+    name: integration-test (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
 
     steps:
