@@ -69,7 +69,11 @@ fn check_all_docker_images() -> Result<(), Box<dyn Error>> {
     let mut found_images = Vec::new();
 
     for image_name in REQUIRED_DOCKER_IMAGES {
-        if image_exists(image_name).unwrap_or(false) {
+        let exists = image_exists(image_name).map_err(|e| {
+            format!("Failed to check Docker image '{}': {}", image_name, e)
+        })?;
+
+        if exists {
             found_images.push(*image_name);
         } else {
             missing_images.push(*image_name);
