@@ -5,18 +5,20 @@ use std::path::PathBuf;
 /// If not set or empty, defaults to ~/.foc-devnet
 /// Supports tilde expansion for paths like ~/my-foc-devnet
 pub fn foc_devnet_home() -> PathBuf {
+    let default_path = || {
+        dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("/tmp"))
+            .join(".foc-devnet")
+    };
+
     if let Ok(base_dir) = std::env::var("FOC_DEVNET_BASEDIR") {
         if !base_dir.trim().is_empty() {
             PathBuf::from(shellexpand::tilde(&base_dir).as_ref())
         } else {
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("/tmp"))
-                .join(".foc-devnet")
+            default_path()
         }
     } else {
-        dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("/tmp"))
-            .join(".foc-devnet")
+        default_path()
     }
 }
 
@@ -257,3 +259,54 @@ pub fn project_root() -> Result<PathBuf, std::io::Error> {
 // Constants for container paths
 /// Container path where Filecoin proof parameters are mounted
 pub const CONTAINER_FILECOIN_PROOF_PARAMS_PATH: &str = "/var/tmp/filecoin-proof-parameters";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    #[test]
+    fn test_foc_devnet_home_with_valid_path() {
+        env::set_var("FOC_DEVNET_BASEDIR", "/custom/path");
+        let path = foc_devnet_home();
+        assert_eq!(path, PathBuf::from("/custom/path"));
+        env::remove_var("FOC_DEVNET_BASEDIR");
+    }
+
+    #[test]
+    fn test_foc_devnet_home_with_empty_string() {
+        env::set_var("FOC_DEVNET_BASEDIR", "");
+        let path = foc_devnet_home();
+        // Should fall back to default, which includes ".foc-devnet"
+        assert!(path.to_string_lossy().contains(".foc-devnet"));
+        env::remove_var("FOC_DEVNET_BASEDIR");
+    }
+
+    #[test]
+    fn test_foc_devnet_home_with_whitespace() {
+        env::set_var("FOC_DEVNET_BASEDIR", "   ");
+        let path = foc_devnet_home();
+        // Should fall back to default, which includes ".foc-devnet"
+        assert!(path.to_string_lossy().contains(".foc-devnet"));
+        env::remove_var("FOC_DEVNET_BASEDIR");
+    }
+
+    #[test]
+    fn test_foc_devnet_home_unset() {
+        env::remove_var("FOC_DEVNET_BASEDIR");
+        let path = foc_devnet_home();
+        // Should use default, which includes ".foc-devnet"
+        assert!(path.to_string_lossy().contains(".foc-devnet"));
+    }
+
+    #[test]
+    fn test_foc_devnet_home_with_tilde() {
+        env::set_var("FOC_DEVNET_BASEDIR", "~/my-custom-foc");
+        let path = foc_devnet_home();
+        // Tilde should be expanded, so shouldn't start with ~
+        assert!(!path.to_string_lossy().starts_with("~"));
+        // Should contain the custom directory name
+        assert!(path.to_string_lossy().contains("my-custom-foc"));
+        env::remove_var("FOC_DEVNET_BASEDIR");
+    }
+}
