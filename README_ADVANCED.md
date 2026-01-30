@@ -219,6 +219,63 @@ foc-devnet init --force
 
 ---
 
+### Environment Variables
+
+#### `FOC_DEVNET_BASEDIR`
+
+**Purpose:** Overrides the default `~/.foc-devnet` directory location.
+
+**Use Cases:**
+- **Testing multiple isolated environments:** Run separate instances of foc-devnet with different configurations
+- **Custom directory locations:** Store data on a specific disk or partition (e.g., for SSD/HDD optimization)
+- **CI/CD pipelines:** Use predictable paths in automated testing environments
+- **Shared team environments:** Keep different team members' instances isolated
+
+**Tilde Expansion:**
+The variable supports tilde (`~`) expansion, so you can use paths like `~/my-custom-foc` or `~/projects/foc-test`.
+
+**Example Usage:**
+
+```bash
+# Use a custom directory with tilde expansion
+export FOC_DEVNET_BASEDIR=~/foc-test-env
+foc-devnet init
+foc-devnet start
+
+# Use an absolute path
+export FOC_DEVNET_BASEDIR=/mnt/ssd/foc-devnet
+foc-devnet init
+
+# Run multiple isolated instances (in different terminals)
+# Terminal 1:
+export FOC_DEVNET_BASEDIR=~/foc-env-1
+foc-devnet start
+
+# Terminal 2:
+export FOC_DEVNET_BASEDIR=~/foc-env-2
+foc-devnet start
+```
+
+**Default Behavior:**
+If `FOC_DEVNET_BASEDIR` is not set, foc-devnet uses `~/.foc-devnet` as the base directory.
+
+**Directory Structure:**
+When `FOC_DEVNET_BASEDIR` is set, all data directories are created under the specified path instead of `~/.foc-devnet`:
+```
+$FOC_DEVNET_BASEDIR/
+├── config.toml
+├── bin/
+├── code/
+├── docker/volumes/
+├── keys/
+├── logs/
+├── run/
+├── state/
+└── tmp/
+```
+
+---
+
 ## Directory Structure
 
 ```
