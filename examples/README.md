@@ -4,10 +4,10 @@ This directory contains examples demonstrating how to interact with a running FO
 
 ## Files
 
-- `read-devnet-info.js` - JavaScript example showing how to read and use the DevNet info
-- `check-balances.js` - JavaScript example demonstrating how to check user balances
-- `devnet-schema.js` - Zod schema for validating DevNet info exports
-- `validate-schema.js` - CLI tool for validating devnet-info.json against the schema
+- [read-devnet-info.js](read-devnet-info.js) - JavaScript example showing how to read and use the DevNet info
+- [check-balances.js](check-balances.js) - JavaScript example demonstrating how to check user balances
+- [devnet-schema.js](devnet-schema.js) - Zod schema for validating DevNet info exports
+- [validate-schema.js](validate-schema.js) - CLI tool for validating devnet-info.json against the schema
 
 ## Prerequisites
 
@@ -105,4 +105,4 @@ The `devnet-info.json` file contains:
 }
 ```
 
-See `read-devnet-info.js` for detailed usage of each field.
+See [read-devnet-info.js](read-devnet-info.js) for detailed usage of each field.
