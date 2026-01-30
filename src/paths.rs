@@ -1,10 +1,17 @@
 use std::path::PathBuf;
 
-/// Returns the path to the foc-devnet home directory, e.g., ~/.foc-devnet
+/// Returns the path to the foc-devnet home directory.
+/// First checks for $FOC_DEVNET_BASEDIR environment variable.
+/// If not set, defaults to ~/.foc-devnet
+/// Supports tilde expansion for paths like ~/my-foc-devnet
 pub fn foc_devnet_home() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("/tmp"))
-        .join(".foc-devnet")
+    if let Ok(base_dir) = std::env::var("FOC_DEVNET_BASEDIR") {
+        PathBuf::from(shellexpand::tilde(&base_dir).as_ref())
+    } else {
+        dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("/tmp"))
+            .join(".foc-devnet")
+    }
 }
 
 /// Returns the path to the foc-devnet logs directory, e.g., ~/.foc-devnet/logs
