@@ -263,9 +263,11 @@ pub const CONTAINER_FILECOIN_PROOF_PARAMS_PATH: &str = "/var/tmp/filecoin-proof-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::env;
 
     #[test]
+    #[serial]
     fn test_foc_devnet_home_with_valid_path() {
         env::set_var("FOC_DEVNET_BASEDIR", "/custom/path");
         let path = foc_devnet_home();
@@ -274,6 +276,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_foc_devnet_home_with_empty_string() {
         env::set_var("FOC_DEVNET_BASEDIR", "");
         let path = foc_devnet_home();
@@ -283,6 +286,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_foc_devnet_home_with_whitespace() {
         env::set_var("FOC_DEVNET_BASEDIR", "   ");
         let path = foc_devnet_home();
@@ -292,6 +296,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_foc_devnet_home_unset() {
         env::remove_var("FOC_DEVNET_BASEDIR");
         let path = foc_devnet_home();
@@ -300,6 +305,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_foc_devnet_home_with_tilde() {
         env::set_var("FOC_DEVNET_BASEDIR", "~/my-custom-foc");
         let path = foc_devnet_home();
