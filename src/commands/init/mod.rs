@@ -21,7 +21,7 @@ use tracing::{info, warn};
 
 /// Create a friendly error for missing Docker CLI.
 fn docker_not_found_error() -> Box<dyn std::error::Error> {
-    "Docker CLI not found. Install Docker Desktop and ensure the 'docker' command is on PATH, then re-run 'foc-devnet init'."
+    "Docker CLI not found. Install Docker and ensure the 'docker' command is on PATH, then re-run 'foc-devnet init'."
         .to_string()
         .into()
 }
