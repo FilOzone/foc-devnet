@@ -9,6 +9,7 @@ mod lotus_miner;
 mod lotus_utils;
 mod multicall3_deploy;
 mod pdp_service_provider;
+pub mod prerequisites_check;
 pub mod step;
 mod synapse_test_e2e;
 mod usdfc_deploy;
@@ -23,6 +24,7 @@ use lotus::LotusStep;
 use lotus_miner::LotusMinerStep;
 use multicall3_deploy::MultiCall3DeployStep;
 use pdp_service_provider::PdpSpRegistrationStep;
+use prerequisites_check::PrerequisitesCheckStep;
 pub use step::{execute_steps, execute_steps_parallel, SetupContext, Step};
 use synapse_test_e2e::SynapseTestE2EStep;
 use usdfc_deploy::USDFCDeployStep;
@@ -254,18 +256,22 @@ fn create_steps(
 ///
 /// # Parallelization Strategy
 ///
-/// - Epoch 1: Lotus + Yugabyte (independent services)
-/// - Epoch 2: Lotus Miner (depends on Lotus)
-/// - Epoch 3: ETH Account Funding (needs blockchain running)
-/// - Epoch 4: MockUSDFC Deploy + MultiCall3 Deploy + FOC Deploy (can be parallelized)
-/// - Epoch 5: MockUSDFC Funding + Curio daemons (can be parallelized, needs FOC Deploy)
-/// - Epoch 6: PDP SP Registration (needs Curio daemons started)
+/// - Epoch 1: Prerequisites check (binaries & Docker images - must run first)
+/// - Epoch 2: Lotus (daemon start)
+/// - Epoch 3: Lotus Miner (depends on Lotus)
+/// - Epoch 4: ETH Account Funding (needs blockchain running)
+/// - Epoch 5: MockUSDFC Deploy + MultiCall3 Deploy (can be parallelized)
+/// - Epoch 6: FOC Deploy + MockUSDFC Funding + Yugabyte (can be parallelized, needs USDFC deployed)
+/// - Epoch 7: Curio daemons (needs Yugabyte)
+/// - Epoch 8: PDP SP Registration (needs Curio running, for port information)
+/// - Epoch 9: Synapse E2E Test (final validation)
 fn create_step_epochs(
     volumes_dir: &Path,
     run_dir: &Path,
     config: &Config,
     notest: bool,
 ) -> Vec<Vec<Box<dyn Step>>> {
+    let prerequisites_check_step = PrerequisitesCheckStep::new();
     let lotus_step = LotusStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
     let yugabyte_step = YugabyteStep::new(
         volumes_dir.to_path_buf(),
@@ -296,28 +302,30 @@ fn create_step_epochs(
         SynapseTestE2EStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf(), notest);
 
     vec![
-        // Epoch 1: Start Lotus
+        // Epoch 1: Prerequisites check (binaries & Docker images - must run first)
+        vec![Box::new(prerequisites_check_step)],
+        // Epoch 2: Start Lotus
         vec![Box::new(lotus_step)],
-        // Epoch 2: Start Lotus Miner (depends on Lotus)
+        // Epoch 3: Start Lotus Miner (depends on Lotus)
         vec![Box::new(lotus_miner_step)],
-        // Epoch 3: ETH Account Funding (needs blockchain running)
+        // Epoch 4: ETH Account Funding (needs blockchain running)
         vec![Box::new(eth_acc_funding_step)],
-        // Epoch 4: Deploy contracts (can be parallelized)
+        // Epoch 5: Deploy contracts (can be parallelized)
         vec![
             Box::new(usdfc_deploy_step),
             Box::new(multicall3_deploy_step),
         ],
-        // Epoch 5: Fund accounts with USDFC, deploy foc (needs usdfc deployed), start yugabyte for curio later
+        // Epoch 6: Fund accounts with USDFC, deploy foc (needs usdfc deployed), start yugabyte for curio later
         vec![
             Box::new(foc_deploy_step),
             Box::new(usdfc_funding_step),
             Box::new(yugabyte_step),
         ],
-        // Epoch 6: Start Curio daemons
+        // Epoch 7: Start Curio daemons
         vec![Box::new(curio_step)],
-        // Epoch 7: Register PDP SPs (needs Curio running, for port information)
+        // Epoch 8: Register PDP SPs (needs Curio running, for port information)
         vec![Box::new(pdp_sp_reg_step)],
-        // Epoch 8: Run Synapse E2E Test
+        // Epoch 9: Run Synapse E2E Test
         vec![Box::new(synapse_test_step)],
     ]
 }

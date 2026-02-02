@@ -11,6 +11,26 @@ pub const YUGABYTE_DOCKER_IMAGE: &str = "foc-yugabyte";
 pub const CURIO_DOCKER_IMAGE: &str = "foc-curio";
 pub const PORTAINER_DOCKER_IMAGE: &str = "foc-portainer";
 
+/// Required binaries for cluster startup
+pub const REQUIRED_BINARIES: &[&str] = &[
+    "lotus",
+    "lotus-miner",
+    "lotus-shed",
+    "lotus-seed",
+    "curio",
+    "pdptool",
+    "sptool",
+];
+
+/// Required Docker images for cluster startup
+pub const REQUIRED_DOCKER_IMAGES: &[&str] = &[
+    LOTUS_DOCKER_IMAGE,
+    LOTUS_MINER_DOCKER_IMAGE,
+    BUILDER_DOCKER_IMAGE,
+    YUGABYTE_DOCKER_IMAGE,
+    CURIO_DOCKER_IMAGE,
+];
+
 /// Docker container names (base - will be prefixed with foc-c-<RUN_ID>- in practice)
 pub const LOTUS_CONTAINER: &str = "foc-c-lotus";
 pub const LOTUS_MINER_CONTAINER: &str = "foc-c-lotus-miner";

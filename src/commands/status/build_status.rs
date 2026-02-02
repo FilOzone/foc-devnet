@@ -7,7 +7,7 @@
 //! - Display build timestamps
 //! - Show relative time since build
 
-use crate::paths::foc_devnet_bin;
+use crate::{constants::REQUIRED_BINARIES, paths::foc_devnet_bin};
 use chrono::{DateTime, Utc};
 use std::process::Command;
 use tracing::info;
@@ -18,6 +18,9 @@ use super::utils::format_time_ago;
 ///
 /// This function displays the build status of all expected foc-devnet binaries,
 /// including whether they exist, their file sizes, and when they were last built.
+///
+/// Note: The list of expected binaries is shared with the startup binary check
+/// to ensure consistency.
 ///
 /// # Examples
 ///
@@ -33,16 +36,8 @@ use super::utils::format_time_ago;
 pub fn print_build_status() -> Result<(), Box<dyn std::error::Error>> {
     let bin_dir = foc_devnet_bin();
 
-    // Check for expected binaries
-    let expected_binaries = vec![
-        "lotus",
-        "lotus-miner",
-        "lotus-shed",
-        "lotus-seed",
-        "curio",
-        "pdptool",
-        "sptool",
-    ];
+    // Get expected binaries from shared source of truth
+    let expected_binaries = REQUIRED_BINARIES;
 
     for binary in expected_binaries {
         let binary_path = bin_dir.join(binary);
