@@ -262,3 +262,106 @@ pub fn project_root() -> Result<PathBuf, std::io::Error> {
 // Constants for container paths
 /// Container path where Filecoin proof parameters are mounted
 pub const CONTAINER_FILECOIN_PROOF_PARAMS_PATH: &str = "/var/tmp/filecoin-proof-parameters";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    /// Helper to safely set and restore environment variables in tests
+    struct EnvGuard {
+        key: &'static str,
+        original: Option<String>,
+    }
+
+    impl EnvGuard {
+        fn new(key: &'static str, value: Option<&str>) -> Self {
+            let original = env::var(key).ok();
+            match value {
+                Some(v) => env::set_var(key, v),
+                None => env::remove_var(key),
+            }
+            EnvGuard { key, original }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            match &self.original {
+                Some(v) => env::set_var(self.key, v),
+                None => env::remove_var(self.key),
+            }
+        }
+    }
+
+    #[test]
+    fn test_foc_devnet_home_with_custom_basedir() {
+        let _guard = EnvGuard::new("FOC_DEVNET_BASEDIR", Some("/tmp/my-foc-devnet"));
+        let path = foc_devnet_home();
+        assert_eq!(path, PathBuf::from("/tmp/my-foc-devnet"));
+    }
+
+    #[test]
+    fn test_foc_devnet_home_with_tilde_expansion() {
+        let _guard = EnvGuard::new("FOC_DEVNET_BASEDIR", Some("~/my-foc-devnet"));
+        let path = foc_devnet_home();
+
+        // Path should be expanded to actual home directory
+        let home = dirs::home_dir().unwrap();
+        assert!(path.starts_with(&home));
+        assert!(path.ends_with("my-foc-devnet"));
+    }
+
+    #[test]
+    fn test_foc_devnet_home_with_empty_basedir() {
+        let _guard = EnvGuard::new("FOC_DEVNET_BASEDIR", Some(""));
+        let path = foc_devnet_home();
+
+        // Should fall back to default ~/.foc-devnet
+        let expected = dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("/tmp"))
+            .join(".foc-devnet");
+        assert_eq!(path, expected);
+    }
+
+    #[test]
+    fn test_foc_devnet_home_with_whitespace_basedir() {
+        let _guard = EnvGuard::new("FOC_DEVNET_BASEDIR", Some("   "));
+        let path = foc_devnet_home();
+
+        // Should fall back to default ~/.foc-devnet when only whitespace
+        let expected = dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("/tmp"))
+            .join(".foc-devnet");
+        assert_eq!(path, expected);
+    }
+
+    #[test]
+    fn test_foc_devnet_home_no_env_var() {
+        // Ensure the env var is not set before the test
+        env::remove_var("FOC_DEVNET_BASEDIR");
+
+        let path = foc_devnet_home();
+
+        // Should use default ~/.foc-devnet
+        let expected = dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("/tmp"))
+            .join(".foc-devnet");
+        assert_eq!(path, expected);
+    }
+
+    #[test]
+    fn test_dependent_paths_use_foc_devnet_home() {
+        let _guard = EnvGuard::new("FOC_DEVNET_BASEDIR", Some("/tmp/test-foc"));
+
+        // All dependent paths should use the custom base directory
+        assert!(foc_devnet_logs().starts_with("/tmp/test-foc"));
+        assert_eq!(foc_devnet_logs(), PathBuf::from("/tmp/test-foc/logs"));
+
+        assert!(foc_devnet_tmp().starts_with("/tmp/test-foc"));
+        assert_eq!(foc_devnet_tmp(), PathBuf::from("/tmp/test-foc/tmp"));
+
+        assert!(foc_devnet_bin().starts_with("/tmp/test-foc"));
+        assert_eq!(foc_devnet_bin(), PathBuf::from("/tmp/test-foc/bin"));
+    }
+}
