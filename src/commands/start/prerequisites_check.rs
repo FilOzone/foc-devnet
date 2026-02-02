@@ -44,8 +44,8 @@ fn check_all_binaries() -> Result<(), Box<dyn Error>> {
     if !missing_binaries.is_empty() {
         let missing_list = missing_binaries.join("', '");
         return Err(format!(
-            "Missing required binaries: '{}'\n\nPlease run 'foc-devnet build ...' to build all binaries, \
-             or build specific binaries with 'foc-devnet build <name>' (e.g., 'foc-devnet build lotus' or 'foc-devnet build curio')",
+            "Missing required binaries: '{}'\n\nPlease build them with 'foc-devnet build <name>' \
+             (e.g., 'foc-devnet build lotus' or 'foc-devnet build curio')",
             missing_list
         )
         .into());
