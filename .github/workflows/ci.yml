@@ -263,6 +263,10 @@ jobs:
     - name: "EXEC: {Check cluster status}, independent"
       run: ./foc-devnet status
 
+    # Configure /etc/hosts for inter-SP communication via host.docker.internal
+    - name: "EXEC: {Configure host.docker.internal for SP-to-SP comms}, independent"
+      run: echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts
+
     # Start the full Filecoin localnet cluster
     - name: "EXEC: {Start cluster}, independent"
       id: start_cluster
