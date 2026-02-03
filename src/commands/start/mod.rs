@@ -38,8 +38,71 @@ use crate::paths::{foc_devnet_config, foc_devnet_run_dir};
 use crate::run_id::{create_latest_symlink, save_current_run_id};
 use crate::version_info::write_version_file;
 pub use eth_acc_funding::constants::FEVM_ACCOUNTS_PREFUNDED;
+use std::net::ToSocketAddrs;
 use std::path::{Path, PathBuf};
-use tracing::{info, warn};
+use tracing::{error, info, warn};
+
+/// Check that host.docker.internal resolves to 127.0.0.1.
+///
+/// This is required for SP-to-SP fetch to work. The hostname must resolve to localhost
+/// so that URLs registered in the SP registry work from both the host and inside containers.
+///
+/// On macOS with Docker Desktop, this works automatically.
+/// On Linux, users must add `127.0.0.1 host.docker.internal` to /etc/hosts.
+fn check_host_docker_internal() -> Result<(), Box<dyn std::error::Error>> {
+    info!("Checking host.docker.internal resolution...");
+
+    // Try to resolve host.docker.internal:80 (port doesn't matter, just need DNS resolution)
+    match "host.docker.internal:80".to_socket_addrs() {
+        Ok(mut addrs) => {
+            // Check if any resolved address is 127.0.0.1
+            let is_localhost = addrs.any(|addr| addr.ip().is_loopback());
+
+            if is_localhost {
+                info!("✓ host.docker.internal resolves to localhost");
+                Ok(())
+            } else {
+                error!("════════════════════════════════════════════════════════════════════");
+                error!("ERROR: host.docker.internal does not resolve to localhost (127.0.0.1)");
+                error!("════════════════════════════════════════════════════════════════════");
+                error!("");
+                error!("SP-to-SP fetch requires host.docker.internal to resolve to 127.0.0.1");
+                error!("so that registered SP URLs work from both host and containers.");
+                error!("");
+                error!("To fix this, add the following line to /etc/hosts:");
+                error!("");
+                error!("    127.0.0.1 host.docker.internal");
+                error!("");
+                error!("You can do this with:");
+                error!("    echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts");
+                error!("");
+                error!("════════════════════════════════════════════════════════════════════");
+                Err("host.docker.internal must resolve to 127.0.0.1".into())
+            }
+        }
+        Err(_) => {
+            error!("════════════════════════════════════════════════════════════════════");
+            error!("ERROR: host.docker.internal does not resolve");
+            error!("════════════════════════════════════════════════════════════════════");
+            error!("");
+            error!("SP-to-SP fetch requires host.docker.internal to resolve to 127.0.0.1");
+            error!("so that registered SP URLs work from both host and containers.");
+            error!("");
+            error!("Add the following line to /etc/hosts:");
+            error!("");
+            error!("    127.0.0.1 host.docker.internal");
+            error!("");
+            error!("You can do this with:");
+            error!("    echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts");
+            error!("");
+            error!("For GitHub Actions, add this step before running foc-devnet:");
+            error!("    - run: echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts");
+            error!("");
+            error!("════════════════════════════════════════════════════════════════════");
+            Err("host.docker.internal must be resolvable".into())
+        }
+    }
+}
 
 /// Stop any existing cluster before starting a new one.
 fn stop_existing_cluster() -> Result<(), Box<dyn std::error::Error>> {
@@ -400,6 +463,9 @@ pub fn start_cluster(
     run_id: String,
     notest: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Check host.docker.internal resolution first (required for SP-to-SP fetch)
+    check_host_docker_internal()?;
+
     stop_existing_cluster()?;
 
     let (volumes_dir, run_dir, run_id) = setup_directories_and_run_id(run_id)?;

@@ -201,7 +201,8 @@ impl Step for PdpSpRegistrationStep {
         let mut provider_ids = Vec::new();
 
         for (sp_index, sp_address, sp_eth_address, pdp_port, should_approve) in sp_data {
-            let service_url = format!("http://localhost:{}", pdp_port);
+            // Use host.docker.internal so the URL works from both host and containers
+            let service_url = format!("http://host.docker.internal:{}", pdp_port);
 
             match registration::register_single_provider(
                 &registration::ProviderRegistrationParams {

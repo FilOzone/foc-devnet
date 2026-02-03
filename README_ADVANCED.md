@@ -135,6 +135,76 @@ foc-devnet version
 
 ---
 
+## Network Architecture & Inter-SP Communication
+
+### The Challenge
+
+Running multiple Service Providers (SPs) locally requires them to communicate with each other while remaining accessible from the host (for testing/synapse code). This creates a networking puzzle:
+
+- **Container-to-container communication:** Docker DNS names (e.g., `foc-curio-1`) work within the docker network but don't resolve from the host
+- **Host-to-container communication:** `localhost` works from the host but means different things inside containers
+- **The conflict:** Using `localhost:<port>` breaks inter-SP comms because each container sees `localhost` as itself
+
+### How It Works: `host.docker.internal`
+
+foc-devnet solves this by using `host.docker.internal` as a unified endpoint that works consistently from both the host and all containers.
+
+**Setup (mostly automatic):**
+1. Verify `/etc/hosts` has: `127.0.0.1 host.docker.internal`
+   - On macOS with Docker Desktop: automatic
+   - On Linux: foc-devnet checks for this and provides setup instructions
+2. Each Curio container launches with: `--add-host=host.docker.internal:host-gateway`
+3. SPs register in the service provider registry as: `http://host.docker.internal:<port>`
+4. Curio runs with `CURIO_PULL_ALLOW_INSECURE=1` to allow HTTP/internal connections
+
+**Why it works:**
+- From the host: `host.docker.internal` → `/etc/hosts` → `127.0.0.1`
+- From containers: `--add-host` mapping → routes back to the host's IP
+- Same hostname everywhere = SPs can call each other + host can access SPs
+
+### Setup Requirements
+
+**macOS with Docker Desktop:**
+- Works automatically, no setup needed
+
+**Linux:**
+Add this line to `/etc/hosts`:
+```bash
+echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts
+```
+
+**CI/CD (GitHub Actions, etc.):**
+Add before running foc-devnet:
+```yaml
+- run: echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts
+```
+
+### Validation
+
+foc-devnet validates DNS resolution before startup:
+```bash
+foc-devnet start
+# ✓ host.docker.internal resolves to localhost
+# Proceeding with startup...
+```
+
+If resolution fails, you'll get clear error messages with exact fix instructions for your platform.
+
+### Tradeoffs
+
+**Benefits:**
+- Single endpoint works from everywhere (host + all containers)
+- Enables inter-SP communication out of the box
+- Minimal setup overhead
+- No architectural changes to core components
+
+**Considerations:**
+- Requires `/etc/hosts` modification (one-liner, done once per machine)
+- `CURIO_PULL_ALLOW_INSECURE=1` bypasses TLS validation (acceptable for devnet)
+- Docker must support `host-gateway` (standard in modern Docker versions)
+
+---
+
 ## Configuration System
 
 ### Config File Location
@@ -1084,7 +1154,7 @@ docker logs foc-<run-id>-curio-2
 # Query provider IDs
 cat ~/.foc-devnet/state/latest/pdp_sps/*.provider_id.json
 
-# Access Yugabyte (one per SP)
+# Access Yugabyte (one per SP, see below for more detail)
 docker exec -it foc-<run-id>-yugabyte-1 ysqlsh -h localhost -p 5433
 
 # Query Lotus for miner info
@@ -1096,6 +1166,16 @@ docker exec foc-<run-id>-builder cast call \
     "getServiceProvider(uint256)" \
     <provider_id>
 ```
+
+### Querying Yugabyte Database
+
+Each Curio has its own Yugabyte (curio-N → yugabyte-N). Tables are in `curio` schema. Credentials: `yugabyte`/`yugabyte`/`yugabyte` (user/pass/db).
+
+```bash
+docker exec foc-<run-id>-yugabyte-1 bash -c "PGPASSWORD=yugabyte /yugabyte/bin/ysqlsh -h 127.0.0.1 -U yugabyte -d yugabyte -c \"<SQL>\""
+```
+
+Key tables: `curio.harmony_machines`, `curio.harmony_task`, `curio.harmony_task_history`, `curio.parked_pieces`.
 
 ---
 

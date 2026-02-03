@@ -230,8 +230,8 @@ impl Default for Config {
                 commit: "3bc6a7fd2d0b66119163c6759241a6ff74ac03e1".to_string(),
             },
             yugabyte_download_url: Self::get_default_yugabyte_url(),
-            approved_pdp_sp_count: 1,
-            active_pdp_sp_count: 1,
+            approved_pdp_sp_count: 2,
+            active_pdp_sp_count: 2,
         }
     }
 }
