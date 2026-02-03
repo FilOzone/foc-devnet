@@ -318,6 +318,7 @@ pub struct StepExecutionConfig {
     pub portainer_port: Option<u16>,
     pub active_pdp_sp_count: usize,
     pub approved_pdp_sp_count: usize,
+    pub endorsed_pdp_sp_count: usize,
 }
 
 pub fn execute_steps(
@@ -368,6 +369,10 @@ pub fn execute_steps(
     context.set(
         "approved_pdp_sp_count",
         config.approved_pdp_sp_count.to_string(),
+    );
+    context.set(
+        "endorsed_pdp_sp_count",
+        config.endorsed_pdp_sp_count.to_string(),
     );
 
     let overall_start = Instant::now();
@@ -458,6 +463,10 @@ pub fn execute_steps_parallel(
     context.set(
         "approved_pdp_sp_count",
         config.approved_pdp_sp_count.to_string(),
+    );
+    context.set(
+        "endorsed_pdp_sp_count",
+        config.endorsed_pdp_sp_count.to_string(),
     );
 
     let overall_start = Instant::now();

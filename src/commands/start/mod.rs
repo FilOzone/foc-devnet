@@ -254,6 +254,7 @@ fn load_and_validate_config() -> Result<Config, Box<dyn std::error::Error>> {
     info!("PDP Service Provider Configuration:");
     info!("• Active PDP SPs: {}", config.active_pdp_sp_count);
     info!("• Approved PDP SPs: {}", config.approved_pdp_sp_count);
+    info!("• Endorsed PDP SPs: {}", config.endorsed_pdp_sp_count);
 
     Ok(config)
 }
@@ -431,6 +432,7 @@ fn execute_cluster_steps(
         portainer_port: Some(portainer_port),
         active_pdp_sp_count: config.active_pdp_sp_count,
         approved_pdp_sp_count: config.approved_pdp_sp_count,
+        endorsed_pdp_sp_count: config.endorsed_pdp_sp_count,
     };
 
     if parallel {
