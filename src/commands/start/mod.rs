@@ -1,4 +1,5 @@
 mod curio;
+mod endorsement;
 mod eth_acc_funding;
 mod foc_deploy;
 mod foc_deployer;
@@ -17,6 +18,7 @@ mod usdfc_funding;
 mod yugabyte;
 
 use curio::CurioStep;
+use endorsement::EndorsementStep;
 use eth_acc_funding::ETHAccFundingStep;
 use foc_deploy::FOCDeployStep;
 pub use genesis::ensure_genesis_prerequisites;
