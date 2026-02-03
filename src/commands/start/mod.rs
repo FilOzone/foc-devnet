@@ -296,6 +296,12 @@ fn create_steps(
     );
     let synapse_test_step =
         SynapseTestE2EStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf(), notest);
+    let endorsement_step = EndorsementStep::new(
+        volumes_dir.to_path_buf(),
+        run_dir.to_path_buf(),
+        config.endorsed_pdp_sp_count,
+        config.active_pdp_sp_count,
+    );
 
     // Execute all steps
     // Note: PDP SP registration MUST happen after Curio because it needs
@@ -311,6 +317,7 @@ fn create_steps(
         Box::new(yugabyte_step),
         Box::new(curio_step),
         Box::new(pdp_sp_reg_step),
+        Box::new(endorsement_step),
         Box::new(synapse_test_step),
     ]
 }
@@ -366,6 +373,12 @@ fn create_step_epochs(
     );
     let synapse_test_step =
         SynapseTestE2EStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf(), notest);
+    let endorsement_step = EndorsementStep::new(
+        volumes_dir.to_path_buf(),
+        run_dir.to_path_buf(),
+        config.endorsed_pdp_sp_count,
+        config.active_pdp_sp_count,
+    );
 
     vec![
         // Epoch 1: Prerequisites check (binaries & Docker images - must run first)
@@ -391,7 +404,9 @@ fn create_step_epochs(
         vec![Box::new(curio_step)],
         // Epoch 8: Register PDP SPs (needs Curio running, for port information)
         vec![Box::new(pdp_sp_reg_step)],
-        // Epoch 9: Run Synapse E2E Test
+        // Epoch 9: Endorse PDP SPs (needs registration complete)
+        vec![Box::new(endorsement_step)],
+        // Epoch 10: Run Synapse E2E Test
         vec![Box::new(synapse_test_step)],
     ]
 }
