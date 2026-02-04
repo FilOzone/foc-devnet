@@ -1,6 +1,8 @@
 //! Business logic for provider endorsement operations.
 
-use super::constants::{ENDORSEMENT_CONTAINER_PREFIX, ENDORSEMENT_TX_WAIT_SECS};
+use super::constants::{
+    ENDORSEMENT_CONTAINER_PREFIX, ENDORSEMENT_GAS_LIMIT, ENDORSEMENT_TX_WAIT_SECS,
+};
 use crate::commands::start::step::SetupContext;
 use crate::constants::BUILDER_DOCKER_IMAGE;
 use crate::docker::command_logger::run_and_log_command_strings;
@@ -14,7 +16,7 @@ pub struct EndorseParams {
     pub run_id: String,
     pub provider_id: u64,
     pub endorsements_contract_address: String,
-    pub deployer_foc_address: String,
+    pub deployer_private_key: String,
     pub lotus_rpc_url: String,
 }
 
@@ -34,12 +36,13 @@ pub fn endorse_provider(
     let cast_cmd = format!(
         r#"cast send {} "addProviderId(uint256)" {} \
         --rpc-url {} \
-        --from {} \
-        --unlocked"#,
+        --private-key {} \
+        --gas-limit {}"#,
         params.endorsements_contract_address,
         params.provider_id,
         params.lotus_rpc_url,
-        params.deployer_foc_address
+        params.deployer_private_key,
+        ENDORSEMENT_GAS_LIMIT
     );
 
     let args: Vec<String> = vec![

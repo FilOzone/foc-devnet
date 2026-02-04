@@ -1,6 +1,8 @@
 //! Endorsement step implementation.
 
-use super::endorsement::{endorse_provider, verify_endorsement, EndorseParams, VerifyEndorsementParams};
+use super::endorsement::{
+    endorse_provider, verify_endorsement, EndorseParams, VerifyEndorsementParams,
+};
 use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
 use crate::commands::start::lotus_utils;
 use crate::commands::start::step::{SetupContext, Step};
@@ -21,7 +23,12 @@ pub struct EndorsementStep {
 
 impl EndorsementStep {
     /// Create a new EndorsementStep
-    pub fn new(_volumes_dir: PathBuf, run_dir: PathBuf, endorsed_sp_count: usize, active_sp_count: usize) -> Self {
+    pub fn new(
+        _volumes_dir: PathBuf,
+        run_dir: PathBuf,
+        endorsed_sp_count: usize,
+        active_sp_count: usize,
+    ) -> Self {
         Self {
             run_dir,
             endorsed_sp_count,
@@ -51,8 +58,8 @@ impl EndorsementStep {
     /// Get deployer address from context
     fn get_deployer_address(context: &SetupContext) -> Result<String, Box<dyn Error>> {
         context
-            .get("deployer_foc_address")
-            .ok_or("DEPLOYER_FOC address not found in context".into())
+            .get("deployer_foc_eth_address")
+            .ok_or("deployer_foc_eth_address not found in context".into())
     }
 }
 
@@ -80,12 +87,12 @@ impl Step for EndorsementStep {
         for sp_index in 1..=self.endorsed_sp_count {
             let pdp_key = format!("pdp_sp_{}_address", sp_index);
             let provider_id_key = format!("pdp_sp_{}_provider_id", sp_index);
-            let approved_key = format!("pdp_sp_{}_approved", sp_index);
+            let approved_key = format!("pdp_sp_{}_is_approved", sp_index);
 
             let sp_address = context
                 .get(&pdp_key)
                 .ok_or(format!("{} not found in context", pdp_key))?;
-            
+
             let provider_id: u64 = context
                 .get(&provider_id_key)
                 .ok_or(format!("{} not found in context", provider_id_key))?
@@ -133,6 +140,10 @@ impl Step for EndorsementStep {
 
         let deployer_address = Self::get_deployer_address(context)?;
 
+        // Get deployer private key
+        let deployer_private_key =
+            crate::commands::start::foc_deployer::get_private_key(&deployer_address, "")?;
+
         info!(
             "Endorsing {} provider(s) in ProviderIdSet contract...",
             self.endorsed_sp_count
@@ -151,7 +162,7 @@ impl Step for EndorsementStep {
                 run_id: run_id.to_string(),
                 provider_id,
                 endorsements_contract_address: endorsements_address.clone(),
-                deployer_foc_address: deployer_address.clone(),
+                deployer_private_key: deployer_private_key.clone(),
                 lotus_rpc_url: lotus_rpc_url.clone(),
             };
 
