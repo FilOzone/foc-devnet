@@ -234,6 +234,11 @@ fn build_single_pdp_service_provider(
             provider_id
         ))?;
 
+    let is_endorsed = ctx
+        .get(&format!("pdp_sp_{}_is_endorsed", provider_id))
+        .and_then(|v| v.parse::<bool>().ok())
+        .unwrap_or(false);
+
     let yugabyte = build_yugabyte_info(ctx, provider_id)?;
 
     Ok(CurioInfo {
@@ -244,6 +249,7 @@ fn build_single_pdp_service_provider(
         container_id,
         container_name,
         is_approved,
+        is_endorsed,
         yugabyte,
     })
 }

@@ -118,6 +118,8 @@ pub struct CurioInfo {
     pub container_name: String,
     /// Whether this provider is approved in FWSS
     pub is_approved: bool,
+    /// Whether this provider is endorsed in the Endorsements contract
+    pub is_endorsed: bool,
     /// YugabyteDB information for this provider
     pub yugabyte: YugabyteInfo,
 }

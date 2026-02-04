@@ -220,7 +220,7 @@ impl Step for EndorsementStep {
                 .into());
             }
 
-            let endorsed_key = format!("pdp_sp_{}_endorsed", sp_index);
+            let endorsed_key = format!("pdp_sp_{}_is_endorsed", sp_index);
             context.set(&endorsed_key, "true".to_string());
 
             info!("Provider {} endorsement verified ✓", sp_index);
