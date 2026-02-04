@@ -1,6 +1,6 @@
 //! Endorsement step implementation.
 
-use super::endorsement::{
+use super::operations::{
     endorse_provider, verify_endorsement, EndorseParams, VerifyEndorsementParams,
 };
 use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;

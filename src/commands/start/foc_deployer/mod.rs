@@ -23,16 +23,41 @@ pub struct DeploymentResult {
     pub metadata: FOCMetadata,
 }
 
-/// Get the private key for an f4 address in hex format (for use with cast/forge)
-pub fn get_private_key(f4_address: &str, _lotus_container: &str) -> Result<String, Box<dyn Error>> {
+/// Get the private key for an address in hex format (for use with cast/forge)
+///
+/// # Arguments
+/// * `address` - Either a Filecoin address (t4...) or Ethereum address (0x...)
+/// * `_lotus_container` - Unused, kept for API compatibility
+///
+/// # Returns
+/// The private key as a hex string with 0x prefix
+pub fn get_private_key(address: &str, _lotus_container: &str) -> Result<String, Box<dyn Error>> {
     // Load pre-generated keys
     let keys = crate::commands::init::keys::load_keys()?;
 
-    // Find the key with matching Filecoin address
-    let key_info = keys
-        .iter()
-        .find(|k| k.filecoin_address.as_ref() == Some(&f4_address.to_string()))
-        .ok_or(format!("Private key not found for address: {}", f4_address))?;
+    // Determine if the address is Ethereum (0x...) or Filecoin (t4...)
+    let key_info = if address.starts_with("0x") || address.starts_with("0X") {
+        // Search by Ethereum address
+        keys.iter()
+            .find(|k| {
+                k.eth_address
+                    .as_ref()
+                    .map(|eth| eth.eq_ignore_ascii_case(address))
+                    .unwrap_or(false)
+            })
+            .ok_or(format!(
+                "Private key not found for Ethereum address: {}",
+                address
+            ))?
+    } else {
+        // Search by Filecoin address (t4...)
+        keys.iter()
+            .find(|k| k.filecoin_address.as_ref() == Some(&address.to_string()))
+            .ok_or(format!(
+                "Private key not found for Filecoin address: {}",
+                address
+            ))?
+    };
 
     // Return the private key with 0x prefix
     Ok(format!("0x{}", key_info.private_key))
