@@ -5,7 +5,7 @@
 //! subset of approved providers that meet quality and reliability standards.
 
 mod constants;
-mod operations;
 mod endorsement_step;
+mod operations;
 
 pub use endorsement_step::EndorsementStep;
