@@ -1,7 +1,7 @@
 //! Endorsement step implementation.
 
 use super::operations::{
-    endorse_provider, verify_endorsement, EndorseParams, VerifyEndorsementParams,
+    endorse_provider, get_all_provider_ids, EndorseParams, GetProviderIdsParams,
 };
 use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
 use crate::commands::start::lotus_utils;
@@ -197,33 +197,57 @@ impl Step for EndorsementStep {
             .ok_or("Endorsements contract address not found")?
             .clone();
 
+        // Get all endorsed provider IDs in one call
+        let params = GetProviderIdsParams {
+            endorsements_contract_address: endorsements_address,
+            lotus_rpc_url,
+        };
+
+        let endorsed_ids = get_all_provider_ids(params, context)?;
+
+        // Build expected provider IDs from context
+        let mut expected_ids = Vec::new();
         for sp_index in 1..=self.endorsed_sp_count {
             let provider_id_key = format!("pdp_sp_{}_provider_id", sp_index);
             let provider_id: u64 = context
                 .get(&provider_id_key)
                 .ok_or(format!("{} not found in context", provider_id_key))?
                 .parse()?;
+            expected_ids.push(provider_id);
+        }
 
-            let params = VerifyEndorsementParams {
-                provider_id,
-                endorsements_contract_address: endorsements_address.clone(),
-                lotus_rpc_url: lotus_rpc_url.clone(),
-            };
+        // Verify all expected IDs are present
+        // Since getProviderIds returns IDs in insertion order, we can check sequentially
+        if endorsed_ids.len() < expected_ids.len() {
+            return Err(format!(
+                "Expected {} endorsed providers, but contract returned {}",
+                expected_ids.len(),
+                endorsed_ids.len()
+            )
+            .into());
+        }
 
-            let is_endorsed = verify_endorsement(params, context)?;
+        for (sp_index, expected_id) in expected_ids.iter().enumerate() {
+            let actual_id = endorsed_ids.get(sp_index).ok_or(format!(
+                "Provider {} (ID {}) not found in endorsed list",
+                sp_index + 1,
+                expected_id
+            ))?;
 
-            if !is_endorsed {
+            if actual_id != expected_id {
                 return Err(format!(
-                    "Verification failed: Provider {} is not endorsed in contract",
-                    sp_index
+                    "Provider {} mismatch: expected ID {}, got {}",
+                    sp_index + 1,
+                    expected_id,
+                    actual_id
                 )
                 .into());
             }
 
-            let endorsed_key = format!("pdp_sp_{}_is_endorsed", sp_index);
+            let endorsed_key = format!("pdp_sp_{}_is_endorsed", sp_index + 1);
             context.set(&endorsed_key, "true".to_string());
 
-            info!("Provider {} endorsement verified ✓", sp_index);
+            info!("Provider {} endorsement verified ✓", sp_index + 1);
         }
 
         info!(

@@ -144,29 +144,29 @@ fn verify_transaction_status(
     Ok(())
 }
 
-/// Parameters for verifying endorsement
-pub struct VerifyEndorsementParams {
-    pub provider_id: u64,
+/// Parameters for getting all provider IDs
+pub struct GetProviderIdsParams {
     pub endorsements_contract_address: String,
     pub lotus_rpc_url: String,
 }
 
-/// Verify that a provider is endorsed by checking the contract state.
-pub fn verify_endorsement(
-    params: VerifyEndorsementParams,
+/// Get all endorsed provider IDs from the contract.
+/// Returns the provider IDs in the order they were inserted.
+pub fn get_all_provider_ids(
+    params: GetProviderIdsParams,
     context: &SetupContext,
-) -> Result<bool, Box<dyn Error>> {
-    let container_name = format!("foc-check-endorse-{}", params.provider_id);
+) -> Result<Vec<u64>, Box<dyn Error>> {
+    let container_name = "foc-get-provider-ids";
 
     let cast_cmd = format!(
-        r#"cast call {} "containsProviderId(uint256)(bool)" {} --rpc-url {}"#,
-        params.endorsements_contract_address, params.provider_id, params.lotus_rpc_url
+        r#"cast call {} "getProviderIds()(uint256[])" --rpc-url {}"#,
+        params.endorsements_contract_address, params.lotus_rpc_url
     );
 
     let args: Vec<String> = vec![
         "run".to_string(),
         "--name".to_string(),
-        container_name.clone(),
+        container_name.to_string(),
         "-u".to_string(),
         "foc-user".to_string(),
         "--network".to_string(),
@@ -177,14 +177,36 @@ pub fn verify_endorsement(
         cast_cmd,
     ];
 
-    let key = format!("pdp_check_endorse_{}", params.provider_id);
-    let output = run_and_log_command_strings("docker", &args, context, &key)?;
+    let key = "pdp_get_all_provider_ids";
+    let output = run_and_log_command_strings("docker", &args, context, key)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Failed to check endorsement status: {}", stderr).into());
+        return Err(format!("Failed to get provider IDs: {}", stderr).into());
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    Ok(stdout.trim() == "true")
+    parse_provider_ids(&stdout)
+}
+
+/// Parse provider IDs from cast output.
+/// Expected format: "[123,456,789]" or multi-line array format
+fn parse_provider_ids(output: &str) -> Result<Vec<u64>, Box<dyn Error>> {
+    let trimmed = output.trim();
+
+    // Remove brackets and split by comma
+    let inner = trimmed.trim_start_matches('[').trim_end_matches(']').trim();
+
+    if inner.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    inner
+        .split(',')
+        .map(|s| {
+            s.trim()
+                .parse::<u64>()
+                .map_err(|e| format!("Failed to parse provider ID '{}': {}", s, e).into())
+        })
+        .collect()
 }
