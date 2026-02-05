@@ -135,8 +135,8 @@ fn verify_transaction_status(
 
     if status != "0x1" {
         return Err(format!(
-            "Endorsement transaction failed (status 0). Provider {} not endorsed.",
-            provider_id
+            "Endorsement transaction failed with status {}. Expected 0x1 (success). Provider {} not endorsed.",
+            status, provider_id
         )
         .into());
     }
