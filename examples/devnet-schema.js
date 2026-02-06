@@ -22,6 +22,7 @@ const CurioInfo = z.object({
   container_id: z.string().min(1),
   container_name: z.string().min(1),
   is_approved: z.boolean(),
+  is_endorsed: z.boolean(),
   yugabyte: YugabyteInfo,
 });
 

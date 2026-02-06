@@ -279,6 +279,12 @@ impl Step for PdpSpRegistrationStep {
                 payee_address: sp_eth_address.clone(),
             };
             info.save(run_id, *sp_index)?;
+
+            // Store provider_id in context for downstream steps (e.g., endorsement)
+            context.set(
+                format!("pdp_sp_{}_provider_id", sp_index),
+                provider_id.to_string(),
+            );
         }
 
         info!(
