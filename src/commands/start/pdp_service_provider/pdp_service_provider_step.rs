@@ -93,7 +93,7 @@ impl Step for PdpSpRegistrationStep {
         for sp_index in 1..=self.active_sp_count {
             let pdp_key = format!("pdp_sp_{}_address", sp_index);
             let eth_key = format!("pdp_sp_{}_eth_address", sp_index);
-            let port_key = format!("curio_sp_{}_pdp_port", sp_index);
+            let port_key = format!("pdp_sp_{}_pdp_port", sp_index);
 
             let sp_address = context
                 .get(&pdp_key)
@@ -169,7 +169,7 @@ impl Step for PdpSpRegistrationStep {
         for sp_index in 1..=self.active_sp_count {
             let pdp_key = format!("pdp_sp_{}_address", sp_index);
             let eth_key = format!("pdp_sp_{}_eth_address", sp_index);
-            let port_key = format!("curio_sp_{}_pdp_port", sp_index);
+            let port_key = format!("pdp_sp_{}_pdp_port", sp_index);
 
             let sp_address = context
                 .get(&pdp_key)
@@ -201,7 +201,8 @@ impl Step for PdpSpRegistrationStep {
         let mut provider_ids = Vec::new();
 
         for (sp_index, sp_address, sp_eth_address, pdp_port, should_approve) in sp_data {
-            let service_url = format!("http://localhost:{}", pdp_port);
+            // Use host.docker.internal so the URL works from both host and containers
+            let service_url = format!("http://host.docker.internal:{}", pdp_port);
 
             match registration::register_single_provider(
                 &registration::ProviderRegistrationParams {
@@ -217,6 +218,12 @@ impl Step for PdpSpRegistrationStep {
                 context,
             ) {
                 Ok(provider_id) => {
+                    // Store is_approved status in context
+                    context.set(
+                        format!("pdp_sp_{}_is_approved", sp_index),
+                        should_approve.to_string(),
+                    );
+
                     // Only approve if within approved count
                     if should_approve {
                         if let Err(e) = registration::add_to_approved_list(
@@ -272,6 +279,12 @@ impl Step for PdpSpRegistrationStep {
                 payee_address: sp_eth_address.clone(),
             };
             info.save(run_id, *sp_index)?;
+
+            // Store provider_id in context for downstream steps (e.g., endorsement)
+            context.set(
+                format!("pdp_sp_{}_provider_id", sp_index),
+                provider_id.to_string(),
+            );
         }
 
         info!(

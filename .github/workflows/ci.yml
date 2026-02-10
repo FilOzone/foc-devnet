@@ -263,6 +263,10 @@ jobs:
     - name: "EXEC: {Check cluster status}, independent"
       run: ./foc-devnet status
 
+    # Configure /etc/hosts for inter-SP communication via host.docker.internal
+    - name: "EXEC: {Configure host.docker.internal for SP-to-SP comms}, independent"
+      run: echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts
+
     # Start the full Filecoin localnet cluster
     - name: "EXEC: {Start cluster}, independent"
       id: start_cluster
@@ -272,27 +276,16 @@ jobs:
     # On failure, collect and print Docker container logs for debugging
     - name: "EXEC: {Collect Docker logs on failure}, independent"
       run: |
-        echo "+++++++++++ foc-devnet version run"
-        cat ~/.foc-devnet/state/latest/version.txt 2>/dev/null || echo "No version file found"
+        RUN_DIR="$HOME/.foc-devnet/state/latest"
+        
+        echo "+++++++++++ foc-devnet version"
+        cat "$RUN_DIR/version.txt" 2>/dev/null || echo "No version file found"
 
-        echo "+++++++++++ Listing runs in foc-devnet..."
-        ls -1 ~/.foc-devnet/run/ 2>/dev/null || echo "No runs directory found"
-
-        echo "+++++++++++ Get latest run ID"
-        LATEST_RUN=$(ls -t ~/.foc-devnet/run/ 2>/dev/null | head -1)
-        if [ -n "$LATEST_RUN" ]; then
-          echo "Latest run: $LATEST_RUN"
-          RUN_DIR="$HOME/.foc-devnet/run/$LATEST_RUN"
-        else
-          RUN_DIR="$HOME/.foc-devnet/state/latest"
-        fi
-
-        echo "+++++++++++ Disk space..."
+        echo "+++++++++++ Disk space"
         sudo df -h 2>/dev/null || echo "df command failed"
 
-        echo "+++++++++++ Latest Run Directory"
-        ls -lath "$RUN_DIR" 2>/dev/null || echo "No run directory found at $RUN_DIR"
-        ls -lath "$RUN_DIR/logs" 2>/dev/null || echo "No logs directory found at $RUN_DIR/logs"
+        echo "+++++++++++ Run Directory Contents"
+        ls -lath "$RUN_DIR" 2>/dev/null || echo "No run directory found"
 
         echo "+++++++++++ Contract Addresses"
         cat "$RUN_DIR/contract_addresses.json" 2>/dev/null || echo "No contract addresses file found"
@@ -300,7 +293,7 @@ jobs:
         echo "+++++++++++ Step Context"
         cat "$RUN_DIR/step_context.json" 2>/dev/null || echo "No step context file found"
 
-        echo "+++++++++++ FOC metadata"
+        echo "+++++++++++ FOC Metadata"
         cat "$RUN_DIR/foc_metadata.json" 2>/dev/null || echo "No foc metadata file found"
 
         echo "+++++++++++ Container Logs"
@@ -308,13 +301,12 @@ jobs:
           for logfile in "$RUN_DIR/logs"/*; do
             if [ -f "$logfile" ]; then
               echo ""
-              echo "📰📰📰📰📰📰📰📰📰📰📰 Logs from $(basename "$logfile") 📰📰📰📰📰📰📰📰📰📰📰📰📰"
+              echo "📰 Logs from $(basename "$logfile") 📰"
               cat "$logfile" 2>/dev/null || echo "Failed to read $logfile"
-              echo "📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰📰"
             fi
           done
         else
-          echo "No container logs directory found at $RUN_DIR/logs"
+          echo "No container logs directory found"
         fi
 
     # Verify cluster is running correctly
@@ -325,6 +317,34 @@ jobs:
       run: |
         echo "Containers using foc-* images (running or exited):"
         docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+
+    # Verify devnet-info.json was exported successfully
+    - name: "CHECK: {Verify devnet-info.json exists}"
+      if: steps.start_cluster.outcome == 'success'
+      run: |
+        DEVNET_INFO="$HOME/.foc-devnet/state/latest/devnet-info.json"
+        test -f "$DEVNET_INFO" || exit 1
+        echo "✓ devnet-info.json created"
+        jq '.version' "$DEVNET_INFO"
+
+    # Setup Node.js for JavaScript examples
+    - name: "EXEC: {Setup Node.js}, independent"
+      if: steps.start_cluster.outcome == 'success'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    # Validate schema using zod
+    - name: "CHECK: {Validate devnet-info.json schema}"
+      if: steps.start_cluster.outcome == 'success'
+      run: |
+        DEVNET_INFO="$HOME/.foc-devnet/state/latest/devnet-info.json"
+        cd examples
+        npm install
+        node validate-schema.js "$DEVNET_INFO"
+        node read-devnet-info.js "$DEVNET_INFO"
+        node check-balances.js "$DEVNET_INFO"
+        echo "✓ All examples ran well"
 
     # Clean shutdown
     - name: "EXEC: {Stop cluster}, independent"

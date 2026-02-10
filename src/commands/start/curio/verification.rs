@@ -7,7 +7,6 @@
 
 use super::super::step::SetupContext;
 use super::constants::TEST_FILE_SIZE_BYTES;
-use crate::paths::foc_devnet_bin;
 use rand::Rng;
 use std::error::Error;
 use std::fs;
@@ -44,7 +43,7 @@ fn verify_pdp_ping(context: &SetupContext, sp_index: usize) -> Result<(), Box<dy
 
     // Get dynamically allocated PDP port from context
     let port: u16 = context
-        .get(&format!("curio_sp_{}_pdp_port", sp_index))
+        .get(&format!("pdp_sp_{}_pdp_port", sp_index))
         .ok_or("Curio PDP port not found in context")?
         .parse()?;
 
@@ -101,24 +100,42 @@ fn create_random_test_file(temp_dir: &TempDir) -> Result<PathBuf, Box<dyn Error>
 }
 
 /// Upload test file using pdptool.
+///
+/// Runs pdptool inside foc-builder container (which uses --network host)
+/// to test via external port, simulating real external client access.
 fn upload_test_file(
     context: &SetupContext,
     file_path: &Path,
     sp_index: usize,
 ) -> Result<String, Box<dyn Error>> {
-    // Get dynamically allocated PDP port from context
+    // Get dynamically allocated PDP port from context (external port)
     let port: u16 = context
-        .get(&format!("curio_sp_{}_pdp_port", sp_index))
+        .get(&format!("pdp_sp_{}_pdp_port", sp_index))
         .ok_or("Curio PDP port not found in context")?
         .parse()?;
 
+    // Use external port via host network for stricter testing
     let service_url = format!("http://localhost:{}", port);
 
-    let file_path_str = file_path
-        .to_str()
-        .ok_or("Invalid file path: contains non-UTF8 characters")?;
+    // Mount the test file directory into foc-builder and use it
+    let file_dir = file_path.parent().ok_or("Invalid file path")?;
+    let file_name = file_path.file_name().ok_or("Invalid file name")?;
+    let container_file_path = format!("/tmp/test-data/{}", file_name.to_string_lossy());
+
+    // Mount bin directory where pdptool is located
+    let bin_dir = crate::paths::foc_devnet_bin();
 
     let args = [
+        "run",
+        "--rm",
+        "--network",
+        "host",
+        "-v",
+        &format!("{}:/tmp/test-data", file_dir.display()),
+        "-v",
+        &format!("{}:/usr/local/bin/lotus-bins", bin_dir.display()),
+        crate::constants::BUILDER_DOCKER_IMAGE,
+        "/usr/local/bin/lotus-bins/pdptool",
         "upload-piece",
         "--service-url",
         &service_url,
@@ -126,13 +143,11 @@ fn upload_test_file(
         "public",
         "--hash-type",
         "commp",
-        file_path_str,
+        &container_file_path,
         "--verbose",
     ];
 
-    let output = Command::new(foc_devnet_bin().join("pdptool"))
-        .args(args)
-        .output()?;
+    let output = Command::new("docker").args(args).output()?;
 
     if !output.status.success() {
         return Err(format!(
@@ -142,7 +157,10 @@ fn upload_test_file(
         .into());
     }
 
-    info!("File uploaded via pdptool");
+    info!(
+        "File uploaded via pdptool (foc-builder, external port {})",
+        port
+    );
 
     // Extract piece CID from output
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -181,7 +199,7 @@ fn download_piece(
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     // Get dynamically allocated PDP port from context
     let port: u16 = context
-        .get(&format!("curio_sp_{}_pdp_port", sp_index))
+        .get(&format!("pdp_sp_{}_pdp_port", sp_index))
         .ok_or("Curio PDP port not found in context")?
         .parse()?;
 

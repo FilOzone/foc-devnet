@@ -16,7 +16,7 @@ use tracing::{info, warn};
 const POST_DEPLOY_WAIT_SECONDS: u64 = 5;
 
 /// Type alias for extracted contract addresses and keys
-pub type ContractAddresses = (String, String, String, String, String);
+pub type ContractAddresses = (String, String, String, String, String, String);
 
 /// Parameters for Docker test execution
 struct DockerTestParams<'a> {
@@ -31,6 +31,7 @@ struct DockerTestParams<'a> {
     multicall3_addr: &'a str,
     usdfc_addr: &'a str,
     sp_registry_addr: &'a str,
+    endorsements_addr: &'a str,
 }
 
 pub struct SynapseTestE2EStep {
@@ -94,8 +95,14 @@ impl Step for SynapseTestE2EStep {
         let keys = load_wallet_keys()?;
 
         // Extract required addresses and keys
-        let (user_key, warm_storage_addr, usdfc_addr, multicall3_addr, sp_registry_addr) =
-            extract_required_addresses(&addresses, &keys)?;
+        let (
+            user_key,
+            warm_storage_addr,
+            usdfc_addr,
+            multicall3_addr,
+            sp_registry_addr,
+            endorsements_addr,
+        ) = extract_required_addresses(&addresses, &keys)?;
 
         let lotus_rpc_url = crate::commands::start::lotus_utils::get_lotus_rpc_url(context)?;
 
@@ -124,6 +131,7 @@ impl Step for SynapseTestE2EStep {
             multicall3_addr: &multicall3_addr,
             usdfc_addr: &usdfc_addr,
             sp_registry_addr: &sp_registry_addr,
+            endorsements_addr: &endorsements_addr,
         })
     }
 
@@ -176,6 +184,7 @@ fn build_docker_command(params: &DockerTestParams) -> Result<Vec<String>, Box<dy
         ("MULTICALL3_ADDRESS", params.multicall3_addr.to_string()),
         ("USDFC_ADDRESS", params.usdfc_addr.to_string()),
         ("SP_REGISTRY_ADDRESS", params.sp_registry_addr.to_string()),
+        ("ENDORSEMENTS_ADDRESS", params.endorsements_addr.to_string()),
         ("CI", "true".to_string()),
     ];
 
@@ -263,6 +272,10 @@ fn extract_required_addresses(
         .as_str()
         .ok_or("SP Registry address not found in contract_addresses.json")?
         .to_string();
+    let endorsements_addr = addresses["foc_contracts"]["endorsements"]
+        .as_str()
+        .ok_or("Endorsements address not found in contract_addresses.json")?
+        .to_string();
 
     Ok((
         user_key_prefixed,
@@ -270,6 +283,7 @@ fn extract_required_addresses(
         usdfc_addr,
         multicall3_addr,
         sp_registry_addr,
+        endorsements_addr,
     ))
 }
 

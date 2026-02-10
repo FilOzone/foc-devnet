@@ -7,7 +7,7 @@ use super::super::step::{SetupContext, Step};
 use super::container_management::{
     check_existing_container, start_container, wait_for_container_init,
 };
-use super::prerequisites::{check_genesis_and_params, check_image_and_binary};
+use super::prerequisites::check_genesis_and_params;
 use super::setup::{build_docker_command, setup_directories};
 use super::verification::{verify_api_connectivity, verify_ports, wait_for_api_file};
 use std::error::Error;
@@ -39,7 +39,6 @@ impl Step for LotusStep {
     /// Perform pre-execution checks
     fn pre_execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
         let run_id = context.run_id();
-        check_image_and_binary()?;
         check_genesis_and_params(run_id)?;
 
         // Allocate ports for Lotus

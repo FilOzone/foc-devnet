@@ -173,23 +173,33 @@ pub struct Config {
     /// URL to download Yugabyte database tarball.
     ///
     /// This is the direct link to the Yugabyte tarball required for running curio.
-    /// Default: https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz
+    /// The default URL is automatically selected based on system architecture:
+    /// - ARM64 (aarch64): yugabyte-2.25.1.0-b381-el8-aarch64.tar.gz
+    /// - x86_64: yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz
     pub yugabyte_download_url: String,
 
     /// Number of approved PDP service providers.
     ///
     /// This is the total number of Curio SPs that will be registered and approved
     /// in the service provider registry. These SPs can accept storage deals.
-    /// Must satisfy: APPROVED_PDP_SP_COUNT <= ACTIVE_PDP_SP_COUNT <= MAX_PDP_SP_COUNT
+    /// Must satisfy: ENDORSED_PDP_SP_COUNT <= APPROVED_PDP_SP_COUNT <= ACTIVE_PDP_SP_COUNT <= MAX_PDP_SP_COUNT
     /// Default: 1
     pub approved_pdp_sp_count: usize,
+
+    /// Number of endorsed PDP service providers.
+    ///
+    /// This is the number of approved SPs that will be endorsed in the endorsements contract.
+    /// Endorsed providers are a privileged subset of approved providers.
+    /// Must satisfy: ENDORSED_PDP_SP_COUNT <= APPROVED_PDP_SP_COUNT <= ACTIVE_PDP_SP_COUNT <= MAX_PDP_SP_COUNT
+    /// Default: 1
+    pub endorsed_pdp_sp_count: usize,
 
     /// Number of active PDP service providers.
     ///
     /// This is the total number of Curio SPs that will actually be started/running.
     /// Some may be approved, some may not (for testing unapproved SP scenarios).
     /// Total miners = 1 (lotus-miner) + ACTIVE_PDP_SP_COUNT (curio SPs)
-    /// Must satisfy: APPROVED_PDP_SP_COUNT <= ACTIVE_PDP_SP_COUNT <= MAX_PDP_SP_COUNT
+    /// Must satisfy: ENDORSED_PDP_SP_COUNT <= APPROVED_PDP_SP_COUNT <= ACTIVE_PDP_SP_COUNT <= MAX_PDP_SP_COUNT
     /// Default: 1
     pub active_pdp_sp_count: usize,
 }
@@ -217,7 +227,7 @@ impl Default for Config {
             },
             filecoin_services: Location::GitCommit {
                 url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
-                commit: "0179f8b328c3dc36e81e44677e0078f064975377".to_string(),
+                commit: "2b247916ddd33e4112dc69fd3ea4fc88a3976f56".to_string(),
             },
             multicall3: Location::GitTag {
                 url: "https://github.com/mds1/multicall3.git".to_string(),
@@ -225,22 +235,51 @@ impl Default for Config {
             },
             synapse_sdk: Location::GitCommit {
                 url: "https://github.com/FilOzone/synapse-sdk.git".to_string(),
-                commit: "773551bf1e9cf4cdc49aeb63a47a81f8dc5cb9e1".to_string(),
+                commit: "3bc6a7fd2d0b66119163c6759241a6ff74ac03e1".to_string(),
             },
-            yugabyte_download_url: "https://software.yugabyte.com/releases/2.25.1.0/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz".to_string(),
-            approved_pdp_sp_count: 1,
-            active_pdp_sp_count: 1,
+            yugabyte_download_url: Self::get_default_yugabyte_url(),
+            approved_pdp_sp_count: 2,
+            endorsed_pdp_sp_count: 1,
+            active_pdp_sp_count: 2,
         }
     }
 }
 
 impl Config {
+    /// Get the default YugabyteDB download URL based on system architecture.
+    ///
+    /// Returns the appropriate YugabyteDB tarball URL for the current platform:
+    /// - el8-aarch64 for ARM64 systems (Apple Silicon, AWS Graviton, etc.)
+    /// - linux-x86_64 for x86_64 systems
+    fn get_default_yugabyte_url() -> String {
+        const YUGABYTE_VERSION: &str = "2.25.1.0";
+        const YUGABYTE_BUILD: &str = "b381";
+
+        let arch_suffix = if std::env::consts::ARCH == "aarch64" {
+            "el8-aarch64"
+        } else {
+            "linux-x86_64"
+        };
+
+        format!(
+            "https://software.yugabyte.com/releases/{}/yugabyte-{}-{}-{}.tar.gz",
+            YUGABYTE_VERSION, YUGABYTE_VERSION, YUGABYTE_BUILD, arch_suffix
+        )
+    }
+
     /// Validate configuration values.
     ///
     /// Ensures that:
-    /// - APPROVED_PDP_SP_COUNT <= ACTIVE_PDP_SP_COUNT <= MAX_PDP_SP_COUNT
+    /// - ENDORSED_PDP_SP_COUNT <= APPROVED_PDP_SP_COUNT <= ACTIVE_PDP_SP_COUNT <= MAX_PDP_SP_COUNT
     pub fn validate(&self) -> Result<(), String> {
         const MAX_PDP_SP_COUNT: usize = crate::constants::MAX_PDP_SP_COUNT;
+
+        if self.endorsed_pdp_sp_count > self.approved_pdp_sp_count {
+            return Err(format!(
+                "endorsed_pdp_sp_count ({}) cannot exceed approved_pdp_sp_count ({})",
+                self.endorsed_pdp_sp_count, self.approved_pdp_sp_count
+            ));
+        }
 
         if self.approved_pdp_sp_count > self.active_pdp_sp_count {
             return Err(format!(

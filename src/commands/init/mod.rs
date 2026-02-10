@@ -16,7 +16,15 @@ pub mod keys;
 pub mod path_setup;
 pub mod repositories;
 
+use std::io::ErrorKind;
 use tracing::{info, warn};
+
+/// Create a friendly error for missing Docker CLI.
+fn docker_not_found_error() -> Box<dyn std::error::Error> {
+    "Docker CLI not found. Install Docker and ensure the 'docker' command is on PATH, then re-run 'foc-devnet init'."
+        .to_string()
+        .into()
+}
 
 /// Clean up previous foc-devnet installation.
 ///
@@ -50,7 +58,11 @@ fn cleanup_previous_installation(remove_images: bool) -> Result<(), Box<dyn std:
         info!("Removing existing foc-devnet Docker images");
         let output = Command::new("docker")
             .args(["images", "--format", "{{.Repository}}:{{.Tag}}"])
-            .output()?;
+            .output()
+            .map_err(|err| match err.kind() {
+                ErrorKind::NotFound => docker_not_found_error(),
+                _ => err.into(),
+            })?;
 
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -59,7 +71,13 @@ fn cleanup_previous_installation(remove_images: bool) -> Result<(), Box<dyn std:
             for line in stdout.lines() {
                 if line.starts_with("foc-") {
                     // Remove the image
-                    let remove_output = Command::new("docker").args(["rmi", line]).output()?;
+                    let remove_output = Command::new("docker")
+                        .args(["rmi", line])
+                        .output()
+                        .map_err(|err| match err.kind() {
+                            ErrorKind::NotFound => docker_not_found_error(),
+                            _ => err.into(),
+                        })?;
 
                     if remove_output.status.success() {
                         removed_count += 1;

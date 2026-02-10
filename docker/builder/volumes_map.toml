@@ -1,9 +1,22 @@
 # Volume mappings for builder Docker image
 # Format: host_subdirectory = "container_path"
-# Host paths will be relative to ~/.foc-devnet/artifacts/docker/volumes/builder/
+# Host paths will be relative to ~/.foc-devnet/docker/volumes/cache/foc-c-builder/
+#
+# Strategy: Mount only dependency cache directories, not tool directories
+# This allows caching of downloaded dependencies while keeping tools functional.
 
 [volumes]
-cargo = "/home/foc-user/.cargo"
-rustup = "/home/foc-user/.rustup"
-go = "/home/foc-user/go"
-foundry = "/home/foc-user/.foundry"
+# Cargo dependency caches (NOT the cargo binary itself)
+cargo-registry = "/home/foc-user/.cargo/registry"  # crates.io downloads
+cargo-git = "/home/foc-user/.cargo/git"            # git dependencies
+
+# Go module cache (NOT the go toolchain)
+go-pkg = "/home/foc-user/go/pkg"                   # go modules cache
+
+# Note: We do NOT mount:
+# - /home/foc-user/.cargo/bin (contains cargo/rustc binaries)
+# - /home/foc-user/.rustup/toolchains (contains rust toolchain)
+# - /home/foc-user/.rustup/downloads (rustup deletes files after use)
+# - /home/foc-user/.foundry (contains forge/cast binaries)
+# - /usr/local/go (Go toolchain itself)
+

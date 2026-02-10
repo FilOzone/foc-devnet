@@ -25,8 +25,7 @@ use tracing::info;
 /// 2. Build Docker run command with proper volumes and env vars
 /// 3. Start container with sleep infinity
 /// 4. Run curio daemon in background
-/// 5. Wait for API to be ready
-/// 6. Store allocated ports in context for later use
+/// 5. Store container ID and name in context for later use
 pub fn start_curio_daemon(
     context: &SetupContext,
     _step: &CurioStep,
@@ -46,9 +45,16 @@ pub fn start_curio_daemon(
     // Create necessary directories
     create_curio_directories(context, sp_index)?;
 
-    // Step 2: Create and start container
+    // Step 2: Create and start container, capturing container ID
     let docker_args = build_docker_create_args(context, sp_index, &container_name)?;
-    start_curio_container(context, &container_name, docker_args)?;
+    let container_id = start_curio_container(context, &container_name, docker_args)?;
+
+    // Store container info in context for export
+    context.set(format!("pdp_sp_{}_container_id", sp_index), container_id);
+    context.set(
+        format!("pdp_sp_{}_container_name", sp_index),
+        container_name,
+    );
 
     Ok(())
 }
@@ -79,11 +85,13 @@ fn create_curio_directories(context: &SetupContext, sp_index: usize) -> Result<(
 /// 1. Container is created but not started
 /// 2. Networks are connected while container is stopped
 /// 3. Container is started with Curio as PID 1 (logs work properly)
+///
+/// Returns the container ID from docker create stdout
 fn start_curio_container(
     context: &SetupContext,
     container_name: &str,
     mut docker_args: Vec<String>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<String, Box<dyn Error>> {
     info!("Creating container {}...", container_name);
 
     // Add image and command - Curio as main process
@@ -104,6 +112,13 @@ fn start_curio_container(
             String::from_utf8_lossy(&output.stderr)
         )
         .into());
+    }
+
+    // Extract container ID from stdout
+    let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+    if container_id.is_empty() {
+        return Err("Docker create did not return container ID".into());
     }
 
     // Connect to filecoin network before starting
@@ -132,7 +147,7 @@ fn start_curio_container(
 
     info!("Container created and started");
 
-    Ok(())
+    Ok(container_id)
 }
 
 /// Build docker create arguments for Curio
@@ -153,23 +168,25 @@ fn build_docker_create_args(
         container_name.to_string(),
         "--network".to_string(),
         pdp_miner_network_name(run_id, sp_index),
+        // Enable host.docker.internal for SP-to-SP fetch (resolves to host gateway)
+        "--add-host=host.docker.internal:host-gateway".to_string(),
     ];
 
     // Port mappings - get dynamically allocated ports from context
     let api_port: u16 = context
-        .get(&format!("curio_sp_{}_api_port", sp_index))
+        .get(&format!("pdp_sp_{}_api_port", sp_index))
         .ok_or("Curio API port not found in context")?
         .parse()?;
     let api_port_alt: u16 = context
-        .get(&format!("curio_sp_{}_api_port_alt", sp_index))
+        .get(&format!("pdp_sp_{}_api_port_alt", sp_index))
         .ok_or("Curio API alt port not found in context")?
         .parse()?;
     let gui_port: u16 = context
-        .get(&format!("curio_sp_{}_gui_port", sp_index))
+        .get(&format!("pdp_sp_{}_gui_port", sp_index))
         .ok_or("Curio GUI port not found in context")?
         .parse()?;
     let pdp_port: u16 = context
-        .get(&format!("curio_sp_{}_pdp_port", sp_index))
+        .get(&format!("pdp_sp_{}_pdp_port", sp_index))
         .ok_or("Curio PDP port not found in context")?
         .parse()?;
 

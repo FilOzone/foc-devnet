@@ -4,10 +4,7 @@
 //! before starting the Lotus daemon container.
 
 use super::super::genesis::constants::GENESIS_FILE;
-use crate::constants::LOTUS_DOCKER_IMAGE;
-use crate::paths::{
-    foc_devnet_bin, foc_devnet_genesis, foc_devnet_genesis_sectors, foc_devnet_proof_parameters,
-};
+use crate::paths::{foc_devnet_genesis, foc_devnet_genesis_sectors, foc_devnet_proof_parameters};
 use std::error::Error;
 use tracing::info;
 
@@ -24,28 +21,6 @@ pub fn verify_genesis_file(run_id: &str) -> Result<std::path::PathBuf, Box<dyn E
     }
 
     Ok(genesis_file)
-}
-
-/// Check that required Docker image and Lotus binary exist
-pub fn check_image_and_binary() -> Result<(), Box<dyn Error>> {
-    // Verify Docker image exists
-    if !crate::docker::core::image_exists(LOTUS_DOCKER_IMAGE).unwrap_or(true) {
-        return Err(format!(
-            "Docker image '{}' not found. Please run 'foc-devnet init' to build the image.",
-            LOTUS_DOCKER_IMAGE
-        )
-        .into());
-    }
-    info!("✓ Docker image '{}' found", LOTUS_DOCKER_IMAGE);
-
-    // Verify lotus binary exists
-    let lotus_bin = foc_devnet_bin().join("lotus");
-    if !lotus_bin.exists() {
-        return Err("Lotus binary not found. Please run 'foc-devnet build lotus' first.".into());
-    }
-
-    info!("✓ Lotus binary found");
-    Ok(())
 }
 
 /// Check that genesis file, proof parameters, and sectors exist

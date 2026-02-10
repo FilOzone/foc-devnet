@@ -1,4 +1,5 @@
 mod curio;
+mod endorsement;
 mod eth_acc_funding;
 mod foc_deploy;
 mod foc_deployer;
@@ -9,6 +10,7 @@ mod lotus_miner;
 mod lotus_utils;
 mod multicall3_deploy;
 mod pdp_service_provider;
+pub mod prerequisites_check;
 pub mod step;
 mod synapse_test_e2e;
 mod usdfc_deploy;
@@ -16,6 +18,7 @@ mod usdfc_funding;
 mod yugabyte;
 
 use curio::CurioStep;
+use endorsement::EndorsementStep;
 use eth_acc_funding::ETHAccFundingStep;
 use foc_deploy::FOCDeployStep;
 pub use genesis::ensure_genesis_prerequisites;
@@ -23,6 +26,7 @@ use lotus::LotusStep;
 use lotus_miner::LotusMinerStep;
 use multicall3_deploy::MultiCall3DeployStep;
 use pdp_service_provider::PdpSpRegistrationStep;
+use prerequisites_check::PrerequisitesCheckStep;
 pub use step::{execute_steps, execute_steps_parallel, SetupContext, Step};
 use synapse_test_e2e::SynapseTestE2EStep;
 use usdfc_deploy::USDFCDeployStep;
@@ -36,8 +40,71 @@ use crate::paths::{foc_devnet_config, foc_devnet_run_dir};
 use crate::run_id::{create_latest_symlink, save_current_run_id};
 use crate::version_info::write_version_file;
 pub use eth_acc_funding::constants::FEVM_ACCOUNTS_PREFUNDED;
+use std::net::ToSocketAddrs;
 use std::path::{Path, PathBuf};
-use tracing::{info, warn};
+use tracing::{error, info, warn};
+
+/// Check that host.docker.internal resolves to 127.0.0.1.
+///
+/// This is required for SP-to-SP fetch to work. The hostname must resolve to localhost
+/// so that URLs registered in the SP registry work from both the host and inside containers.
+///
+/// On macOS with Docker Desktop, this works automatically.
+/// On Linux, users must add `127.0.0.1 host.docker.internal` to /etc/hosts.
+fn check_host_docker_internal() -> Result<(), Box<dyn std::error::Error>> {
+    info!("Checking host.docker.internal resolution...");
+
+    // Try to resolve host.docker.internal:80 (port doesn't matter, just need DNS resolution)
+    match "host.docker.internal:80".to_socket_addrs() {
+        Ok(mut addrs) => {
+            // Check if any resolved address is 127.0.0.1
+            let is_localhost = addrs.any(|addr| addr.ip().is_loopback());
+
+            if is_localhost {
+                info!("✓ host.docker.internal resolves to localhost");
+                Ok(())
+            } else {
+                error!("════════════════════════════════════════════════════════════════════");
+                error!("ERROR: host.docker.internal does not resolve to localhost (127.0.0.1)");
+                error!("════════════════════════════════════════════════════════════════════");
+                error!("");
+                error!("SP-to-SP fetch requires host.docker.internal to resolve to 127.0.0.1");
+                error!("so that registered SP URLs work from both host and containers.");
+                error!("");
+                error!("To fix this, add the following line to /etc/hosts:");
+                error!("");
+                error!("    127.0.0.1 host.docker.internal");
+                error!("");
+                error!("You can do this with:");
+                error!("    echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts");
+                error!("");
+                error!("════════════════════════════════════════════════════════════════════");
+                Err("host.docker.internal must resolve to 127.0.0.1".into())
+            }
+        }
+        Err(_) => {
+            error!("════════════════════════════════════════════════════════════════════");
+            error!("ERROR: host.docker.internal does not resolve");
+            error!("════════════════════════════════════════════════════════════════════");
+            error!("");
+            error!("SP-to-SP fetch requires host.docker.internal to resolve to 127.0.0.1");
+            error!("so that registered SP URLs work from both host and containers.");
+            error!("");
+            error!("Add the following line to /etc/hosts:");
+            error!("");
+            error!("    127.0.0.1 host.docker.internal");
+            error!("");
+            error!("You can do this with:");
+            error!("    echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts");
+            error!("");
+            error!("For GitHub Actions, add this step before running foc-devnet:");
+            error!("    - run: echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts");
+            error!("");
+            error!("════════════════════════════════════════════════════════════════════");
+            Err("host.docker.internal must be resolvable".into())
+        }
+    }
+}
 
 /// Stop any existing cluster before starting a new one.
 fn stop_existing_cluster() -> Result<(), Box<dyn std::error::Error>> {
@@ -51,21 +118,13 @@ fn stop_existing_cluster() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Setup directories, run ID, and version information for the cluster startup.
 fn setup_directories_and_run_id(
-    volumes_dir: Option<String>,
-    _run_dir: Option<String>,
     run_id: String,
 ) -> Result<(PathBuf, PathBuf, String), Box<dyn std::error::Error>> {
     // Save run ID to persistent storage
     save_current_run_id(&run_id)?;
 
-    // Determine volumes directory
-    let volumes_dir = if let Some(dir) = volumes_dir {
-        PathBuf::from(dir)
-    } else {
-        crate::paths::foc_devnet_docker_volumes_run_specific(&run_id)
-    };
-
-    // Determine run directory
+    // Use default paths
+    let volumes_dir = crate::paths::foc_devnet_docker_volumes_run_specific(&run_id);
     let run_dir = foc_devnet_run_dir(&run_id);
 
     // Create directories if they don't exist
@@ -197,6 +256,7 @@ fn load_and_validate_config() -> Result<Config, Box<dyn std::error::Error>> {
     info!("PDP Service Provider Configuration:");
     info!("• Active PDP SPs: {}", config.active_pdp_sp_count);
     info!("• Approved PDP SPs: {}", config.approved_pdp_sp_count);
+    info!("• Endorsed PDP SPs: {}", config.endorsed_pdp_sp_count);
 
     Ok(config)
 }
@@ -236,6 +296,12 @@ fn create_steps(
     );
     let synapse_test_step =
         SynapseTestE2EStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf(), notest);
+    let endorsement_step = EndorsementStep::new(
+        volumes_dir.to_path_buf(),
+        run_dir.to_path_buf(),
+        config.endorsed_pdp_sp_count,
+        config.active_pdp_sp_count,
+    );
 
     // Execute all steps
     // Note: PDP SP registration MUST happen after Curio because it needs
@@ -251,6 +317,7 @@ fn create_steps(
         Box::new(yugabyte_step),
         Box::new(curio_step),
         Box::new(pdp_sp_reg_step),
+        Box::new(endorsement_step),
         Box::new(synapse_test_step),
     ]
 }
@@ -262,18 +329,22 @@ fn create_steps(
 ///
 /// # Parallelization Strategy
 ///
-/// - Epoch 1: Lotus + Yugabyte (independent services)
-/// - Epoch 2: Lotus Miner (depends on Lotus)
-/// - Epoch 3: ETH Account Funding (needs blockchain running)
-/// - Epoch 4: MockUSDFC Deploy + MultiCall3 Deploy + FOC Deploy (can be parallelized)
-/// - Epoch 5: MockUSDFC Funding + Curio daemons (can be parallelized, needs FOC Deploy)
-/// - Epoch 6: PDP SP Registration (needs Curio daemons started)
+/// - Epoch 1: Prerequisites check (binaries & Docker images - must run first)
+/// - Epoch 2: Lotus (daemon start)
+/// - Epoch 3: Lotus Miner (depends on Lotus)
+/// - Epoch 4: ETH Account Funding (needs blockchain running)
+/// - Epoch 5: MockUSDFC Deploy + MultiCall3 Deploy (can be parallelized)
+/// - Epoch 6: FOC Deploy + MockUSDFC Funding + Yugabyte (can be parallelized, needs USDFC deployed)
+/// - Epoch 7: Curio daemons (needs Yugabyte)
+/// - Epoch 8: PDP SP Registration (needs Curio running, for port information)
+/// - Epoch 9: Synapse E2E Test (final validation)
 fn create_step_epochs(
     volumes_dir: &Path,
     run_dir: &Path,
     config: &Config,
     notest: bool,
 ) -> Vec<Vec<Box<dyn Step>>> {
+    let prerequisites_check_step = PrerequisitesCheckStep::new();
     let lotus_step = LotusStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
     let yugabyte_step = YugabyteStep::new(
         volumes_dir.to_path_buf(),
@@ -302,30 +373,40 @@ fn create_step_epochs(
     );
     let synapse_test_step =
         SynapseTestE2EStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf(), notest);
+    let endorsement_step = EndorsementStep::new(
+        volumes_dir.to_path_buf(),
+        run_dir.to_path_buf(),
+        config.endorsed_pdp_sp_count,
+        config.active_pdp_sp_count,
+    );
 
     vec![
-        // Epoch 1: Start Lotus
+        // Epoch 1: Prerequisites check (binaries & Docker images - must run first)
+        vec![Box::new(prerequisites_check_step)],
+        // Epoch 2: Start Lotus
         vec![Box::new(lotus_step)],
-        // Epoch 2: Start Lotus Miner (depends on Lotus)
+        // Epoch 3: Start Lotus Miner (depends on Lotus)
         vec![Box::new(lotus_miner_step)],
-        // Epoch 3: ETH Account Funding (needs blockchain running)
+        // Epoch 4: ETH Account Funding (needs blockchain running)
         vec![Box::new(eth_acc_funding_step)],
-        // Epoch 4: Deploy contracts (can be parallelized)
+        // Epoch 5: Deploy contracts (can be parallelized)
         vec![
             Box::new(usdfc_deploy_step),
             Box::new(multicall3_deploy_step),
         ],
-        // Epoch 5: Fund accounts with USDFC, deploy foc (needs usdfc deployed), start yugabyte for curio later
+        // Epoch 6: Fund accounts with USDFC, deploy foc (needs usdfc deployed), start yugabyte for curio later
         vec![
             Box::new(foc_deploy_step),
             Box::new(usdfc_funding_step),
             Box::new(yugabyte_step),
         ],
-        // Epoch 6: Start Curio daemons
+        // Epoch 7: Start Curio daemons
         vec![Box::new(curio_step)],
-        // Epoch 7: Register PDP SPs (needs Curio running, for port information)
+        // Epoch 8: Register PDP SPs (needs Curio running, for port information)
         vec![Box::new(pdp_sp_reg_step)],
-        // Epoch 8: Run Synapse E2E Test
+        // Epoch 9: Endorse PDP SPs (needs registration complete)
+        vec![Box::new(endorsement_step)],
+        // Epoch 10: Run Synapse E2E Test
         vec![Box::new(synapse_test_step)],
     ]
 }
@@ -339,7 +420,7 @@ fn execute_cluster_steps(
     parallel: bool,
     portainer_port: u16,
     notest: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<SetupContext, Box<dyn std::error::Error>> {
     // Ensure genesis prerequisites are ready (one-time setup, needs config for sector count)
     ensure_genesis_prerequisites(config.active_pdp_sp_count, run_id)?;
 
@@ -360,6 +441,17 @@ fn execute_cluster_steps(
         config.active_pdp_sp_count, config.approved_pdp_sp_count
     );
 
+    let step_config = step::StepExecutionConfig {
+        run_id: run_id.to_string(),
+        run_dir: run_dir.to_path_buf(),
+        port_start: config.port_range_start,
+        port_count: config.port_range_count,
+        portainer_port: Some(portainer_port),
+        active_pdp_sp_count: config.active_pdp_sp_count,
+        approved_pdp_sp_count: config.approved_pdp_sp_count,
+        endorsed_pdp_sp_count: config.endorsed_pdp_sp_count,
+    };
+
     if parallel {
         info!("Execution mode: PARALLEL (experimental)");
         let step_epochs = create_step_epochs(volumes_dir, run_dir, config, notest);
@@ -370,51 +462,32 @@ fn execute_cluster_steps(
             .map(|epoch| epoch.iter().map(|s| s.as_ref()).collect())
             .collect();
 
-        execute_steps_parallel(
-            epoch_refs,
-            step::StepExecutionConfig {
-                run_id: run_id.to_string(),
-                run_dir: run_dir.to_path_buf(),
-                port_start: config.port_range_start,
-                port_count: config.port_range_count,
-                portainer_port: Some(portainer_port),
-                active_pdp_sp_count: config.active_pdp_sp_count,
-                approved_pdp_sp_count: config.approved_pdp_sp_count,
-            },
-        )?;
+        let context = execute_steps_parallel(epoch_refs, step_config)?;
+        Ok(context)
     } else {
         info!("Execution mode: SEQUENTIAL");
         let steps = create_steps(volumes_dir, run_dir, config, notest);
 
-        execute_steps(
+        let context = execute_steps(
             steps.iter().map(|s| s.as_ref()).collect::<Vec<_>>(),
-            step::StepExecutionConfig {
-                run_id: run_id.to_string(),
-                run_dir: run_dir.to_path_buf(),
-                port_start: config.port_range_start,
-                port_count: config.port_range_count,
-                portainer_port: Some(portainer_port),
-                active_pdp_sp_count: config.active_pdp_sp_count,
-                approved_pdp_sp_count: config.approved_pdp_sp_count,
-            },
+            step_config,
         )?;
+        Ok(context)
     }
-
-    Ok(())
 }
 
 /// Start the local Filecoin network cluster.
 pub fn start_cluster(
-    volumes_dir: Option<String>,
-    run_dir: Option<String>,
     parallel: bool,
     run_id: String,
     notest: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Check host.docker.internal resolution first (required for SP-to-SP fetch)
+    check_host_docker_internal()?;
+
     stop_existing_cluster()?;
 
-    let (volumes_dir, run_dir, run_id) =
-        setup_directories_and_run_id(volumes_dir, run_dir, run_id)?;
+    let (volumes_dir, run_dir, run_id) = setup_directories_and_run_id(run_id)?;
 
     // Stop any running containers (but preserve old run data)
     stop_running_containers()?;
@@ -458,11 +531,26 @@ pub fn start_cluster(
         warn!("Post-start teardown encountered an error: {}", e);
     }
 
-    // Propagate original execution result
-    exec_result?;
-
-    info!("Cluster started successfully!");
-    Ok(())
+    // Export devnet info if steps succeeded
+    match exec_result {
+        Ok(context) => {
+            // Export the devnet info JSON for external consumers
+            if let Err(e) = crate::external_api::export_devnet_info(&context) {
+                warn!("Failed to export devnet info: {}", e);
+            } else {
+                info!(
+                    "✓ DevNet info exported to: {}",
+                    crate::paths::devnet_info_file(context.run_id()).display()
+                );
+            }
+            info!("Cluster started successfully!");
+            Ok(())
+        }
+        Err(e) => {
+            warn!("Cluster startup failed, external devnet information not exported");
+            Err(e)
+        }
+    }
 }
 
 /// Finalize the start attempt by collecting logs, cleaning dead containers, and writing status.

@@ -27,11 +27,21 @@ echo "✅ Created artifacts directory: $FOC_ARTIFACTS"
 # Cache Yugabyte tarball
 echo
 echo "📦 Caching Yugabyte tarball..."
-if [ -f "$STASH_DIR/yugabyte/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz" ]; then
-    cp "$STASH_DIR/yugabyte/yugabyte-2.25.1.0-b381-linux-x86_64.tar.gz" "$FOC_ARTIFACTS/"
-    echo "✅ Yugabyte cached (~422 MB)"
+
+# Detect architecture for YugabyteDB
+ARCH=$(uname -m)
+if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+    YUGABYTE_ARCH_SUFFIX="el8-aarch64"
 else
-    echo "⚠️  Warning: Yugabyte tarball not found in $STASH_DIR/yugabyte/"
+    YUGABYTE_ARCH_SUFFIX="linux-x86_64"
+fi
+YUGABYTE_TARBALL="yugabyte-2.25.1.0-b381-${YUGABYTE_ARCH_SUFFIX}.tar.gz"
+
+if [ -f "$STASH_DIR/yugabyte/$YUGABYTE_TARBALL" ]; then
+    cp "$STASH_DIR/yugabyte/$YUGABYTE_TARBALL" "$FOC_ARTIFACTS/"
+    echo "✅ Yugabyte cached ($YUGABYTE_ARCH_SUFFIX, ~422 MB)"
+else
+    echo "⚠️  Warning: Yugabyte tarball not found: $STASH_DIR/yugabyte/$YUGABYTE_TARBALL"
     echo "   This will be downloaded during init (~422 MB)"
 fi
 
