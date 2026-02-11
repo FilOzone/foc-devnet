@@ -77,6 +77,8 @@ pub struct ContractsInfo {
     pub filecoin_pay_v1_addr: String,
     /// Endorsements contract address
     pub endorsements_addr: String,
+    /// SessionKeyRegistry contract address
+    pub session_key_registry_addr: String,
 }
 
 /// Lotus node information.

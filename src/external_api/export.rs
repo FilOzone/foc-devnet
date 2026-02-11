@@ -135,6 +135,9 @@ fn build_contracts(ctx: &SetupContext) -> Result<ContractsInfo, Box<dyn std::err
         endorsements_addr: ctx
             .get("foc_contract_endorsements")
             .ok_or("Missing foc_contract_endorsements in context")?,
+        session_key_registry_addr: ctx
+            .get("foc_contract_session_key_registry")
+            .ok_or("Missing foc_contract_session_key_registry in context")?,
     })
 }
 
