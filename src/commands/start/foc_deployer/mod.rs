@@ -268,8 +268,8 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
             if let Some(addr) = extract_address_from_deployed_line(line) {
                 info!("Found SessionKeyRegistry: {}", addr);
                 addresses.insert("session_key_registry".to_string(), addr);
+                continue;
             }
-            continue;
         }
 
         if line.contains("DEPLOYMENT SUMMARY") {
