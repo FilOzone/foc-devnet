@@ -263,6 +263,15 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
     let mut in_network_config = false;
 
     for line in output_str.lines() {
+        // Parse "SessionKeyRegistry deployed at 0x..." (appears before summary)
+        if line.contains("SessionKeyRegistry deployed at") {
+            if let Some(addr) = extract_address_from_deployed_line(line) {
+                info!("Found SessionKeyRegistry: {}", addr);
+                addresses.insert("session_key_registry".to_string(), addr);
+                continue;
+            }
+        }
+
         if line.contains("DEPLOYMENT SUMMARY") {
             in_summary = true;
             info!("Found DEPLOYMENT SUMMARY section");
@@ -381,6 +390,23 @@ pub fn parse_deployment_output(output_str: &str) -> Result<DeploymentResult, Box
         filbeam_beneficiary,
         metadata,
     })
+}
+
+/// Extract an address from a "<Name> deployed at 0x..." line.
+///
+/// # Example
+/// ```text
+/// SessionKeyRegistry deployed at 0xaF69542d01111EdfB7B63Aa974E6A2c9A31EA1E9
+/// ```
+fn extract_address_from_deployed_line(line: &str) -> Option<String> {
+    let marker = "deployed at ";
+    let idx = line.find(marker)?;
+    let addr = line[idx + marker.len()..].trim();
+    if addr.starts_with("0x") && addr.len() >= 42 {
+        Some(addr.to_string())
+    } else {
+        None
+    }
 }
 
 /// Convert a contract name to snake_case
