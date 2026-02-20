@@ -248,5 +248,8 @@ fn build_docker_create_args(
         docker_args.extend_from_slice(&["-e".to_string(), env.clone()]);
     }
 
+    docker_args.push("-e".to_string());
+    docker_args.push("GOLOG_LOG_LEVEL=pdp=debug".to_string());
+
     Ok(docker_args)
 }
