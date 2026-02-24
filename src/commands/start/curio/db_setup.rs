@@ -5,7 +5,7 @@
 //! - PDP layer configuration (curio config create)
 
 use super::super::step::SetupContext;
-use super::constants::{DB_SETUP_WAIT_SECS, PDP_LAYER_CONFIG_TEMPLATE};
+use super::constants::{CURIO_PDP_DEBUG_LOG_LEVEL, DB_SETUP_WAIT_SECS, PDP_LAYER_CONFIG_TEMPLATE};
 use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
 use crate::commands::start::genesis::constants::PDP_SP_MINER_ID_START;
 use crate::commands::start::lotus_utils::{build_fullnode_api_info, read_lotus_token};
@@ -202,7 +202,7 @@ fn create_base_cluster(
     }
 
     docker_args.push("-e");
-    docker_args.push("GOLOG_LOG_LEVEL=pdp=debug");
+    docker_args.push(CURIO_PDP_DEBUG_LOG_LEVEL);
 
     // Add image and command
     let bash_cmd = format!(
@@ -315,7 +315,7 @@ fn create_pdp_layer(context: &SetupContext, sp_index: usize) -> Result<(), Box<d
     }
 
     docker_args.push("-e");
-    docker_args.push("GOLOG_LOG_LEVEL=pdp=debug");
+    docker_args.push(CURIO_PDP_DEBUG_LOG_LEVEL);
 
     // Add image and command with heredoc for config
     let bash_cmd = format!(

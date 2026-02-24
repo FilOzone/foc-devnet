@@ -24,6 +24,9 @@ EnablePDP = true
 EnableParkPiece = true
 "#;
 
+/// PDP debug log level environment variable
+pub const CURIO_PDP_DEBUG_LOG_LEVEL: &str = "GOLOG_LOG_LEVEL=pdp=debug";
+
 /// Wait times (in seconds)
 pub const DB_SETUP_WAIT_SECS: u64 = 10;
 pub const STORAGE_ATTACH_WAIT_SECS: u64 = 5;

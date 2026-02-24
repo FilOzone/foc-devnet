@@ -5,7 +5,7 @@
 use super::super::step::SetupContext;
 use super::db_setup::{build_db_env_vars, build_foc_contract_env_vars, build_lotus_env_vars};
 use super::CurioStep;
-use crate::commands::start::curio::constants::CURIO_LAYERS;
+use crate::commands::start::curio::constants::{CURIO_LAYERS, CURIO_PDP_DEBUG_LOG_LEVEL};
 use crate::docker::command_logger::run_and_log_command_strings;
 use crate::docker::init::set_volume_ownership;
 use crate::docker::network::{lotus_network_name, pdp_miner_network_name};
@@ -249,7 +249,7 @@ fn build_docker_create_args(
     }
 
     docker_args.push("-e".to_string());
-    docker_args.push("GOLOG_LOG_LEVEL=pdp=debug".to_string());
+    docker_args.push(CURIO_PDP_DEBUG_LOG_LEVEL.to_string());
 
     Ok(docker_args)
 }
