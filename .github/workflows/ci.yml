@@ -6,6 +6,41 @@ on:
     branches: ['*']
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      pdp_caching_test:
+        description: Run PDP caching layers e2e test
+        required: false
+        default: true
+        type: boolean
+      curio:
+        description: >
+          Curio source location override (e.g., 'gitbranch:main', 'gitcommit:abc123',
+          'gittag:v1.0.0'). Leave empty for default.
+        required: false
+        default: ""
+        type: string
+      lotus:
+        description: >
+          Lotus source location override (e.g., 'gitbranch:main', 'gitcommit:abc123',
+          'gittag:v1.34.4-rc1'). Leave empty for default.
+        required: false
+        default: ""
+        type: string
+      filecoin_services:
+        description: >
+          Filecoin Services source location override (e.g., 'gitbranch:main',
+          'gitcommit:abc123'). Leave empty for default.
+        required: false
+        default: ""
+        type: string
+      synapse_sdk:
+        description: >
+          Synapse SDK source location override (e.g., 'gitbranch:main',
+          'gitcommit:abc123', 'gittag:synapse-sdk-v0.36.1'). Leave empty for default.
+        required: false
+        default: ""
+        type: string
 
 jobs:
   fmt-clippy:
@@ -145,20 +180,47 @@ jobs:
         rm -rf ~/.docker-images-cache
         df -h
 
+    # Build init flags from component override inputs (empty for push/PR events)
+    - name: "CHECK: {Build init flags from inputs}"
+      id: init-flags
+      run: |
+        FLAGS=""
+        if [ -n "${{ inputs.curio }}" ]; then
+          FLAGS="$FLAGS --curio ${{ inputs.curio }}"
+        fi
+        if [ -n "${{ inputs.lotus }}" ]; then
+          FLAGS="$FLAGS --lotus ${{ inputs.lotus }}"
+        fi
+        if [ -n "${{ inputs.filecoin_services }}" ]; then
+          FLAGS="$FLAGS --filecoin-services ${{ inputs.filecoin_services }}"
+        fi
+        if [ -n "${{ inputs.synapse_sdk }}" ]; then
+          FLAGS="$FLAGS --synapse-sdk ${{ inputs.synapse_sdk }}"
+        fi
+        echo "flags=$FLAGS" >> $GITHUB_OUTPUT
+        echo "Init flags: $FLAGS"
+
+        # Set PDP test mode flag for use in step conditions throughout this job
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.pdp_caching_test }}" = "true" ]; then
+          echo "pdp-test=true" >> $GITHUB_OUTPUT
+        else
+          echo "pdp-test=false" >> $GITHUB_OUTPUT
+        fi
+
     # If Docker images are cached, skip building them AND skip downloading YugabyteDB
     # (YugabyteDB is already baked into the foc-yugabyte Docker image)
     - name: "EXEC: {Initialize with cached Docker}, DEP: {C-docker-images-cache}"
       if: steps.cache-docker-images.outputs.cache-hit == 'true'
       run: |
         rm -rf ~/.foc-devnet
-        ./foc-devnet init --no-docker-build
+        ./foc-devnet init --no-docker-build ${{ steps.init-flags.outputs.flags }}
 
     # If Docker images are not cached, do full init (downloads YugabyteDB and builds all images)
     - name: "EXEC: {Initialize without cache}, independent"
       if: steps.cache-docker-images.outputs.cache-hit != 'true'
       run: |
         rm -rf ~/.foc-devnet
-        ./foc-devnet init
+        ./foc-devnet init ${{ steps.init-flags.outputs.flags }}
 
     # CACHE-DOCKER: Build Docker images if not cached
     - name: "EXEC: {Build Docker images}, DEP: {C-docker-images-cache}"
@@ -271,7 +333,12 @@ jobs:
     - name: "EXEC: {Start cluster}, independent"
       id: start_cluster
       continue-on-error: true
-      run: ./foc-devnet start --parallel
+      run: |
+        if [ "${{ steps.init-flags.outputs.pdp-test }}" = "true" ]; then
+          ./foc-devnet start --parallel --notest
+        else
+          ./foc-devnet start --parallel
+        fi
 
     # On failure, collect and print Docker container logs for debugging
     - name: "EXEC: {Collect Docker logs on failure}, independent"
@@ -320,7 +387,7 @@ jobs:
 
     # Verify devnet-info.json was exported successfully
     - name: "CHECK: {Verify devnet-info.json exists}"
-      if: steps.start_cluster.outcome == 'success'
+      if: steps.start_cluster.outcome == 'success' && steps.init-flags.outputs.pdp-test != 'true'
       run: |
         DEVNET_INFO="$HOME/.foc-devnet/state/latest/devnet-info.json"
         test -f "$DEVNET_INFO" || exit 1
@@ -329,14 +396,14 @@ jobs:
 
     # Setup Node.js for JavaScript examples
     - name: "EXEC: {Setup Node.js}, independent"
-      if: steps.start_cluster.outcome == 'success'
+      if: steps.start_cluster.outcome == 'success' && steps.init-flags.outputs.pdp-test != 'true'
       uses: actions/setup-node@v4
       with:
         node-version: '20'
 
     # Validate schema using zod
     - name: "CHECK: {Validate devnet-info.json schema}"
-      if: steps.start_cluster.outcome == 'success'
+      if: steps.start_cluster.outcome == 'success' && steps.init-flags.outputs.pdp-test != 'true'
       run: |
         DEVNET_INFO="$HOME/.foc-devnet/state/latest/devnet-info.json"
         cd examples
@@ -346,8 +413,241 @@ jobs:
         node check-balances.js "$DEVNET_INFO"
         echo "✓ All examples ran well"
 
+    # ──────────────────────────────────────────────
+    # PDP Caching Test Phase 5: Install test tooling (cqlsh, Node.js)
+    # ──────────────────────────────────────────────
+    - name: "EXEC: {Install cqlsh via Python venv}, independent"
+      if: steps.init-flags.outputs.pdp-test == 'true' && steps.start_cluster.outcome == 'success'
+      run: |
+        sudo apt-get install -y python3.12-venv
+        python3 -m venv ~/.foc-devnet/venv
+        ~/.foc-devnet/venv/bin/pip install cqlsh
+
+    - name: "EXEC: {Setup Node.js for PDP test}, independent"
+      if: steps.init-flags.outputs.pdp-test == 'true' && steps.start_cluster.outcome == 'success'
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    # ──────────────────────────────────────────────
+    # PDP Caching Test Phase 6: Extract devnet metadata
+    # ──────────────────────────────────────────────
+    - name: "CHECK: {Extract devnet info}"
+      id: devnet-info
+      if: steps.init-flags.outputs.pdp-test == 'true' && steps.start_cluster.outcome == 'success'
+      run: |
+        DEVNET_INFO="$HOME/.foc-devnet/state/latest/devnet-info.json"
+        test -f "$DEVNET_INFO" || { echo "devnet-info.json not found" >&2; exit 1; }
+
+        RUN_ID=$(jq -r '.info.run_id' "$DEVNET_INFO")
+        echo "run-id=$RUN_ID" >> $GITHUB_OUTPUT
+
+        YUGABYTE_CONTAINER="foc-${RUN_ID}-yugabyte-1"
+        echo "yugabyte-container=$YUGABYTE_CONTAINER" >> $GITHUB_OUTPUT
+
+        YCQL_PORT=$(docker port "$YUGABYTE_CONTAINER" 9042/tcp | head -1 | cut -d: -f2)
+        echo "ycql-port=$YCQL_PORT" >> $GITHUB_OUTPUT
+
+        echo "Run ID:              $RUN_ID"
+        echo "Yugabyte container:  $YUGABYTE_CONTAINER"
+        echo "YCQL port:           $YCQL_PORT"
+
+    # ──────────────────────────────────────────────
+    # PDP Caching Test Phase 7: Assert clean initial state
+    # ──────────────────────────────────────────────
+    - name: "CHECK: {Assert initial PDP state is clean}"
+      if: steps.init-flags.outputs.pdp-test == 'true' && steps.start_cluster.outcome == 'success'
+      env:
+        YUGABYTE_CONTAINER: ${{ steps.devnet-info.outputs.yugabyte-container }}
+        YCQL_PORT: ${{ steps.devnet-info.outputs.ycql-port }}
+      run: |
+        echo "=== Checking pdp_piecerefs (needs_save_cache should all be false) ==="
+        PIECEREFS_OUTPUT=$(docker exec -e PGPASSWORD='yugabyte' "$YUGABYTE_CONTAINER" \
+          /yugabyte/bin/ysqlsh -h localhost -p 5433 -U yugabyte -d yugabyte -t -A -c \
+          "SELECT COUNT(*) FROM curio.pdp_piecerefs WHERE needs_save_cache = true")
+        NEEDS_SAVE_COUNT=$(echo "$PIECEREFS_OUTPUT" | tr -d '[:space:]')
+        echo "Pieces with needs_save_cache=true: $NEEDS_SAVE_COUNT"
+
+        if [ "$NEEDS_SAVE_COUNT" != "0" ]; then
+          echo "FAIL: Expected 0 pieces with needs_save_cache=true, got $NEEDS_SAVE_COUNT" >&2
+          docker exec -e PGPASSWORD='yugabyte' "$YUGABYTE_CONTAINER" \
+            /yugabyte/bin/ysqlsh -h localhost -p 5433 -U yugabyte -d yugabyte -c \
+            "SELECT pr.id, pr.piece_cid, pr.needs_save_cache, pr.caching_task_started, pr.caching_task_completed FROM curio.pdp_piecerefs pr"
+          exit 1
+        fi
+
+        echo "=== Checking pdp_cache_layer (should be empty) ==="
+        CACHE_LAYER_OUTPUT=$(~/.foc-devnet/venv/bin/cqlsh localhost "$YCQL_PORT" \
+          -u cassandra -p cassandra \
+          -e "SELECT COUNT(*) FROM curio.pdp_cache_layer;")
+        echo "Cache layer output: $CACHE_LAYER_OUTPUT"
+
+        CACHE_COUNT=$(echo "$CACHE_LAYER_OUTPUT" | grep -oP '^\s*\K\d+' | head -1)
+        echo "Cache layer row count: $CACHE_COUNT"
+
+        if [ -n "$CACHE_COUNT" ] && [ "$CACHE_COUNT" != "0" ]; then
+          echo "FAIL: Expected 0 rows in pdp_cache_layer, got $CACHE_COUNT" >&2
+          ~/.foc-devnet/venv/bin/cqlsh localhost "$YCQL_PORT" -u cassandra -p cassandra \
+            -e "SELECT * FROM curio.pdp_cache_layer;"
+          exit 1
+        fi
+
+        echo "PASS: Initial PDP state is clean."
+
+    # ──────────────────────────────────────────────
+    # PDP Caching Test Phase 8: Run Synapse SDK e2e storage test
+    # ──────────────────────────────────────────────
+    - name: "EXEC: {Install Synapse SDK dependencies}, independent"
+      if: steps.init-flags.outputs.pdp-test == 'true' && steps.start_cluster.outcome == 'success'
+      run: |
+        SYNAPSE_DIR="$HOME/.foc-devnet/code/synapse-sdk"
+        if [ ! -d "$SYNAPSE_DIR" ]; then
+          echo "synapse-sdk directory not found at $SYNAPSE_DIR" >&2
+          ls -la "$HOME/.foc-devnet/code/" 2>/dev/null || echo "code dir does not exist"
+          exit 1
+        fi
+        cd "$SYNAPSE_DIR"
+        npm install
+
+    - name: "EXEC: {Run Synapse e2e storage runner (10MB + 120MB)}, independent"
+      if: steps.init-flags.outputs.pdp-test == 'true' && steps.start_cluster.outcome == 'success'
+      id: synapse_e2e
+      run: |
+        cd "$HOME/.foc-devnet/code/synapse-sdk"
+        NETWORK=devnet node utils/example-storage-e2e-runner.js 10MB 120MB
+
+    # ──────────────────────────────────────────────
+    # PDP Caching Test Phase 9: Wait for caching tasks and verify
+    # ──────────────────────────────────────────────
+    - name: "CHECK: {Wait for PDP SaveCache task to complete}"
+      if: steps.init-flags.outputs.pdp-test == 'true' && steps.start_cluster.outcome == 'success'
+      env:
+        RUN_ID: ${{ steps.devnet-info.outputs.run-id }}
+        YUGABYTE_CONTAINER: ${{ steps.devnet-info.outputs.yugabyte-container }}
+      run: |
+        echo "Waiting for PDPv0_SaveCache tasks to complete (max 10 minutes)..."
+        MAX_WAIT=600
+        POLL_INTERVAL=15
+        ELAPSED=0
+
+        while [ $ELAPSED -lt $MAX_WAIT ]; do
+          PENDING=$(docker exec -e PGPASSWORD='yugabyte' "$YUGABYTE_CONTAINER" \
+            /yugabyte/bin/ysqlsh -h localhost -p 5433 -U yugabyte -d yugabyte -t -A -c \
+            "SELECT COUNT(*) FROM curio.pdp_piecerefs WHERE needs_save_cache = true AND caching_task_completed IS NULL")
+          PENDING=$(echo "$PENDING" | tr -d '[:space:]')
+
+          echo "[${ELAPSED}s] Pending caching tasks: $PENDING"
+
+          if [ "$PENDING" = "0" ]; then
+            echo "All caching tasks completed."
+            break
+          fi
+
+          sleep $POLL_INTERVAL
+          ELAPSED=$((ELAPSED + POLL_INTERVAL))
+        done
+
+        if [ $ELAPSED -ge $MAX_WAIT ]; then
+          echo "TIMEOUT: Caching tasks did not complete within ${MAX_WAIT}s" >&2
+          docker exec -e PGPASSWORD='yugabyte' "$YUGABYTE_CONTAINER" \
+            /yugabyte/bin/ysqlsh -h localhost -p 5433 -U yugabyte -d yugabyte -c \
+            "SELECT pr.id, pr.piece_cid, pr.needs_save_cache, pr.caching_task_started, pr.caching_task_completed FROM curio.pdp_piecerefs pr"
+          exit 1
+        fi
+
+    - name: "CHECK: {Verify SaveCache in curio logs}"
+      if: steps.init-flags.outputs.pdp-test == 'true' && steps.start_cluster.outcome == 'success'
+      env:
+        RUN_ID: ${{ steps.devnet-info.outputs.run-id }}
+      run: |
+        echo "=== Checking curio container logs for PDPv0_SaveCache ==="
+
+        SAVE_CACHE_HITS=0
+        for i in 1 2 3 4 5; do
+          CONTAINER="foc-${RUN_ID}-curio-${i}"
+          if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
+            echo "--- Logs from $CONTAINER ---"
+            LOGS=$(docker logs "$CONTAINER" 2>&1 || true)
+            MATCHES=$(echo "$LOGS" | grep -c "PDPv0_SaveCache: PDP layer cache saved" || true)
+            echo "SaveCache 'saved' count in $CONTAINER: $MATCHES"
+            SAVE_CACHE_HITS=$((SAVE_CACHE_HITS + MATCHES))
+            echo "$LOGS" | grep "PDPv0_SaveCache" || true
+            echo ""
+          fi
+        done
+
+        echo "Total 'PDP layer cache saved' occurrences: $SAVE_CACHE_HITS"
+
+        if [ "$SAVE_CACHE_HITS" -lt 1 ]; then
+          echo "FAIL: Expected at least 1 'PDP layer cache saved' log line, got $SAVE_CACHE_HITS" >&2
+          exit 1
+        fi
+
+        echo "PASS: Found $SAVE_CACHE_HITS SaveCache completion(s) in curio logs."
+
+    - name: "CHECK: {Verify cache layers exist in YCQL}"
+      if: steps.init-flags.outputs.pdp-test == 'true' && steps.start_cluster.outcome == 'success'
+      env:
+        YCQL_PORT: ${{ steps.devnet-info.outputs.ycql-port }}
+      run: |
+        echo "=== Checking pdp_cache_layer table for cached layers ==="
+        CACHE_OUTPUT=$(~/.foc-devnet/venv/bin/cqlsh localhost "$YCQL_PORT" \
+          -u cassandra -p cassandra \
+          -e "SELECT * FROM curio.pdp_cache_layer;")
+        echo "$CACHE_OUTPUT"
+
+        ROW_COUNT=$(echo "$CACHE_OUTPUT" | grep -oP '\((\d+) rows?\)' | grep -oP '\d+' || echo "0")
+        echo "Cache layer row count: $ROW_COUNT"
+
+        if [ "$ROW_COUNT" = "0" ] || [ -z "$ROW_COUNT" ]; then
+          echo "FAIL: Expected rows in pdp_cache_layer after e2e test, found none." >&2
+          exit 1
+        fi
+
+        echo "PASS: Found $ROW_COUNT rows in pdp_cache_layer."
+
+    - name: "CHECK: {Verify pdp_piecerefs final state}"
+      if: steps.init-flags.outputs.pdp-test == 'true' && steps.start_cluster.outcome == 'success'
+      env:
+        YUGABYTE_CONTAINER: ${{ steps.devnet-info.outputs.yugabyte-container }}
+      run: |
+        echo "=== Final pdp_piecerefs state ==="
+        docker exec -e PGPASSWORD='yugabyte' "$YUGABYTE_CONTAINER" \
+          /yugabyte/bin/ysqlsh -h localhost -p 5433 -U yugabyte -d yugabyte -c \
+          "SELECT pr.id, pr.piece_cid, pr.needs_save_cache, pr.caching_task_started, pr.caching_task_completed FROM curio.pdp_piecerefs pr"
+
+        NEEDS_SAVE=$(docker exec -e PGPASSWORD='yugabyte' "$YUGABYTE_CONTAINER" \
+          /yugabyte/bin/ysqlsh -h localhost -p 5433 -U yugabyte -d yugabyte -t -A -c \
+          "SELECT COUNT(*) FROM curio.pdp_piecerefs WHERE needs_save_cache = true")
+        NEEDS_SAVE=$(echo "$NEEDS_SAVE" | tr -d '[:space:]')
+
+        echo "Pieces still needing cache save: $NEEDS_SAVE"
+        if [ "$NEEDS_SAVE" != "0" ]; then
+          echo "FAIL: Expected all needs_save_cache to be false after e2e, got $NEEDS_SAVE remaining" >&2
+          exit 1
+        fi
+
+        echo "PASS: All piecerefs have needs_save_cache=false."
+
+    # ──────────────────────────────────────────────
+    # PDP Caching Test Phase 10: On-chain proving verification (placeholder)
+    # ──────────────────────────────────────────────
+    - name: "TODO: {Verify on-chain PDP proving}"
+      if: steps.init-flags.outputs.pdp-test == 'true' && steps.start_cluster.outcome == 'success'
+      run: |
+        echo "============================================"
+        echo "PLACEHOLDER: On-chain PDP proving verification"
+        echo "============================================"
+        echo ""
+        echo "This step should verify that PDP proving works on-chain."
+        echo "Implementation is pending - needs research on how to trigger"
+        echo "and verify a PDP proving round via the devnet."
+        echo ""
+        echo "Skipping for now."
+
     # Clean shutdown
     - name: "EXEC: {Stop cluster}, independent"
+      if: always()
       run: ./foc-devnet stop
 
     # Mark job as failed if the start step failed, but only after all steps
