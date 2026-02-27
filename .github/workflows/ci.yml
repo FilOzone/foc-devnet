@@ -400,8 +400,12 @@ jobs:
         BRANCH="${BRANCH//\//-}"
         S3_PATH="s3://${CI_LOGS_BUCKET}/runs/${BRANCH}/${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}/"
         echo "Uploading ~/.foc-devnet/state/latest to ${S3_PATH}"
-        aws s3 sync ~/.foc-devnet/state/latest "${S3_PATH}" --no-progress || echo "aws s3 sync returned non-zero"
-        echo "Upload complete: ${S3_PATH}"
+        if aws s3 sync ~/.foc-devnet/state/latest "${S3_PATH}" --no-progress; then
+          echo "Upload complete: ${S3_PATH}"
+        else
+          echo "ERROR: aws s3 sync failed; logs were not uploaded to S3 at ${S3_PATH}" >&2
+          exit 1
+        fi
 
     # Verify cluster is running correctly
     - name: "EXEC: {Check cluster status}, independent"
