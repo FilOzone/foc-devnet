@@ -35,6 +35,64 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Check AWS S3 configuration, Install AWS CLI
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        CI_LOGS_BUCKET: ${{ secrets.CI_LOGS_BUCKET }}
+      run: |
+        set -euo pipefail
+
+        echo "Checking AWS S3 configuration..."
+        MISSING=false
+        for VAR in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION CI_LOGS_BUCKET; do
+          if [ -z "${!VAR:-}" ]; then
+            echo "✖ $VAR is NOT set"
+            MISSING=true
+          else
+            if [ "$VAR" = "AWS_SECRET_ACCESS_KEY" ] || [ "$VAR" = "AWS_ACCESS_KEY_ID" ]; then
+              echo "✔ $VAR is set"
+            else
+              echo "✔ $VAR is set: ${!VAR}"
+            fi
+          fi
+        done
+
+        if [ "$MISSING" = "true" ]; then
+          echo "One or more AWS environment variables are missing. S3 upload will be skipped later."
+          echo "AWS_CONFIGURED=false" >> $GITHUB_ENV
+        else
+          echo "All required AWS environment variables are present."
+          echo "AWS_CONFIGURED=true" >> $GITHUB_ENV
+        fi
+
+        # Ensure unzip is available for AWS CLI installer
+        if ! command -v unzip &>/dev/null; then
+          echo "unzip not found; attempting to install unzip..."
+          sudo apt-get update -y || true
+          sudo apt-get install -y unzip || echo "Failed to install unzip; continuing"
+        fi
+
+        if command -v aws &>/dev/null; then
+          echo "AWS CLI already installed: $(aws --version)"
+        else
+          echo "AWS CLI not found; installing AWS CLI v2..."
+          curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+          unzip -q /tmp/awscliv2.zip -d /tmp/awscliv2
+          sudo /tmp/awscliv2/aws/install --update || sudo /tmp/awscliv2/aws/install || true
+          rm -rf /tmp/awscliv2.zip /tmp/awscliv2
+          if command -v aws &>/dev/null; then
+            echo "AWS CLI installed: $(aws --version)"
+          else
+            echo "Failed to install AWS CLI" >&2
+            if [ "${AWS_CONFIGURED:-false}" = "true" ]; then
+              echo "AWS required for uploads but installer failed; failing job." >&2
+              exit 1
+            fi
+          fi
+        fi
+
     # Free up disk space on GitHub Actions runner to avoid "no space left" errors
     - name: "EXEC: {Free up disk space}, independent"
       uses: endersonmenezes/free-disk-space@v3
@@ -323,24 +381,22 @@ jobs:
         AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
         CI_LOGS_BUCKET: ${{ secrets.CI_LOGS_BUCKET }}
       run: |
-        if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$AWS_DEFAULT_REGION" ] || [ -z "$CI_LOGS_BUCKET" ]; then
-          echo "Skipping S3 upload: AWS credentials or CI_LOGS_BUCKET not configured"
+        set -euo pipefail
+
+        if [ "${AWS_CONFIGURED:-false}" != "true" ]; then
+          echo "AWS not configured; skipping S3 upload"
           exit 0
         fi
-        if command -v aws &>/dev/null; then
-          echo "AWS CLI already installed: $(aws --version)"
-        else
-          echo "AWS CLI not found, installing..."
-          curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
-          unzip -q /tmp/awscliv2.zip -d /tmp/awscliv2
-          sudo /tmp/awscliv2/aws/install
-          rm -rf /tmp/awscliv2.zip /tmp/awscliv2
-          echo "AWS CLI installed: $(aws --version)"
+
+        if ! command -v aws &>/dev/null; then
+          echo "AWS CLI not found; cannot upload logs to S3" >&2
+          exit 1
         fi
+
         BRANCH="${GITHUB_REF_NAME//\//-}"
-        S3_PATH="s3://${CI_LOGS_BUCKET}/runs/${BRANCH}/${{ github.run_id }}/${{ github.run_attempt }}/"
+        S3_PATH="s3://${CI_LOGS_BUCKET}/runs/${BRANCH}/${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}/"
         echo "Uploading ~/.foc-devnet/state/latest to ${S3_PATH}"
-        aws s3 sync ~/.foc-devnet/state/latest "${S3_PATH}" --no-progress
+        aws s3 sync ~/.foc-devnet/state/latest "${S3_PATH}" --no-progress || echo "aws s3 sync returned non-zero"
         echo "Upload complete: ${S3_PATH}"
 
     # Verify cluster is running correctly
