@@ -1,0 +1,115 @@
+---
+name: Notify Slack
+description: Post a CI run summary to a Slack channel.
+
+inputs:
+  slack_webhook_url:
+    description: Slack incoming webhook URL.
+    required: true
+  slack_channel:
+    description: Slack channel to post to (e.g. #ci-notifications).
+    required: true
+  # Job results — pass needs.<job>.result for each job.
+  # Omit (or leave empty) any job that did not run in the calling workflow.
+  job_results:
+    description: >
+      JSON object mapping job names to their conclusions, e.g.
+      '{"fmt-clippy":"success","integration-test":"failure"}'.
+      Any job not present is treated as skipped.
+    required: true
+  # S3 artifact links (optional — omit if AWS is not configured).
+  ci_logs_bucket:
+    description: S3 bucket name where CI artifacts are stored.
+    required: false
+    default: ''
+  aws_default_region:
+    description: AWS region used to form the S3 URL.
+    required: false
+    default: ''
+  branch:
+    description: Branch name (used in S3 path).
+    required: false
+    default: ${{ github.head_ref || github.ref_name }}
+  run_id:
+    description: GitHub Actions run ID.
+    required: false
+    default: ${{ github.run_id }}
+  run_attempt:
+    description: GitHub Actions run attempt number.
+    required: false
+    default: ${{ github.run_attempt }}
+  repo:
+    description: Repository in owner/name format.
+    required: false
+    default: ${{ github.repository }}
+
+runs:
+  using: composite
+  steps:
+    - name: Send notification
+      shell: bash
+      env:
+        SLACK_WEBHOOK_URL: ${{ inputs.slack_webhook_url }}
+        SLACK_CHANNEL:     ${{ inputs.slack_channel }}
+        JOB_RESULTS:       ${{ inputs.job_results }}
+        CI_LOGS_BUCKET:    ${{ inputs.ci_logs_bucket }}
+        AWS_DEFAULT_REGION: ${{ inputs.aws_default_region }}
+        BRANCH:            ${{ inputs.branch }}
+        RUN_ID:            ${{ inputs.run_id }}
+        RUN_ATTEMPT:       ${{ inputs.run_attempt }}
+        REPO:              ${{ inputs.repo }}
+      run: |
+        set -euo pipefail
+
+        RUN_URL="https://github.com/${REPO}/actions/runs/${RUN_ID}"
+        BRANCH_S3="${BRANCH//\//-}"
+
+        # Determine overall status (failure if any job failed/cancelled)
+        OVERALL="success"
+        while IFS= read -r conclusion; do
+          if [[ "$conclusion" == "failure" || "$conclusion" == "cancelled" ]]; then
+            OVERALL="failure"
+            break
+          fi
+        done < <(echo "$JOB_RESULTS" | jq -r 'to_entries[].value')
+
+        icon() { [[ "$1" == "success" ]] && echo ":white_check_mark:" || echo ":x:"; }
+        OVERALL_ICON=$(icon "$OVERALL")
+
+        # Build one bullet per job
+        JOBS_TEXT=""
+        while IFS=$'\t' read -r name conclusion; do
+          JOBS_TEXT="${JOBS_TEXT}• $(icon "$conclusion")  ${name}\n"
+        done < <(echo "$JOB_RESULTS" | jq -r 'to_entries[] | [.key, .value] | @tsv')
+
+        # Build artifact links if S3 is configured
+        ARTIFACT_TEXT=""
+        if [[ -n "$CI_LOGS_BUCKET" && -n "$AWS_DEFAULT_REGION" ]]; then
+          S3_BASE="https://${CI_LOGS_BUCKET}.s3.${AWS_DEFAULT_REGION}.amazonaws.com/runs/${BRANCH_S3}/${RUN_ID}/${RUN_ATTEMPT}"
+          for f in setup.log devnet-info.json step_context.json version.txt post_start_status.log; do
+            ARTIFACT_TEXT="${ARTIFACT_TEXT}• <${S3_BASE}/${f}|${f}>\n"
+          done
+        fi
+
+        # Assemble blocks
+        BLOCKS=$(jq -n \
+          --arg hdr "${OVERALL_ICON} *CI <${RUN_URL}|#${RUN_ID}> · \`${BRANCH}\`*" \
+          --arg jobs "$(printf '%b' "$JOBS_TEXT")" \
+          --arg art  "$(printf '%b' "$ARTIFACT_TEXT")" \
+          --arg ch   "$SLACK_CHANNEL" \
+          '{
+            channel: $ch,
+            blocks: (
+              [
+                {type: "section", text: {type: "mrkdwn", text: $hdr}},
+                {type: "section", text: {type: "mrkdwn", text: ("*Jobs*\n" + $jobs)}}
+              ]
+              + (if $art != "" then [
+                  {type: "divider"},
+                  {type: "section", text: {type: "mrkdwn", text: ("*Artifacts*\n" + $art)}}
+                ] else [] end)
+            )
+          }')
+
+        curl -fsSL -X POST -H 'Content-Type: application/json' \
+          --data "$BLOCKS" "$SLACK_WEBHOOK_URL"

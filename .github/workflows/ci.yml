@@ -450,3 +450,21 @@ jobs:
       run: |
         echo "Start cluster failed earlier; marking job as failed." >&2
         exit 1
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [fmt-clippy, integration-test]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/notify-slack
+        with:
+          slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          slack_channel:     ${{ secrets.SLACK_CHANNEL }}
+          ci_logs_bucket:    ${{ secrets.CI_LOGS_BUCKET }}
+          aws_default_region: ${{ secrets.AWS_DEFAULT_REGION }}
+          job_results: |
+            {
+              "fmt-clippy": "${{ needs.fmt-clippy.result }}",
+              "integration-test": "${{ needs.integration-test.result }}"
+            }
