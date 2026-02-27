@@ -7,6 +7,7 @@ use super::containers::portainer_container_name;
 use super::core::{
     container_exists, container_is_running, docker_command, stop_and_remove_container,
 };
+use std::env;
 use std::error::Error;
 use tracing::info;
 
@@ -87,6 +88,9 @@ pub fn start_portainer(run_id: &str, port: u16) -> Result<(), Box<dyn Error>> {
     info!("Starting container...");
     let port_mapping = format!("{}:9000", port);
     let volume_mapping = format!("{}:/data", PORTAINER_DATA_VOLUME);
+    let socket_path =
+        env::var("DOCKER_SOCKET").unwrap_or_else(|_| "/var/run/docker.sock".to_string());
+    let socket_mapping = format!("{}:/var/run/docker.sock", socket_path);
     docker_command(&[
         "run",
         "-d",
@@ -95,7 +99,7 @@ pub fn start_portainer(run_id: &str, port: u16) -> Result<(), Box<dyn Error>> {
         "-p",
         &port_mapping,
         "-v",
-        "/var/run/docker.sock:/var/run/docker.sock",
+        &socket_mapping,
         "-v",
         &volume_mapping,
         "--restart",
