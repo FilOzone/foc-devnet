@@ -313,9 +313,18 @@ jobs:
     # Path: s3://<CI_LOGS_BUCKET>/runs/<branch>/<run_id>/<run_attempt>/
     # Requires: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION secrets
     # and CI_LOGS_BUCKET repository variable.
-    - name: "EXEC: {Install AWS CLI if missing}, independent"
+    - name: "EXEC: {Install AWS CLI and upload state/latest to S3}, independent"
       if: always()
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        CI_LOGS_BUCKET: ${{ vars.CI_LOGS_BUCKET }}
       run: |
+        if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$AWS_DEFAULT_REGION" ] || [ -z "$CI_LOGS_BUCKET" ]; then
+          echo "Skipping S3 upload: AWS credentials or CI_LOGS_BUCKET not configured"
+          exit 0
+        fi
         if command -v aws &>/dev/null; then
           echo "AWS CLI already installed: $(aws --version)"
         else
@@ -326,16 +335,8 @@ jobs:
           rm -rf /tmp/awscliv2.zip /tmp/awscliv2
           echo "AWS CLI installed: $(aws --version)"
         fi
-
-    - name: "EXEC: {Upload state/latest to S3}, independent"
-      if: always()
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
-      run: |
         BRANCH="${GITHUB_REF_NAME//\//-}"
-        S3_PATH="s3://${{ vars.CI_LOGS_BUCKET }}/runs/${BRANCH}/${{ github.run_id }}/${{ github.run_attempt }}/"
+        S3_PATH="s3://${CI_LOGS_BUCKET}/runs/${BRANCH}/${{ github.run_id }}/${{ github.run_attempt }}/"
         echo "Uploading ~/.foc-devnet/state/latest to ${S3_PATH}"
         aws s3 sync ~/.foc-devnet/state/latest "${S3_PATH}" --no-progress
         echo "Upload complete: ${S3_PATH}"
