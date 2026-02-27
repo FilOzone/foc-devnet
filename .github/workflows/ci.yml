@@ -331,7 +331,7 @@ jobs:
     - name: "EXEC: {Start cluster}, independent"
       id: start_cluster
       continue-on-error: true
-      run: ./foc-devnet start --parallel --no-test
+      run: ./foc-devnet start --parallel --notest
 
     # On failure, collect and print Docker container logs for debugging
     - name: "EXEC: {Collect Docker logs on failure}, independent"
