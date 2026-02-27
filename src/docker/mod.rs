@@ -18,7 +18,7 @@ pub mod status;
 // Re-export commonly used functions for convenience
 pub use core::{
     chown_command, container_exists, container_is_running, copy_from_container, create_container,
-    docker_command, exec_in_container, get_current_gid, get_current_uid, image_exists,
+    docker_command, exec_in_container, get_current_gid, get_current_uid, image_exists, is_podman,
     is_port_available, remove_container, run_command, run_container, stop_and_remove_container,
     stop_container, wait_for_port,
 };

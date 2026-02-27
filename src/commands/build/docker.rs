@@ -4,7 +4,7 @@
 
 use crate::docker::{
     build::build_docker_image,
-    core::{get_current_gid, get_current_uid, image_exists},
+    core::{get_current_gid, get_current_uid, image_exists, is_podman},
 };
 use crate::embedded_assets;
 use crate::paths::foc_devnet_docker_volumes_cache;
@@ -110,12 +110,17 @@ pub fn setup_docker_run_args(
         }
     }
 
-    // Get current user's UID and GID to run container as the same user
-    let uid = get_current_uid()?;
-    let gid = get_current_gid()?;
-
-    docker_run_args.push("-u".to_string());
-    docker_run_args.push(format!("{}:{}", uid, gid));
+    // Get current user's UID and GID to run container as the same user.
+    // With rootless podman, --userns=keep-id maps the host user into the
+    // container directly, avoiding UID remapping permission issues.
+    if is_podman() {
+        docker_run_args.push("--userns=keep-id".to_string());
+    } else {
+        let uid = get_current_uid()?;
+        let gid = get_current_gid()?;
+        docker_run_args.push("-u".to_string());
+        docker_run_args.push(format!("{}:{}", uid, gid));
+    }
 
     docker_run_args.push(image_tag.to_string());
     docker_run_args.push("/bin/bash".to_string());

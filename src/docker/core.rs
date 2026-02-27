@@ -224,3 +224,12 @@ pub fn chown_command(args: &[&str]) -> Result<Output, Box<dyn Error>> {
     command.args(args);
     command.output().map_err(|e| e.into())
 }
+
+/// Detect whether the docker CLI is actually podman.
+pub fn is_podman() -> bool {
+    Command::new("docker")
+        .args(["--version"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).contains("podman"))
+        .unwrap_or(false)
+}
