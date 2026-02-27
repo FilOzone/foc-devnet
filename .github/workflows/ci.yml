@@ -331,7 +331,7 @@ jobs:
     - name: "EXEC: {Start cluster}, independent"
       id: start_cluster
       continue-on-error: true
-      run: ./foc-devnet start --parallel
+      run: ./foc-devnet start --parallel --no-test
 
     # On failure, collect and print Docker container logs for debugging
     - name: "EXEC: {Collect Docker logs on failure}, independent"
@@ -393,7 +393,11 @@ jobs:
           exit 1
         fi
 
-        BRANCH="${GITHUB_REF_NAME//\//-}"
+        # derive branch name: use head ref for PRs, otherwise ref name
+        BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+        # strip refs/heads/ prefix if present
+        BRANCH="${BRANCH#refs/heads/}"
+        BRANCH="${BRANCH//\//-}"
         S3_PATH="s3://${CI_LOGS_BUCKET}/runs/${BRANCH}/${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}/"
         echo "Uploading ~/.foc-devnet/state/latest to ${S3_PATH}"
         aws s3 sync ~/.foc-devnet/state/latest "${S3_PATH}" --no-progress || echo "aws s3 sync returned non-zero"
