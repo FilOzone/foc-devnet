@@ -321,7 +321,7 @@ jobs:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
-        CI_LOGS_BUCKET: ${{ vars.CI_LOGS_BUCKET }}
+        CI_LOGS_BUCKET: ${{ secrets.CI_LOGS_BUCKET }}
       run: |
         if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$AWS_DEFAULT_REGION" ] || [ -z "$CI_LOGS_BUCKET" ]; then
           echo "Skipping S3 upload: AWS credentials or CI_LOGS_BUCKET not configured"
