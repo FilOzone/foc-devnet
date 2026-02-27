@@ -233,3 +233,11 @@ pub fn is_podman() -> bool {
         .map(|o| String::from_utf8_lossy(&o.stdout).contains("podman"))
         .unwrap_or(false)
 }
+
+/// Format a bind mount string with SELinux label suffix.
+/// Uses :z (shared) so multiple containers can access the same host path.
+/// Both Docker and Podman accept :z -- Docker treats it as a no-op on systems
+/// without SELinux, Podman uses it for relabeling.
+pub fn bind_mount(host: &str, container: &str) -> String {
+    format!("{}:{}:z", host, container)
+}

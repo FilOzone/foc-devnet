@@ -3,6 +3,7 @@
 //! This module handles Docker image building and container execution for project builds.
 
 use crate::docker::{
+    bind_mount,
     build::build_docker_image,
     core::{get_current_gid, get_current_uid, image_exists, is_podman},
 };
@@ -90,9 +91,9 @@ pub fn setup_docker_run_args(
         "-e".to_string(),
         "HOME=/home/foc-user".to_string(),
         "-v".to_string(),
-        format!("{}:{}", source_dir, container_source_dir),
+        bind_mount(source_dir, container_source_dir),
         "-v".to_string(),
-        format!("{}:{}", output_dir, container_output_dir),
+        bind_mount(output_dir, container_output_dir),
     ];
 
     // Load and apply volume mappings for this image
@@ -106,11 +107,13 @@ pub fn setup_docker_run_args(
             // Ensure the directory exists
             fs::create_dir_all(&host_path)?;
             docker_run_args.push("-v".to_string());
-            docker_run_args.push(format!("{}:{}", host_path.display(), container_path));
+            docker_run_args.push(bind_mount(
+                &host_path.display().to_string(),
+                &container_path,
+            ));
         }
     }
 
-    // Get current user's UID and GID to run container as the same user.
     // With rootless podman, --userns=keep-id maps the host user into the
     // container directly, avoiding UID remapping permission issues.
     if is_podman() {
