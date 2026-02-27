@@ -130,9 +130,18 @@ pub fn execute_build_process(
 fn fix_directory_ownership(dir: &str) -> Result<(), Box<dyn std::error::Error>> {
     let uid = get_current_uid()?;
     let gid = get_current_gid()?;
+    let ownership = format!("{}:{}", uid, gid);
+
+    // try without sudo first (works for rootless podman where user already owns files)
+    let output = Command::new("chown")
+        .args(["-R", &ownership, dir])
+        .output()?;
+    if output.status.success() {
+        return Ok(());
+    }
 
     let output = Command::new("sudo")
-        .args(["chown", "-R", &format!("{}:{}", uid, gid), dir])
+        .args(["chown", "-R", &ownership, dir])
         .output()?;
 
     if !output.status.success() {
