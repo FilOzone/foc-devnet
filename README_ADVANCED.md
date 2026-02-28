@@ -969,9 +969,12 @@ Steps run sequentially by default, or in parallel when using the `--parallel` fl
    - Approve authorized SPs
    - Save provider IDs
 
-**Synapse E2E Test Step:**
-   - Run end-to-end verification
-   - Test deal flow (unless `--notest` flag is used)
+**Synapse E2E Test Step:** (skipped with `--notest`)
+   - Set up USER_1 for FOC: approve and deposit USDFC into FilecoinPay, approve FWSS as operator
+   - Export `devnet-info.json` to `~/.foc-devnet/run/<run-id>/devnet-info.json`
+   - Run synapse-sdk storage E2E test to verify the full deal flow
+   - After this step, USER_1 can interact with FOC storage services via synapse-sdk
+   - USER_2 and USER_3 are funded with USDFC but not configured for FOC
 
 #### Post Start Steps
    - Save step context

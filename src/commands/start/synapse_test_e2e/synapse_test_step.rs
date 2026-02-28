@@ -1,10 +1,10 @@
-use crate::commands::init::keys::{load_keys, KeyInfo};
+use crate::commands::init::keys::load_keys;
 use crate::commands::start::step::{SetupContext, Step};
 use crate::constants::BUILDER_DOCKER_IMAGE;
+use crate::docker::command_logger::run_and_log_command;
 use crate::docker::core::docker_command;
 use crate::paths::{
-    contract_addresses_file, foc_devnet_docker_volumes_cache, foc_devnet_keys,
-    foc_devnet_synapse_sdk_repo,
+    devnet_info_file, foc_devnet_docker_volumes_cache, foc_devnet_synapse_sdk_repo,
 };
 use rand::Rng;
 use std::error::Error;
@@ -13,26 +13,22 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 
-const POST_DEPLOY_WAIT_SECONDS: u64 = 5;
+/// Seconds to wait after on-chain payment setup before running the E2E test,
+/// allowing transactions to be included in a block.
+const POST_SETUP_WAIT_SECONDS: u64 = 5;
 
-/// Type alias for extracted contract addresses and keys
-pub type ContractAddresses = (String, String, String, String, String, String);
+/// Gas limit for cast send transactions on Filecoin FEVM.
+const CAST_GAS_LIMIT: &str = "100000000";
 
-/// Parameters for Docker test execution
-struct DockerTestParams<'a> {
-    run_id: &'a str,
-    synapse_sdk_path: &'a Path,
-    builder_volumes_dir: &'a Path,
-    random_file_path: &'a Path,
-    script: &'a str,
-    user_key: &'a str,
-    lotus_rpc_url: &'a str,
-    warm_storage_addr: &'a str,
-    multicall3_addr: &'a str,
-    usdfc_addr: &'a str,
-    sp_registry_addr: &'a str,
-    endorsements_addr: &'a str,
-}
+/// 1 USDFC expressed in the token's 18-decimal base unit.
+const USDFC_DEPOSIT_AMOUNT: &str = "1000000000000000000";
+
+/// uint256 max value, used for unlimited operator approval allowances.
+const MAX_UINT256: &str =
+    "115792089237316195423570985008687907853269984665640564039457584007913129639935";
+
+/// 30-day lockup period expressed in Filecoin epochs (2880 epochs/day * 30 days).
+const LOCKUP_PERIOD_EPOCHS: &str = "86400";
 
 pub struct SynapseTestE2EStep {
     #[allow(dead_code)]
@@ -86,53 +82,53 @@ impl Step for SynapseTestE2EStep {
         info!("Running Synapse E2E Test...");
 
         let run_id = context.run_id();
+        let user_key = load_user_private_key()?;
+
+        // Write an early devnet-info.json for the E2E test to consume. The definitive
+        // version (with final startup_duration) is written by the post-steps in mod.rs.
+        crate::external_api::export_devnet_info(context)?;
+        let devnet_info_path = devnet_info_file(run_id);
+        info!("DevNet info exported to: {}", devnet_info_path.display());
+
+        setup_client_payments(context, &user_key)?;
+
+        info!(
+            "Waiting {} seconds for on-chain activation...",
+            POST_SETUP_WAIT_SECONDS
+        );
+        std::thread::sleep(std::time::Duration::from_secs(POST_SETUP_WAIT_SECONDS));
+
         let synapse_sdk_path = foc_devnet_synapse_sdk_repo();
         let builder_volumes_dir =
             foc_devnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
-
-        // Load contract addresses and keys
-        let addresses = load_contract_addresses(run_id)?;
-        let keys = load_wallet_keys()?;
-
-        // Extract required addresses and keys
-        let (
-            user_key,
-            warm_storage_addr,
-            usdfc_addr,
-            multicall3_addr,
-            sp_registry_addr,
-            endorsements_addr,
-        ) = extract_required_addresses(&addresses, &keys)?;
-
-        let lotus_rpc_url = crate::commands::start::lotus_utils::get_lotus_rpc_url(context)?;
-
-        // Create random test file
         let random_file_path = create_random_test_file(&self.run_dir)?;
 
-        // Generate the test script
-        let script = generate_test_script(
-            &lotus_rpc_url,
-            &warm_storage_addr,
-            &multicall3_addr,
-            &usdfc_addr,
-            &sp_registry_addr,
+        let docker_args = build_docker_command(
+            run_id,
+            &synapse_sdk_path,
+            &devnet_info_path,
+            &builder_volumes_dir,
+            &random_file_path,
+            &user_key,
+            TEST_SCRIPT,
         );
 
-        // Build and execute docker command
-        execute_docker_test(&DockerTestParams {
-            run_id,
-            synapse_sdk_path: &synapse_sdk_path,
-            builder_volumes_dir: &builder_volumes_dir,
-            random_file_path: &random_file_path,
-            script: &script,
-            user_key: &user_key,
-            lotus_rpc_url: &lotus_rpc_url,
-            warm_storage_addr: &warm_storage_addr,
-            multicall3_addr: &multicall3_addr,
-            usdfc_addr: &usdfc_addr,
-            sp_registry_addr: &sp_registry_addr,
-            endorsements_addr: &endorsements_addr,
-        })
+        let args_ref: Vec<&str> = docker_args.iter().map(|s| s.as_str()).collect();
+
+        info!("Executing test in container...");
+        let output = docker_command(&args_ref)?;
+
+        if !output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            warn!("Synapse E2E Test failed!");
+            warn!("Stdout:\n{}", stdout);
+            warn!("Stderr:\n{}", stderr);
+            return Err("Synapse E2E Test failed".into());
+        }
+
+        info!("Synapse E2E Test completed successfully");
+        Ok(())
     }
 
     fn post_execute(&self, _context: &SetupContext) -> Result<(), Box<dyn Error>> {
@@ -140,152 +136,210 @@ impl Step for SynapseTestE2EStep {
     }
 }
 
-/// Build and execute docker test container.
-fn execute_docker_test(params: &DockerTestParams) -> Result<(), Box<dyn Error>> {
-    let docker_args = build_docker_command(params)?;
+/// Set up USER_1's wallet for FOC usage: ERC20 approve, deposit USDFC into FilecoinPay,
+/// and approve FWSS as an operator with unlimited allowances and a 30-day lockup period.
+/// After this, USER_1 can interact with the FOC storage services via synapse-sdk.
+/// USER_2 and USER_3 are funded with USDFC but are not set up for FOC.
+fn setup_client_payments(
+    context: &SetupContext,
+    user_key: &str,
+) -> Result<(), Box<dyn Error>> {
+    let lotus_rpc_url = format!(
+        "http://localhost:{}/rpc/v1",
+        context
+            .get("lotus_api_port")
+            .ok_or("lotus_api_port not found in context")?
+    );
+    let usdfc_addr = context
+        .get("mockusdfc_contract_address")
+        .ok_or("mockusdfc_contract_address not found in context")?;
+    let pay_addr = context
+        .get("foc_contract_filecoin_pay_v1_contract")
+        .ok_or("foc_contract_filecoin_pay_v1_contract not found in context")?;
+    let fwss_addr = context
+        .get("foc_contract_filecoin_warm_storage_service_proxy")
+        .ok_or("foc_contract_filecoin_warm_storage_service_proxy not found in context")?;
+    let user_eth_addr = context
+        .get("user_1_eth_address")
+        .ok_or("user_1_eth_address not found in context")?;
 
-    let args_ref: Vec<&str> = docker_args.iter().map(|s| s.as_str()).collect();
+    let run_id = context.run_id();
 
-    info!("Executing test script in container...");
-    let output = docker_command(&args_ref)?;
+    info!("Approving FilecoinPay to spend USDFC...");
+    cast_send(
+        context,
+        &format!("foc-{}-synapse-erc20-approve", run_id),
+        &format!(
+            "cast send {} 'approve(address,uint256)' {} {} \
+             --rpc-url {} --private-key {} --gas-limit {}",
+            usdfc_addr, pay_addr, USDFC_DEPOSIT_AMOUNT, lotus_rpc_url, user_key, CAST_GAS_LIMIT
+        ),
+        "synapse_erc20_approve",
+    )?;
 
-    if !output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        warn!("Synapse E2E Test failed!");
-        warn!("Stdout:\n{}", stdout);
-        warn!("Stderr:\n{}", stderr);
-        return Err("Synapse E2E Test failed".into());
-    }
+    info!("Depositing USDFC into FilecoinPay...");
+    cast_send(
+        context,
+        &format!("foc-{}-synapse-fp-deposit", run_id),
+        &format!(
+            "cast send {} 'deposit(address,address,uint256)' {} {} {} \
+             --rpc-url {} --private-key {} --gas-limit {}",
+            pay_addr, usdfc_addr, user_eth_addr, USDFC_DEPOSIT_AMOUNT, lotus_rpc_url, user_key,
+            CAST_GAS_LIMIT
+        ),
+        "synapse_fp_deposit",
+    )?;
 
-    info!("✓ Synapse E2E Test completed successfully");
+    info!("Approving FWSS as payment operator...");
+    cast_send(
+        context,
+        &format!("foc-{}-synapse-fp-approve-operator", run_id),
+        &format!(
+            "cast send {} \
+             'setOperatorApproval(address,address,bool,uint256,uint256,uint256)' \
+             {} {} true {} {} {} \
+             --rpc-url {} --private-key {} --gas-limit {}",
+            pay_addr,
+            usdfc_addr,
+            fwss_addr,
+            MAX_UINT256,
+            MAX_UINT256,
+            LOCKUP_PERIOD_EPOCHS,
+            lotus_rpc_url,
+            user_key,
+            CAST_GAS_LIMIT
+        ),
+        "synapse_fp_approve_operator",
+    )?;
+
+    info!("Client payment setup complete");
     Ok(())
 }
 
+/// Run a cast send command inside the builder container.
+fn cast_send(
+    context: &SetupContext,
+    container_name: &str,
+    cast_cmd: &str,
+    log_key: &str,
+) -> Result<(), Box<dyn Error>> {
+    let output = run_and_log_command(
+        "docker",
+        &[
+            "run",
+            "--name",
+            container_name,
+            "--network",
+            "host",
+            BUILDER_DOCKER_IMAGE,
+            "bash",
+            "-c",
+            cast_cmd,
+        ],
+        context,
+        log_key,
+    )?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Cast command '{}' failed: {}", log_key, stderr).into());
+    }
+
+    Ok(())
+}
+
+/// Load the USER_1 private key from the generated keys file.
+fn load_user_private_key() -> Result<String, Box<dyn Error>> {
+    let keys = load_keys()?;
+    let user_key = keys
+        .iter()
+        .find(|k| k.name == "USER_1")
+        .ok_or("USER_1 key not found in addresses.json")?;
+
+    Ok(format!("0x{}", user_key.private_key))
+}
+
 /// Build docker command arguments for test execution.
-fn build_docker_command(params: &DockerTestParams) -> Result<Vec<String>, Box<dyn Error>> {
-    let mut docker_args = vec![
+fn build_docker_command(
+    run_id: &str,
+    synapse_sdk_path: &Path,
+    devnet_info_path: &Path,
+    builder_volumes_dir: &Path,
+    random_file_path: &Path,
+    user_key: &str,
+    script: &str,
+) -> Vec<String> {
+    let mut args = vec![
         "run".to_string(),
         "--name".to_string(),
-        format!("foc-{}-synapse-test", params.run_id),
+        format!("foc-{}-synapse-test", run_id),
         "--network".to_string(),
         "host".to_string(),
         "-u".to_string(),
         "root".to_string(),
     ];
 
-    // Add environment variables required by synapse-sdk scripts
-    // Note: example-storage-e2e.js uses env vars, not CLI flags
+    // Environment variables - using NETWORK=devnet with devnet-info.json
     let env_vars = vec![
-        ("CLIENT_PRIVATE_KEY", params.user_key.to_string()),
-        ("PRIVATE_KEY", params.user_key.to_string()),
-        ("RPC_URL", params.lotus_rpc_url.to_string()),
-        ("WARM_STORAGE_ADDRESS", params.warm_storage_addr.to_string()),
-        ("MULTICALL3_ADDRESS", params.multicall3_addr.to_string()),
-        ("USDFC_ADDRESS", params.usdfc_addr.to_string()),
-        ("SP_REGISTRY_ADDRESS", params.sp_registry_addr.to_string()),
-        ("ENDORSEMENTS_ADDRESS", params.endorsements_addr.to_string()),
-        ("CI", "true".to_string()),
+        ("NETWORK", "devnet"),
+        ("DEVNET_INFO_PATH", "/devnet-info.json"),
+        ("CLIENT_PRIVATE_KEY", user_key),
     ];
 
-    for (key, value) in env_vars {
-        docker_args.push("-e".to_string());
-        docker_args.push(format!("{}={}", key, value));
+    for (key, value) in &env_vars {
+        args.push("-e".to_string());
+        args.push(format!("{}={}", key, value));
     }
 
     // Mount synapse-sdk
-    let synapse_sdk_real_path = params
-        .synapse_sdk_path
+    let synapse_real = synapse_sdk_path
         .canonicalize()
-        .unwrap_or_else(|_| params.synapse_sdk_path.to_path_buf());
-    docker_args.push("-v".to_string());
-    docker_args.push(format!("{}:/synapse-sdk", synapse_sdk_real_path.display()));
+        .unwrap_or_else(|_| synapse_sdk_path.to_path_buf());
+    args.push("-v".to_string());
+    args.push(format!("{}:/synapse-sdk", synapse_real.display()));
+
+    // Mount devnet-info.json
+    args.push("-v".to_string());
+    args.push(format!(
+        "{}:/devnet-info.json:ro",
+        devnet_info_path.display()
+    ));
 
     // Mount random test file
-    docker_args.push("-v".to_string());
-    docker_args.push(format!(
+    args.push("-v".to_string());
+    args.push(format!(
         "{}:/tmp/random_test_file.txt",
-        params.random_file_path.display()
+        random_file_path.display()
     ));
 
     // Mount cargo cache
-    docker_args.push("-v".to_string());
-    docker_args.push(format!(
+    args.push("-v".to_string());
+    args.push(format!(
         "{}:/root/.cargo",
-        params.builder_volumes_dir.join("cargo").display()
+        builder_volumes_dir.join("cargo").display()
     ));
 
-    // Add image and command
-    docker_args.push(BUILDER_DOCKER_IMAGE.to_string());
-    docker_args.push("/bin/bash".to_string());
-    docker_args.push("-c".to_string());
-    docker_args.push(params.script.to_string());
+    // Image and command
+    args.push(BUILDER_DOCKER_IMAGE.to_string());
+    args.push("/bin/bash".to_string());
+    args.push("-c".to_string());
+    args.push(script.to_string());
 
-    Ok(docker_args)
+    args
 }
 
-/// Load contract addresses from file.
-fn load_contract_addresses(run_id: &str) -> Result<serde_json::Value, Box<dyn Error>> {
-    let addresses_path = contract_addresses_file(run_id);
-    let addresses_file = File::open(&addresses_path)?;
-    let addresses: serde_json::Value = serde_json::from_reader(addresses_file)?;
-    Ok(addresses)
-}
+/// Bash script that runs inside the test container: install, build, then run E2E.
+const TEST_SCRIPT: &str = "\
+set -e
+cd /synapse-sdk
+echo \"Installing dependencies...\"
+pnpm install
 
-/// Load wallet keys from the generated addresses file.
-fn load_wallet_keys() -> Result<Vec<KeyInfo>, Box<dyn Error>> {
-    let keys_file = foc_devnet_keys().join("addresses.json");
-    if !keys_file.exists() {
-        return Err(format!("Keys file not found at {}", keys_file.display()).into());
-    }
+echo \"Building SDK...\"
+pnpm build
 
-    load_keys()
-}
-
-/// Extract required addresses and keys from loaded data.
-fn extract_required_addresses(
-    addresses: &serde_json::Value,
-    keys: &[KeyInfo],
-) -> Result<ContractAddresses, Box<dyn Error>> {
-    let user_key = keys
-        .iter()
-        .find(|k| k.name == "USER_1")
-        .ok_or("USER_1 key not found in addresses.json")?
-        .private_key
-        .clone();
-    let user_key_prefixed = format!("0x{}", user_key);
-
-    // Extract contract addresses
-    let warm_storage_addr = addresses["foc_contracts"]["filecoin_warm_storage_service_proxy"]
-        .as_str()
-        .ok_or("Warm storage address not found in contract_addresses.json")?
-        .to_string();
-    let usdfc_addr = addresses["contracts"]["usdfc"]
-        .as_str()
-        .ok_or("USDFC address not found in contract_addresses.json")?
-        .to_string();
-    let multicall3_addr = addresses["contracts"]["multicall"]
-        .as_str()
-        .ok_or("Multicall3 address not found in contract_addresses.json")?
-        .to_string();
-    let sp_registry_addr = addresses["foc_contracts"]["service_provider_registry_proxy"]
-        .as_str()
-        .ok_or("SP Registry address not found in contract_addresses.json")?
-        .to_string();
-    let endorsements_addr = addresses["foc_contracts"]["endorsements"]
-        .as_str()
-        .ok_or("Endorsements address not found in contract_addresses.json")?
-        .to_string();
-
-    Ok((
-        user_key_prefixed,
-        warm_storage_addr,
-        usdfc_addr,
-        multicall3_addr,
-        sp_registry_addr,
-        endorsements_addr,
-    ))
-}
+echo \"Running storage E2E test...\"
+node utils/example-storage-e2e.js /tmp/random_test_file.txt";
 
 /// Create a random test file for the E2E test.
 fn create_random_test_file(run_dir: &Path) -> Result<PathBuf, Box<dyn Error>> {
@@ -296,88 +350,4 @@ fn create_random_test_file(run_dir: &Path) -> Result<PathBuf, Box<dyn Error>> {
     file.write_all(&data)?;
     info!("Created random test file at {}", random_file_path.display());
     Ok(random_file_path)
-}
-
-/// Generate the shell script for synapse-sdk E2E testing.
-fn generate_test_script(
-    lotus_rpc_url: &str,
-    warm_storage_addr: &str,
-    multicall3_addr: &str,
-    usdfc_addr: &str,
-    sp_registry_addr: &str,
-) -> String {
-    let mut lines = Vec::new();
-    lines.extend(bootstrap_commands());
-    lines.push(build_post_deploy_command(
-        lotus_rpc_url,
-        warm_storage_addr,
-        multicall3_addr,
-        usdfc_addr,
-        sp_registry_addr,
-    ));
-    lines.extend(wait_commands());
-    lines.push(build_storage_e2e_command());
-
-    lines.join("\n")
-}
-
-/// Steps to install and build the SDK inside the container.
-fn bootstrap_commands() -> Vec<String> {
-    vec![
-        "set -e".to_string(),
-        "cd /synapse-sdk".to_string(),
-        "echo \"Installing dependencies...\"".to_string(),
-        "pnpm install".to_string(),
-        "".to_string(),
-        "echo \"Building SDK...\"".to_string(),
-        "pnpm build".to_string(),
-        "".to_string(),
-    ]
-}
-
-/// CLI invocation for post-deploy setup.
-fn build_post_deploy_command(
-    lotus_rpc_url: &str,
-    warm_storage_addr: &str,
-    multicall3_addr: &str,
-    usdfc_addr: &str,
-    sp_registry_addr: &str,
-) -> String {
-    [
-        "echo \"Running post-deploy setup...\"".to_string(),
-        format!(
-            concat!(
-                "node utils/post-deploy-setup.js \\\n",
-                "    --mode client \\\n",
-                "    --network devnet \\\n",
-                "    --rpc-url {} \\\n",
-                "    --warm-storage {} \\\n",
-                "    --multicall3 {} \\\n",
-                "    --usdfc {} \\\n",
-                "    --sp-registry {}",
-            ),
-            lotus_rpc_url, warm_storage_addr, multicall3_addr, usdfc_addr, sp_registry_addr,
-        ),
-    ]
-    .join("\n")
-}
-
-/// Simple wait between setup and test to allow on-chain activation.
-fn wait_commands() -> Vec<String> {
-    vec![
-        format!(
-            "echo \"Waiting for {} seconds...\"",
-            POST_DEPLOY_WAIT_SECONDS
-        ),
-        format!("sleep {}", POST_DEPLOY_WAIT_SECONDS),
-        "".to_string(),
-    ]
-}
-
-/// CLI invocation for the storage E2E test.
-/// The script uses environment variables for configuration (set via Docker -e flags).
-fn build_storage_e2e_command() -> String {
-    "echo \"Running storage E2E test...\"\n\
-node utils/example-storage-e2e.js /tmp/random_test_file.txt"
-        .to_string()
 }

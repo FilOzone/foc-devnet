@@ -42,7 +42,7 @@ fn build_devnet_info(ctx: &SetupContext) -> Result<DevnetInfoV1, Box<dyn std::er
         start_time: Utc::now().to_rfc3339(),
         startup_duration: ctx
             .get("step_timing_total_execution_time")
-            .expect("step_timing_total_execution_time not found in context"),
+            .unwrap_or_else(|| "in-progress".to_string()),
         users: build_users(ctx)?,
         contracts: build_contracts(ctx)?,
         lotus: build_lotus_info(ctx)?,
