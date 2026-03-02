@@ -6,7 +6,7 @@ on:
     branches: ['*']
   pull_request:
     branches: ['*']  # Target branches
-    paths-ignore: []  # Ensure no paths are ignored
+    paths: ['**']  # Ensure all paths are included
   workflow_dispatch:
     inputs:
       curio:
