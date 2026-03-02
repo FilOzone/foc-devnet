@@ -85,7 +85,19 @@ This will:
 
 ### Step 4: Use the Network
 
-See [examples/README.md](examples/README.md) for how you can easily consume network addresses, parameters, etc. and hook them into Synapse, etc. 
+After startup, `USER_1` is fully configured for FOC: USDFC deposited into FilecoinPay and FWSS approved as an operator. You can use it immediately with synapse-sdk:
+
+```bash
+NETWORK=devnet node utils/example-storage-e2e.js <file>
+```
+
+All connection details (contract addresses, user keys, SP endpoints) are exported to `devnet-info.json`:
+
+```bash
+cat ~/.foc-devnet/state/latest/devnet-info.json
+```
+
+See [examples/README.md](examples/README.md) for more usage examples.
 
 ---
 

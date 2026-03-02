@@ -13,13 +13,9 @@ use foc_devnet::paths::foc_devnet_config;
 use foc_devnet::poison;
 
 /// Execute the start command
-pub fn handle_start(
-    parallel: bool,
-    run_id: String,
-    notest: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn handle_start(parallel: bool, run_id: String) -> Result<(), Box<dyn std::error::Error>> {
     poison::create_poison("Start")?;
-    commands::start_cluster(parallel, run_id, notest)
+    commands::start_cluster(parallel, run_id)
 }
 
 /// Execute the stop command
@@ -34,7 +30,6 @@ pub fn handle_init(
     curio: Option<String>,
     lotus: Option<String>,
     filecoin_services: Option<String>,
-    synapse_sdk: Option<String>,
     yugabyte_url: Option<String>,
     yugabyte_archive: Option<String>,
     proof_params_dir: Option<String>,
@@ -47,7 +42,6 @@ pub fn handle_init(
         curio_location: curio,
         lotus_location: lotus,
         filecoin_services_location: filecoin_services,
-        synapse_sdk_location: synapse_sdk,
         yugabyte_url,
         yugabyte_archive,
         proof_params_dir,

@@ -134,11 +134,6 @@ pub fn foc_devnet_multicall3_repo() -> PathBuf {
     foc_devnet_code().join("multicall3")
 }
 
-/// Returns the path to the "synapse-sdk" repository
-pub fn foc_devnet_synapse_sdk_repo() -> PathBuf {
-    foc_devnet_code().join("synapse-sdk")
-}
-
 /// Returns the path to the foc-devnet artifacts directory, e.g., ~/.foc-devnet/artifacts
 pub fn foc_devnet_artifacts() -> PathBuf {
     foc_devnet_home().join("artifacts")

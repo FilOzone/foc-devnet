@@ -40,6 +40,11 @@ pub struct DevnetInfoV1 {
 }
 
 /// Information about a user account.
+///
+/// All users are funded with FIL and MockUSDFC tokens. When the synapse E2E test
+/// step runs, USER_1 is additionally set up for FOC usage: USDFC deposited into
+/// FilecoinPay and FWSS approved as an operator. Other users have tokens but are
+/// not configured for FOC services.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserInfo {
     /// User identifier (e.g., "USER_1")

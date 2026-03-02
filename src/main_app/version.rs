@@ -50,7 +50,6 @@ pub fn handle_version() -> Result<(), Box<dyn std::error::Error>> {
         &default_config.filecoin_services,
     );
     print_location_info("default:code:multicall3", &default_config.multicall3);
-    print_location_info("default:code:synapse-sdk", &default_config.synapse_sdk);
     info!("default:yugabyte: {}", default_config.yugabyte_download_url);
 
     Ok(())

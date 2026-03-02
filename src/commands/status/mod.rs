@@ -3,7 +3,7 @@
 //! This module provides comprehensive status reporting for the FOC DevNet system.
 //!
 //! The status command displays information about:
-//! - Code versions and git status for repositories (Lotus, Curio, Filecoin-Services, Synapse-SDK)
+//! - Code versions and git status for repositories (Lotus, Curio, Filecoin-Services)
 //! - Build status of system binaries
 //! - Proof parameters availability and validation
 //! - Running status of Docker containers and services

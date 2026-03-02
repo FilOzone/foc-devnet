@@ -127,7 +127,6 @@ pub struct InitOptions {
     pub curio_location: Option<String>,
     pub lotus_location: Option<String>,
     pub filecoin_services_location: Option<String>,
-    pub synapse_sdk_location: Option<String>,
     pub yugabyte_url: Option<String>,
     pub yugabyte_archive: Option<String>,
     pub proof_params_dir: Option<String>,
@@ -151,7 +150,6 @@ pub fn init_environment(options: InitOptions) -> Result<(), Box<dyn std::error::
         options.curio_location.clone(),
         options.lotus_location.clone(),
         options.filecoin_services_location.clone(),
-        options.synapse_sdk_location.clone(),
         options.yugabyte_url.clone(),
         options.force,
     )?;

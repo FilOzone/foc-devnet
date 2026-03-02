@@ -16,8 +16,8 @@ use super::git::{format_location_info, get_git_info, get_repo_path_from_config};
 
 /// Print code version information in tabular format.
 ///
-/// This function displays version information for Lotus, Curio, Filecoin-Services,
-/// and Synapse-SDK repositories, including their source types, current versions,
+/// This function displays version information for Lotus, Curio, and Filecoin-Services
+/// repositories, including their source types, current versions,
 /// commit hashes, and readiness status.
 ///
 /// # Examples
@@ -77,17 +77,6 @@ pub fn print_code_version() -> Result<(), Box<dyn std::error::Error>> {
             &fc_services_repo_path,
         );
 
-    // Get git information for Synapse-SDK
-    let synapse_sdk_repo_path = get_repo_path_from_config(&config.synapse_sdk, "synapse-sdk");
-    let synapse_sdk_git_info = get_git_info(&synapse_sdk_repo_path)?;
-
-    let (synapse_sdk_source_type, synapse_sdk_version, synapse_sdk_commit, synapse_sdk_status) =
-        format_location_info(
-            &config.synapse_sdk,
-            &synapse_sdk_git_info,
-            &synapse_sdk_repo_path,
-        );
-
     // Print log-style output
     info!(
         "Lotus: [{},{},{}] {}",
@@ -100,10 +89,6 @@ pub fn print_code_version() -> Result<(), Box<dyn std::error::Error>> {
     info!(
         "Filecoin-Services: [{},{},{}] {}",
         fc_services_source_type, fc_services_version, fc_services_commit, fc_services_status
-    );
-    info!(
-        "Synapse-SDK: [{},{},{}] {}",
-        synapse_sdk_source_type, synapse_sdk_version, synapse_sdk_commit, synapse_sdk_status
     );
 
     Ok(())
