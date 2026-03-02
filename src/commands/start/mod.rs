@@ -12,9 +12,9 @@ mod multicall3_deploy;
 mod pdp_service_provider;
 pub mod prerequisites_check;
 pub mod step;
-mod synapse_test_e2e;
 mod usdfc_deploy;
 mod usdfc_funding;
+mod user_setup;
 mod yugabyte;
 
 use curio::CurioStep;
@@ -28,8 +28,8 @@ use multicall3_deploy::MultiCall3DeployStep;
 use pdp_service_provider::PdpSpRegistrationStep;
 use prerequisites_check::PrerequisitesCheckStep;
 pub use step::{execute_steps, execute_steps_parallel, SetupContext, Step};
-use synapse_test_e2e::SynapseTestE2EStep;
 use usdfc_deploy::USDFCDeployStep;
+use user_setup::UserSetupStep;
 use yugabyte::YugabyteStep;
 
 use crate::commands::start::usdfc_funding::USDFCFundingStep;
@@ -266,7 +266,6 @@ fn create_steps(
     volumes_dir: &Path,
     run_dir: &Path,
     config: &Config,
-    notest: bool,
 ) -> Vec<Box<dyn Step>> {
     let lotus_step = LotusStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
     let lotus_miner_step = LotusMinerStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
@@ -294,14 +293,13 @@ fn create_steps(
         run_dir.to_path_buf(),
         config.active_pdp_sp_count,
     );
-    let synapse_test_step =
-        SynapseTestE2EStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf(), notest);
     let endorsement_step = EndorsementStep::new(
         volumes_dir.to_path_buf(),
         run_dir.to_path_buf(),
         config.endorsed_pdp_sp_count,
         config.active_pdp_sp_count,
     );
+    let user_setup_step = UserSetupStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
 
     // Execute all steps
     // Note: PDP SP registration MUST happen after Curio because it needs
@@ -318,7 +316,7 @@ fn create_steps(
         Box::new(curio_step),
         Box::new(pdp_sp_reg_step),
         Box::new(endorsement_step),
-        Box::new(synapse_test_step),
+        Box::new(user_setup_step),
     ]
 }
 
@@ -337,12 +335,12 @@ fn create_steps(
 /// - Epoch 6: FOC Deploy + MockUSDFC Funding + Yugabyte (can be parallelized, needs USDFC deployed)
 /// - Epoch 7: Curio daemons (needs Yugabyte)
 /// - Epoch 8: PDP SP Registration (needs Curio running, for port information)
-/// - Epoch 9: Synapse E2E Test (final validation)
+/// - Epoch 9: Endorse PDP SPs (final step)
+/// - Epoch 10: USER_1 payment setup (depends on FOC contracts + Lotus)
 fn create_step_epochs(
     volumes_dir: &Path,
     run_dir: &Path,
     config: &Config,
-    notest: bool,
 ) -> Vec<Vec<Box<dyn Step>>> {
     let prerequisites_check_step = PrerequisitesCheckStep::new();
     let lotus_step = LotusStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
@@ -371,14 +369,13 @@ fn create_step_epochs(
         config.active_pdp_sp_count,
         config.approved_pdp_sp_count,
     );
-    let synapse_test_step =
-        SynapseTestE2EStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf(), notest);
     let endorsement_step = EndorsementStep::new(
         volumes_dir.to_path_buf(),
         run_dir.to_path_buf(),
         config.endorsed_pdp_sp_count,
         config.active_pdp_sp_count,
     );
+    let user_setup_step = UserSetupStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
 
     vec![
         // Epoch 1: Prerequisites check (binaries & Docker images - must run first)
@@ -406,8 +403,8 @@ fn create_step_epochs(
         vec![Box::new(pdp_sp_reg_step)],
         // Epoch 9: Endorse PDP SPs (needs registration complete)
         vec![Box::new(endorsement_step)],
-        // Epoch 10: Run Synapse E2E Test
-        vec![Box::new(synapse_test_step)],
+        // Epoch 10: USER_1 payment setup (needs FOC contracts deployed)
+        vec![Box::new(user_setup_step)],
     ]
 }
 
@@ -419,7 +416,6 @@ fn execute_cluster_steps(
     config: &Config,
     parallel: bool,
     portainer_port: u16,
-    notest: bool,
 ) -> Result<SetupContext, Box<dyn std::error::Error>> {
     // Ensure genesis prerequisites are ready (one-time setup, needs config for sector count)
     ensure_genesis_prerequisites(config.active_pdp_sp_count, run_id)?;
@@ -454,7 +450,7 @@ fn execute_cluster_steps(
 
     if parallel {
         info!("Execution mode: PARALLEL (experimental)");
-        let step_epochs = create_step_epochs(volumes_dir, run_dir, config, notest);
+        let step_epochs = create_step_epochs(volumes_dir, run_dir, config);
 
         // Convert Vec<Vec<Box<dyn Step>>> to Vec<Vec<&dyn Step>>
         let epoch_refs: Vec<Vec<&dyn Step>> = step_epochs
@@ -466,7 +462,7 @@ fn execute_cluster_steps(
         Ok(context)
     } else {
         info!("Execution mode: SEQUENTIAL");
-        let steps = create_steps(volumes_dir, run_dir, config, notest);
+        let steps = create_steps(volumes_dir, run_dir, config);
 
         let context = execute_steps(
             steps.iter().map(|s| s.as_ref()).collect::<Vec<_>>(),
@@ -480,7 +476,6 @@ fn execute_cluster_steps(
 pub fn start_cluster(
     parallel: bool,
     run_id: String,
-    notest: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Check host.docker.internal resolution first (required for SP-to-SP fetch)
     check_host_docker_internal()?;
@@ -523,7 +518,6 @@ pub fn start_cluster(
         &config,
         parallel,
         portainer_port,
-        notest,
     );
 
     // Always run post-start teardown: persist logs, cleanup dead containers, write status

@@ -22,7 +22,6 @@ pub use stop::stop_cluster;
 pub fn start_cluster(
     parallel: bool,
     run_id: String,
-    notest: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    start::start_cluster(parallel, run_id, notest)
+    start::start_cluster(parallel, run_id)
 }

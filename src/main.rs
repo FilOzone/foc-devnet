@@ -22,15 +22,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Execute the command with poison file protection
     let result = match cli.command {
-        Commands::Start { parallel, notest } => {
-            main_app::command_handlers::handle_start(parallel, run_id, notest)
+        Commands::Start { parallel } => {
+            main_app::command_handlers::handle_start(parallel, run_id)
         }
         Commands::Stop => main_app::command_handlers::handle_stop(),
         Commands::Init {
             curio,
             lotus,
             filecoin_services,
-            synapse_sdk,
             yugabyte_url,
             yugabyte_archive,
             proof_params_dir,
@@ -41,7 +40,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             curio,
             lotus,
             filecoin_services,
-            synapse_sdk,
             yugabyte_url,
             yugabyte_archive,
             proof_params_dir,

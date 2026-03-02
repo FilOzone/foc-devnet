@@ -41,9 +41,6 @@ pub fn download_code_repositories() -> Result<(), Box<dyn std::error::Error>> {
     // Download multicall3 repository if Git-based
     download_repository("multicall3", &config.multicall3)?;
 
-    // Download synapse-sdk repository if Git-based
-    download_repository("synapse-sdk", &config.synapse_sdk)?;
-
     info!("Code repositories are now available.");
     Ok(())
 }
