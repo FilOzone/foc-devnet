@@ -6,6 +6,19 @@ on:
     branches: ['*']
   pull_request:
     branches: [main]
+  schedule:
+    # Nightly at 03:00 UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      reporting:
+        description: 'Create GitHub issue with scenario report'
+        type: boolean
+        default: false
+      skip_report_on_pass:
+        description: 'Skip filing issue when all scenarios pass'
+        type: boolean
+        default: true
 
 jobs:
   fmt-clippy:
@@ -26,9 +39,38 @@ jobs:
     - name: Run clippy
       run: cargo clippy --all-targets --all-features -- -D warnings
 
+  shellcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install shfmt
+      run: sudo snap install shfmt
+
+    # Ensure all .sh files under scenario/ are executable
+    - name: Check executable permissions
+      run: |
+        bad=$(find scenario -name '*.sh' ! -perm -u+x)
+        if [ -n "$bad" ]; then
+          echo "Missing +x on:" >&2; echo "$bad" >&2; exit 1
+        fi
+
+    # Lint with shellcheck
+    - name: shellcheck
+      run: find scenario -name '*.sh' -exec shellcheck -S warning {} +
+
+    # Verify consistent formatting (indent=2, binary ops start of line)
+    - name: shfmt
+      run: shfmt -d -i 2 -bn scenario/
+
   foc-start-test:
     runs-on: ["self-hosted", "linux", "x64", "16xlarge+gpu"]
-    timeout-minutes: 60
+    timeout-minutes: 100
+    permissions:
+      contents: read
+      issues: write
 
     steps:
     - uses: actions/checkout@v4
@@ -345,6 +387,26 @@ jobs:
         node read-devnet-info.js "$DEVNET_INFO"
         node check-balances.js "$DEVNET_INFO"
         echo "✓ All examples ran well"
+
+    # Run scenario tests against the live devnet
+    - name: "TEST: {Run scenario tests}"
+      if: steps.start_cluster.outcome == 'success'
+      env:
+        # Enable reporting for nightly schedule or when explicitly requested
+        REPORTING: ${{ github.event_name == 'schedule' || inputs.reporting == true }}
+        # By default, don't file an issue if everything passes
+        SKIP_REPORT_ON_PASS: ${{ inputs.skip_report_on_pass != false }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: bash scenario/run.sh
+
+    # Upload scenario report as artifact
+    - name: "EXEC: {Upload scenario report}"
+      if: always() && steps.start_cluster.outcome == 'success'
+      uses: actions/upload-artifact@v4
+      with:
+        name: scenario-report
+        path: ~/.foc-devnet/state/latest/scenario_*.md
+        if-no-files-found: ignore
 
     # Clean shutdown
     - name: "EXEC: {Stop cluster}, independent"
