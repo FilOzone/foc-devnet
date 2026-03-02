@@ -19,9 +19,6 @@ pub use requirements::check_requirements;
 pub use status::status;
 pub use stop::stop_cluster;
 
-pub fn start_cluster(
-    parallel: bool,
-    run_id: String,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn start_cluster(parallel: bool, run_id: String) -> Result<(), Box<dyn std::error::Error>> {
     start::start_cluster(parallel, run_id)
 }

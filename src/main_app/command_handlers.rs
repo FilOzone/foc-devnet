@@ -13,10 +13,7 @@ use foc_devnet::paths::foc_devnet_config;
 use foc_devnet::poison;
 
 /// Execute the start command
-pub fn handle_start(
-    parallel: bool,
-    run_id: String,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn handle_start(parallel: bool, run_id: String) -> Result<(), Box<dyn std::error::Error>> {
     poison::create_poison("Start")?;
     commands::start_cluster(parallel, run_id)
 }

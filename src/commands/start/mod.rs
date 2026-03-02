@@ -262,11 +262,7 @@ fn load_and_validate_config() -> Result<Config, Box<dyn std::error::Error>> {
 }
 
 /// Create all the step instances for the cluster startup sequence.
-fn create_steps(
-    volumes_dir: &Path,
-    run_dir: &Path,
-    config: &Config,
-) -> Vec<Box<dyn Step>> {
+fn create_steps(volumes_dir: &Path, run_dir: &Path, config: &Config) -> Vec<Box<dyn Step>> {
     let lotus_step = LotusStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
     let lotus_miner_step = LotusMinerStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
     let eth_acc_funding_step =
@@ -473,10 +469,7 @@ fn execute_cluster_steps(
 }
 
 /// Start the local Filecoin network cluster.
-pub fn start_cluster(
-    parallel: bool,
-    run_id: String,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn start_cluster(parallel: bool, run_id: String) -> Result<(), Box<dyn std::error::Error>> {
     // Check host.docker.internal resolution first (required for SP-to-SP fetch)
     check_host_docker_internal()?;
 

@@ -22,9 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Execute the command with poison file protection
     let result = match cli.command {
-        Commands::Start { parallel } => {
-            main_app::command_handlers::handle_start(parallel, run_id)
-        }
+        Commands::Start { parallel } => main_app::command_handlers::handle_start(parallel, run_id),
         Commands::Stop => main_app::command_handlers::handle_stop(),
         Commands::Init {
             curio,

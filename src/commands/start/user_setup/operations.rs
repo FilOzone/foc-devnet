@@ -6,8 +6,8 @@
 //! 3. FilecoinPay setOperatorApproval – approve FWSS as a payment operator
 
 use super::constants::{
-    CAST_GAS_LIMIT, CONTAINER_ERC20_APPROVE, CONTAINER_FP_APPROVE_OPERATOR,
-    CONTAINER_FP_DEPOSIT, LOCKUP_PERIOD_EPOCHS, MAX_UINT256, USDFC_DEPOSIT_AMOUNT,
+    CAST_GAS_LIMIT, CONTAINER_ERC20_APPROVE, CONTAINER_FP_APPROVE_OPERATOR, CONTAINER_FP_DEPOSIT,
+    LOCKUP_PERIOD_EPOCHS, MAX_UINT256, USDFC_DEPOSIT_AMOUNT,
 };
 use crate::commands::init::keys::load_keys;
 use crate::commands::start::step::SetupContext;
@@ -32,18 +32,12 @@ pub fn load_user_private_key() -> Result<String, Box<dyn Error>> {
 /// - ERC20 approve: allow FilecoinPay to spend USDFC on USER_1's behalf
 /// - FilecoinPay deposit: deposit USDFC into FilecoinPay for USER_1
 /// - setOperatorApproval: approve FWSS as an operator with unlimited allowances
-pub fn setup_client_payments(
-    context: &SetupContext,
-    user_key: &str,
-) -> Result<(), Box<dyn Error>> {
+pub fn setup_client_payments(context: &SetupContext, user_key: &str) -> Result<(), Box<dyn Error>> {
     let run_id = context.run_id();
     let lotus_rpc_url = build_lotus_rpc_url(context)?;
     let usdfc_addr = get_ctx(context, "mockusdfc_contract_address")?;
     let pay_addr = get_ctx(context, "foc_contract_filecoin_pay_v1_contract")?;
-    let fwss_addr = get_ctx(
-        context,
-        "foc_contract_filecoin_warm_storage_service_proxy",
-    )?;
+    let fwss_addr = get_ctx(context, "foc_contract_filecoin_warm_storage_service_proxy")?;
     let user_eth_addr = get_ctx(context, "user_1_eth_address")?;
 
     info!("Approving FilecoinPay to spend USDFC...");

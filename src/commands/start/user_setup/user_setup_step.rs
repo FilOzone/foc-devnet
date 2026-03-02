@@ -64,7 +64,10 @@ impl Step for UserSetupStep {
         let user_key = load_user_private_key()?;
         setup_client_payments(context, &user_key)?;
 
-        info!("Waiting {} seconds for on-chain activation...", POST_SETUP_WAIT_SECONDS);
+        info!(
+            "Waiting {} seconds for on-chain activation...",
+            POST_SETUP_WAIT_SECONDS
+        );
         thread::sleep(Duration::from_secs(POST_SETUP_WAIT_SECONDS));
 
         info!("{} completed", self.name());
