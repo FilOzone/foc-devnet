@@ -65,7 +65,7 @@ jobs:
     - name: shfmt
       run: shfmt -d -i 2 -bn scenarios/
 
-  foc-start-test:
+  foc-devnet-test:
     runs-on: ["self-hosted", "linux", "x64", "16xlarge+gpu"]
     timeout-minutes: 100
     permissions:
