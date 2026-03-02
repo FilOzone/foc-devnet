@@ -54,14 +54,24 @@ pub fn docker_command(args: &[&str]) -> Result<Output, Box<dyn Error>> {
 
 /// Get logs from a Docker container.
 ///
+/// `docker logs` routes the container's stdout to the calling process's stdout and
+/// the container's stderr to the calling process's stderr. Go programs (e.g. Curio)
+/// write all log output to stderr, so both streams must be collected to get complete
+/// logs.
+///
 /// # Arguments
 /// * `container_name` - The name of the container to get logs from
 ///
 /// # Returns
-/// The container logs on success.
+/// The combined stdout + stderr container logs on success.
 pub fn get_container_logs(container_name: &str) -> Result<String, Box<dyn Error>> {
-    let output = docker_command(&["logs", container_name])?;
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    let output = Command::new("docker")
+        .args(["logs", container_name])
+        .output()?;
+    let mut logs = String::new();
+    logs.push_str(&String::from_utf8_lossy(&output.stdout));
+    logs.push_str(&String::from_utf8_lossy(&output.stderr));
+    Ok(logs)
 }
 
 /// Check if a port is available (not in use)

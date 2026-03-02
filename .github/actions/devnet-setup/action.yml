@@ -1,0 +1,347 @@
+---
+# Composite action: build foc-devnet, initialise the environment, build Lotus/
+# Curio, download proof parameters, and start the devnet cluster.
+#
+# The calling workflow MUST run actions/checkout@v4 before invoking this action.
+
+name: "Devnet Setup"
+description: >
+  Build foc-devnet, initialise components, and start the devnet cluster.
+  Supports optional CI caching for Rust, Docker images, and component binaries.
+
+# ─── Inputs ──────────────────────────────────────────────────────────────────
+inputs:
+  curio:
+    description: "Curio source location override (e.g., 'gitbranch:main')"
+    required: false
+    default: ""
+  lotus:
+    description: "Lotus source location override (e.g., 'gitbranch:main')"
+    required: false
+    default: ""
+  filecoin-services:
+    description: "Filecoin Services source location override"
+    required: false
+    default: ""
+  start-flags:
+    description: "Arguments for 'foc-devnet start' (e.g. '--parallel --notest')"
+    required: false
+    default: "--parallel"
+  enable-caching:
+    description: "Enable CI caching for Rust, Docker images, and binaries"
+    required: false
+    default: "false"
+
+# ─── Outputs ─────────────────────────────────────────────────────────────────
+outputs:
+  start-outcome:
+    description: "'success' or 'failure'"
+    value: ${{ steps.start-cluster.outputs.start-outcome }}
+
+# ─── Steps ───────────────────────────────────────────────────────────────────
+runs:
+  using: "composite"
+  steps:
+
+  # Needs cleanup because we have found ourselves running out of disk quite a bit
+  - name: "EXEC: {Free up disk space}"
+    uses: endersonmenezes/free-disk-space@v3
+    with:
+      remove_android: true
+      remove_dotnet: true
+      remove_haskell: true
+      remove_tool_cache: true
+      remove_swap: true
+      remove_packages: >-
+        azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable
+        firefox postgresql* temurin-* *llvm* mysql* dotnet-sdk-*
+      remove_packages_one_command: true
+      remove_folders: >-
+        /usr/share/swift /usr/share/miniconda /usr/share/az*
+        /usr/local/lib/node_modules /usr/local/share/chromium
+        /usr/local/share/powershell /usr/local/julia /usr/local/aws-cli
+        /usr/local/aws-sam-cli /usr/share/gradle
+      rm_cmd: "rmz"
+      rmz_version: "3.1.1"
+
+  - name: "EXEC: {Setup Rust toolchain}"
+    uses: actions-rust-lang/setup-rust-toolchain@v1
+
+  - name: "CACHE_RESTORE: {Rust build cache}"
+    if: inputs.enable-caching == 'true'
+    id: cache-rust
+    uses: actions/cache/restore@v4
+    with:
+      path: |
+        ~/.cargo/registry/index/
+        ~/.cargo/registry/cache/
+        ~/.cargo/git/db/
+        target/
+      key: ${{ runner.os }}-rust-build-${{ hashFiles('**/Cargo.lock') }}
+      restore-keys: |
+        ${{ runner.os }}-rust-build-
+
+  - name: "EXEC: {Setup Docker}"
+    uses: docker/setup-buildx-action@v3
+
+  - name: "EXEC: {Install build dependencies}"
+    shell: bash
+    run: |
+      sudo apt-get update
+      sudo apt-get install -y tar openssl pkg-config libssl-dev
+
+  - name: "EXEC: {Build foc-devnet binary}"
+    shell: bash
+    run: cargo build --release
+
+  - name: "CACHE_SAVE: {Rust build cache}"
+    if: inputs.enable-caching == 'true' && steps.cache-rust.outputs.cache-hit != 'true'
+    uses: actions/cache/save@v4
+    with:
+      path: |
+        ~/.cargo/registry/index/
+        ~/.cargo/registry/cache/
+        ~/.cargo/git/db/
+        target/
+      key: ${{ runner.os }}-rust-build-${{ hashFiles('**/Cargo.lock') }}
+
+  - name: "EXEC: {Copy binary and clean Rust artifacts}"
+    shell: bash
+    run: |
+      cp ./target/release/foc-devnet ./foc-devnet
+      rm -rf ~/.cargo/registry/ ~/.cargo/git/db/ target/
+      df -h
+
+  # Version hashes drive Docker-image and binary cache keys.
+  - name: "CHECK: {Compute version hashes}"
+    if: inputs.enable-caching == 'true'
+    id: version-hashes
+    shell: bash
+    run: |
+      VERSION_OUTPUT=$(./foc-devnet version 2>&1)
+      CODE_HASH=$(echo "$VERSION_OUTPUT" | grep 'default:code:' | sha256sum | cut -d' ' -f1)
+      echo "code-hash=$CODE_HASH" >> $GITHUB_OUTPUT
+      echo "CODE_HASH: $CODE_HASH"
+      DOCKER_HASH=$(find docker -type f -exec sha256sum {} \; | sort | sha256sum | cut -d' ' -f1)
+      echo "docker-hash=$DOCKER_HASH" >> $GITHUB_OUTPUT
+      echo "DOCKER_HASH: $DOCKER_HASH"
+
+  # --- Docker image cache ---
+  - name: "CACHE_RESTORE: {Docker images cache}"
+    if: inputs.enable-caching == 'true'
+    id: cache-docker-images
+    uses: actions/cache/restore@v4
+    with:
+      path: ~/.docker-images-cache
+      key: ${{ runner.os }}-docker-images-${{ steps.version-hashes.outputs.docker-hash }}
+
+  - name: "EXEC: {Load Docker images from cache}"
+    if: inputs.enable-caching == 'true' && steps.cache-docker-images.outputs.cache-hit == 'true'
+    shell: bash
+    run: |
+      echo "Loading Docker images from cache..."
+      for image in ~/.docker-images-cache/*.tar; do
+        [ -f "$image" ] && echo "Loading $(basename "$image")..." && docker load -i "$image"
+      done
+      echo "Docker images loaded:"
+      docker images
+      rm -rf ~/.docker-images-cache
+      df -h
+
+  # --- Init flags from component overrides ---
+  - name: "CHECK: {Build init flags}"
+    id: init-flags
+    shell: bash
+    run: |
+      FLAGS=""
+      [ -n "${{ inputs.curio }}" ]             && FLAGS="$FLAGS --curio ${{ inputs.curio }}"
+      [ -n "${{ inputs.lotus }}" ]             && FLAGS="$FLAGS --lotus ${{ inputs.lotus }}"
+      [ -n "${{ inputs.filecoin-services }}" ] && FLAGS="$FLAGS --filecoin-services ${{ inputs.filecoin-services }}"
+      echo "flags=$FLAGS" >> $GITHUB_OUTPUT
+      echo "Init flags: $FLAGS"
+
+  # --- Initialise (two mutually-exclusive paths) ---
+  - name: "EXEC: {Initialise foc-devnet (cached Docker)}"
+    if: inputs.enable-caching == 'true' && steps.cache-docker-images.outputs.cache-hit == 'true'
+    shell: bash
+    run: |
+      rm -rf ~/.foc-devnet
+      ./foc-devnet init --no-docker-build ${{ steps.init-flags.outputs.flags }}
+
+  - name: "EXEC: {Initialise foc-devnet (full)}"
+    if: inputs.enable-caching != 'true' || steps.cache-docker-images.outputs.cache-hit != 'true'
+    shell: bash
+    run: |
+      rm -rf ~/.foc-devnet
+      ./foc-devnet init ${{ steps.init-flags.outputs.flags }}
+
+  # --- Save Docker images for future runs ---
+  - name: "EXEC: {Save Docker images to cache}"
+    if: inputs.enable-caching == 'true' && steps.cache-docker-images.outputs.cache-hit != 'true'
+    shell: bash
+    run: |
+      mkdir -p ~/.docker-images-cache
+      for img in foc-lotus foc-lotus-miner foc-builder foc-curio foc-yugabyte; do
+        docker save "$img" -o "$HOME/.docker-images-cache/${img}.tar"
+      done
+      ls -lath ~/.docker-images-cache/
+      df -h
+
+  - name: "CACHE_SAVE: {Docker images cache}"
+    if: inputs.enable-caching == 'true' && steps.cache-docker-images.outputs.cache-hit != 'true'
+    uses: actions/cache/save@v4
+    with:
+      path: ~/.docker-images-cache
+      key: ${{ runner.os }}-docker-images-${{ steps.version-hashes.outputs.docker-hash }}
+
+  # --- Component binary cache (Lotus / Curio) ---
+  - name: "CACHE_RESTORE: {Build artifacts cache}"
+    if: inputs.enable-caching == 'true'
+    id: cache-binaries
+    uses: actions/cache/restore@v4
+    with:
+      path: ~/.foc-devnet/bin
+      key: ${{ runner.os }}-binaries-${{ steps.version-hashes.outputs.code-hash }}
+
+  - name: "EXEC: {Ensure permissions on cached binaries}"
+    if: inputs.enable-caching == 'true' && steps.cache-binaries.outputs.cache-hit == 'true'
+    shell: bash
+    run: sudo chown -R "$USER:$USER" ~/.foc-devnet/bin/
+
+  # --- Go module cache (only when binaries are not cached) ---
+  - name: "CACHE_RESTORE: {Go module cache}"
+    if: inputs.enable-caching == 'true' && steps.cache-binaries.outputs.cache-hit != 'true'
+    id: cache-go
+    uses: actions/cache/restore@v4
+    with:
+      path: ~/.foc-devnet/docker/volumes/cache/foc-builder
+      key: ${{ runner.os }}-foc-builder-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
+      restore-keys: |
+        ${{ runner.os }}-foc-builder-cache-
+
+  - name: "EXEC: {Ensure Go cache permissions}"
+    if: >-
+      inputs.enable-caching == 'true'
+      && steps.cache-binaries.outputs.cache-hit != 'true'
+      && steps.cache-go.outputs.cache-hit == 'true'
+    shell: bash
+    run: sudo chown -R "$USER:$USER" ~/.foc-devnet/
+
+  - name: "EXEC: {Check disk space}"
+    shell: bash
+    run: df -h
+
+  # --- Build Lotus & Curio (skip when binary cache hits) ---
+  - name: "EXEC: {Build Lotus}"
+    if: inputs.enable-caching != 'true' || steps.cache-binaries.outputs.cache-hit != 'true'
+    shell: bash
+    run: ./foc-devnet build lotus
+
+  - name: "EXEC: {Build Curio}"
+    if: inputs.enable-caching != 'true' || steps.cache-binaries.outputs.cache-hit != 'true'
+    shell: bash
+    run: ./foc-devnet build curio
+
+  # --- Save Go module and binary caches ---
+  - name: "CACHE_SAVE: {Go module cache}"
+    if: >-
+      inputs.enable-caching == 'true'
+      && steps.cache-binaries.outputs.cache-hit != 'true'
+      && steps.cache-go.outputs.cache-hit != 'true'
+    uses: actions/cache/save@v4
+    with:
+      path: ~/.foc-devnet/docker/volumes/cache/foc-builder
+      key: ${{ runner.os }}-foc-builder-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
+
+  - name: "CACHE_SAVE: {Build artifacts cache}"
+    if: inputs.enable-caching == 'true' && steps.cache-binaries.outputs.cache-hit != 'true'
+    uses: actions/cache/save@v4
+    with:
+      path: ~/.foc-devnet/bin
+      key: ${{ runner.os }}-binaries-${{ steps.version-hashes.outputs.code-hash }}
+
+  # --- Clean up build caches to free disk ---
+  - name: "EXEC: {Clean up build caches}"
+    shell: bash
+    run: |
+      sudo rm -rf ~/.foc-devnet/docker/volumes/cache
+      sudo rm -rf ~/.foc-devnet/code/lotus
+      sudo rm -rf ~/.foc-devnet/code/curio
+      df -h
+
+  - name: "EXEC: {Download proof parameters from S3}"
+    shell: bash
+    run: |
+      mkdir -p ~/.foc-devnet/docker/volumes/cache/filecoin-proof-parameters/
+      curl -L \
+        https://fil-proof-params-2k-cache.s3.us-east-2.amazonaws.com/filecoin-proof-params-2k.tar \
+        -o /tmp/filecoin-proof-params-2k.tar
+      tar -xf /tmp/filecoin-proof-params-2k.tar \
+        -C ~/.foc-devnet/docker/volumes/cache/filecoin-proof-parameters/
+      rm /tmp/filecoin-proof-params-2k.tar
+      ls -lath ~/.foc-devnet/docker/volumes/cache/filecoin-proof-parameters/
+
+  - name: "EXEC: {Check cluster status (pre-start)}"
+    shell: bash
+    run: ./foc-devnet status
+
+  - name: "EXEC: {Configure host.docker.internal}"
+    shell: bash
+    run: echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts
+
+  - name: "EXEC: {Start cluster}"
+    id: start-cluster
+    shell: bash
+    run: |
+      if ./foc-devnet start ${{ inputs.start-flags }}; then
+        echo "start-outcome=success" >> "$GITHUB_OUTPUT"
+      else
+        echo "start-outcome=failure" >> "$GITHUB_OUTPUT"
+      fi
+
+  - name: "EXEC: {Collect debug info}"
+    if: always()
+    shell: bash
+    run: |
+      RUN_DIR="$HOME/.foc-devnet/state/latest"
+
+      echo "+++++++++++ foc-devnet version"
+      cat "$RUN_DIR/version.txt" 2>/dev/null || echo "No version file found"
+
+      echo "+++++++++++ Disk space"
+      sudo df -h 2>/dev/null || echo "df command failed"
+
+      echo "+++++++++++ Run Directory Contents"
+      ls -lath "$RUN_DIR" 2>/dev/null || echo "No run directory found"
+
+      echo "+++++++++++ Contract Addresses"
+      cat "$RUN_DIR/contract_addresses.json" 2>/dev/null || echo "No contract addresses file found"
+
+      echo "+++++++++++ Step Context"
+      cat "$RUN_DIR/step_context.json" 2>/dev/null || echo "No step context file found"
+
+      echo "+++++++++++ FOC Metadata"
+      cat "$RUN_DIR/foc_metadata.json" 2>/dev/null || echo "No foc metadata file found"
+
+      echo "+++++++++++ Container Logs"
+      if [ -d "$RUN_DIR/logs" ]; then
+        for logfile in "$RUN_DIR/logs"/*; do
+          if [ -f "$logfile" ]; then
+            echo ""
+            echo "Logs from $(basename "$logfile")"
+            cat "$logfile" 2>/dev/null || echo "Failed to read $logfile"
+          fi
+        done
+      else
+        echo "No container logs directory found"
+      fi
+
+  - name: "EXEC: {Check cluster status (post-start)}"
+    shell: bash
+    run: ./foc-devnet status
+
+  - name: "EXEC: {List containers}"
+    shell: bash
+    run: |
+      echo "Containers using foc-* images (running or exited):"
+      docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
