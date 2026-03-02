@@ -49,21 +49,21 @@ jobs:
     - name: Install shfmt
       run: sudo snap install shfmt
 
-    # Ensure all .sh files under scenario/ are executable
+    # Ensure all .sh files under scenarios/ are executable
     - name: Check executable permissions
       run: |
-        bad=$(find scenario -name '*.sh' ! -perm -u+x)
+        bad=$(find scenarios -name '*.sh' ! -perm -u+x)
         if [ -n "$bad" ]; then
           echo "Missing +x on:" >&2; echo "$bad" >&2; exit 1
         fi
 
     # Lint with shellcheck
     - name: shellcheck
-      run: find scenario -name '*.sh' -exec shellcheck -S warning {} +
+      run: find scenarios -name '*.sh' -exec shellcheck -S warning {} +
 
     # Verify consistent formatting (indent=2, binary ops start of line)
     - name: shfmt
-      run: shfmt -d -i 2 -bn scenario/
+      run: shfmt -d -i 2 -bn scenarios/
 
   foc-start-test:
     runs-on: ["self-hosted", "linux", "x64", "16xlarge+gpu"]
@@ -397,7 +397,7 @@ jobs:
         # By default, don't file an issue if everything passes
         SKIP_REPORT_ON_PASS: ${{ inputs.skip_report_on_pass != false }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: bash scenario/run.sh
+      run: bash scenarios/run.sh
 
     # Upload scenario report as artifact
     - name: "EXEC: {Upload scenario report}"

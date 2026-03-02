@@ -1296,3 +1296,58 @@ docker run --rm --network host \
   --broadcast
 ```
 
+## Scenario Tests
+
+Scenario tests are lightweight shell scripts that validate scenarios on the devnet after startup. They share a single running devnet and execute serially in a defined order.
+
+### Running scenarios
+
+```bash
+# Run all scenarios against a running devnet
+bash scenarios/run.sh
+
+# Run a single scenario
+bash scenarios/test_basic_balances.sh
+
+# Point at a specific devnet run
+DEVNET_INFO=~/.foc-devnet/state/<run-id>/devnet-info.json bash scenarios/run.sh
+```
+
+Reports are written to `~/.foc-devnet/state/latest/scenario_<timestamp>.md`.
+
+### Writing a new scenario
+
+1. Create `scenarios/test_<name>.sh`:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+SCENARIO_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${SCENARIO_DIR}/lib.sh"
+scenario_start "<name>"
+
+# Use helpers: jq_devnet, assert_eq, assert_gt, assert_not_empty, assert_ok
+RPC_URL=$(jq_devnet '.info.lotus.host_rpc_url')
+BALANCE=$(cast balance 0x... --rpc-url "$RPC_URL")
+assert_gt "$BALANCE" 0 "account has funds"
+
+scenario_end
+```
+
+2. Add `test_<name>` to the `SCENARIOS` array in `scenarios/order.sh`.
+3. `chmod +x scenarios/test_<name>.sh`
+
+### Available assertion helpers (from `lib.sh`)
+
+| Helper | Usage | Description |
+|--------|-------|-------------|
+| `assert_eq` | `assert_eq "$a" "$b" "msg"` | Equality check |
+| `assert_gt` | `assert_gt "$a" "$b" "msg"` | Integer greater-than (handles wei-scale) |
+| `assert_not_empty` | `assert_not_empty "$v" "msg"` | Value is non-empty |
+| `assert_ok` | `assert_ok cmd arg... "msg"` | Command exits 0 |
+| `jq_devnet` | `jq_devnet '.info.lotus.host_rpc_url'` | Query devnet-info.json |
+
+### CI integration
+
+Scenarios run automatically in CI after the devnet starts. On nightly runs (or manual dispatch with `reporting` enabled), failures automatically create a GitHub issue with a full report.
+

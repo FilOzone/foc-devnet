@@ -7,7 +7,7 @@
 #
 # ── Writing a new scenario ───────────────────────────────────
 #
-#   1. Create scenario/test_<name>.sh with this skeleton:
+#   1. Create scenarios/test_<name>.sh with this skeleton:
 #
 #        #!/usr/bin/env bash
 #        set -euo pipefail
@@ -20,8 +20,8 @@
 #        scenario_end
 #
 #   2. Add "test_<name>" to the SCENARIOS array in order.sh.
-#   3. chmod +x scenario/test_<name>.sh
-#   4. Run:  bash scenario/test_<name>.sh
+#   3. chmod +x scenarios/test_<name>.sh
+#   4. Run:  bash scenarios/test_<name>.sh
 #
 # ── Available helpers ────────────────────────────────────────
 #   jq_devnet <filter>           — query devnet-info.json

@@ -2,7 +2,7 @@
 # ─────────────────────────────────────────────────────────────
 # order.sh — Declares the scenario execution order.
 #
-# Each entry is the basename of a script under scenario/.
+# Each entry is the basename of a script under scenarios/.
 # Scenarios share the same running devnet and execute serially
 # in the order listed here.
 # ─────────────────────────────────────────────────────────────

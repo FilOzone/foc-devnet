@@ -16,21 +16,21 @@
 #
 #   Quick start:
 #     ./foc-devnet start          # bring up the devnet
-#     bash scenario/run.sh        # run all scenarios
+#     bash scenarios/run.sh        # run all scenarios
 #     cat ~/.foc-devnet/state/latest/scenario_*.md  # read the report
 #
 #   Run a single scenario:
-#     bash scenario/test_containers.sh
+#     bash scenarios/test_containers.sh
 #
 #   Override devnet-info path (e.g. an older run):
 #     DEVNET_INFO=~/.foc-devnet/state/<run-id>/devnet-info.json \
-#       bash scenario/run.sh
+#       bash scenarios/run.sh
 #
 #   File a GitHub issue on failure (needs `gh` CLI + auth):
-#     REPORTING=true bash scenario/run.sh
+#     REPORTING=true bash scenarios/run.sh
 #
 #   Always file an issue, even on success:
-#     REPORTING=true SKIP_REPORT_ON_PASS=false bash scenario/run.sh
+#     REPORTING=true SKIP_REPORT_ON_PASS=false bash scenarios/run.sh
 #
 # ── Environment variables ────────────────────────────────────
 #   DEVNET_INFO          — path to devnet-info.json (auto-detected)
