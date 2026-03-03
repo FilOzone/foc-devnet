@@ -411,7 +411,7 @@ jobs:
         # By default, don't file an issue if everything passes
         SKIP_REPORT_ON_PASS: ${{ inputs.skip_report_on_pass != false }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: bash scenarios/run.sh
+      run: python3 scenarios_py/run.py
 
     # Upload scenario report as artifact
     - name: "EXEC: {Upload scenario report}"
