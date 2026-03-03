@@ -40,7 +40,17 @@ jobs:
       run: cargo clippy --all-targets --all-features -- -D warnings
 
   foc-devnet-test:
-    runs-on: ["self-hosted", "linux", "x64", "16xlarge+gpu"]
+    strategy:
+      matrix:
+        machine: [
+          ["self-hosted", "linux", "x64", "4xlarge+gpu"],
+          ["self-hosted", "linux", "x64", "xlarge+gpu"],
+          ["self-hosted", "linux", "arm64", "xlarge"],
+          ["self-hosted", "linux", "arm64", "4xlarge"],
+          ["self-hosted", "linux", "x64", "xlarge"],
+          ["self-hosted", "linux", "x64", "5xlarge"]
+        ]
+    runs-on: ${{ matrix.machine }}
     timeout-minutes: 100
     permissions:
       contents: read
@@ -107,7 +117,7 @@ jobs:
           ~/.cargo/git/db/
           target/
         key: ${{ runner.os }}-rust-build-${{ hashFiles('**/Cargo.lock') }}
-    
+
     # Copy binary and clean up Rust artifacts to save disk space
     - name: "EXEC: {Copy binary and clean cache}, DEP: {C-rust-cache}"
       run: |
