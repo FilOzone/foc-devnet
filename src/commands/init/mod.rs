@@ -13,6 +13,7 @@ pub mod artifacts;
 pub mod config;
 pub mod directories;
 pub mod keys;
+pub mod latest_resolver;
 pub mod path_setup;
 pub mod repositories;
 

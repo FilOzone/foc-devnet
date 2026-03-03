@@ -193,14 +193,28 @@ jobs:
       if: steps.cache-docker-images.outputs.cache-hit == 'true'
       run: |
         rm -rf ~/.foc-devnet
-        ./foc-devnet init --no-docker-build
+        if [[ "${{ github.event_name }}" == "schedule" ]]; then
+          ./foc-devnet init --no-docker-build \
+            --curio latestCommit \
+            --filecoin-services latestCommit \
+            --lotus latestTag
+        else
+          ./foc-devnet init --no-docker-build
+        fi
 
     # If Docker images are not cached, do full init (downloads YugabyteDB and builds all images)
     - name: "EXEC: {Initialize without cache}, independent"
       if: steps.cache-docker-images.outputs.cache-hit != 'true'
       run: |
         rm -rf ~/.foc-devnet
-        ./foc-devnet init
+        if [[ "${{ github.event_name }}" == "schedule" ]]; then
+          ./foc-devnet init \
+            --curio latestCommit \
+            --filecoin-services latestCommit \
+            --lotus latestTag
+        else
+          ./foc-devnet init
+        fi
 
     # CACHE-DOCKER: Build Docker images if not cached
     - name: "EXEC: {Build Docker images}, DEP: {C-docker-images-cache}"

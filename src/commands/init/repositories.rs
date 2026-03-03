@@ -99,6 +99,13 @@ fn download_repository(name: &str, location: &Location) -> Result<(), Box<dyn st
         Location::GitBranch { url, branch } => {
             clone_and_checkout(name, url, None, None, Some(branch))
         }
+        // LatestCommit / LatestTag are resolved to concrete variants before this function
+        // is called, so reaching here indicates a programming error.
+        Location::LatestCommit { .. } | Location::LatestTag { .. } => Err(
+            "Dynamic location (latestCommit/latestTag) was not resolved before repository \
+             download. This is an internal error."
+                .into(),
+        ),
     }
 }
 

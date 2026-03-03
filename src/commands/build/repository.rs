@@ -50,6 +50,15 @@ pub fn prepare_repository(
             prepare_git_repo(&repo_path, url)?;
             checkout_branch(&repo_path, branch)?;
         }
+        // LatestCommit / LatestTag are resolved to GitCommit / GitTag at init time
+        // and never appear in a saved config.toml, so this is a programming error.
+        Location::LatestCommit { .. } | Location::LatestTag { .. } => {
+            return Err(
+                "Dynamic location (latestCommit/latestTag) was not resolved before build. \
+                 Run 'foc-devnet init' first."
+                    .into(),
+            );
+        }
     }
 
     info!("Repository prepared successfully");

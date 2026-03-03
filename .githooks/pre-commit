@@ -88,7 +88,7 @@ if [[ -n "$STAGED_SH" ]]; then
     skip "shfmt"
   fi
 
-  # shellcheck (no auto-fix available)
+  # SC — no auto-fix available
   if command -v shellcheck &>/dev/null; then
     if shellcheck -S warning $STAGED_SH &>/dev/null; then
       pass "shellcheck"

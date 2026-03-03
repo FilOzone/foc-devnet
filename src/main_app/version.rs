@@ -70,5 +70,11 @@ fn print_location_info(label: &str, location: &Location) {
         Location::GitBranch { url, branch } => {
             info!("{}: {}, branch {}", label, url, branch);
         }
+        Location::LatestCommit { url } => {
+            info!("{}: {}, latest commit (unresolved)", label, url);
+        }
+        Location::LatestTag { url } => {
+            info!("{}: {}, latest tag (unresolved)", label, url);
+        }
     }
 }

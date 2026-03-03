@@ -36,26 +36,63 @@ pub enum Location {
     /// The `url` field is the Git repository URL, and `branch` is the specific
     /// branch (e.g., "main", "develop") to check out.
     GitBranch { url: String, branch: String },
+
+    /// Resolve to the latest commit on the default branch of the repository at init time.
+    ///
+    /// The `url` field is the Git repository URL. When used with `foc-devnet init`,
+    /// this is immediately resolved to a concrete `GitCommit` by querying the remote,
+    /// so the stored config always records the exact SHA used.
+    ///
+    /// Example CLI usage: `--curio latestCommit`
+    LatestCommit { url: String },
+
+    /// Resolve to the latest tag of the repository at init time.
+    ///
+    /// The `url` field is the Git repository URL. When used with `foc-devnet init`,
+    /// this is immediately resolved to a concrete `GitTag` by querying the remote,
+    /// so the stored config always records the exact tag used.
+    ///
+    /// Example CLI usage: `--lotus latestTag`
+    LatestTag { url: String },
 }
 
 impl Location {
     /// Parse a location string in the format "type:value" or "type:url:value"
     ///
     /// Supported formats:
-    /// - "gittag:tag" (uses default URL)
-    /// - "gitcommit:commit" (uses default URL)
-    /// - "gitbranch:branch" (uses default URL)
-    /// - "local:dir"
-    /// - "gittag:url:tag"
-    /// - "gitcommit:url:commit"
-    /// - "gitbranch:url:branch"
+    /// - `latestCommit`            — resolves to latest HEAD commit (uses default URL)
+    /// - `latestTag`               — resolves to latest semver tag (uses default URL)
+    /// - `latestCommit:url`        — same, with explicit URL
+    /// - `latestTag:url`           — same, with explicit URL
+    /// - `gittag:tag`              — (uses default URL)
+    /// - `gitcommit:commit`        — (uses default URL)
+    /// - `gitbranch:branch`        — (uses default URL)
+    /// - `local:dir`
+    /// - `gittag:url:tag`
+    /// - `gitcommit:url:commit`
+    /// - `gitbranch:url:branch`
     ///
     /// Where url can contain colons (e.g., https://github.com/repo.git)
     pub fn parse_with_default(s: &str, default_url: &str) -> Result<Self, String> {
+        // Handle bare magic keywords (no colon) — use default URL
+        match s {
+            "latestCommit" => {
+                return Ok(Location::LatestCommit {
+                    url: default_url.to_string(),
+                })
+            }
+            "latestTag" => {
+                return Ok(Location::LatestTag {
+                    url: default_url.to_string(),
+                })
+            }
+            _ => {}
+        }
+
         let parts: Vec<&str> = s.split(':').collect();
         if parts.len() < 2 {
             return Err(format!(
-                "Invalid location format: {}. Expected 'type:value' or 'type:url:value'",
+                "Invalid location format: {}. Expected 'type:value', 'latestCommit', or 'latestTag'",
                 s
             ));
         }
@@ -64,6 +101,13 @@ impl Location {
         let remaining = &parts[1..].join(":");
 
         match location_type {
+            // latestCommit:url and latestTag:url forms
+            "latestCommit" => Ok(Location::LatestCommit {
+                url: remaining.to_string(),
+            }),
+            "latestTag" => Ok(Location::LatestTag {
+                url: remaining.to_string(),
+            }),
             "local" => Ok(Location::LocalSource {
                 dir: remaining.to_string(),
             }),
@@ -107,7 +151,7 @@ impl Location {
                 }
             }
             _ => Err(format!(
-                "Unknown location type: {}. Supported types: local, gittag, gitcommit, gitbranch",
+                "Unknown location type: {}. Supported types: latestCommit, latestTag, local, gittag, gitcommit, gitbranch",
                 location_type
             )),
         }
