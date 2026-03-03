@@ -3,13 +3,13 @@ name: CI
 
 on:
   push:
-    branches: ['*']
+    branches: ['**']
   pull_request:
-    branches: ['*']
+    branches: ['**']
   # Also run on pull_request_target so branch-to-branch PRs (same-repo)
   # can execute workflows on the base context (useful for self-hosted runners).
   pull_request_target:
-    branches: ['*']
+    branches: ['**']
   schedule:
     # Nightly at 03:00 UTC
     - cron: '0 3 * * *'
