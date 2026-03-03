@@ -10,7 +10,7 @@
 #   5. USER_1 has a USDFC balance                  (mirrors "Checking Balances")
 #   6. USER_1 has deposited USDFC into FilecoinPay  (mirrors "Preflight Upload Check")
 #   7. FWSS is set as an operator for USER_1        (mirrors allowanceCheck operator step)
-from scenarios_py.run import *
+from scenarios.run import *
 import urllib.request
 
 # ── ABI fragments used with `cast call` ──────────────────────────────────────

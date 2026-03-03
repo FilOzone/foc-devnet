@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Verifies every devnet user has a positive FIL and USDFC balance.
-from scenarios_py.run import *
+from scenarios.run import *
 
 def run():
     ensure_foundry()

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Verifies all devnet containers are running and no unexpected foc-* containers exist.
-from scenarios_py.run import *
+from scenarios.run import *
 
 def run():
     d = devnet_info()["info"]
