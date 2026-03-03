@@ -20,6 +20,7 @@ REPORT_MD   = os.environ.get("REPORT_FILE",  os.path.expanduser("~/.foc-devnet/s
 ORDER = [
     "test_containers",
     "test_basic_balances",
+    "test_storage_e2e",
 ]
 
 _pass = 0

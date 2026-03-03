@@ -41,6 +41,7 @@ jobs:
 
   foc-devnet-test:
     strategy:
+      fail-fast: false
       matrix:
         machine: [
           ["self-hosted", "linux", "x64", "4xlarge+gpu"],
