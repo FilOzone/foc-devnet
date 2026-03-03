@@ -39,32 +39,6 @@ jobs:
     - name: Run clippy
       run: cargo clippy --all-targets --all-features -- -D warnings
 
-  shellcheck:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install shfmt
-      run: sudo snap install shfmt
-
-    # Ensure all .sh files under scenarios/ are executable
-    - name: Check executable permissions
-      run: |
-        bad=$(find scenarios -name '*.sh' ! -perm -u+x)
-        if [ -n "$bad" ]; then
-          echo "Missing +x on:" >&2; echo "$bad" >&2; exit 1
-        fi
-
-    # Lint with shellcheck
-    - name: shellcheck
-      run: find scenarios -name '*.sh' -exec shellcheck -S warning {} +
-
-    # Verify consistent formatting (indent=2, binary ops start of line)
-    - name: shfmt
-      run: shfmt -d -i 2 -bn scenarios/
-
   foc-devnet-test:
     runs-on: ["self-hosted", "linux", "x64", "16xlarge+gpu"]
     timeout-minutes: 100

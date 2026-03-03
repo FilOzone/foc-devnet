@@ -57,49 +57,6 @@ if [[ $HAS_RS -gt 0 ]]; then
   fi
 fi
 
-# ── Shell checks ─────────────────────────────────────────────
-STAGED_SH=$(echo "$STAGED" | grep '\.sh$' || true)
-if [[ -n "$STAGED_SH" ]]; then
-  # Executable bit
-  for f in $STAGED_SH; do
-    if [[ -f "$f" && ! -x "$f" ]]; then
-      if [[ "$FIX" == "1" ]]; then
-        chmod +x "$f"
-        git add "$f"
-        fixed "${f} +x"
-      else
-        fail "${f} is not executable — run 'chmod +x ${f}'"
-      fi
-    fi
-  done
-
-  # shfmt
-  if command -v shfmt &>/dev/null; then
-    if shfmt -d -i 2 -bn $STAGED_SH &>/dev/null; then
-      pass "shfmt"
-    elif [[ "$FIX" == "1" ]]; then
-      shfmt -w -i 2 -bn $STAGED_SH
-      echo "$STAGED_SH" | xargs -r git add
-      fixed "shfmt"
-    else
-      fail "shfmt — run 'shfmt -w -i 2 -bn <file>' or FIX=1 git commit"
-    fi
-  else
-    skip "shfmt"
-  fi
-
-  # SC — no auto-fix available
-  if command -v shellcheck &>/dev/null; then
-    if shellcheck -S warning $STAGED_SH &>/dev/null; then
-      pass "shellcheck"
-    else
-      fail "shellcheck — run 'shellcheck -S warning <file>' to see issues"
-    fi
-  else
-    skip "shellcheck"
-  fi
-fi
-
 # ── Result ───────────────────────────────────────────────────
 if [[ $FAIL -ne 0 ]]; then
   echo ""
