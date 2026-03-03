@@ -3,3 +3,4 @@ contracts/MockUSDFC/lib/
 contracts/MockUSDFC/broadcast/
 artifacts/
 .vscode/
+*__pycache__/

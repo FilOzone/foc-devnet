@@ -113,8 +113,8 @@ pub fn apply_location_override(
             Location::GitTag { ref url, .. } => url.clone(),
             Location::GitCommit { ref url, .. } => url.clone(),
             Location::GitBranch { ref url, .. } => url.clone(),
-            Location::LatestCommit { ref url } => url.clone(),
-            Location::LatestTag { ref url } => url.clone(),
+            Location::LatestCommit { ref url, .. } => url.clone(),
+            Location::LatestTag { ref url, .. } => url.clone(),
             Location::LocalSource { .. } => default_url.to_string(),
         };
         *location = Location::parse_with_default(&loc_str, &url)

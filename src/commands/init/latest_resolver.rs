@@ -9,11 +9,12 @@
 //! (or `master` if `main` does not exist — no local clone needed).
 //!
 //! `LatestTag` performs a blobless bare fetch of the default branch (`main`
-//! or `master`) and all
-//! tags into a temporary directory, then runs `git tag --merged main` to
-//! enumerate only tags whose commits are reachable from `main`. This avoids
-//! picking tags that were created on feature branches or release branches that
-//! diverged from `main`.
+//! or `master`) and all tags into a temporary directory, then runs `git tag`
+//! to enumerate all fetched tags. Pre-release tags (those with semver
+//! pre-release identifiers such as `-rc1`, `-alpha`, `-beta`) are filtered
+//! out, and the highest stable version is returned. The `--merged` filter is
+//! deliberately avoided because projects like Lotus cut releases on separate
+//! branches that are never merged back into `master`/`main`.
 //!
 //! # Example
 //!
@@ -70,13 +71,13 @@ impl Drop for TempBareRepo {
 /// All other variants are returned unchanged.
 pub fn resolve_location(location: Location) -> Result<Location, Box<dyn std::error::Error>> {
     match location {
-        Location::LatestCommit { url } => {
-            let commit = fetch_latest_commit(&url)?;
+        Location::LatestCommit { url, branch } => {
+            let commit = fetch_latest_commit(&url, branch.as_deref())?;
             info!("Resolved latestCommit for {} → {}", url, commit);
             Ok(Location::GitCommit { url, commit })
         }
-        Location::LatestTag { url } => {
-            let tag = fetch_latest_tag(&url)?;
+        Location::LatestTag { url, branch } => {
+            let tag = fetch_latest_tag(&url, branch.as_deref())?;
             info!("Resolved latestTag for {} → {}", url, tag);
             Ok(Location::GitTag { url, tag })
         }
@@ -84,12 +85,16 @@ pub fn resolve_location(location: Location) -> Result<Location, Box<dyn std::err
     }
 }
 
-/// Fetch the SHA of the tip of the default branch (`main` or `master`) on a remote.
+/// Fetch the SHA of the tip of the given branch (or the auto-detected default
+/// branch) on a remote.
 ///
-/// Tries `main` first; if it doesn't exist on the remote, falls back to `master`.
-/// Fails if neither branch is found.
-fn fetch_latest_commit(url: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let branch = resolve_default_branch(url)?;
+/// If `branch` is `None`, the default branch (`main` or `master`) is
+/// auto-detected from the remote. Fails if the resolved branch is not found.
+fn fetch_latest_commit(
+    url: &str,
+    branch: Option<&str>,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let branch = resolve_branch(url, branch)?;
     info!("Fetching latest commit on {} from {}", branch, url);
 
     let output = Command::new("git")
@@ -167,19 +172,32 @@ fn resolve_default_branch(url: &str) -> Result<String, Box<dyn std::error::Error
     }
 }
 
-/// Fetch the highest stable semver tag for a remote repo, considering only
-/// tags whose commits are reachable from the default branch (`main` or `master`).
+/// Return `branch` if explicitly provided, otherwise auto-detect the default
+/// branch (`main` / `master`) from the remote.
+fn resolve_branch(url: &str, branch: Option<&str>) -> Result<String, Box<dyn std::error::Error>> {
+    match branch {
+        Some(b) => Ok(b.to_string()),
+        None => resolve_default_branch(url),
+    }
+}
+
+/// Fetch the highest stable semver tag for a remote repo.
 ///
 /// Strategy:
-/// 1. Resolve the default branch (`main`, falling back to `master`).
+/// 1. Resolve the branch: use `branch` if provided, otherwise auto-detect
+///    the default branch (`main` / `master`) from the remote.
 /// 2. Create a throwaway bare repo in a temp directory.
-/// 3. Blobless-fetch the default branch and all tags from the remote (no file
-///    content downloaded — only commit and tree objects).
-/// 4. Run `git tag --merged <branch>` to enumerate tags reachable from it.
+/// 3. Blobless-fetch all tags from the remote (no file content downloaded).
+/// 4. Run `git tag` to enumerate all fetched tags.
 /// 5. Filter for stable semver tags (no `-rc`, `-alpha`, etc.) and return
 ///    the highest by numeric segment comparison.
-fn fetch_latest_tag(url: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let branch = resolve_default_branch(url)?;
+///
+/// Note: We intentionally do *not* use `git tag --merged <branch>` because
+/// projects like Lotus cut releases on separate release branches that are
+/// never merged back into `master`/`main`. Using `--merged` would cause the
+/// resolver to return a stale version (e.g. `v1.28.1` instead of `v1.35.0`).
+fn fetch_latest_tag(url: &str, branch: Option<&str>) -> Result<String, Box<dyn std::error::Error>> {
+    let branch = resolve_branch(url, branch)?;
     info!("Fetching latest stable tag on {} from {}", branch, url);
 
     let repo = TempBareRepo::create()?;
@@ -187,14 +205,13 @@ fn fetch_latest_tag(url: &str) -> Result<String, Box<dyn std::error::Error>> {
     fetch_default_branch_and_tags(repo.path(), url, &branch)?;
 
     let tags_output = Command::new("git")
-        .args(["tag", "--merged", &branch])
+        .args(["tag"])
         .current_dir(repo.path())
         .output()?;
 
     if !tags_output.status.success() {
         return Err(format!(
-            "git tag --merged {} failed: {}",
-            branch,
+            "git tag failed: {}",
             String::from_utf8_lossy(&tags_output.stderr).trim()
         )
         .into());
