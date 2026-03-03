@@ -45,13 +45,6 @@ jobs:
       matrix:
         machine: [
           ["self-hosted", "linux", "x64", "16xlarge+gpu"],
-          ["self-hosted", "linux", "x64", "8xlarge+gpu"],
-          ["self-hosted", "linux", "x64", "4xlarge+gpu"],
-          ["self-hosted", "linux", "x64", "xlarge+gpu"],
-          ["self-hosted", "linux", "arm64", "xlarge"],
-          ["self-hosted", "linux", "arm64", "4xlarge"],
-          ["self-hosted", "linux", "x64", "xlarge"],
-          ["self-hosted", "linux", "x64", "5xlarge"]
         ]
     runs-on: ${{ matrix.machine }}
     timeout-minutes: 100
@@ -398,7 +391,7 @@ jobs:
         # By default, don't file an issue if everything passes
         SKIP_REPORT_ON_PASS: ${{ inputs.skip_report_on_pass != false }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: python3 scenarios_py/run.py
+      run: python3 scenarios/run.py
 
     # Upload scenario report as artifact
     - name: "EXEC: {Upload scenario report}"
