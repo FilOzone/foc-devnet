@@ -23,6 +23,12 @@ for i in $(seq 0 $((SP_COUNT - 1))); do
   EXPECTED+=("$(jq_devnet ".info.pdp_sps[$i].container_name")")
 done
 
+# Each Curio SP also has a YugabyteDB container
+RUN_ID=$(jq_devnet '.info.run_id')
+for i in $(seq 1 $SP_COUNT); do
+  EXPECTED+=("foc-${RUN_ID}-yugabyte-${i}")
+done
+
 # ── Verify each expected container is running ────────────────
 for cname in "${EXPECTED[@]}"; do
   STATUS=$(docker inspect -f '{{.State.Status}}' "$cname" 2>/dev/null || echo "missing")

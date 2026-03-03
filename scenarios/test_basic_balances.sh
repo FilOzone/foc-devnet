@@ -15,6 +15,7 @@ scenario_start "test_basic_balances"
 # ── Ensure Foundry is available ──────────────────────────────
 if ! command -v cast &>/dev/null; then
   info "Installing Foundry …"
+  export SHELL=/bin/bash
   curl -sSL https://foundry.paradigm.xyz | bash
   export PATH="$HOME/.foundry/bin:$PATH"
   "$HOME/.foundry/bin/foundryup"
