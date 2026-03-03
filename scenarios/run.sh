@@ -48,6 +48,8 @@ REPORTING="${REPORTING:-false}"
 SKIP_REPORT_ON_PASS="${SKIP_REPORT_ON_PASS:-true}"
 
 # ── Bootstrap ────────────────────────────────────────────────
+# Ensure report directory exists before cleaning/writing artifacts
+mkdir -p "${REPORT_DIR}"
 # Clean previous scenario artifacts (but not the whole state dir)
 rm -f "${REPORT_DIR}"/scenario_*.md "${REPORT_DIR}/results.csv"
 source "${SCENARIO_DIR}/order.sh"

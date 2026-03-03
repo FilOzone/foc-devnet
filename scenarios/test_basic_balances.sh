@@ -10,13 +10,14 @@ set -euo pipefail
 
 SCENARIO_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCENARIO_DIR}/lib.sh"
-scenario_start "basic_balances"
+scenario_start "test_basic_balances"
 
 # ── Ensure Foundry is available ──────────────────────────────
 if ! command -v cast &>/dev/null; then
   info "Installing Foundry …"
   curl -sSL https://foundry.paradigm.xyz | bash
   export PATH="$HOME/.foundry/bin:$PATH"
+  "$HOME/.foundry/bin/foundryup"
 fi
 assert_ok command -v cast "cast is installed"
 

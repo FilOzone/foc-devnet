@@ -47,17 +47,22 @@ _SCENARIO_NAME=""
 # ── devnet-info helpers ──────────────────────────────────────
 
 # Shorthand: jq_devnet '.info.users[0].evm_addr'
-jq_devnet() { jq -r "$1" "$DEVNET_INFO"; }
+jq_devnet() {
+  if ! jq -r "$1" "$DEVNET_INFO"; then
+    fail "jq_devnet: jq failed for filter '$1' on '$DEVNET_INFO'"
+    return 1
+  fi
+}
 
 # ── Logging ──────────────────────────────────────────────────
 _log() { printf "[%s] %s\n" "$1" "$2"; }
-info() { _log "[INFO]" "$*"; }
+info() { _log "INFO" "$*"; }
 ok() {
-  _log "[ OK ]" "$*"
+  _log " OK " "$*"
   ((_PASS++)) || true
 }
 fail() {
-  _log "[FAIL]" "$*"
+  _log "FAIL" "$*"
   ((_FAIL++)) || true
 }
 

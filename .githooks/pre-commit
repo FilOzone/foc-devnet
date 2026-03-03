@@ -33,14 +33,15 @@ fixed() { printf "${BLUE}⟳${NC} %s (auto-fixed & re-staged)\n" "$1"; }
 STAGED=$(git diff --cached --name-only --diff-filter=ACM)
 
 # ── Rust checks ──────────────────────────────────────────────
-HAS_RS=$(echo "$STAGED" | grep -c '\.rs$' || true)
+STAGED_RS=$(echo "$STAGED" | grep '\.rs$' || true)
+HAS_RS=$(echo "$STAGED_RS" | grep -c '\.rs$' || true)
 if [[ $HAS_RS -gt 0 ]]; then
   if command -v cargo &>/dev/null; then
     if cargo fmt --all -- --check &>/dev/null; then
       pass "cargo fmt"
     elif [[ "$FIX" == "1" ]]; then
       cargo fmt --all
-      git diff --name-only -- '*.rs' | xargs -r git add
+      echo "$STAGED_RS" | xargs -r git add
       fixed "cargo fmt"
     else
       fail "cargo fmt — run 'cargo fmt' or FIX=1 git commit"

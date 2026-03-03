@@ -3,14 +3,14 @@
 # test_containers.sh
 #
 # Verifies that all foc-* containers reported in devnet-info.json
-# are actually running, healthy, and that no zombie foc-*
-# containers exist outside the current run.
+# are actually running and that no unexpected foc-* containers
+# exist outside the current run.
 # ─────────────────────────────────────────────────────────────
 set -euo pipefail
 
 SCENARIO_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCENARIO_DIR}/lib.sh"
-scenario_start "containers"
+scenario_start "test_containers"
 
 # ── Collect expected container names from devnet-info ────────
 EXPECTED=()
@@ -29,9 +29,16 @@ for cname in "${EXPECTED[@]}"; do
   assert_eq "$STATUS" "running" "container ${cname} is running"
 done
 
-# ── Check no unexpected foc-c-* containers are running ───────
-# All foc-c-* containers should belong to the expected set
-RUNNING=$(docker ps --filter "name=foc-c-" --format '{{.Names}}')
+# ── Check no unexpected foc-* containers are running ─────────
+# All foc-* containers for this devnet run should belong to the expected set.
+# Prefer the run-scoped prefix from devnet-info when available, fall back to foc-.
+RUN_ID="$(jq_devnet '.info.run_id // ""')"
+if [[ -n "$RUN_ID" ]]; then
+  NAME_FILTER="foc-${RUN_ID}-"
+else
+  NAME_FILTER="foc-"
+fi
+RUNNING=$(docker ps --filter "name=${NAME_FILTER}" --format '{{.Names}}')
 for cname in $RUNNING; do
   KNOWN=false
   for exp in "${EXPECTED[@]}"; do
