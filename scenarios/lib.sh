@@ -75,6 +75,17 @@ assert_eq() {
 
 # assert_not_empty <value> <message>
 assert_not_empty() {
+  # ── Foundry install (hoisted) ───────────────────────────────
+  ensure_foundry() {
+    if ! command -v cast &>/dev/null; then
+      info "Installing Foundry …"
+      export SHELL=/bin/bash
+      curl -sSL https://foundry.paradigm.xyz | bash
+      export PATH="$HOME/.foundry/bin:$PATH"
+      "$HOME/.foundry/bin/foundryup"
+    fi
+    assert_ok command -v cast "cast is installed"
+  }
   if [[ -n "$1" ]]; then ok "$2"; else fail "$2 (empty)"; fi
 }
 

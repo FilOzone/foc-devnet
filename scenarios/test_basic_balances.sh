@@ -13,14 +13,7 @@ source "${SCENARIO_DIR}/lib.sh"
 scenario_start "test_basic_balances"
 
 # ── Ensure Foundry is available ──────────────────────────────
-if ! command -v cast &>/dev/null; then
-  info "Installing Foundry …"
-  export SHELL=/bin/bash
-  curl -sSL https://foundry.paradigm.xyz | bash
-  export PATH="$HOME/.foundry/bin:$PATH"
-  "$HOME/.foundry/bin/foundryup"
-fi
-assert_ok command -v cast "cast is installed"
+ensure_foundry
 
 # ── Read devnet info ─────────────────────────────────────────
 RPC_URL=$(jq_devnet '.info.lotus.host_rpc_url')
@@ -38,7 +31,8 @@ for i in $(seq 0 $((USER_COUNT - 1))); do
   assert_gt "$FIL_WEI" 0 "${NAME} FIL balance > 0"
 
   # MockUSDFC ERC-20 balance
-  USDFC_WEI=$(cast call "$USDFC_ADDR" "balanceOf(address)(uint256)" "$ADDR" --rpc-url "$RPC_URL")
+  USDFC_WEI_RAW=$(cast call "$USDFC_ADDR" "balanceOf(address)(uint256)" "$ADDR" --rpc-url "$RPC_URL")
+  USDFC_WEI=$(echo "$USDFC_WEI_RAW" | tr -cd '0-9')
   assert_gt "$USDFC_WEI" 0 "${NAME} USDFC balance > 0"
 done
 
