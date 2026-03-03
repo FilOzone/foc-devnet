@@ -4,6 +4,12 @@
 # Run one test:   python3 test_containers.py
 import os, sys, json, subprocess, importlib.util, time
 
+# Ensure the project root (parent of scenarios_py/) is on sys.path so that
+# test files can do `from scenarios_py.run import *` regardless of cwd.
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
 # Allow test files to `from core import *` even when core runs as __main__.
 sys.modules.setdefault("core", sys.modules[__name__])
 
@@ -120,7 +126,7 @@ def write_report(results, elapsed):
         for name, p, f in results:
             icon = "✅" if f == 0 else "❌"
             fh.write(f"| {icon} {'PASS' if f == 0 else 'FAIL'} | {name} | {p} | {f} |\n")
-    return path
+    return REPORT_MD
 
 if __name__ == "__main__":
     start = time.time()
