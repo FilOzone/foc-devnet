@@ -1298,54 +1298,48 @@ docker run --rm --network host \
 
 ## Scenario Tests
 
-Scenario tests are lightweight shell scripts that validate scenarios on the devnet after startup. They share a single running devnet and execute serially in a defined order.
+Scenario tests are Python scripts that validate devnet state after startup. They share a single running devnet and execute serially in a defined order. The runner lives in `scenarios/` and uses **only Python stdlib** — no `pip install` required.
 
 ### Running scenarios
 
 ```bash
-# Run all scenarios against a running devnet
-bash scenarios/run.sh
+# Run all scenarios
+python3 scenarios/run.py
 
-# Run a single scenario
-bash scenarios/test_basic_balances.sh
+# Run a single scenario directly
+python3 scenarios/test_basic_balances.py
 
 # Point at a specific devnet run
-DEVNET_INFO=~/.foc-devnet/state/<run-id>/devnet-info.json bash scenarios/run.sh
+DEVNET_INFO=~/.foc-devnet/state/<run-id>/devnet-info.json python3 scenarios/run.py
 ```
 
-Reports are written to `~/.foc-devnet/state/latest/scenario_<timestamp>.md`.
+Reports are written to `~/.foc-devnet/state/latest/scenario_report.md`.
 
 ### Writing a new scenario
 
-1. Create `scenarios/test_<name>.sh`:
+1. Create `scenarios/test_<name>.py`:
 
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-SCENARIO_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "${SCENARIO_DIR}/lib.sh"
-scenario_start "<name>"
+```python
+#!/usr/bin/env python3
+from scenarios.run import *
 
-# Use helpers: jq_devnet, assert_eq, assert_gt, assert_not_empty, assert_ok
-RPC_URL=$(jq_devnet '.info.lotus.host_rpc_url')
-BALANCE=$(cast balance 0x... --rpc-url "$RPC_URL")
-assert_gt "$BALANCE" 0 "account has funds"
+def run():
+    d = devnet_info()["info"]
+    rpc = d["lotus"]["host_rpc_url"]
 
-scenario_end
+    # Use helpers: sh, assert_eq, assert_gt, assert_not_empty, assert_ok
+    balance = sh(f"cast balance 0x... --rpc-url {rpc}")
+    assert_gt(balance, 0, "account has funds")
+
+if __name__ == "__main__":
+    run()
 ```
 
-2. Add `test_<name>` to the `SCENARIOS` array in `scenarios/order.sh`.
-3. `chmod +x scenarios/test_<name>.sh`
+2. Add `"test_<name>"` to the `ORDER` list in `scenarios/run.py`.
 
-### Available assertion helpers (from `lib.sh`)
+### Constraints
 
-| Helper | Usage | Description |
-|--------|-------|-------------|
-| `assert_eq` | `assert_eq "$a" "$b" "msg"` | Equality check |
-| `assert_gt` | `assert_gt "$a" "$b" "msg"` | Integer greater-than (handles wei-scale) |
-| `assert_not_empty` | `assert_not_empty "$v" "msg"` | Value is non-empty |
-| `assert_ok` | `assert_ok cmd arg... "msg"` | Command exits 0 |
-| `jq_devnet` | `jq_devnet '.info.lotus.host_rpc_url'` | Query devnet-info.json |
+- **No third-party packages.** Only Python stdlib (`os`, `sys`, `json`, `subprocess`, etc.) plus external CLI tools already present on the host (`cast`, `docker`). This keeps CI setup trivial — no virtual env, no `pip install`.
 
 ### CI integration
 
