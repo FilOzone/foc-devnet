@@ -44,6 +44,8 @@ jobs:
       fail-fast: false
       matrix:
         machine: [
+          ["self-hosted", "linux", "x64", "16xlarge+gpu"],
+          ["self-hosted", "linux", "x64", "8xlarge+gpu"]
           ["self-hosted", "linux", "x64", "4xlarge+gpu"],
           ["self-hosted", "linux", "x64", "xlarge+gpu"],
           ["self-hosted", "linux", "arm64", "xlarge"],
