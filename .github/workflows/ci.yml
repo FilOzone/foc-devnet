@@ -425,9 +425,8 @@ jobs:
         echo "Start cluster failed earlier; marking job as failed." >&2
         exit 1
 
-  issue:
-    name: Issue
-    if: always() && github.repository_owner == 'filecoin-project' && github.event_name == 'schedule'
+  issue-reporting:
+    name: Issue Reporting
     needs: foc-devnet-test
     runs-on: ubuntu-latest
     permissions:
