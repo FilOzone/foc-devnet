@@ -17,10 +17,12 @@ DEVNET_INFO = os.environ.get("DEVNET_INFO", os.path.expanduser("~/.foc-devnet/st
 REPORT_MD   = os.environ.get("REPORT_FILE",  os.path.expanduser("~/.foc-devnet/state/latest/scenario_report.md"))
 
 # ── Scenario execution order (mirrors scenarios/order.sh) ────
+# Each entry is (test_name, timeout_seconds)
 ORDER = [
-    "test_containers",
-    "test_basic_balances",
-    "test_storage_e2e",
+    ("test_containers", 5),
+    ("test_basic_balances", 10),
+    ("test_storage_e2e", 20),
+    ("test_caching_subsystem", 90)
 ]
 
 _pass = 0
@@ -102,20 +104,59 @@ def ensure_foundry():
 # ── Runner ────────────────────────────────────────────────────
 
 def run_tests():
-    """Run scenarios in ORDER. Returns list of (name, passed, log_lines)."""
+    """Run scenarios in ORDER. Returns list of (name, passed, elapsed_time, log_lines, timed_out)."""
     here = os.path.dirname(os.path.abspath(__file__))
     results = []
-    for name in ORDER:
+    for name, timeout in ORDER:
         path = os.path.join(here, f"{name}.py")
-        info(f"=== {name} ===")
-        # Run the test in a subprocess
-        result = subprocess.run([sys.executable, path], capture_output=True, text=True)
-        stdout_lines = result.stdout.strip().split('\n') if result.stdout else []
-        stderr_lines = result.stderr.strip().split('\n') if result.stderr else []
-        log_lines = stdout_lines + stderr_lines
-        # Determine pass/fail based on return code
-        passed = (result.returncode == 0)
-        results.append((name, passed, log_lines))
+        info(f"=== {name} (timeout: {timeout}s) ===")
+        test_start = time.time()
+        # Run the test in a subprocess, capturing output while also displaying it live
+        process = subprocess.Popen(
+            [sys.executable, path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1  # Line buffered
+        )
+        log_lines = []
+        timed_out = False
+        try:
+            # Read output line by line with timeout detection
+            while True:
+                # Check if timeout exceeded
+                if time.time() - test_start > timeout:
+                    timed_out = True
+                    process.kill()
+                    timeout_msg = f"[TIMEOUT] Test exceeded {timeout}s limit"
+                    print(timeout_msg)
+                    log_lines.append(timeout_msg)
+                    break
+                # Try to read a line (non-blocking with select would be better, but this works)
+                line = process.stdout.readline()
+                if not line:
+                    break  # EOF reached
+                line = line.rstrip('\n')
+                print(line)  # Display live
+                log_lines.append(line)  # Capture for report
+            # Wait for process to complete (or confirm it's dead)
+            try:
+                return_code = process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                return_code = -1
+        except Exception as e:
+            error_msg = f"[ERROR] Exception during test execution: {e}"
+            print(error_msg)
+            log_lines.append(error_msg)
+            process.kill()
+            process.wait()
+            return_code = -1
+        elapsed_time = int(time.time() - test_start)
+        # Determine pass/fail based on return code and timeout
+        passed = (return_code == 0 and not timed_out)
+        results.append((name, passed, elapsed_time, log_lines, timed_out))
     return results
 
 # ── Reporting ─────────────────────────────────────────────────
@@ -123,7 +164,7 @@ def run_tests():
 def write_report(results, elapsed):
     """Write a markdown report to REPORT_MD. Returns path written."""
     total_scenarios = len(results)
-    scenario_pass = sum(1 for _, passed, __ in results if passed)
+    scenario_pass = sum(1 for _, passed, _, _, _ in results if passed)
     scenario_fail = total_scenarios - scenario_pass
     with open(REPORT_MD, "w") as fh:
         fh.write("# Scenario Test Report\n\n")
@@ -138,9 +179,12 @@ def write_report(results, elapsed):
         fh.write(f"| Total Scenarios | {total_scenarios} |\n| Scenarios Passed | {scenario_pass} |\n| Scenarios Failed | {scenario_fail} |\n")
         fh.write(f"| Duration | {elapsed}s |\n\n")
         fh.write("## Test Results\n\n")
-        for name, passed, logs in results:
+        for name, passed, test_time, logs, timed_out in results:
             icon = "✅" if passed else "❌"
-            status = "PASS" if passed else "FAIL"
+            if timed_out:
+                status = f"TIMEOUT ({test_time}s)"
+            else:
+                status = f"{'PASS' if passed else 'FAIL'} ({test_time}s)"
             fh.write(f"<details>\n<summary>{icon} <b>{name}</b> - {status}</summary>\n\n```\n")
             fh.write("\n".join(logs))
             fh.write("\n```\n</details>\n\n")
@@ -152,10 +196,15 @@ if __name__ == "__main__":
     elapsed = int(time.time() - start)
 
     total_scenarios = len(results)
-    scenario_pass = sum(1 for _, passed, __ in results if passed)
+    scenario_pass = sum(1 for _, passed, _, _, _ in results if passed)
     scenario_fail = total_scenarios - scenario_pass
     print(f"\n{'='*50}")
     print(f"Scenarios: {total_scenarios}  Passed: {scenario_pass}  Failed: {scenario_fail}  ({elapsed}s)")
+    # Show individual test timings
+    for name, passed, test_time, _, timed_out in results:
+        status_icon = "✅" if passed else "❌"
+        status_text = "TIMEOUT" if timed_out else ("PASS" if passed else "FAIL")
+        print(f"  {status_icon} {name}: {status_text} ({test_time}s)")
 
     report = write_report(results, elapsed)
     print(f"Report: {report}")
