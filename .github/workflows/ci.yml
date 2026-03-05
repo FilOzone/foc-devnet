@@ -48,9 +48,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        machine: [
-          ["self-hosted", "linux", "x64", "16xlarge+gpu"],
-        ]
+        include:
+          - machine: ["self-hosted", "linux", "x64", "16xlarge+gpu"]
+            name: self-hosted-x64-16xlarge-gpu
     runs-on: ${{ matrix.machine }}
     timeout-minutes: 100
     permissions:
@@ -405,12 +405,12 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: python3 scenarios/run.py
 
-    # Upload scenario report as artifact
+    # Upload scenario report as artifact (name includes job index to avoid collisions in matrix)
     - name: "EXEC: {Upload scenario report}"
       if: always() && steps.start_cluster.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
-        name: scenario-report
+        name: scenario-report-${{ matrix.name }}
         path: ~/.foc-devnet/state/latest/scenario_*.md
         if-no-files-found: ignore
 
@@ -427,9 +427,8 @@ jobs:
 
   issue-reporting:
     name: Issue Reporting
-    if: |
-      always()
-    needs: foc-devnet-test
+    if: always()
+    needs: [foc-devnet-test]
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -452,22 +451,28 @@ jobs:
             echo "Filing issue: test result was $FOC_DEVNET_TEST_STEP_RESULT"
           fi
 
-      - name: "EXEC: {Download scenario report}"
+      - name: "EXEC: {Download scenario reports}"
         if: steps.should_file.outputs.file == 'true'
         uses: actions/download-artifact@v4
         with:
-          name: scenario-report
+          pattern: scenario-report-*
           path: /tmp/scenario-report
+          merge-multiple: false
         continue-on-error: true
 
       - name: "EXEC: {Read report content}"
         if: steps.should_file.outputs.file == 'true'
         id: report
         run: |
-          REPORT_FILE=$(find /tmp/scenario-report -name "*.md" 2>/dev/null | head -1)
-          if [[ -n "$REPORT_FILE" ]]; then
-            CONTENT=$(cat "$REPORT_FILE")
-          else
+          # Each matrix variant lands in its own sub-directory under /tmp/scenario-report/, named after matrix.name
+          CONTENT=""
+          while IFS= read -r -d '' REPORT_FILE; do
+            JOB_DIR=$(basename "$(dirname "$REPORT_FILE")")
+            CONTENT+="## ${JOB_DIR}\n\n"
+            CONTENT+=$(cat "$REPORT_FILE")
+            CONTENT+="\n\n"
+          done < <(find /tmp/scenario-report -name "*.md" -print0 2>/dev/null | sort -z)
+          if [[ -z "$CONTENT" ]]; then
             CONTENT="No scenario report available."
           fi
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
