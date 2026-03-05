@@ -370,6 +370,13 @@ jobs:
       with:
         node-version: '20'
 
+    # Setup pnpm (required by scenario tests)
+    - name: "EXEC: {Setup pnpm}, independent"
+      if: steps.start_cluster.outcome == 'success'
+      uses: pnpm/action-setup@v4
+      with:
+        version: latest
+
     # Validate schema using zod
     - name: "CHECK: {Validate devnet-info.json schema}"
       if: steps.start_cluster.outcome == 'success'

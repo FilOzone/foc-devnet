@@ -67,6 +67,18 @@ def sh(cmd):
     """Run cmd in a shell and return stdout stripped, or '' on error."""
     return subprocess.run(cmd, shell=True, text=True, capture_output=True).stdout.strip()
 
+def run_cmd(cmd: list, *, cwd=None, env=None, label: str = "", print_output: bool=False) -> bool:
+    """Run a subprocess command and report pass/fail; returns True on success."""
+    result = subprocess.run(cmd, cwd=cwd, env=env, text=True, capture_output=True)
+    details = (result.stderr or result.stdout or "").strip()
+    if result.returncode == 0:
+        if print_output:
+            info(details)
+        ok(label)
+        return True
+    fail(f"{label} (exit={result.returncode}) {details}")
+    return False
+
 def devnet_info():
     """Load devnet-info.json as a dict."""
     with open(DEVNET_INFO) as f:
