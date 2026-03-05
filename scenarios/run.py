@@ -40,10 +40,12 @@ def ok(msg):
     _pass += 1
 
 def fail(msg):
+    "fail logs a failure and exits the scenario entirely with exit code = 1"
     global _fail
     _log_lines.append(f"[FAIL] {msg}")
     print(f"[FAIL] {msg}", file=sys.stderr)
     _fail += 1
+    sys.exit(1)
 
 # ── Assertions ───────────────────────────────────────────────
 
@@ -100,33 +102,28 @@ def ensure_foundry():
 # ── Runner ────────────────────────────────────────────────────
 
 def run_tests():
-    """Run scenarios in ORDER. Returns list of (name, passed, failed, log_lines)."""
-    global _pass, _fail, _log_lines
+    """Run scenarios in ORDER. Returns list of (name, passed, log_lines)."""
     here = os.path.dirname(os.path.abspath(__file__))
     results = []
     for name in ORDER:
         path = os.path.join(here, f"{name}.py")
-        _pass = _fail = 0
-        _log_lines = []
         info(f"=== {name} ===")
-        try:
-            spec = importlib.util.spec_from_file_location(name, path)
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            mod.run()
-        except Exception as e:
-            fail(f"unhandled exception: {e}")
-        results.append((name, _pass, _fail, list(_log_lines)))
+        # Run the test in a subprocess
+        result = subprocess.run([sys.executable, path], capture_output=True, text=True)
+        stdout_lines = result.stdout.strip().split('\n') if result.stdout else []
+        stderr_lines = result.stderr.strip().split('\n') if result.stderr else []
+        log_lines = stdout_lines + stderr_lines
+        # Determine pass/fail based on return code
+        passed = (result.returncode == 0)
+        results.append((name, passed, log_lines))
     return results
 
 # ── Reporting ─────────────────────────────────────────────────
 
 def write_report(results, elapsed):
     """Write a markdown report to REPORT_MD. Returns path written."""
-    total_assert_pass = sum(p for _, p, _, __ in results)
-    total_assert_fail = sum(f for _, _, f, __ in results)
     total_scenarios = len(results)
-    scenario_pass = sum(1 for _, p, f, __ in results if f == 0)
+    scenario_pass = sum(1 for _, passed, __ in results if passed)
     scenario_fail = total_scenarios - scenario_pass
     with open(REPORT_MD, "w") as fh:
         fh.write("# Scenario Test Report\n\n")
@@ -139,15 +136,12 @@ def write_report(results, elapsed):
             fh.write(f"**CI Run**: [{ci_url}]({ci_url})\n\n")
         fh.write("| Metric | Value |\n|--------|-------|\n")
         fh.write(f"| Total Scenarios | {total_scenarios} |\n| Scenarios Passed | {scenario_pass} |\n| Scenarios Failed | {scenario_fail} |\n")
-        fh.write(f"| Total Assertions | {total_assert_pass+total_assert_fail} |\n| Assertions Passed | {total_assert_pass} |\n| Assertions Failed | {total_assert_fail} |\n| Duration | {elapsed}s |\n\n")
-        fh.write("## Details\n\n| Status | Scenario | Passed | Failed |\n|--------|----------|--------|--------|\n")
-        for name, p, f, _ in results:
-            icon = "✅" if f == 0 else "❌"
-            fh.write(f"| {icon} {'PASS' if f == 0 else 'FAIL'} | {name} | {p} | {f} |\n")
-        fh.write("\n## Log Addendum\n\n")
-        for name, p, f, logs in results:
-            icon = "✅" if f == 0 else "❌"
-            fh.write(f"<details>\n<summary>{icon} <b>{name}</b></summary>\n\n```\n")
+        fh.write(f"| Duration | {elapsed}s |\n\n")
+        fh.write("## Test Results\n\n")
+        for name, passed, logs in results:
+            icon = "✅" if passed else "❌"
+            status = "PASS" if passed else "FAIL"
+            fh.write(f"<details>\n<summary>{icon} <b>{name}</b> - {status}</summary>\n\n```\n")
             fh.write("\n".join(logs))
             fh.write("\n```\n</details>\n\n")
     return REPORT_MD
@@ -157,14 +151,11 @@ if __name__ == "__main__":
     results = run_tests()
     elapsed = int(time.time() - start)
 
-    total_assert_pass = sum(p for _, p, _, __ in results)
-    total_assert_fail = sum(f for _, _, f, __ in results)
     total_scenarios = len(results)
-    scenario_pass = sum(1 for _, _, f, __ in results if f == 0)
+    scenario_pass = sum(1 for _, passed, __ in results if passed)
     scenario_fail = total_scenarios - scenario_pass
     print(f"\n{'='*50}")
     print(f"Scenarios: {total_scenarios}  Passed: {scenario_pass}  Failed: {scenario_fail}  ({elapsed}s)")
-    print(f"Assertions: {total_assert_pass+total_assert_fail}  Passed: {total_assert_pass}  Failed: {total_assert_fail}")
 
     report = write_report(results, elapsed)
     print(f"Report: {report}")

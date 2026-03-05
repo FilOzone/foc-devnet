@@ -50,7 +50,7 @@ jobs:
       matrix:
         include:
           - machine: ["self-hosted", "linux", "x64", "16xlarge+gpu"]
-            name: self-hosted-x64-16xlarge-gpu
+            name: x64-16xlarge-gpu
     runs-on: ${{ matrix.machine }}
     timeout-minutes: 100
     permissions:
@@ -201,12 +201,12 @@ jobs:
           ./foc-devnet init
         fi
 
-    # CACHE-DOCKER: Build Docker images if not cached
-    - name: "EXEC: {Build Docker images}, DEP: {C-docker-images-cache}"
+    # CACHE-DOCKER: Save Docker images as tarballs for caching
+    - name: "EXEC: {Save Docker images for cache}, DEP: {C-docker-images-cache}"
       if: steps.cache-docker-images.outputs.cache-hit != 'true'
       run: |-
         mkdir -p ~/.docker-images-cache
-        echo "Building Docker images for cache..."
+        echo "Saving Docker images for cache..."
         docker save foc-lotus -o ~/.docker-images-cache/foc-lotus.tar
         docker save foc-lotus-miner -o ~/.docker-images-cache/foc-lotus-miner.tar
         docker save foc-builder -o ~/.docker-images-cache/foc-builder.tar
@@ -314,8 +314,9 @@ jobs:
       continue-on-error: true
       run: ./foc-devnet start --parallel
 
-    # On failure, collect and print Docker container logs for debugging
-    - name: "EXEC: {Collect Docker logs on failure}, independent"
+    # Collect and print Docker container logs for debugging (always runs for diagnostics)
+    - name: "EXEC: {Collect Docker logs}, independent"
+      if: always()
       run: |
         RUN_DIR="$HOME/.foc-devnet/state/latest"
         
@@ -352,9 +353,11 @@ jobs:
 
     # Verify cluster is running correctly
     - name: "EXEC: {Check cluster status}, independent"
+      if: always()
       run: ./foc-devnet status
 
     - name: "EXEC: {List foc-* containers}, independent"
+      if: always()
       run: |
         echo "Containers using foc-* images (running or exited):"
         docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
@@ -414,20 +417,21 @@ jobs:
         path: ~/.foc-devnet/state/latest/scenario_*.md
         if-no-files-found: ignore
 
-    # Clean shutdown
+    # Clean shutdown (always runs to avoid leaving containers behind)
     - name: "EXEC: {Stop cluster}, independent"
+      if: always()
       run: ./foc-devnet stop
 
     # Mark job as failed if the start step failed, but only after all steps
     - name: "CHECK: {Fail job if start failed}"
-      if: ${{ always() && steps.start_cluster.outcome == 'failure' }}
+      if: always() && steps.start_cluster.outcome == 'failure'
       run: |
         echo "Start cluster failed earlier; marking job as failed." >&2
         exit 1
 
   issue-reporting:
     name: Issue Reporting
-    if: always()
+    if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     needs: [foc-devnet-test]
     runs-on: ubuntu-latest
     permissions:
@@ -468,9 +472,9 @@ jobs:
           CONTENT=""
           while IFS= read -r -d '' REPORT_FILE; do
             JOB_DIR=$(basename "$(dirname "$REPORT_FILE")")
-            CONTENT+="## ${JOB_DIR}\n\n"
+            CONTENT+=$'## '"${JOB_DIR}"$'\n\n'
             CONTENT+=$(cat "$REPORT_FILE")
-            CONTENT+="\n\n"
+            CONTENT+=$'\n\n'
           done < <(find /tmp/scenario-report -name "*.md" -print0 2>/dev/null | sort -z)
           if [[ -z "$CONTENT" ]]; then
             CONTENT="No scenario report available."
@@ -485,10 +489,10 @@ jobs:
         uses: ipdxco/create-or-update-issue@v1
         with:
           GITHUB_TOKEN: ${{ github.token }}
-          title: "Scenarios run ${{ needs.foc-devnet-test.result == 'success' && 'passed' || 'failed' }}"
+          title: "FOC Devnet scenarios run report"
           body: |
             The scenarios run **${{ needs.foc-devnet-test.result == 'success' && 'passed ✅' || 'failed ❌' }}**.
             See [the workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
 
             ${{ steps.report.outputs.content }}
-          label: area/nightly-tests
+          label: scenarios-run

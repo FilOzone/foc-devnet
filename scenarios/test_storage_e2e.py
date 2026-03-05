@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 import os
 import random
+import sys
 import tempfile
 from pathlib import Path
+
+# Ensure the project root (parent of scenarios/) is on sys.path
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 from scenarios.run import *
 
 SYNAPSE_SDK_REPO = "https://github.com/FilOzone/synapse-sdk/"
-SYNAPSE_SDK_REF = os.environ.get("SYNAPSE_SDK_REF", "synapse-sdk-v0.38.0")
 RAND_FILE_NAME = "random_file"
 RAND_FILE_SIZE = 20 * 1024 * 1024
 RAND_FILE_SEED = 42
@@ -37,8 +42,8 @@ def run():
         if not run_cmd(["git", "clone", SYNAPSE_SDK_REPO, str(sdk_dir)], label="synapse-sdk cloned"):
             return
 
-        info(f"--- Checking out synapse-sdk ref {SYNAPSE_SDK_REF} ---")
-        if not run_cmd(["git", "checkout", SYNAPSE_SDK_REF], cwd=str(sdk_dir), label=f"synapse-sdk checked out at {SYNAPSE_SDK_REF}"):
+        info(f"--- Checking out synapse-sdk @ master (latest) ---")
+        if not run_cmd(["git", "checkout", "master"], cwd=str(sdk_dir), label=f"synapse-sdk checked out at master head"):
             return
 
         info("--- Installing synapse-sdk dependencies with pnpm ---")
