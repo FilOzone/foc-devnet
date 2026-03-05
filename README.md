@@ -31,6 +31,18 @@ For GitHub Actions, add this step before running foc-devnet:
 - run: echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts
 ```
 
+(Optional) Additionally, you may want to get linters for python scenarios, and install pre-commit hooks for development:
+```sh
+sudo apt install pipx
+pipx ensurepath
+
+# Install linting tools
+pipx install black
+
+# Install pre-commit hooks
+./scripts/install_precommit_hooks.sh
+```
+
 ### Step 1: Initialize
 
 ```bash
