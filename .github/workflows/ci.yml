@@ -428,9 +428,7 @@ jobs:
   issue-reporting:
     name: Issue Reporting
     if: |
-      always() &&
-      github.repository_owner == 'filecoin-project' &&
-      (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.reporting == true))
+      always()
     needs: foc-devnet-test
     runs-on: ubuntu-latest
     permissions:
