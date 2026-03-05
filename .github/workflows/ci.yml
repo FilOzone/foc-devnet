@@ -20,6 +20,11 @@ on:
         type: boolean
         default: true
 
+env:
+  # When true, file a GitHub issue even when all scenarios pass.
+  # Flip this to 'false' once the suite is stable to only file on failures.
+  REPORT_ON_SUCCESS: 'true'
+
 jobs:
   fmt-clippy:
     runs-on: ubuntu-latest
@@ -419,3 +424,65 @@ jobs:
       run: |
         echo "Start cluster failed earlier; marking job as failed." >&2
         exit 1
+
+  issue:
+    name: Issue
+    if: always() && github.repository_owner == 'filecoin-project' && github.event_name == 'schedule'
+    needs: foc-devnet-test
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: "CHECK: {Determine if issue should be filed}"
+        id: should_file
+        run: |
+          FOC_DEVNET_TEST_STEP_RESULT="${{ needs.foc-devnet-test.result }}"
+          if [[ "$FOC_DEVNET_TEST_STEP_RESULT" == "success" ]]; then
+            TEST_PASSED="true"
+          else
+            TEST_PASSED="false"
+          fi
+          echo "passed=$TEST_PASSED" >> $GITHUB_OUTPUT
+          if [[ "$TEST_PASSED" == "true" && "$REPORT_ON_SUCCESS" != "true" ]]; then
+            echo "file=false" >> $GITHUB_OUTPUT
+            echo "Skipping issue: tests passed and REPORT_ON_SUCCESS is not 'true'"
+          else
+            echo "file=true" >> $GITHUB_OUTPUT
+            echo "Filing issue: test result was $FOC_DEVNET_TEST_STEP_RESULT"
+          fi
+
+      - name: "EXEC: {Download scenario report}"
+        if: steps.should_file.outputs.file == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: scenario-report
+          path: /tmp/scenario-report
+        continue-on-error: true
+
+      - name: "EXEC: {Read report content}"
+        if: steps.should_file.outputs.file == 'true'
+        id: report
+        run: |
+          REPORT_FILE=$(find /tmp/scenario-report -name "*.md" 2>/dev/null | head -1)
+          if [[ -n "$REPORT_FILE" ]]; then
+            CONTENT=$(cat "$REPORT_FILE")
+          else
+            CONTENT="No scenario report available."
+          fi
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "content<<$EOF" >> $GITHUB_OUTPUT
+          echo "$CONTENT" >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
+
+      - name: "EXEC: {Create or update issue}"
+        if: steps.should_file.outputs.file == 'true'
+        uses: ipdxco/create-or-update-issue@v1
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          title: "Scenarios run ${{ needs.foc-devnet-test.result == 'success' && 'passed' || 'failed' }}"
+          body: |
+            The scenarios run **${{ needs.foc-devnet-test.result == 'success' && 'passed ✅' || 'failed ❌' }}**.
+            See [the workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+
+            ${{ steps.report.outputs.content }}
+          label: area/nightly-tests

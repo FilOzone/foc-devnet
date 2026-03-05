@@ -25,19 +25,23 @@ ORDER = [
 
 _pass = 0
 _fail = 0
+_log_lines: list = []
 
 # ── Logging ──────────────────────────────────────────────────
 
 def info(msg):
+    _log_lines.append(f"[INFO] {msg}")
     print(f"[INFO] {msg}")
 
 def ok(msg):
     global _pass
+    _log_lines.append(f"[ OK ] {msg}")
     print(f"[ OK ] {msg}")
     _pass += 1
 
 def fail(msg):
     global _fail
+    _log_lines.append(f"[FAIL] {msg}")
     print(f"[FAIL] {msg}", file=sys.stderr)
     _fail += 1
 
@@ -96,13 +100,14 @@ def ensure_foundry():
 # ── Runner ────────────────────────────────────────────────────
 
 def run_tests():
-    """Run scenarios in ORDER. Returns list of (name, passed, failed)."""
-    global _pass, _fail
+    """Run scenarios in ORDER. Returns list of (name, passed, failed, log_lines)."""
+    global _pass, _fail, _log_lines
     here = os.path.dirname(os.path.abspath(__file__))
     results = []
     for name in ORDER:
         path = os.path.join(here, f"{name}.py")
         _pass = _fail = 0
+        _log_lines = []
         info(f"=== {name} ===")
         try:
             spec = importlib.util.spec_from_file_location(name, path)
@@ -111,17 +116,17 @@ def run_tests():
             mod.run()
         except Exception as e:
             fail(f"unhandled exception: {e}")
-        results.append((name, _pass, _fail))
+        results.append((name, _pass, _fail, list(_log_lines)))
     return results
 
 # ── Reporting ─────────────────────────────────────────────────
 
 def write_report(results, elapsed):
-    """Write a markdown report to REPORT_DIR. Returns path written."""
-    total_assert_pass = sum(p for _, p, _ in results)
-    total_assert_fail = sum(f for _, _, f in results)
+    """Write a markdown report to REPORT_MD. Returns path written."""
+    total_assert_pass = sum(p for _, p, _, __ in results)
+    total_assert_fail = sum(f for _, _, f, __ in results)
     total_scenarios = len(results)
-    scenario_pass = sum(1 for _, p, f in results if f == 0)
+    scenario_pass = sum(1 for _, p, f, __ in results if f == 0)
     scenario_fail = total_scenarios - scenario_pass
     with open(REPORT_MD, "w") as fh:
         fh.write("# Scenario Test Report\n\n")
@@ -136,9 +141,15 @@ def write_report(results, elapsed):
         fh.write(f"| Total Scenarios | {total_scenarios} |\n| Scenarios Passed | {scenario_pass} |\n| Scenarios Failed | {scenario_fail} |\n")
         fh.write(f"| Total Assertions | {total_assert_pass+total_assert_fail} |\n| Assertions Passed | {total_assert_pass} |\n| Assertions Failed | {total_assert_fail} |\n| Duration | {elapsed}s |\n\n")
         fh.write("## Details\n\n| Status | Scenario | Passed | Failed |\n|--------|----------|--------|--------|\n")
-        for name, p, f in results:
+        for name, p, f, _ in results:
             icon = "✅" if f == 0 else "❌"
             fh.write(f"| {icon} {'PASS' if f == 0 else 'FAIL'} | {name} | {p} | {f} |\n")
+        fh.write("\n## Log Addendum\n\n")
+        for name, p, f, logs in results:
+            icon = "✅" if f == 0 else "❌"
+            fh.write(f"<details>\n<summary>{icon} <b>{name}</b></summary>\n\n```\n")
+            fh.write("\n".join(logs))
+            fh.write("\n```\n</details>\n\n")
     return REPORT_MD
 
 if __name__ == "__main__":
@@ -146,10 +157,10 @@ if __name__ == "__main__":
     results = run_tests()
     elapsed = int(time.time() - start)
 
-    total_assert_pass = sum(p for _, p, _ in results)
-    total_assert_fail = sum(f for _, _, f in results)
+    total_assert_pass = sum(p for _, p, _, __ in results)
+    total_assert_fail = sum(f for _, _, f, __ in results)
     total_scenarios = len(results)
-    scenario_pass = sum(1 for _, _, f in results if f == 0)
+    scenario_pass = sum(1 for _, _, f, __ in results if f == 0)
     scenario_fail = total_scenarios - scenario_pass
     print(f"\n{'='*50}")
     print(f"Scenarios: {total_scenarios}  Passed: {scenario_pass}  Failed: {scenario_fail}  ({elapsed}s)")
