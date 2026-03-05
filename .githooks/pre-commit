@@ -1,25 +1,7 @@
 #!/usr/bin/env bash
-# ─────────────────────────────────────────────────────────────
-# Pre-commit hook for foc-devnet
-#
-# Runs lint.sh in check mode before each commit.
-# Skip with: git commit --no-verify
-# Auto-fix mode: FIX=1 git commit
-# ─────────────────────────────────────────────────────────────
 set -euo pipefail
 
-FIX="${FIX:-0}"
-
+FIX="${FIX:-1}"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-echo "Running pre-commit linting..."
-echo ""
-
-if FIX="$FIX" "$REPO_ROOT/scripts/lint.sh"; then
-    exit 0
-else
-    echo ""
-    echo "Pre-commit hook failed. To skip this hook, use: git commit --no-verify"
-    echo "To auto-fix issues, use: FIX=1 git commit"
-    exit 1
-fi
+$REPO_ROOT/scripts/lint.sh

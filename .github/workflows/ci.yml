@@ -42,12 +42,9 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y pipx
-        pipx ensurepath
         pipx install black
         pipx install ruff
-      env:
-        PIPX_HOME: /opt/pipx
-        PIPX_BIN_DIR: /usr/local/bin
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     - name: Run linting (check mode)
       run: FIX=0 ./scripts/lint.sh
@@ -55,11 +52,14 @@ jobs:
   foc-devnet-test:
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         include:
-          - machine: ["self-hosted", "linux", "x64", "16xlarge+gpu"]
-            name: x64-16xlarge-gpu
-    runs-on: ${{ matrix.machine }}
+          - name: latesttag
+            init_flags: "--lotus latestTag --curio latestTag --filecoin-services latestTag"
+          - name: latestcommit
+            init_flags: "--lotus latestTag --curio gitbranch:pdpv0 --filecoin-services gitbranch:main"
+    runs-on: ["self-hosted", "linux", "x64", "16xlarge+gpu"]
     timeout-minutes: 100
     permissions:
       contents: read
@@ -186,28 +186,14 @@ jobs:
       if: steps.cache-docker-images.outputs.cache-hit == 'true'
       run: |
         rm -rf ~/.foc-devnet
-        if [[ "${{ github.event_name }}" == "schedule" ]]; then
-          ./foc-devnet init --no-docker-build \
-            --curio latestCommit \
-            --filecoin-services latestCommit \
-            --lotus latestTag
-        else
-          ./foc-devnet init --no-docker-build
-        fi
+        ./foc-devnet init --no-docker-build ${{ matrix.init_flags }}
 
     # If Docker images are not cached, do full init (downloads YugabyteDB and builds all images)
     - name: "EXEC: {Initialize without cache}, independent"
       if: steps.cache-docker-images.outputs.cache-hit != 'true'
       run: |
         rm -rf ~/.foc-devnet
-        if [[ "${{ github.event_name }}" == "schedule" ]]; then
-          ./foc-devnet init \
-            --curio latestCommit \
-            --filecoin-services latestCommit \
-            --lotus latestTag
-        else
-          ./foc-devnet init
-        fi
+        ./foc-devnet init ${{ matrix.init_flags }}
 
     # CACHE-DOCKER: Save Docker images as tarballs for caching
     - name: "EXEC: {Save Docker images for cache}, DEP: {C-docker-images-cache}"
@@ -238,7 +224,7 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ~/.foc-devnet/bin
-        key: ${{ runner.os }}-binaries-${{ steps.version-hashes.outputs.code-hash }}
+        key: ${{ runner.os }}-binaries-${{ matrix.name }}-${{ steps.version-hashes.outputs.code-hash }}
 
     - name: "EXEC: {Ensure permissions on binaries}, DEP: {C-build-artifacts-cache}"
       if: steps.cache-binaries.outputs.cache-hit == 'true'
@@ -251,9 +237,9 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ~/.foc-devnet/docker/volumes/cache/foc-builder
-        key: ${{ runner.os }}-foc-builder-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
+        key: ${{ runner.os }}-foc-builder-cache-${{ matrix.name }}-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
         restore-keys: |
-          ${{ runner.os }}-foc-builder-cache-
+          ${{ runner.os }}-foc-builder-cache-${{ matrix.name }}-
 
     - name: "EXEC: {Ensure permissions}, DEP: {C-foc-builder-cache}"
       if: steps.cache-binaries.outputs.cache-hit != 'true' &&
@@ -279,7 +265,7 @@ jobs:
       uses: actions/cache/save@v4
       with:
         path: ~/.foc-devnet/docker/volumes/cache/foc-builder
-        key: ${{ runner.os }}-foc-builder-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
+        key: ${{ runner.os }}-foc-builder-cache-${{ matrix.name }}-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
 
     # CACHE-BINARIES: Save built Lotus/Curio binaries for future runs
     - name: "CACHE_SAVE: {C-build-artifacts-cache}"
@@ -287,7 +273,7 @@ jobs:
       uses: actions/cache/save@v4
       with:
         path: ~/.foc-devnet/bin
-        key: ${{ runner.os }}-binaries-${{ steps.version-hashes.outputs.code-hash }}
+        key: ${{ runner.os }}-binaries-${{ matrix.name }}-${{ steps.version-hashes.outputs.code-hash }}
 
     # Disk free-up
     - name: "EXEC: {Clean up Go modules}, DEP: {C-build-artifacts-cache}"
@@ -416,9 +402,30 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: python3 scenarios/run.py
 
-    # Upload scenario report as artifact (name includes job index to avoid collisions in matrix)
+    # Ensure scenario report exists even if tests didn't run (for issue reporting)
+    - name: "EXEC: {Ensure scenario report exists}"
+      if: always()
+      run: |
+        REPORT="$HOME/.foc-devnet/state/latest/scenario_report.md"
+        if [ ! -f "$REPORT" ]; then
+          mkdir -p "$(dirname "$REPORT")"
+          {
+            echo "# Scenario Test Report"
+            echo ""
+            echo "**No scenario tests were executed.**"
+            echo ""
+            echo "**Start cluster outcome**: ${{ steps.start_cluster.outcome }}"
+            echo ""
+            echo "## foc-devnet version"
+            echo '```'
+            ./foc-devnet version 2>&1 || echo "version command failed"
+            echo '```'
+          } > "$REPORT"
+        fi
+
+    # Upload scenario report as artifact (name includes strategy to avoid collisions in matrix)
     - name: "EXEC: {Upload scenario report}"
-      if: always() && steps.start_cluster.outcome == 'success'
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: scenario-report-${{ matrix.name }}
@@ -438,9 +445,19 @@ jobs:
         exit 1
 
   issue-reporting:
-    name: Issue Reporting
+    name: Issue Reporting (${{ matrix.name }})
     if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     needs: [foc-devnet-test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: latesttag
+            issue_label: scenarios-run-latesttag
+            issue_title: "FOC Devnet scenarios run report (latestTag)"
+          - name: latestcommit
+            issue_label: scenarios-run-latestcommit
+            issue_title: "FOC Devnet scenarios run report (latestCommit)"
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -460,32 +477,30 @@ jobs:
             echo "Skipping issue: tests passed and REPORT_ON_SUCCESS is not 'true'"
           else
             echo "file=true" >> $GITHUB_OUTPUT
-            echo "Filing issue: test result was $FOC_DEVNET_TEST_STEP_RESULT"
+            echo "Filing issue (${{ matrix.name }}): test result was $FOC_DEVNET_TEST_STEP_RESULT"
           fi
 
-      - name: "EXEC: {Download scenario reports}"
+      - name: "EXEC: {Download scenario report for ${{ matrix.name }}}"
         if: steps.should_file.outputs.file == 'true'
         uses: actions/download-artifact@v4
         with:
-          pattern: scenario-report-*
+          name: scenario-report-${{ matrix.name }}
           path: /tmp/scenario-report
-          merge-multiple: false
         continue-on-error: true
 
       - name: "EXEC: {Read report content}"
         if: steps.should_file.outputs.file == 'true'
         id: report
         run: |
-          # Each matrix variant lands in its own sub-directory under /tmp/scenario-report/, named after matrix.name
           CONTENT=""
-          while IFS= read -r -d '' REPORT_FILE; do
-            JOB_DIR=$(basename "$(dirname "$REPORT_FILE")")
-            CONTENT+=$'## '"${JOB_DIR}"$'\n\n'
-            CONTENT+=$(cat "$REPORT_FILE")
-            CONTENT+=$'\n\n'
-          done < <(find /tmp/scenario-report -name "*.md" -print0 2>/dev/null | sort -z)
+          for f in /tmp/scenario-report/*.md; do
+            if [ -f "$f" ]; then
+              CONTENT+=$(cat "$f")
+              CONTENT+=$'\n\n'
+            fi
+          done
           if [[ -z "$CONTENT" ]]; then
-            CONTENT="No scenario report available."
+            CONTENT="No scenario report available for **${{ matrix.name }}** strategy."
           fi
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
           echo "content<<$EOF" >> $GITHUB_OUTPUT
@@ -497,10 +512,10 @@ jobs:
         uses: ipdxco/create-or-update-issue@v1
         with:
           GITHUB_TOKEN: ${{ github.token }}
-          title: "FOC Devnet scenarios run report"
+          title: ${{ matrix.issue_title }}
           body: |
-            The scenarios run **${{ needs.foc-devnet-test.result == 'success' && 'passed ✅' || 'failed ❌' }}**.
+            The **${{ matrix.name }}** scenarios run **${{ needs.foc-devnet-test.result == 'success' && 'passed ✅' || 'failed ❌' }}**.
             See [the workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
 
             ${{ steps.report.outputs.content }}
-          label: scenarios-run
+          label: ${{ matrix.issue_label }}

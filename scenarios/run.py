@@ -6,6 +6,8 @@ import os
 import sys
 import json
 import subprocess
+import threading
+import queue
 import time
 
 # Ensure the project root (parent of scenarios_py/) is on sys.path so that
@@ -29,8 +31,8 @@ REPORT_MD = os.environ.get(
 ORDER = [
     ("test_containers", 5),
     ("test_basic_balances", 10),
-    ("test_storage_e2e", 50),
-    ("test_caching_subsystem", 90),
+    ("test_storage_e2e", 100),
+    ("test_caching_subsystem", 200),
 ]
 
 _pass = 0
@@ -149,46 +151,115 @@ def ensure_foundry():
     assert_ok("command -v cast", "cast is installed")
 
 
+# ── Version info ──────────────────────────────────────────────
+
+
+def get_version_info():
+    """Capture output of `foc-devnet version` for inclusion in reports."""
+    for binary in ["./foc-devnet", "foc-devnet"]:
+        try:
+            result = subprocess.run(
+                [binary, "version"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            continue
+    return "foc-devnet version: not available"
+
+
 # ── Runner ────────────────────────────────────────────────────
+
+
+def _read_stream(stream, q, label):
+    """Read lines from a subprocess stream and enqueue them with a label."""
+    try:
+        for line in stream:
+            q.put((label, line.rstrip("\n")))
+    except ValueError:
+        pass  # Pipe closed
+    finally:
+        q.put((label, None))  # Sentinel to signal stream EOF
 
 
 def run_tests():
     """Run scenarios in ORDER. Returns list of (name, passed, elapsed_time, log_lines, timed_out)."""
     here = os.path.dirname(os.path.abspath(__file__))
     results = []
-    for name, timeout in ORDER:
+    for name, timeout_sec in ORDER:
         path = os.path.join(here, f"{name}.py")
-        info(f"=== {name} (timeout: {timeout}s) ===")
+        info(f"=== {name} (timeout: {timeout_sec}s) ===")
         test_start = time.time()
-        # Run the test in a subprocess, capturing output while also displaying it live
+        # Run the test in a subprocess, capturing stdout and stderr separately
         process = subprocess.Popen(
             [sys.executable, path],
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stderr=subprocess.PIPE,
             text=True,
             bufsize=1,  # Line buffered
         )
-        log_lines = []
+        q = queue.Queue()
+        stdout_lines = []
+        stderr_lines = []
         timed_out = False
+        # Reader threads for non-blocking stdout/stderr capture
+        t_out = threading.Thread(
+            target=_read_stream, args=(process.stdout, q, "stdout"), daemon=True
+        )
+        t_err = threading.Thread(
+            target=_read_stream, args=(process.stderr, q, "stderr"), daemon=True
+        )
+        t_out.start()
+        t_err.start()
         try:
-            # Read output line by line with timeout detection
-            while True:
-                # Check if timeout exceeded
-                if time.time() - test_start > timeout:
+            streams_done = 0
+            while streams_done < 2:
+                remaining = timeout_sec - (time.time() - test_start)
+                if remaining <= 0:
                     timed_out = True
                     process.kill()
-                    timeout_msg = f"[TIMEOUT] Test exceeded {timeout}s limit"
-                    print(timeout_msg)
-                    log_lines.append(timeout_msg)
                     break
-                # Try to read a line (non-blocking with select would be better, but this works)
-                line = process.stdout.readline()
-                if not line:
-                    break  # EOF reached
-                line = line.rstrip("\n")
-                print(line)  # Display live
-                log_lines.append(line)  # Capture for report
-            # Wait for process to complete (or confirm it's dead)
+                try:
+                    label, line = q.get(timeout=min(remaining, 1.0))
+                    if line is None:
+                        streams_done += 1
+                        continue
+                    if label == "stdout":
+                        print(line)
+                        stdout_lines.append(line)
+                    else:
+                        print(f"  [stderr] {line}", file=sys.stderr)
+                        stderr_lines.append(line)
+                except queue.Empty:
+                    if process.poll() is not None and q.empty():
+                        break
+                    continue
+            # Wait for reader threads to finish and drain remaining queue
+            t_out.join(timeout=3)
+            t_err.join(timeout=3)
+            while not q.empty():
+                try:
+                    label, line = q.get_nowait()
+                    if line is None:
+                        continue
+                    if label == "stdout":
+                        print(line)
+                        stdout_lines.append(line)
+                    else:
+                        print(f"  [stderr] {line}", file=sys.stderr)
+                        stderr_lines.append(line)
+                except queue.Empty:
+                    break
+            if timed_out:
+                timeout_msg = (
+                    f"[TIMEOUT] Test '{name}' exceeded {timeout_sec}s limit "
+                    f"— {len(stdout_lines)} stdout and {len(stderr_lines)} stderr lines captured"
+                )
+                print(timeout_msg, file=sys.stderr)
+                stdout_lines.append(timeout_msg)
             try:
                 return_code = process.wait(timeout=5)
             except subprocess.TimeoutExpired:
@@ -198,11 +269,17 @@ def run_tests():
         except Exception as e:
             error_msg = f"[ERROR] Exception during test execution: {e}"
             print(error_msg)
-            log_lines.append(error_msg)
+            stdout_lines.append(error_msg)
             process.kill()
             process.wait()
             return_code = -1
         elapsed_time = int(time.time() - test_start)
+        # Combine stdout and stderr into log_lines for the report
+        log_lines = stdout_lines.copy()
+        if stderr_lines:
+            log_lines.append("")
+            log_lines.append("--- stderr ---")
+            log_lines.extend(stderr_lines)
         # Determine pass/fail based on return code and timeout
         passed = return_code == 0 and not timed_out
         results.append((name, passed, elapsed_time, log_lines, timed_out))
@@ -226,6 +303,11 @@ def write_report(results, elapsed):
             github_server = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
             ci_url = f"{github_server}/{github_repo}/actions/runs/{github_run_id}"
             fh.write(f"**CI Run**: [{ci_url}]({ci_url})\n\n")
+        # Version info from foc-devnet version
+        version_info = get_version_info()
+        fh.write("## Version Info\n\n")
+        fh.write(f"```\n{version_info}\n```\n\n")
+        fh.write("## Summary\n\n")
         fh.write("| Metric | Value |\n|--------|-------|\n")
         fh.write(
             f"| Total Scenarios | {total_scenarios} |\n| Scenarios Passed | {scenario_pass} |\n| Scenarios Failed | {scenario_fail} |\n"

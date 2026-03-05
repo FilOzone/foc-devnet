@@ -102,7 +102,6 @@ fn spawn_yugabyte_instance(
         "--base_dir=/home/foc-user/yb_base",
         "--ui=true",
         "--callhome=false",
-        "--advertise_address=0.0.0.0",
         "--master_flags=rpc_bind_addresses=0.0.0.0",
         "--tserver_flags=rpc_bind_addresses=0.0.0.0,pgsql_proxy_bind_address=0.0.0.0:5433,cql_proxy_bind_address=0.0.0.0:9042",
         "--daemon=false",
