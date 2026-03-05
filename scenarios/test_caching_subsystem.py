@@ -3,13 +3,18 @@
 Caching subsystem scenario.
 
 Checks whether uploading a small piece does not trigger caching and
-whether a larger piece does trigger caching (> 32MB). Ensures that 
+whether a larger piece does trigger caching (> 32MB). Ensures that
 cassandra rows are populated.
 
 Standalone run:
   python3 scenarios/test_caching_subsystem.py
 """
-import os, sys, time, random, tempfile
+
+import os
+import sys
+import time
+import random
+import tempfile
 from pathlib import Path
 
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -19,8 +24,8 @@ if _project_root not in sys.path:
 from scenarios.run import *
 
 SYNAPSE_SDK_REPO = "https://github.com/FilOzone/synapse-sdk/"
-SMALL_FILE_SIZE = 20 * 1024 * 1024   # 20MB — below 32MB threshold
-LARGE_FILE_SIZE = 60 * 1024 * 1024   # 60MB — above 32MB threshold
+SMALL_FILE_SIZE = 20 * 1024 * 1024  # 20MB — below 32MB threshold
+LARGE_FILE_SIZE = 60 * 1024 * 1024  # 60MB — above 32MB threshold
 RAND_SEED_SMALL = 42
 RAND_SEED_LARGE = 84
 CACHE_WAIT_SECS = 10
@@ -38,6 +43,7 @@ def _write_random_file(path: Path, size: int, seed: int) -> None:
             fh.write(rng.randbytes(chunk))
             remaining -= chunk
 
+
 def _install_cqlsh(venv_dir):
     """Install cqlsh into a temporary venv, return path to cqlsh binary."""
     cqlsh = os.path.join(venv_dir, "bin", "cqlsh")
@@ -50,7 +56,7 @@ def _install_cqlsh(venv_dir):
 
 def _ycql(cqlsh, ycql_port, query):
     """Run a YCQL query on the host via cqlsh, return raw output."""
-    return sh(f"{cqlsh} localhost {ycql_port} -u cassandra -p cassandra -e \"{query}\"")
+    return sh(f'{cqlsh} localhost {ycql_port} -u cassandra -p cassandra -e "{query}"')
 
 
 def _upload_file(sdk_dir, filepath, label):
@@ -58,17 +64,21 @@ def _upload_file(sdk_dir, filepath, label):
     env = {**os.environ, "NETWORK": "devnet"}
     run_cmd(
         ["node", "utils/example-storage-e2e.js", str(filepath)],
-        cwd=str(sdk_dir), env=env,
-        label=label, print_output=True,
+        cwd=str(sdk_dir),
+        env=env,
+        label=label,
+        print_output=True,
     )
+
 
 def _verify_cache_layer(cqlsh, ycql_port, expected_is_empty=True):
     """Check pdp_cache_layer is empty due to gocql connectivity issue."""
     info("--- Querying pdp_cache_layer ---")
     out = _ycql(cqlsh, ycql_port, "SELECT * FROM curio.pdp_cache_layer")
     info(f"CQL SELECT access: \n {out}")
-    actual_is_empty = "(0 rows)" in out 
+    actual_is_empty = "(0 rows)" in out
     assert_eq(actual_is_empty, expected_is_empty, "ysql row count")
+
 
 def run():
     assert_ok("command -v git", "git is installed")
@@ -86,9 +96,16 @@ def run():
         with tempfile.TemporaryDirectory(prefix="synapse-sdk-cache-") as tmp:
             sdk_dir = Path(tmp) / "synapse-sdk"
             info("--- Cloning synapse-sdk ---")
-            if not run_cmd(["git", "clone", SYNAPSE_SDK_REPO, str(sdk_dir)], label="clone synapse-sdk"):
+            if not run_cmd(
+                ["git", "clone", SYNAPSE_SDK_REPO, str(sdk_dir)],
+                label="clone synapse-sdk",
+            ):
                 return
-            if not run_cmd(["git", "checkout", "master"], cwd=str(sdk_dir), label="checkout master HEAD"):
+            if not run_cmd(
+                ["git", "checkout", "master"],
+                cwd=str(sdk_dir),
+                label="checkout master HEAD",
+            ):
                 return
             if not run_cmd(["pnpm", "install"], cwd=str(sdk_dir), label="pnpm install"):
                 return
@@ -110,6 +127,7 @@ def run():
             _upload_file(sdk_dir, large_file.name, "upload 60MB piece")
             time.sleep(CACHE_WAIT_SECS)
             _verify_cache_layer(cqlsh, ycql_port, expected_is_empty=False)
+
 
 if __name__ == "__main__":
     run()

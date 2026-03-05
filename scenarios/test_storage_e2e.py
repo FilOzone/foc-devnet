@@ -39,26 +39,40 @@ def run():
         sdk_dir = Path(temp_dir) / "synapse-sdk"
 
         info(f"--- Cloning synapse-sdk to {sdk_dir} ---")
-        if not run_cmd(["git", "clone", SYNAPSE_SDK_REPO, str(sdk_dir)], label="synapse-sdk cloned"):
+        if not run_cmd(
+            ["git", "clone", SYNAPSE_SDK_REPO, str(sdk_dir)], label="synapse-sdk cloned"
+        ):
             return
 
-        info(f"--- Checking out synapse-sdk @ master (latest) ---")
-        if not run_cmd(["git", "checkout", "master"], cwd=str(sdk_dir), label=f"synapse-sdk checked out at master head"):
+        info("--- Checking out synapse-sdk @ master (latest) ---")
+        if not run_cmd(
+            ["git", "checkout", "master"],
+            cwd=str(sdk_dir),
+            label="synapse-sdk checked out at master head",
+        ):
             return
 
         info("--- Installing synapse-sdk dependencies with pnpm ---")
-        if not run_cmd(["pnpm", "install"], cwd=str(sdk_dir), label="pnpm install completed"):
+        if not run_cmd(
+            ["pnpm", "install"], cwd=str(sdk_dir), label="pnpm install completed"
+        ):
             return
 
         info("--- Building synapse-sdk TypeScript packages ---")
-        if not run_cmd(["pnpm", "build"], cwd=str(sdk_dir), label="pnpm build completed"):
+        if not run_cmd(
+            ["pnpm", "build"], cwd=str(sdk_dir), label="pnpm build completed"
+        ):
             return
 
         random_file = sdk_dir / RAND_FILE_NAME
         info(f"--- Creating random file ({RAND_FILE_SIZE} bytes) ---")
         _write_random_file(random_file, RAND_FILE_SIZE)
         actual_size = random_file.stat().st_size
-        assert_eq(actual_size, RAND_FILE_SIZE, f"{RAND_FILE_NAME} created with exact size {RAND_FILE_SIZE} bytes")
+        assert_eq(
+            actual_size,
+            RAND_FILE_SIZE,
+            f"{RAND_FILE_NAME} created with exact size {RAND_FILE_SIZE} bytes",
+        )
 
         info("--- Running Synapse SDK storage e2e script against devnet ---")
         cmd_env = os.environ.copy()
@@ -68,7 +82,7 @@ def run():
             cwd=str(sdk_dir),
             env=cmd_env,
             label="NETWORK=devnet node utils/example-storage-e2e.js random_file",
-            print_output=True
+            print_output=True,
         )
 
 
