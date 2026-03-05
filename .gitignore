@@ -4,3 +4,4 @@ contracts/MockUSDFC/broadcast/
 artifacts/
 .vscode/
 *__pycache__/
+.githooks
