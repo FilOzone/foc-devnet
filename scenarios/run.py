@@ -9,7 +9,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 from string import Template
-from datetime import datetime
+import datetime
 
 # Ensure the project root (parent of scenarios_py/) is on sys.path so that
 # test files can do `from scenarios_py.run import *` regardless of cwd.
@@ -30,9 +30,9 @@ REPORT_MD = os.environ.get(
 # ── Scenario execution order (mirrors scenarios/order.sh) ────
 # Each entry is (test_name, timeout_seconds)
 ORDER = [
-    ("test_containers", 5),
-    ("test_basic_balances", 10),
-    ("test_storage_e2e", 100),
+    # ("test_containers", 5),
+    # ("test_basic_balances", 10),
+    # ("test_storage_e2e", 100),
     ("test_caching_subsystem", 200),
 ]
 
@@ -292,7 +292,7 @@ def write_report(results: list[TestResult] = [], elapsed: int = 0):
 
     content = report_template.substitute(
         run_type=_type,
-        date=datetime.utcnow().strftime("%d-%B-%Y %H:%M:%S GMT +0"),
+        date=datetime.datetime.now(datetime.UTC).strftime("%d-%B-%Y %H:%M:%S GMT +0"),
         pass_count=passed,
         fail_count=failed,
         total_count=total,

@@ -13,7 +13,6 @@ from scenarios.run import *
 
 def run():
     d = devnet_info()["info"]
-    run_id = d.get("run_id", "")
 
     expected = [d["lotus"]["container_name"], d["lotus_miner"]["container_name"]]
     sps = d.get("pdp_sps", [])
