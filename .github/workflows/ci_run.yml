@@ -355,7 +355,7 @@ jobs:
       if: steps.start_cluster.outcome == 'success'
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '25'
 
     # Setup pnpm (required by scenario tests)
     - name: "EXEC: {Setup pnpm}, independent"
