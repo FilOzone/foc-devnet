@@ -223,6 +223,8 @@ def run_tests():
                 f"[TIMEOUT] Test '{name}' exceeded {timeout_sec}s limit "
                 f"— {len(log_lines)} lines captured"
             )
+        for log_line in log_lines:
+            print(f"    {log_line}")
         elapsed_time = int(time.time() - test_start)
         passed = return_code == 0 and not timed_out
         results.append(
@@ -290,9 +292,7 @@ def write_report(results: list[TestResult] = [], elapsed: int = 0):
 
     content = report_template.substitute(
         run_type=_type,
-        date=datetime.now(datetime.timezone.utc)
-        .strftime("%d-%B-%Y %H:%M:%S GMT +0")
-        .strip(),
+        date=datetime.utcnow().strftime("%d-%B-%Y %H:%M:%S GMT +0"),
         pass_count=passed,
         fail_count=failed,
         total_count=total,
