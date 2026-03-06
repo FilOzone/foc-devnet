@@ -290,7 +290,9 @@ def write_report(results: list[TestResult] = [], elapsed: int = 0):
 
     content = report_template.substitute(
         run_type=_type,
-        date=datetime.now(datetime.timezone.utc).strftime("%d-%B-%Y %H:%M:%S GMT +0").strip(),
+        date=datetime.now(datetime.timezone.utc)
+        .strftime("%d-%B-%Y %H:%M:%S GMT +0")
+        .strip(),
         pass_count=passed,
         fail_count=failed,
         total_count=total,
