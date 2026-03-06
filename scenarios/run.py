@@ -6,9 +6,10 @@ import os
 import sys
 import json
 import subprocess
-import threading
-import queue
 import time
+from dataclasses import dataclass
+from string import Template
+from datetime import datetime
 
 # Ensure the project root (parent of scenarios_py/) is on sys.path so that
 # test files can do `from scenarios_py.run import *` regardless of cwd.
@@ -173,158 +174,124 @@ def get_version_info():
 
 # ── Runner ────────────────────────────────────────────────────
 
-
-def _read_stream(stream, q, label):
-    """Read lines from a subprocess stream and enqueue them with a label."""
-    try:
-        for line in stream:
-            q.put((label, line.rstrip("\n")))
-    except ValueError:
-        pass  # Pipe closed
-    finally:
-        q.put((label, None))  # Sentinel to signal stream EOF
-
+@dataclass
+class TestResult:
+    test_name: str
+    is_passed: bool
+    time_taken_sec: int
+    timeout_sec: int
+    log_lines: list[str]
+    return_code: int
 
 def run_tests():
     """Run scenarios in ORDER. Returns list of (name, passed, elapsed_time, log_lines, timed_out)."""
-    here = os.path.dirname(os.path.abspath(__file__))
-    results = []
+    pwd = os.path.dirname(os.path.abspath(__file__))
+    results: list[TestResult] = []
+
     for name, timeout_sec in ORDER:
-        path = os.path.join(here, f"{name}.py")
+        scenario_py_file = os.path.join(pwd, f"{name}.py")
+
         info(f"=== {name} (timeout: {timeout_sec}s) ===")
         test_start = time.time()
-        # Run the test in a subprocess, capturing stdout and stderr separately
+        # Run the test in a subprocess, merging stderr into stdout for correct ordering
         process = subprocess.Popen(
-            [sys.executable, path],
+            [sys.executable, scenario_py_file],
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
-            bufsize=1,  # Line buffered
         )
-        q = queue.Queue()
-        stdout_lines = []
-        stderr_lines = []
         timed_out = False
-        # Reader threads for non-blocking stdout/stderr capture
-        t_out = threading.Thread(
-            target=_read_stream, args=(process.stdout, q, "stdout"), daemon=True
-        )
-        t_err = threading.Thread(
-            target=_read_stream, args=(process.stderr, q, "stderr"), daemon=True
-        )
-        t_out.start()
-        t_err.start()
         try:
-            streams_done = 0
-            while streams_done < 2:
-                remaining = timeout_sec - (time.time() - test_start)
-                if remaining <= 0:
-                    timed_out = True
-                    process.kill()
-                    break
-                try:
-                    label, line = q.get(timeout=min(remaining, 1.0))
-                    if line is None:
-                        streams_done += 1
-                        continue
-                    if label == "stdout":
-                        print(line)
-                        stdout_lines.append(line)
-                    else:
-                        print(f"  [stderr] {line}", file=sys.stderr)
-                        stderr_lines.append(line)
-                except queue.Empty:
-                    if process.poll() is not None and q.empty():
-                        break
-                    continue
-            # Wait for reader threads to finish and drain remaining queue
-            t_out.join(timeout=3)
-            t_err.join(timeout=3)
-            while not q.empty():
-                try:
-                    label, line = q.get_nowait()
-                    if line is None:
-                        continue
-                    if label == "stdout":
-                        print(line)
-                        stdout_lines.append(line)
-                    else:
-                        print(f"  [stderr] {line}", file=sys.stderr)
-                        stderr_lines.append(line)
-                except queue.Empty:
-                    break
-            if timed_out:
-                timeout_msg = (
-                    f"[TIMEOUT] Test '{name}' exceeded {timeout_sec}s limit "
-                    f"— {len(stdout_lines)} stdout and {len(stderr_lines)} stderr lines captured"
-                )
-                print(timeout_msg, file=sys.stderr)
-                stdout_lines.append(timeout_msg)
-            try:
-                return_code = process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
-                return_code = -1
+            stdout, _ = process.communicate(timeout=timeout_sec)
+            return_code = process.returncode
+        except subprocess.TimeoutExpired:
+            process.kill()
+            stdout, _ = process.communicate()
+            timed_out = True
+            return_code = -1
         except Exception as e:
-            error_msg = f"[ERROR] Exception during test execution: {e}"
-            print(error_msg)
-            stdout_lines.append(error_msg)
             process.kill()
             process.wait()
+            stdout = f"[ERROR] Exception during test execution: {e}"
             return_code = -1
+
+        log_lines = stdout.splitlines()
+        if timed_out:
+            log_lines.append(
+                f"[TIMEOUT] Test '{name}' exceeded {timeout_sec}s limit "
+                f"— {len(log_lines)} lines captured"
+            )
         elapsed_time = int(time.time() - test_start)
-        # Combine stdout and stderr into log_lines for the report
-        log_lines = stdout_lines.copy()
-        if stderr_lines:
-            log_lines.append("")
-            log_lines.append("--- stderr ---")
-            log_lines.extend(stderr_lines)
-        # Determine pass/fail based on return code and timeout
         passed = return_code == 0 and not timed_out
-        results.append((name, passed, elapsed_time, log_lines, timed_out))
+        results.append(TestResult(
+            test_name=name,
+            is_passed=passed,
+            time_taken_sec=elapsed_time,
+            timeout_sec=timeout_sec,
+            log_lines=log_lines,
+            return_code=return_code,
+        ))
     return results
 
 
 # ── Reporting ─────────────────────────────────────────────────
 
+report_template = Template("""
+# Scenarios Tests 
 
-def write_report(results, elapsed):
+| Description | Data                                                  |
+|-------------| ----------------------------------------------------- |
+| Type        | $run_type                                             |
+| Date        | $date                                                 |
+| Status.     | Pass=$pass_count, Fail=$fail_count, Total=$total_count|
+| CI run      | $ci_run_link                                          |
+
+## Versions info
+$version_info
+
+## Tests summary
+$test_summary
+""")
+
+def write_report(results: list[TestResult] = [], elapsed: int = 0):
     """Write a markdown report to REPORT_MD. Returns path written."""
-    total_scenarios = len(results)
-    scenario_pass = sum(1 for _, passed, _, _, _ in results if passed)
-    scenario_fail = total_scenarios - scenario_pass
-    with open(REPORT_MD, "w") as fh:
-        fh.write("# Scenario Test Report\n\n")
-        # If running in GitHub Actions, include a link to the run
-        github_run_id = os.environ.get("GITHUB_RUN_ID")
-        github_repo = os.environ.get("GITHUB_REPOSITORY")
-        if github_run_id and github_repo:
-            github_server = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
-            ci_url = f"{github_server}/{github_repo}/actions/runs/{github_run_id}"
-            fh.write(f"**CI Run**: [{ci_url}]({ci_url})\n\n")
-        # Version info from foc-devnet version
-        version_info = get_version_info()
-        fh.write("## Version Info\n\n")
-        fh.write(f"```\n{version_info}\n```\n\n")
-        fh.write("## Summary\n\n")
-        fh.write("| Metric | Value |\n|--------|-------|\n")
-        fh.write(
-            f"| Total Scenarios | {total_scenarios} |\n| Scenarios Passed | {scenario_pass} |\n| Scenarios Failed | {scenario_fail} |\n"
+    _type = os.environ.get("SCENARIO_RUN_TYPE", "local")
+    total = len(results)
+    passed = sum(1 for r in results if r.is_passed)
+    failed = total - passed
+
+    github_run_id = os.environ.get("GITHUB_RUN_ID")
+    github_repo = os.environ.get("GITHUB_REPOSITORY")
+    if github_run_id and github_repo:
+        github_server = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+        ci_url = f"{github_server}/{github_repo}/actions/runs/{github_run_id}"
+        ci_run_link = f"[{ci_url}]({ci_url})"
+    else:
+        ci_run_link = "-"
+
+    test_summary_parts = []
+    for r in results:
+        timed_out = r.return_code != 0 and r.time_taken_sec >= r.timeout_sec
+        icon = "✅" if r.is_passed else "❌"
+        status = f"TIMEOUT ({r.time_taken_sec}s)" if timed_out else f"{'PASS' if r.is_passed else 'FAIL'} ({r.time_taken_sec}s)"
+        test_summary_parts.append(
+            f"<details>\n<summary>{icon} <b>{r.test_name}</b> - {status}</summary>\n\n"
+            f"```\n{chr(10).join(r.log_lines)}\n```\n</details>"
         )
-        fh.write(f"| Duration | {elapsed}s |\n\n")
-        fh.write("## Test Results\n\n")
-        for name, passed, test_time, logs, timed_out in results:
-            icon = "✅" if passed else "❌"
-            if timed_out:
-                status = f"TIMEOUT ({test_time}s)"
-            else:
-                status = f"{'PASS' if passed else 'FAIL'} ({test_time}s)"
-            fh.write(
-                f"<details>\n<summary>{icon} <b>{name}</b> - {status}</summary>\n\n```\n"
-            )
-            fh.write("\n".join(logs))
-            fh.write("\n```\n</details>\n\n")
+
+    content = report_template.substitute(
+        run_type=_type,
+        date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        pass_count=passed,
+        fail_count=failed,
+        total_count=total,
+        ci_run_link=ci_run_link,
+        version_info=f"```\n{get_version_info()}\n```",
+        test_summary="\n\n".join(test_summary_parts),
+    )
+
+    with open(REPORT_MD, "w") as fh:
+        fh.write(content)
     return REPORT_MD
 
 
@@ -334,19 +301,17 @@ if __name__ == "__main__":
     elapsed = int(time.time() - start)
 
     total_scenarios = len(results)
-    scenario_pass = sum(1 for _, passed, _, _, _ in results if passed)
+    scenario_pass = sum(1 for r in results if r.is_passed)
     scenario_fail = total_scenarios - scenario_pass
     print(f"\n{'='*50}")
-    print(
-        f"Scenarios: {total_scenarios}  Passed: {scenario_pass}  Failed: {scenario_fail}  ({elapsed}s)"
-    )
-    # Show individual test timings
-    for name, passed, test_time, _, timed_out in results:
-        status_icon = "✅" if passed else "❌"
-        status_text = "TIMEOUT" if timed_out else ("PASS" if passed else "FAIL")
-        print(f"  {status_icon} {name}: {status_text} ({test_time}s)")
+    print(f"Scenarios: {total_scenarios}  Passed: {scenario_pass}  Failed: {scenario_fail}  ({elapsed}s)")
+    for r in results:
+        timed_out = r.return_code != 0 and r.time_taken_sec >= r.timeout_sec
+        status_icon = "✅" if r.is_passed else "❌"
+        status_text = "TIMEOUT" if timed_out else ("PASS" if r.is_passed else "FAIL")
+        print(f"  {status_icon} {r.test_name}: {status_text} ({r.time_taken_sec}s)")
 
-    report = write_report(results, elapsed)
+    report = write_report(results=results)
     print(f"Report: {report}")
     # Print CI run URL in stdout if available
     if os.environ.get("GITHUB_RUN_ID") and os.environ.get("GITHUB_REPOSITORY"):

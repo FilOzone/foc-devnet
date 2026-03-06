@@ -37,36 +37,21 @@ pub enum Location {
     /// branch (e.g., "main", "develop") to check out.
     GitBranch { url: String, branch: String },
 
-    /// Resolve to the latest commit on the given (or auto-detected default) branch at init time.
+    /// Resolve to the newest tag on a specific branch at init time.
     ///
-    /// `url` is the Git repository URL. `branch` pins a specific branch; when
-    /// `None` the default branch (`main` / `master`) is auto-detected from the
-    /// remote. At init time this is immediately resolved to a concrete `GitCommit`
-    /// so the stored config always records the exact SHA used.
+    /// `url` is the Git repository URL. `branch` specifies the exact branch
+    /// to search for tags on. At init time this is immediately resolved to a
+    /// concrete `GitTag` so the stored config always records the exact tag used.
     ///
-    /// Example CLI usage: `--curio latestCommit` or `--curio latestCommit:main`
-    LatestCommit { url: String, branch: Option<String> },
-
-    /// Resolve to the latest stable semver tag reachable from the given (or
-    /// auto-detected default) branch at init time.
-    ///
-    /// `url` is the Git repository URL. `branch` pins a specific branch; when
-    /// `None` the default branch (`main` / `master`) is auto-detected from the
-    /// remote. At init time this is immediately resolved to a concrete `GitTag`
-    /// so the stored config always records the exact tag used.
-    ///
-    /// Example CLI usage: `--lotus latestTag` or `--lotus latestTag:release/v2`
-    LatestTag { url: String, branch: Option<String> },
+    /// Example CLI usage: `--curio latesttag:pdpv0` or `--lotus latesttag:master`
+    LatestTag { url: String, branch: String },
 }
 
 impl Location {
     /// Parse a location string in the format "type" or "type:value".
     ///
     /// Supported formats:
-    /// - `latestCommit`            — auto-detects default branch (`main` / `master`)
-    /// - `latestCommit:<branch>`   — uses specified branch (e.g. `latestCommit:release/v2`)
-    /// - `latestTag`               — auto-detects default branch
-    /// - `latestTag:<branch>`      — uses specified branch (e.g. `latestTag:master`)
+    /// - `latesttag:<branch>`      — newest tag on specified branch (e.g. `latesttag:main`)
     /// - `gittag:<tag>`            — (uses default URL)
     /// - `gitcommit:<commit>`      — (uses default URL)
     /// - `gitbranch:<branch>`      — (uses default URL)
@@ -75,28 +60,11 @@ impl Location {
     /// - `gitcommit:<url>:<commit>`
     /// - `gitbranch:<url>:<branch>`
     pub fn parse_with_default(s: &str, default_url: &str) -> Result<Self, String> {
-        // Handle bare magic keywords (no colon) — auto-detect branch
-        match s {
-            "latestCommit" => {
-                return Ok(Location::LatestCommit {
-                    url: default_url.to_string(),
-                    branch: None,
-                })
-            }
-            "latestTag" => {
-                return Ok(Location::LatestTag {
-                    url: default_url.to_string(),
-                    branch: None,
-                })
-            }
-            _ => {}
-        }
-
         let parts: Vec<&str> = s.split(':').collect();
         if parts.len() < 2 {
             return Err(format!(
-                "Invalid location format: '{}'. Expected 'latestCommit', 'latestTag', \
-                 'latestCommit:<branch>', 'latestTag:<branch>', or 'gittag/gitcommit/gitbranch/local:...'",
+                "Invalid location format: '{}'. Expected \
+                 'latesttag:<branch>', or 'gittag/gitcommit/gitbranch/local:...'",
                 s
             ));
         }
@@ -105,14 +73,15 @@ impl Location {
         let remaining = &parts[1..].join(":");
 
         match location_type {
-            // latestCommit:<branch> and latestTag:<branch>
-            "latestCommit" => Ok(Location::LatestCommit {
+            // latesttag:<branch> — newest tag on specified branch
+            "latesttag" => Ok(Location::LatestTag {
                 url: default_url.to_string(),
-                branch: Some(remaining.to_string()),
+                branch: remaining.to_string(),
             }),
-            "latestTag" => Ok(Location::LatestTag {
+            // latestcommit:<branch> is an alias for gitbranch:<branch>
+            "latestcommit" => Ok(Location::GitBranch {
                 url: default_url.to_string(),
-                branch: Some(remaining.to_string()),
+                branch: remaining.to_string(),
             }),
             "local" => Ok(Location::LocalSource {
                 dir: remaining.to_string(),
@@ -157,7 +126,7 @@ impl Location {
                 }
             }
             _ => Err(format!(
-                "Unknown location type: {}. Supported types: latestCommit, latestTag, local, gittag, gitcommit, gitbranch",
+                "Unknown location type: {}. Supported types: latesttag, local, gittag, gitcommit, gitbranch",
                 location_type
             )),
         }

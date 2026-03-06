@@ -54,10 +54,14 @@ jobs:
       max-parallel: 1
       matrix:
         include:
-          - name: latesttag
-            init_flags: "--lotus latestTag --curio latestTag:pdpv0 --filecoin-services latestTag"
-          - name: latestcommit
-            init_flags: "--lotus latestTag --curio gitbranch:pdpv0 --filecoin-services gitbranch:main"
+          - name: stability
+            init_flags: "--curio latesttag:pdpv0 --filecoin-services latesttag:main"
+            issue_label: scenarios-run-stability
+            issue_title: "FOC Devnet scenarios run report (stability)"
+          - name: frontier
+            init_flags: "--curio gitbranch:pdpv0 --filecoin-services gitbranch:main"
+            issue_label: scenarios-run-frontier
+            issue_title: "FOC Devnet scenarios run report (frontier)"
     runs-on: ["self-hosted", "linux", "x64", "16xlarge+gpu"]
     timeout-minutes: 100
     permissions:
@@ -392,6 +396,7 @@ jobs:
 
     # Run scenario tests against the live devnet
     - name: "TEST: {Run scenario tests}"
+      id: scenario_tests
       if: steps.start_cluster.outcome == 'success'
       env:
         # Enable reporting for nightly schedule or when explicitly requested
@@ -399,6 +404,7 @@ jobs:
         # By default, don't file an issue if everything passes
         SKIP_REPORT_ON_PASS: ${{ inputs.skip_report_on_pass != false }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SCENARIO_RUN_TYPE: ${{ matrix.name }}
       run: python3 scenarios/run.py
 
     # Ensure scenario report exists even if tests didn't run (for issue reporting)
@@ -409,11 +415,13 @@ jobs:
         if [ ! -f "$REPORT" ]; then
           mkdir -p "$(dirname "$REPORT")"
           {
-            echo "# Scenario Test Report"
+            echo "# Scenario Test Report (${{ matrix.name }})"
             echo ""
             echo "**No scenario tests were executed.**"
             echo ""
             echo "**Start cluster outcome**: ${{ steps.start_cluster.outcome }}"
+            echo ""
+            echo "**CI run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             echo ""
             echo "## foc-devnet version"
             echo '```'
@@ -431,6 +439,56 @@ jobs:
         path: ~/.foc-devnet/state/latest/scenario_*.md
         if-no-files-found: ignore
 
+    # Determine whether to file an issue (only for schedule/workflow_dispatch events)
+    - name: "CHECK: {Determine if issue should be filed}"
+      id: should_file
+      if: always() # This needs to be further restricted
+      run: |
+        if [[ "${{ steps.start_cluster.outcome }}" == "success" && \
+              "${{ steps.scenario_tests.outcome }}" != "failure" ]]; then
+          PASSED="true"
+        else
+          PASSED="false"
+        fi
+        echo "passed=$PASSED" >> $GITHUB_OUTPUT
+        if [[ "$PASSED" == "true" && "$REPORT_ON_SUCCESS" != "true" ]]; then
+          echo "file=false" >> $GITHUB_OUTPUT
+          echo "Skipping issue: tests passed and REPORT_ON_SUCCESS is not 'true'"
+        else
+          echo "file=true" >> $GITHUB_OUTPUT
+          echo "Filing issue (${{ matrix.name }}): passed=$PASSED"
+        fi
+
+    # Read scenario report content from the filesystem directly
+    - name: "EXEC: {Read scenario report}"
+      id: report
+      if: always() && steps.should_file.outputs.file == 'true'
+      run: |
+        REPORT="$HOME/.foc-devnet/state/latest/scenario_report.md"
+        if [ -f "$REPORT" ]; then
+          CONTENT=$(cat "$REPORT")
+        else
+          CONTENT="No scenario report available for **${{ matrix.name }}** strategy."
+        fi
+        EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+        echo "content<<$EOF" >> $GITHUB_OUTPUT
+        echo "$CONTENT" >> $GITHUB_OUTPUT
+        echo "$EOF" >> $GITHUB_OUTPUT
+
+    # Create or update a GitHub issue with the scenario report
+    - name: "EXEC: {Create or update issue}"
+      if: always() && steps.should_file.outputs.file == 'true'
+      uses: ipdxco/create-or-update-issue@v1
+      with:
+        GITHUB_TOKEN: ${{ github.token }}
+        title: ${{ matrix.issue_title }}
+        body: |
+          The **${{ matrix.name }}** scenarios run **${{ steps.should_file.outputs.passed == 'true' && 'passed ✅' || 'failed ❌' }}**.
+          See [the workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+
+          ${{ steps.report.outputs.content }}
+        label: ${{ matrix.issue_label }}
+
     # Clean shutdown (always runs to avoid leaving containers behind)
     - name: "EXEC: {Stop cluster}, independent"
       if: always()
@@ -443,78 +501,3 @@ jobs:
         echo "Start cluster failed earlier; marking job as failed." >&2
         exit 1
 
-  issue-reporting:
-    name: Issue Reporting (${{ matrix.name }})
-    if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-    needs: [foc-devnet-test]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: latesttag
-            issue_label: scenarios-run-latesttag
-            issue_title: "FOC Devnet scenarios run report (latestTag)"
-          - name: latestcommit
-            issue_label: scenarios-run-latestcommit
-            issue_title: "FOC Devnet scenarios run report (latestCommit)"
-    runs-on: ubuntu-latest
-    permissions:
-      issues: write
-    steps:
-      - name: "CHECK: {Determine if issue should be filed}"
-        id: should_file
-        run: |
-          FOC_DEVNET_TEST_STEP_RESULT="${{ needs.foc-devnet-test.result }}"
-          if [[ "$FOC_DEVNET_TEST_STEP_RESULT" == "success" ]]; then
-            TEST_PASSED="true"
-          else
-            TEST_PASSED="false"
-          fi
-          echo "passed=$TEST_PASSED" >> $GITHUB_OUTPUT
-          if [[ "$TEST_PASSED" == "true" && "$REPORT_ON_SUCCESS" != "true" ]]; then
-            echo "file=false" >> $GITHUB_OUTPUT
-            echo "Skipping issue: tests passed and REPORT_ON_SUCCESS is not 'true'"
-          else
-            echo "file=true" >> $GITHUB_OUTPUT
-            echo "Filing issue (${{ matrix.name }}): test result was $FOC_DEVNET_TEST_STEP_RESULT"
-          fi
-
-      - name: "EXEC: {Download scenario report for ${{ matrix.name }}}"
-        if: steps.should_file.outputs.file == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: scenario-report-${{ matrix.name }}
-          path: /tmp/scenario-report
-        continue-on-error: true
-
-      - name: "EXEC: {Read report content}"
-        if: steps.should_file.outputs.file == 'true'
-        id: report
-        run: |
-          CONTENT=""
-          for f in /tmp/scenario-report/*.md; do
-            if [ -f "$f" ]; then
-              CONTENT+=$(cat "$f")
-              CONTENT+=$'\n\n'
-            fi
-          done
-          if [[ -z "$CONTENT" ]]; then
-            CONTENT="No scenario report available for **${{ matrix.name }}** strategy."
-          fi
-          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "content<<$EOF" >> $GITHUB_OUTPUT
-          echo "$CONTENT" >> $GITHUB_OUTPUT
-          echo "$EOF" >> $GITHUB_OUTPUT
-
-      - name: "EXEC: {Create or update issue}"
-        if: steps.should_file.outputs.file == 'true'
-        uses: ipdxco/create-or-update-issue@v1
-        with:
-          GITHUB_TOKEN: ${{ github.token }}
-          title: ${{ matrix.issue_title }}
-          body: |
-            The **${{ matrix.name }}** scenarios run **${{ needs.foc-devnet-test.result == 'success' && 'passed ✅' || 'failed ❌' }}**.
-            See [the workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
-
-            ${{ steps.report.outputs.content }}
-          label: ${{ matrix.issue_label }}

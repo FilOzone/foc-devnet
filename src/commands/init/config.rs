@@ -2,9 +2,9 @@
 //!
 //! This module handles the generation of default configuration files
 //! and application of location overrides. Dynamic location variants
-//! (`LatestCommit`, `LatestTag`) are resolved to concrete values at init
+//! (`LatestTag`) is resolved to a concrete value at init
 //! time via [`super::latest_resolver`], ensuring the stored config always
-//! records the exact commit or tag that was used.
+//! records the exact tag that was used.
 
 use std::fs;
 use tracing::{info, warn};
@@ -71,8 +71,8 @@ pub fn generate_default_config(
         "https://github.com/FilOzone/filecoin-services.git",
     )?;
 
-    // Resolve any dynamic variants (LatestCommit / LatestTag) by querying the remote.
-    // The resolved concrete SHA or tag is stored in config.toml for reproducibility.
+    // Resolve any dynamic variants (LatestTag) by querying the remote.
+    // The resolved concrete tag is stored in config.toml for reproducibility.
     config.lotus = resolve_location(config.lotus)?;
     config.curio = resolve_location(config.curio)?;
     config.filecoin_services = resolve_location(config.filecoin_services)?;
@@ -113,7 +113,6 @@ pub fn apply_location_override(
             Location::GitTag { ref url, .. } => url.clone(),
             Location::GitCommit { ref url, .. } => url.clone(),
             Location::GitBranch { ref url, .. } => url.clone(),
-            Location::LatestCommit { ref url, .. } => url.clone(),
             Location::LatestTag { ref url, .. } => url.clone(),
             Location::LocalSource { .. } => default_url.to_string(),
         };

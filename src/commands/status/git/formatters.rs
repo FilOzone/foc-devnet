@@ -79,8 +79,8 @@ pub fn format_location_info(
         (Location::GitBranch { .. }, GitInfo::Tag(_) | GitInfo::Commit(_)) => true, // Assume it's ready if we have some valid state
         (Location::GitBranch { .. }, _) => false,
 
-        // LatestCommit / LatestTag are resolved at init time; treat as not ready if somehow present.
-        (Location::LatestCommit { .. } | Location::LatestTag { .. }, _) => false,
+        // LatestTag is resolved at init time; treat as not ready if somehow present.
+        (Location::LatestTag { .. }, _) => false,
     };
 
     let status = if is_ready {
@@ -128,12 +128,7 @@ pub fn format_location_info(
                 "Not found".to_string(),
             ),
         },
-        // Resolved at init time; display as their underlying type if somehow still present.
-        Location::LatestCommit { .. } => (
-            "Latest Commit".to_string(),
-            "(unresolved)".to_string(),
-            "".to_string(),
-        ),
+        // Resolved at init time; display as underlying type if somehow still present.
         Location::LatestTag { .. } => (
             "Latest Tag".to_string(),
             "(unresolved)".to_string(),

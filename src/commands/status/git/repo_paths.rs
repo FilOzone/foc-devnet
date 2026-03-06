@@ -37,7 +37,6 @@ pub fn get_repo_path_from_config(location: &Location, component: &str) -> std::p
         Location::GitTag { .. }
         | Location::GitCommit { .. }
         | Location::GitBranch { .. }
-        | Location::LatestCommit { .. }
         | Location::LatestTag { .. } => {
             // For git sources (including unresolved dynamic variants), use the foc-devnet code directory
             foc_devnet_code().join(component)
