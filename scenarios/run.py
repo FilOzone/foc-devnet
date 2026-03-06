@@ -30,9 +30,9 @@ REPORT_MD = os.environ.get(
 # ── Scenario execution order (mirrors scenarios/order.sh) ────
 # Each entry is (test_name, timeout_seconds)
 ORDER = [
-    # ("test_containers", 5),
-    # ("test_basic_balances", 10),
-    # ("test_storage_e2e", 100),
+    ("test_containers", 5),
+    ("test_basic_balances", 10),
+    ("test_storage_e2e", 100),
     ("test_caching_subsystem", 200),
 ]
 
