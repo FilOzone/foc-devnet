@@ -1,0 +1,44 @@
+---
+# Runs on every pull request targeting main.
+#
+# Executes lint checks and a single CI run with the default config
+# (no special init_flags). Issue reporting is disabled — that is
+# reserved for the nightly schedule run.
+
+name: CI (Pull Request)
+
+on:
+  pull_request:
+    branches: ['main']
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        components: rustfmt, clippy
+
+    - name: Setup Python tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y pipx
+        pipx install black
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+    - name: Run linting (check mode)
+      run: FIX=0 ./scripts/lint.sh
+
+  foc-devnet-test:
+    needs: lint
+    uses: ./.github/workflows/ci_run.yml
+    with:
+      name: default
+      init_flags: ''
+      enable_reporting: false
+    secrets: inherit

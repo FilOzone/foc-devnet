@@ -1,67 +1,49 @@
 ---
-name: CI
+# Reusable workflow: a single foc-devnet CI run.
+#
+# Called by ci_pull_request.yml (default config, no reporting) and
+# ci_nightly.yml (stability / frontier matrix, issue reporting enabled).
+#
+# The only behavioural difference between callers is the `init_flags` input,
+# which controls which versions of Curio / filecoin-services are used.
+
+name: CI Run
 
 on:
-  push:
-    branches: ['main']
-  pull_request:
-    branches: ['**']
-  schedule:
-    # Nightly at 03:00 UTC
-    - cron: '0 3 * * *'
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      reporting:
-        description: 'Create GitHub issue with scenario report'
+      name:
+        description: 'Human-readable run name (e.g. default, stability, frontier)'
+        required: true
+        type: string
+      init_flags:
+        description: 'Extra flags forwarded to `foc-devnet init`'
+        required: false
+        type: string
+        default: ''
+      enable_reporting:
+        description: 'When true, file a GitHub issue with the scenario report'
+        required: false
         type: boolean
         default: false
       skip_report_on_pass:
-        description: 'Skip filing issue when all scenarios pass'
+        description: 'Skip filing an issue when all scenarios pass'
+        required: false
         type: boolean
         default: true
-
-env:
-  # When true, file a GitHub issue even when all scenarios pass.
-  # Flip this to 'false' once the suite is stable to only file on failures.
-  REPORT_ON_SUCCESS: 'true'
+      issue_label:
+        description: 'Label applied to the filed GitHub issue'
+        required: false
+        type: string
+        default: ''
+      issue_title:
+        description: 'Title of the filed GitHub issue'
+        required: false
+        type: string
+        default: ''
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup Rust toolchain
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        components: rustfmt, clippy
-
-    - name: Setup Python tools
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y pipx
-        pipx install black
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-    - name: Run linting (check mode)
-      run: FIX=0 ./scripts/lint.sh
-
   foc-devnet-test:
-    strategy:
-      fail-fast: false
-      max-parallel: 1
-      matrix:
-        include:
-          - name: stability
-            init_flags: "--curio latesttag:pdpv0 --filecoin-services latesttag:main"
-            issue_label: scenarios-run-stability
-            issue_title: "FOC Devnet scenarios run report (stability)"
-          - name: frontier
-            init_flags: "--curio gitbranch:pdpv0 --filecoin-services gitbranch:main"
-            issue_label: scenarios-run-frontier
-            issue_title: "FOC Devnet scenarios run report (frontier)"
     runs-on: ["self-hosted", "linux", "x64", "16xlarge+gpu"]
     timeout-minutes: 100
     permissions:
@@ -189,14 +171,14 @@ jobs:
       if: steps.cache-docker-images.outputs.cache-hit == 'true'
       run: |
         rm -rf ~/.foc-devnet
-        ./foc-devnet init --no-docker-build ${{ matrix.init_flags }}
+        ./foc-devnet init --no-docker-build ${{ inputs.init_flags }}
 
     # If Docker images are not cached, do full init (downloads YugabyteDB and builds all images)
     - name: "EXEC: {Initialize without cache}, independent"
       if: steps.cache-docker-images.outputs.cache-hit != 'true'
       run: |
         rm -rf ~/.foc-devnet
-        ./foc-devnet init ${{ matrix.init_flags }}
+        ./foc-devnet init ${{ inputs.init_flags }}
 
     # CACHE-DOCKER: Save Docker images as tarballs for caching
     - name: "EXEC: {Save Docker images for cache}, DEP: {C-docker-images-cache}"
@@ -227,7 +209,7 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ~/.foc-devnet/bin
-        key: ${{ runner.os }}-binaries-${{ matrix.name }}-${{ steps.version-hashes.outputs.code-hash }}
+        key: ${{ runner.os }}-binaries-${{ inputs.name }}-${{ steps.version-hashes.outputs.code-hash }}
 
     - name: "EXEC: {Ensure permissions on binaries}, DEP: {C-build-artifacts-cache}"
       if: steps.cache-binaries.outputs.cache-hit == 'true'
@@ -240,9 +222,9 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ~/.foc-devnet/docker/volumes/cache/foc-builder
-        key: ${{ runner.os }}-foc-builder-cache-${{ matrix.name }}-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
+        key: ${{ runner.os }}-foc-builder-cache-${{ inputs.name }}-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
         restore-keys: |
-          ${{ runner.os }}-foc-builder-cache-${{ matrix.name }}-
+          ${{ runner.os }}-foc-builder-cache-${{ inputs.name }}-
 
     - name: "EXEC: {Ensure permissions}, DEP: {C-foc-builder-cache}"
       if: steps.cache-binaries.outputs.cache-hit != 'true' &&
@@ -268,7 +250,7 @@ jobs:
       uses: actions/cache/save@v4
       with:
         path: ~/.foc-devnet/docker/volumes/cache/foc-builder
-        key: ${{ runner.os }}-foc-builder-cache-${{ matrix.name }}-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
+        key: ${{ runner.os }}-foc-builder-cache-${{ inputs.name }}-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
 
     # CACHE-BINARIES: Save built Lotus/Curio binaries for future runs
     - name: "CACHE_SAVE: {C-build-artifacts-cache}"
@@ -276,7 +258,7 @@ jobs:
       uses: actions/cache/save@v4
       with:
         path: ~/.foc-devnet/bin
-        key: ${{ runner.os }}-binaries-${{ matrix.name }}-${{ steps.version-hashes.outputs.code-hash }}
+        key: ${{ runner.os }}-binaries-${{ inputs.name }}-${{ steps.version-hashes.outputs.code-hash }}
 
     # Disk free-up
     - name: "EXEC: {Clean up Go modules}, DEP: {C-build-artifacts-cache}"
@@ -399,12 +381,10 @@ jobs:
       id: scenario_tests
       if: steps.start_cluster.outcome == 'success'
       env:
-        # Enable reporting for nightly schedule or when explicitly requested
-        REPORTING: ${{ github.event_name == 'schedule' || inputs.reporting == true }}
-        # By default, don't file an issue if everything passes
-        SKIP_REPORT_ON_PASS: ${{ inputs.skip_report_on_pass != false }}
+        REPORTING: ${{ inputs.enable_reporting }}
+        SKIP_REPORT_ON_PASS: ${{ inputs.skip_report_on_pass }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        SCENARIO_RUN_TYPE: ${{ matrix.name }}
+        SCENARIO_RUN_TYPE: ${{ inputs.name }}
       run: python3 scenarios/run.py
 
     # Ensure scenario report exists even if tests didn't run (for issue reporting)
@@ -415,9 +395,9 @@ jobs:
         if [ ! -f "$REPORT" ]; then
           mkdir -p "$(dirname "$REPORT")"
           {
-            echo "# Scenario Test Report (${{ matrix.name }})"
+            echo "# Scenario Test Report (${{ inputs.name }})"
             echo ""
-            echo "**No scenario tests were executed.**"
+            echo "**Something failed before a proper scenario report could be generated.**"
             echo ""
             echo "**Start cluster outcome**: ${{ steps.start_cluster.outcome }}"
             echo ""
@@ -430,19 +410,19 @@ jobs:
           } > "$REPORT"
         fi
 
-    # Upload scenario report as artifact (name includes strategy to avoid collisions in matrix)
+    # Upload scenario report as artifact (name includes run name to avoid collisions in matrix)
     - name: "EXEC: {Upload scenario report}"
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: scenario-report-${{ matrix.name }}
+        name: scenario-report-${{ inputs.name }}
         path: ~/.foc-devnet/state/latest/scenario_*.md
         if-no-files-found: ignore
 
-    # Determine whether to file an issue (only for schedule/workflow_dispatch events)
+    # Determine whether to file an issue (only when reporting is enabled)
     - name: "CHECK: {Determine if issue should be filed}"
       id: should_file
-      if: always() # This needs to be further restricted
+      if: always() && inputs.enable_reporting
       run: |
         if [[ "${{ steps.start_cluster.outcome }}" == "success" && \
               "${{ steps.scenario_tests.outcome }}" != "failure" ]]; then
@@ -451,24 +431,24 @@ jobs:
           PASSED="false"
         fi
         echo "passed=$PASSED" >> $GITHUB_OUTPUT
-        if [[ "$PASSED" == "true" && "$REPORT_ON_SUCCESS" != "true" ]]; then
+        if [[ "$PASSED" == "true" && "${{ inputs.skip_report_on_pass }}" == "true" ]]; then
           echo "file=false" >> $GITHUB_OUTPUT
-          echo "Skipping issue: tests passed and REPORT_ON_SUCCESS is not 'true'"
+          echo "Skipping issue: tests passed and skip_report_on_pass is true"
         else
           echo "file=true" >> $GITHUB_OUTPUT
-          echo "Filing issue (${{ matrix.name }}): passed=$PASSED"
+          echo "Filing issue (${{ inputs.name }}): passed=$PASSED"
         fi
 
     # Read scenario report content from the filesystem directly
     - name: "EXEC: {Read scenario report}"
       id: report
-      if: always() && steps.should_file.outputs.file == 'true'
+      if: always() && steps.should_file.outputs.file == 'true' && inputs.enable_reporting
       run: |
         REPORT="$HOME/.foc-devnet/state/latest/scenario_report.md"
         if [ -f "$REPORT" ]; then
           CONTENT=$(cat "$REPORT")
         else
-          CONTENT="No scenario report available for **${{ matrix.name }}** strategy."
+          CONTENT="No scenario report available for **${{ inputs.name }}** strategy."
         fi
         EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
         echo "content<<$EOF" >> $GITHUB_OUTPUT
@@ -477,17 +457,17 @@ jobs:
 
     # Create or update a GitHub issue with the scenario report
     - name: "EXEC: {Create or update issue}"
-      if: always() && steps.should_file.outputs.file == 'true'
+      if: always() && steps.should_file.outputs.file == 'true' && inputs.enable_reporting
       uses: ipdxco/create-or-update-issue@v1
       with:
         GITHUB_TOKEN: ${{ github.token }}
-        title: ${{ matrix.issue_title }}
+        title: ${{ inputs.issue_title }}
         body: |
-          The **${{ matrix.name }}** scenarios run **${{ steps.should_file.outputs.passed == 'true' && 'passed ✅' || 'failed ❌' }}**.
+          The **${{ inputs.name }}** scenarios run **${{ steps.should_file.outputs.passed == 'true' && 'passed ✅' || 'failed ❌' }}**.
           See [the workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
 
           ${{ steps.report.outputs.content }}
-        label: ${{ matrix.issue_label }}
+        label: ${{ inputs.issue_label }}
 
     # Clean shutdown (always runs to avoid leaving containers behind)
     - name: "EXEC: {Stop cluster}, independent"
@@ -500,4 +480,3 @@ jobs:
       run: |
         echo "Start cluster failed earlier; marking job as failed." >&2
         exit 1
-
