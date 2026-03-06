@@ -174,6 +174,7 @@ def get_version_info():
 
 # ── Runner ────────────────────────────────────────────────────
 
+
 @dataclass
 class TestResult:
     test_name: str
@@ -182,6 +183,7 @@ class TestResult:
     timeout_sec: int
     log_lines: list[str]
     return_code: int
+
 
 def run_tests():
     """Run scenarios in ORDER. Returns list of (name, passed, elapsed_time, log_lines, timed_out)."""
@@ -223,14 +225,16 @@ def run_tests():
             )
         elapsed_time = int(time.time() - test_start)
         passed = return_code == 0 and not timed_out
-        results.append(TestResult(
-            test_name=name,
-            is_passed=passed,
-            time_taken_sec=elapsed_time,
-            timeout_sec=timeout_sec,
-            log_lines=log_lines,
-            return_code=return_code,
-        ))
+        results.append(
+            TestResult(
+                test_name=name,
+                is_passed=passed,
+                time_taken_sec=elapsed_time,
+                timeout_sec=timeout_sec,
+                log_lines=log_lines,
+                return_code=return_code,
+            )
+        )
     return results
 
 
@@ -239,12 +243,12 @@ def run_tests():
 report_template = Template("""
 # Scenarios Tests 
 
-| Description | Data                                                  |
-|-------------| ----------------------------------------------------- |
-| Type        | $run_type                                             |
-| Date        | $date                                                 |
-| Status.     | Pass=$pass_count, Fail=$fail_count, Total=$total_count|
-| CI run      | $ci_run_link                                          |
+| Description | Data                                                                |
+|-------------| ------------------------------------------------------------------- |
+| Type        | **$run_type**                                                           |
+| Date        | $date                                                               |
+| Status.     | PASS ✅:**$pass_count**, FAIL 🟥:**$fail_count**, Total:$total_count |
+| CI run      | $ci_run_link                                                        |
 
 ## Versions info
 $version_info
@@ -252,6 +256,7 @@ $version_info
 ## Tests summary
 $test_summary
 """)
+
 
 def write_report(results: list[TestResult] = [], elapsed: int = 0):
     """Write a markdown report to REPORT_MD. Returns path written."""
@@ -273,7 +278,11 @@ def write_report(results: list[TestResult] = [], elapsed: int = 0):
     for r in results:
         timed_out = r.return_code != 0 and r.time_taken_sec >= r.timeout_sec
         icon = "✅" if r.is_passed else "❌"
-        status = f"TIMEOUT ({r.time_taken_sec}s)" if timed_out else f"{'PASS' if r.is_passed else 'FAIL'} ({r.time_taken_sec}s)"
+        status = (
+            f"TIMEOUT ({r.time_taken_sec}s)"
+            if timed_out
+            else f"{'PASS' if r.is_passed else 'FAIL'} ({r.time_taken_sec}s)"
+        )
         test_summary_parts.append(
             f"<details>\n<summary>{icon} <b>{r.test_name}</b> - {status}</summary>\n\n"
             f"```\n{chr(10).join(r.log_lines)}\n```\n</details>"
@@ -281,7 +290,7 @@ def write_report(results: list[TestResult] = [], elapsed: int = 0):
 
     content = report_template.substitute(
         run_type=_type,
-        date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        date=datetime.now(datetime.timezone.utc).strftime("%d-%B-%Y %H:%M:%S GMT +0").strip(),
         pass_count=passed,
         fail_count=failed,
         total_count=total,
@@ -304,7 +313,9 @@ if __name__ == "__main__":
     scenario_pass = sum(1 for r in results if r.is_passed)
     scenario_fail = total_scenarios - scenario_pass
     print(f"\n{'='*50}")
-    print(f"Scenarios: {total_scenarios}  Passed: {scenario_pass}  Failed: {scenario_fail}  ({elapsed}s)")
+    print(
+        f"Scenarios: {total_scenarios}  Passed: {scenario_pass}  Failed: {scenario_fail}  ({elapsed}s)"
+    )
     for r in results:
         timed_out = r.return_code != 0 and r.time_taken_sec >= r.timeout_sec
         status_icon = "✅" if r.is_passed else "❌"
