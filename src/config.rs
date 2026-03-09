@@ -36,26 +36,35 @@ pub enum Location {
     /// The `url` field is the Git repository URL, and `branch` is the specific
     /// branch (e.g., "main", "develop") to check out.
     GitBranch { url: String, branch: String },
+
+    /// Resolve to the newest tag on a specific branch at init time.
+    ///
+    /// `url` is the Git repository URL. `branch` specifies the exact branch
+    /// to search for tags on. At init time this is immediately resolved to a
+    /// concrete `GitTag` so the stored config always records the exact tag used.
+    ///
+    /// Example CLI usage: `--curio latesttag:pdpv0` or `--lotus latesttag:master`
+    LatestTag { url: String, branch: String },
 }
 
 impl Location {
-    /// Parse a location string in the format "type:value" or "type:url:value"
+    /// Parse a location string in the format "type" or "type:value".
     ///
     /// Supported formats:
-    /// - "gittag:tag" (uses default URL)
-    /// - "gitcommit:commit" (uses default URL)
-    /// - "gitbranch:branch" (uses default URL)
-    /// - "local:dir"
-    /// - "gittag:url:tag"
-    /// - "gitcommit:url:commit"
-    /// - "gitbranch:url:branch"
-    ///
-    /// Where url can contain colons (e.g., https://github.com/repo.git)
+    /// - `latesttag:<branch>`      — newest tag on specified branch (e.g. `latesttag:main`)
+    /// - `gittag:<tag>`            — (uses default URL)
+    /// - `gitcommit:<commit>`      — (uses default URL)
+    /// - `gitbranch:<branch>`      — (uses default URL)
+    /// - `local:<dir>`
+    /// - `gittag:<url>:<tag>`
+    /// - `gitcommit:<url>:<commit>`
+    /// - `gitbranch:<url>:<branch>`
     pub fn parse_with_default(s: &str, default_url: &str) -> Result<Self, String> {
         let parts: Vec<&str> = s.split(':').collect();
         if parts.len() < 2 {
             return Err(format!(
-                "Invalid location format: {}. Expected 'type:value' or 'type:url:value'",
+                "Invalid location format: '{}'. Expected \
+                 'latesttag:<branch>', or 'gittag/gitcommit/gitbranch/local:...'",
                 s
             ));
         }
@@ -64,6 +73,11 @@ impl Location {
         let remaining = &parts[1..].join(":");
 
         match location_type {
+            // latesttag:<branch> — newest tag on specified branch
+            "latesttag" => Ok(Location::LatestTag {
+                url: default_url.to_string(),
+                branch: remaining.to_string(),
+            }),
             "local" => Ok(Location::LocalSource {
                 dir: remaining.to_string(),
             }),
@@ -107,7 +121,7 @@ impl Location {
                 }
             }
             _ => Err(format!(
-                "Unknown location type: {}. Supported types: local, gittag, gitcommit, gitbranch",
+                "Unknown location type: {}. Supported types: latesttag, local, gittag, gitcommit, gitbranch",
                 location_type
             )),
         }

@@ -25,6 +25,7 @@ foc-devnet init [OPTIONS]
 - `--rand` - Use random mnemonic instead of deterministic one. Use this for unique test scenarios.
 
 **Source Format:**
+- `latesttag:<branch>` - Newest git tag found on the given branch (resolved once at `init` time and pinned in config). Use this to always pull the latest stable release on a branch without hardcoding a version. Example: `latesttag:master`
 - `gittag:v1.0.0` - Specific git tag (uses default repo)
 - `gittag:https://github.com/user/repo.git:v1.0.0` - Tag from custom repo
 - `gitcommit:abc123` - Specific git commit
@@ -812,6 +813,7 @@ port_range_count = 100
 Default versions for these repositories are defined in code (see [`src/config.rs`](src/config.rs) `Config::default()`).
 
 **Version specification methods:**
+- **Latest tag** (`LatestTag`, i.e. `latesttag:<branch>`): Resolves to the newest git tag on the given branch at `init` time and pins that exact tag in `config.toml`. Use this to automatically track the latest stable release without hardcoding a version.
 - **Git tags** (`GitTag`): Used for stable releases. Tags provide version pinning and stability.
 - **Git commits** (`GitCommit`): Used for repositories where specific commits are required and there isn't a corresponding tag yet. (Generally tags should be preferred over commits.)
 - **Git branches** (`GitBranch`): Used for development or when tracking latest changes.

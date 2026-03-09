@@ -23,13 +23,25 @@ pub enum Commands {
     Stop,
     /// Initialize foc-devnet by building and caching Docker images
     Init {
-        /// Curio source location (e.g., 'gittag:tag', 'gittag:url:tag', 'gitcommit:commit', 'gitcommit:url:commit', 'gitbranch:branch', 'gitbranch:url:branch', 'local:/path/to/curio')
+        /// Curio source location.
+        /// Magic values: 'latesttag:<branch>' (newest tag on given branch).
+        /// Explicit: 'gittag:<tag>', 'gittag:<url>:<tag>', 'gitcommit:<sha>',
+        /// 'gitcommit:<url>:<sha>', 'gitbranch:<branch>', 'gitbranch:<url>:<branch>',
+        /// 'local:/path/to/curio'.
         #[arg(long)]
         curio: Option<String>,
-        /// Lotus source location (e.g., 'gittag:v1.0.0', 'gittag:url:tag', 'gitcommit:abc123', 'gitcommit:url:commit', 'gitbranch:main', 'gitbranch:url:main', 'local:/path/to/lotus')
+        /// Lotus source location.
+        /// Magic values: 'latesttag:<branch>' (newest tag on given branch).
+        /// Explicit: 'gittag:<tag>', 'gittag:<url>:<tag>', 'gitcommit:<sha>',
+        /// 'gitcommit:<url>:<sha>', 'gitbranch:<branch>', 'gitbranch:<url>:<branch>',
+        /// 'local:/path/to/lotus'.
         #[arg(long)]
         lotus: Option<String>,
-        /// Filecoin Services source location (e.g., 'gittag:v1.0.0', 'gittag:url:tag', 'gitcommit:abc123', 'gitcommit:url:commit', 'gitbranch:main', 'gitbranch:url:main', 'local:/path/to/filecoin-services')
+        /// Filecoin Services source location.
+        /// Magic values: 'latesttag:<branch>' (newest tag on given branch).
+        /// Explicit: 'gittag:<tag>', 'gittag:<url>:<tag>', 'gitcommit:<sha>',
+        /// 'gitcommit:<url>:<sha>', 'gitbranch:<branch>', 'gitbranch:<url>:<branch>',
+        /// 'local:/path/to/filecoin-services'.
         #[arg(long)]
         filecoin_services: Option<String>,
         /// Yugabyte download URL
@@ -82,12 +94,12 @@ pub enum BuildCommands {
 pub enum ConfigCommands {
     /// Configure Lotus source location
     Lotus {
-        /// Lotus source location (e.g., 'gittag:v1.0.0', 'gitcommit:abc123', 'local:/path/to/lotus')
+        /// Lotus source location (e.g., 'latesttag:master', 'gittag:v1.0.0', 'gitcommit:abc123', 'gitbranch:main', 'local:/path/to/lotus')
         source: String,
     },
     /// Configure Curio source location
     Curio {
-        /// Curio source location (e.g., 'gittag:v1.0.0', 'gitcommit:abc123', 'local:/path/to/curio')
+        /// Curio source location (e.g., 'latesttag:pdpv0', 'gittag:v1.0.0', 'gitcommit:abc123', 'gitbranch:main', 'local:/path/to/curio')
         source: String,
     },
 }

@@ -99,6 +99,9 @@ fn download_repository(name: &str, location: &Location) -> Result<(), Box<dyn st
         Location::GitBranch { url, branch } => {
             clone_and_checkout(name, url, None, None, Some(branch))
         }
+        Location::LatestTag { .. } => {
+            Err(format!("{}: LatestTag should have been resolved at init time", name).into())
+        }
     }
 }
 
