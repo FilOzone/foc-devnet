@@ -64,9 +64,8 @@ pub fn docker_command(args: &[&str]) -> Result<Output, Box<dyn Error>> {
 /// # Returns
 /// The combined stdout + stderr container logs on success.
 pub fn get_container_logs(container_name: &str) -> Result<String, Box<dyn Error>> {
-    let output = Command::new("docker")
-        .args(["logs", container_name])
-        .output()?;
+    let output = docker_command(&["logs", container_name])?;
+
     let mut logs = String::new();
     logs.push_str(&String::from_utf8_lossy(&output.stdout));
     logs.push_str(&String::from_utf8_lossy(&output.stderr));
