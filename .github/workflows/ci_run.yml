@@ -355,7 +355,7 @@ jobs:
       if: steps.start_cluster.outcome == 'success'
       uses: actions/setup-node@v4
       with:
-        node-version: '25'
+        node-version: 'lts/*'
 
     # Setup pnpm (required by scenario tests)
     - name: "EXEC: {Setup pnpm}, independent"
@@ -375,6 +375,30 @@ jobs:
         node read-devnet-info.js "$DEVNET_INFO"
         node check-balances.js "$DEVNET_INFO"
         echo "✓ All examples ran well"
+
+    # Resolve the numeric job ID for deep CI links in the scenario report.
+    # GH exposes `GITHUB_RUN_ID`, a string but not the numberic value needed to build links.
+    # Exports GITHUB_CI_JOB_ID into $GITHUB_ENV so run.py can skip all name-matching
+    # heuristics and query the Jobs API directly with a known job ID.
+    - name: "SETUP: {Get CI job ID (numeric)}"
+      if: always()
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        GITHUB_CI_JOB_ID=$(curl -sSfL \
+          -H "Authorization: Bearer $GH_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" \
+          | jq -r --arg job "$GITHUB_JOB" \
+              '[.jobs[] | select(.name == $job or (.name | startswith($job + " (")))] | first | .id // empty')
+        if [[ -n "$GITHUB_CI_JOB_ID" ]]; then
+          echo "GITHUB_CI_JOB_ID=$JOB_ID" >> "$GITHUB_ENV"
+          echo "Resolved CI job ID: $GITHUB_CI_JOB_ID"
+          echo "Job URL: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/job/$GITHUB_CI_JOB_ID"
+        else
+          echo "Warning: could not resolve numeric job ID (GITHUB_JOB=$GITHUB_JOB)"
+        fi
 
     # Run scenario tests against the live devnet
     - name: "TEST: {Run scenario tests}"

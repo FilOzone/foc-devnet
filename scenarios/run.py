@@ -330,5 +330,12 @@ if __name__ == "__main__":
     if os.environ.get("GITHUB_RUN_ID") and os.environ.get("GITHUB_REPOSITORY"):
         github_server = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
         ci_url = f"{github_server}/{os.environ.get('GITHUB_REPOSITORY')}/actions/runs/{os.environ.get('GITHUB_RUN_ID')}"
-        print(f"CI Run: {ci_url}")
+        ci_url_type = "run"
+        # If CI run is available, we may also have the `GITHUB_CI_JOB_ID` set, see `ci_run.yml``
+        # This env var allows us to link to specific jobs instead of entire run
+        if os.environ.get("GITHUB_CI_JOB_ID"):
+            ci_url = f"{github_server}/{os.environ.get('GITHUB_REPOSITORY')}/actions/runs/{os.environ.get('GITHUB_RUN_ID')}/job/{os.environ.get("GITHUB_CI_JOB_ID")}"
+            ci_url_type = "job"
+
+        print(f"CI {ci_url_type}: {ci_url}")
     sys.exit(0 if scenario_fail == 0 else 1)
