@@ -201,6 +201,9 @@ fn create_base_cluster(
         docker_args.push(env);
     }
 
+    docker_args.push("-e");
+    docker_args.push(crate::constants::CURIO_LOG_LEVEL);
+
     // Add image and command
     let bash_cmd = format!(
         "sleep 3 && /usr/local/bin/lotus-bins/curio config new-cluster {}",
@@ -310,6 +313,9 @@ fn create_pdp_layer(context: &SetupContext, sp_index: usize) -> Result<(), Box<d
         docker_args.push("-e");
         docker_args.push(env);
     }
+
+    docker_args.push("-e");
+    docker_args.push(crate::constants::CURIO_LOG_LEVEL);
 
     // Add image and command with heredoc for config
     let bash_cmd = format!(
