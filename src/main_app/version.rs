@@ -76,16 +76,20 @@ pub fn handle_version(noterminal: bool) -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
+const SECS_PER_MIN: i64 = 60;
+const SECS_PER_HOUR: i64 = 3_600;
+const SECS_PER_DAY: i64 = 86_400;
+
 /// Format a duration in seconds as a human-readable relative time string.
 fn format_relative_time(diff_seconds: i64) -> String {
-    if diff_seconds < 60 {
+    if diff_seconds < SECS_PER_MIN {
         format!("({} seconds ago)", diff_seconds)
-    } else if diff_seconds < 3600 {
-        format!("({} minutes ago)", diff_seconds / 60)
-    } else if diff_seconds < 86400 {
-        format!("({} hours ago)", diff_seconds / 3600)
+    } else if diff_seconds < SECS_PER_HOUR {
+        format!("({} minutes ago)", diff_seconds / SECS_PER_MIN)
+    } else if diff_seconds < SECS_PER_DAY {
+        format!("({} hours ago)", diff_seconds / SECS_PER_HOUR)
     } else {
-        format!("({} days ago)", diff_seconds / 86400)
+        format!("({} days ago)", diff_seconds / SECS_PER_DAY)
     }
 }
 
