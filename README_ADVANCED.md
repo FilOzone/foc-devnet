@@ -909,7 +909,7 @@ Steps run sequentially by default, or in parallel when using the `--parallel` fl
 | 5 | FOC Deploy + USDFC Funding + Yugabyte | **⚡ YES** | Parallel contract work + DB startup |
 | 6 | Curio SPs | No | Needs Yugabyte ready |
 | 7 | PDP SP Registration | No | Needs Curio running for ports |
-| 8 | Synapse E2E Test | No | Verification step |
+| 8 | User Setup Step | No | User setup step |
 
 **Time savings:** Epochs 4 and 5 run ~40% faster in parallel mode.
 
