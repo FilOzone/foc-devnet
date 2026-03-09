@@ -74,10 +74,25 @@ impl Location {
 
         match location_type {
             // latesttag:<branch> — newest tag on specified branch
-            "latesttag" => Ok(Location::LatestTag {
-                url: default_url.to_string(),
-                branch: remaining.to_string(),
-            }),
+            "latesttag" => {
+                let branch = remaining.trim();
+                if branch.is_empty() {
+                    return Err(format!(
+                        "Invalid location format: '{}'. 'latesttag' requires a non-empty branch name, e.g. 'latesttag:main'",
+                        s
+                    ));
+                }
+                if branch.starts_with('-') || branch.contains(':') {
+                    return Err(format!(
+                        "Invalid branch name '{}' in '{}'. Branch names for 'latesttag' must not start with '-' or contain ':'",
+                        branch, s
+                    ));
+                }
+                Ok(Location::LatestTag {
+                    url: default_url.to_string(),
+                    branch: branch.to_string(),
+                })
+            }
             "local" => Ok(Location::LocalSource {
                 dir: remaining.to_string(),
             }),
