@@ -23,21 +23,19 @@ struct TempBareRepo(std::path::PathBuf);
 
 impl TempBareRepo {
     fn create() -> Result<Self, Box<dyn std::error::Error>> {
-        let dir = std::env::temp_dir().join(format!(
-            "foc-devnet-tag-probe-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_nanos()
-        ));
+        let temp_dir = tempfile::Builder::new()
+            .prefix("foc-devnet-tag-probe-")
+            .tempdir()?;
+        let path = temp_dir.into_path();
         let status = Command::new("git")
-            .args(["init", "--bare", dir.to_str().unwrap()])
+            .args(["init", "--bare"])
+            .arg(&path)
             .env("GIT_TERMINAL_PROMPT", "0")
             .status()?;
         if !status.success() {
             return Err("git init --bare failed".into());
         }
-        Ok(Self(dir))
+        Ok(Self(path))
     }
 
     fn path(&self) -> &std::path::Path {
