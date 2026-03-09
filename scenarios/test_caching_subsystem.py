@@ -25,7 +25,9 @@ from scenarios.run import *
 
 SYNAPSE_SDK_REPO = "https://github.com/FilOzone/synapse-sdk/"
 CASSANDRA_VERSION = "5.0.6"
-PYTHON_VERSION = "3.10"  # max supported python version for CASSANDRA_VERSION
+PYTHON_VERSION = "3.11.15"
+PYENV_ROOT = Path(os.environ.get("PYENV_ROOT", str(Path.home() / ".pyenv")))
+PYTHON_DIR = PYENV_ROOT / "versions" / PYTHON_VERSION
 CASSANDRA_DIR = Path.home() / ".foc-devnet" / "artifacts" / "cassandra"
 CASSANDRA_HOME = CASSANDRA_DIR / f"apache-cassandra-{CASSANDRA_VERSION}"
 SMALL_FILE_SIZE = 20 * 1024 * 1024  # 20MB — below 32MB threshold
@@ -65,20 +67,18 @@ def _next_run_index() -> int:
 
 
 def _find_custom_python():
-    """Locate portable Python installed by scripts/setup-scenarios-prerequisites.sh.
+    """Locate Python 3.11.15 installed via pyenv by scripts/setup-scenarios-prerequisites.sh.
 
     Returns the path to the python interpreter.
     Raises RuntimeError if not found.
     """
-    npm_root = sh("npm root -g").strip()
-    pkg_dir = Path(npm_root) / "@bjia56" / f"portable-python-{PYTHON_VERSION}"
-    if pkg_dir.exists():
-        for p in pkg_dir.rglob("bin/python*"):
-            info(f"Found custom python @ {p}")
-            return str(p)
+    python_bin = PYTHON_DIR / "bin" / "python3"
+    if python_bin.exists():
+        info(f"Found custom python @ {python_bin}")
+        return str(python_bin)
 
     raise RuntimeError(
-        f"Portable Python {PYTHON_VERSION} not found. "
+        f"Python {PYTHON_VERSION} not found at {python_bin}. "
         f"Run scripts/setup-scenarios-prerequisites.sh first."
     )
 
