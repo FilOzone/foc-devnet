@@ -100,7 +100,22 @@ fn download_repository(name: &str, location: &Location) -> Result<(), Box<dyn st
             clone_and_checkout(name, url, None, None, Some(branch))
         }
         Location::LatestTag { .. } => {
-            Err(format!("{}: LatestTag should have been resolved at init time", name).into())
+            let config_path = foc_devnet_config();
+            let msg = format!(
+                concat!(
+                    "{}: repository location is configured as 'latesttag', which is an internal placeholder\n",
+                    "that should have been resolved during 'foc-devnet init'.\n",
+                    "This usually means your config file at '{}' is out of date or was edited manually.\n",
+                    "\n",
+                    "To fix this, either:\n",
+                    "  - run 'foc-devnet init --force' to regenerate config.toml, or\n",
+                    "  - edit config.toml and replace 'latesttag' with a concrete 'gittag:', 'gitbranch:',\n",
+                    "    'gitcommit:' or 'localsource:' entry for this repository.\n"
+                ),
+                name,
+                config_path.display()
+            );
+            Err(msg.into())
         }
     }
 }
