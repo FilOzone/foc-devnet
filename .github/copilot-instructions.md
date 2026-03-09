@@ -117,7 +117,7 @@ MockUSDFC + FOC Service Contracts
    - Uses: `forge create` with `--broadcast` flag
 
 2. **FOC Service Contracts**:
-   - Deployed via `deploy-all-warm-storage.sh` script
+   - Deployed via `warm-storage-deploy-all.sh` script
    - Includes: PDPVerifier, ServiceProviderRegistry, FilecoinWarmStorageService, etc.
    - All addresses saved to `foc-contract-addresses.json`
 

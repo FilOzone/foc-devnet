@@ -60,7 +60,7 @@ impl Step for FOCDeployStep {
         let deploy_script = services_repo
             .join("service_contracts")
             .join("tools")
-            .join("deploy-all-warm-storage.sh");
+            .join("warm-storage-deploy-all.sh");
 
         if !deploy_script.exists() {
             return Err(

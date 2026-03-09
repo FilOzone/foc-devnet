@@ -75,7 +75,7 @@ pub fn deploy_foc_contracts(
     lotus_rpc_url: &str,
     run_id: &str,
 ) -> Result<DeploymentResult, Box<dyn Error>> {
-    info!("Running deploy-all-warm-storage.sh...");
+    info!("Running warm-storage-deploy-all.sh...");
 
     // Log the RPC URL for debugging
     info!("Lotus RPC URL: {}", lotus_rpc_url);
@@ -87,7 +87,7 @@ pub fn deploy_foc_contracts(
     let contracts_dir = services_repo.join("service_contracts");
     let deploy_script = contracts_dir
         .join("tools")
-        .join("deploy-all-warm-storage.sh");
+        .join("warm-storage-deploy-all.sh");
 
     if !deploy_script.exists() {
         return Err(format!("Deployment script not found at {}", deploy_script.display()).into());
@@ -122,14 +122,14 @@ pub fn deploy_foc_contracts(
     ];
 
     // Run the deployment script
-    // Import wallet into keystore first (required by deploy-all-warm-storage.sh)
+    // Import wallet into keystore first (required by warm-storage-deploy-all.sh)
     // The script uses forge create --password which requires a keystore file
     let deploy_cmd = format!(
         r#"set -e
 mkdir -p /home/foc-user/.foundry/keystores
 cast wallet import foc-deployer --private-key {} --unsafe-password ''
 cd /service_contracts
-bash /service_contracts/tools/deploy-all-warm-storage.sh 2>&1 | tee /tmp/foc-deploy.log"#,
+bash /service_contracts/tools/warm-storage-deploy-all.sh 2>&1 | tee /tmp/foc-deploy.log"#,
         private_key
     );
 
