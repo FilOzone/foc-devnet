@@ -52,6 +52,9 @@ def run():
         ):
             return
 
+        sdk_commit = sh(f"git -C {sdk_dir} rev-parse HEAD")
+        info(f"synapse-sdk commit: {sdk_commit}")
+
         info("--- Installing synapse-sdk dependencies with pnpm ---")
         if not run_cmd(
             ["pnpm", "install"], cwd=str(sdk_dir), label="pnpm install completed"

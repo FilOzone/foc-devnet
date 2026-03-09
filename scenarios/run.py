@@ -132,24 +132,6 @@ def devnet_info():
         return json.load(f)
 
 
-def ensure_foundry():
-    """Install Foundry if cast is not on PATH."""
-    if (
-        subprocess.call(
-            "command -v cast",
-            shell=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        != 0
-    ):
-        info("Installing Foundry...")
-        os.system("curl -sSL https://foundry.paradigm.xyz | bash")
-        os.environ["PATH"] = os.path.expanduser("~/.foundry/bin:") + os.environ["PATH"]
-        os.system(os.path.expanduser("~/.foundry/bin/foundryup"))
-    assert_ok("command -v cast", "cast is installed")
-
-
 # ── Version info ──────────────────────────────────────────────
 
 

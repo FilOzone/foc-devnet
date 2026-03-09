@@ -27,7 +27,6 @@ from scenarios.run import *
 SYNAPSE_SDK_REPO = "https://github.com/FilOzone/synapse-sdk/"
 CASSANDRA_VERSION = "5.0.6"
 PYTHON_VERSION = "3.10"  # max supported python version for CASSANDRA_VERSION
-CASSANDRA_URL = f"https://dlcdn.apache.org/cassandra/{CASSANDRA_VERSION}/apache-cassandra-{CASSANDRA_VERSION}-bin.tar.gz"
 CASSANDRA_DIR = Path.home() / ".foc-devnet" / "artifacts" / "cassandra"
 CASSANDRA_HOME = CASSANDRA_DIR / f"apache-cassandra-{CASSANDRA_VERSION}"
 SMALL_FILE_SIZE = 20 * 1024 * 1024  # 20MB — below 32MB threshold
@@ -78,63 +77,40 @@ def _write_random_file(path: Path, size: int, seed: int) -> None:
             remaining -= chunk
 
 
-def _ensure_custom_python():
-    """Ensure python is available on the system, installing it via apt if needed.
-    This is because cassandra 5.0.6 requires Python 3.6-3.11
+def _find_custom_python():
+    """Locate portable Python installed by scripts/setup-scenarios-prerequisites.sh.
 
-    Returns the path to the python3.11 interpreter.
+    Returns the path to the python interpreter.
+    Raises RuntimeError if not found.
     """
-    from pathlib import Path
-
     npm_root = sh("npm root -g").strip()
     pkg_dir = Path(npm_root) / "@bjia56" / f"portable-python-{PYTHON_VERSION}"
-    py = ""
     if pkg_dir.exists():
-        # look for any python binary under the package (handles headless builds)
         for p in pkg_dir.rglob("bin/python*"):
-            py = str(p)
-            break
+            info(f"Found custom python @ {p}")
+            return str(p)
 
-    if not py or py == "":
-        info(f"Installing custom python version {PYTHON_VERSION}")
-        info(sh(f"npm i --global --silent @bjia56/portable-python-{PYTHON_VERSION}"))
-
-    if pkg_dir.exists():
-        # look for any python binary under the package (handles headless builds)
-        for p in pkg_dir.rglob("bin/python*"):
-            py = str(p)
-            break
-
-    if not py or py == "":
-        raise RuntimeError(
-            f"python {PYTHON_VERSION} not found after installation attempt"
-        )
-    else:
-        info(f"Found custom python @ {py}")
-
-    return py
+    raise RuntimeError(
+        f"Portable Python {PYTHON_VERSION} not found. "
+        f"Run scripts/setup-scenarios-prerequisites.sh first."
+    )
 
 
-def _install_cqlsh():
-    """Download Apache Cassandra tarball and return (cqlsh_path, python3.11_path).
+def _find_cqlsh():
+    """Locate cqlsh and custom Python installed by scripts/setup-scenarios-prerequisites.sh.
 
-    The tarball is extracted once to ~/.foc-devnet/artifacts/cassandra/ and reused
-    on subsequent runs. Custom Python is ensured before returning.
+    Returns (cqlsh_path, custom_python_path).
+    Raises RuntimeError if not found.
     """
-    custom_python = _ensure_custom_python()
+    custom_python = _find_custom_python()
     cqlsh = CASSANDRA_HOME / "bin" / "cqlsh"
-    if cqlsh.exists():
-        cqlsh_version = sh(f"CQLSH_PYTHON={custom_python} {cqlsh} --version")
-        info(f"cqlsh version chk: {cqlsh_version}")
-        info(f"cqlsh already installed at {cqlsh}")
-        return str(cqlsh), custom_python
-    info("--- Installing cqlsh from Apache Cassandra tarball ---")
-    CASSANDRA_DIR.mkdir(parents=True, exist_ok=True)
-    tarball = CASSANDRA_DIR / f"apache-cassandra-{CASSANDRA_VERSION}-bin.tar.gz"
-    sh(f"curl -fL -o {tarball} {CASSANDRA_URL}")
-    sh(f"tar -xzf {tarball} -C {CASSANDRA_DIR}")
+    if not cqlsh.exists():
+        raise RuntimeError(
+            f"cqlsh not found at {cqlsh}. "
+            f"Run scripts/setup-scenarios-prerequisites.sh first."
+        )
     cqlsh_version = sh(f"CQLSH_PYTHON={custom_python} {cqlsh} --version")
-    info(f"cqlsh version chk: {cqlsh_version}")
+    info(f"cqlsh version: {cqlsh_version}")
     return str(cqlsh), custom_python
 
 
@@ -175,7 +151,7 @@ def run():
     info(f"Run index: {run_index} (persisted to {RUN_COUNTER_FILE})")
     info(f"Effective seeds — small file: {seed_small}, large file: {seed_large}")
 
-    cqlsh, python = _install_cqlsh()
+    cqlsh, python = _find_cqlsh()
 
     d = devnet_info()["info"]
     sp = d["pdp_sps"][0]
