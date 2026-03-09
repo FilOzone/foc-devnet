@@ -3,11 +3,13 @@
 # Run all tests:  python3 core.py
 # Run one test:   python3 test_containers.py
 import os
+import random
 import sys
 import json
 import subprocess
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from string import Template
 import datetime
 
@@ -130,6 +132,22 @@ def devnet_info():
     """Load devnet-info.json as a dict."""
     with open(DEVNET_INFO) as f:
         return json.load(f)
+
+
+# ── File helpers ──────────────────────────────────────────────
+
+_RANDOM_CHUNK_SIZE = 1024 * 1024
+
+
+def write_random_file(path: Path, size: int, seed: int) -> None:
+    """Write a deterministic pseudo-random file of exactly `size` bytes."""
+    rng = random.Random(seed)
+    remaining = size
+    with path.open("wb") as fh:
+        while remaining > 0:
+            chunk = min(_RANDOM_CHUNK_SIZE, remaining)
+            fh.write(rng.randbytes(chunk))
+            remaining -= chunk
 
 
 # ── Version info ──────────────────────────────────────────────

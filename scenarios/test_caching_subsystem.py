@@ -14,7 +14,6 @@ import os
 import sys
 import time
 import re
-import random
 import tempfile
 from pathlib import Path
 
@@ -43,7 +42,6 @@ RUN_COUNTER_FILE = (
 )
 CACHE_WAIT_SECS = 10
 GOCQL_ERROR = "gocql: no hosts available in the pool"
-_CHUNK = 1024 * 1024
 
 
 def _next_run_index() -> int:
@@ -64,17 +62,6 @@ def _next_run_index() -> int:
     next_index = current + 1
     RUN_COUNTER_FILE.write_text(str(next_index))
     return next_index
-
-
-def _write_random_file(path: Path, size: int, seed: int) -> None:
-    """Write a deterministic pseudo-random file of exactly `size` bytes."""
-    rng = random.Random(seed)
-    remaining = size
-    with path.open("wb") as fh:
-        while remaining > 0:
-            chunk = min(_CHUNK, remaining)
-            fh.write(rng.randbytes(chunk))
-            remaining -= chunk
 
 
 def _find_custom_python():
@@ -196,11 +183,11 @@ def run():
         info(
             f"Writing small file ({SMALL_FILE_SIZE // (1024*1024)}MB) with seed {seed_small}"
         )
-        _write_random_file(small_file, SMALL_FILE_SIZE, seed_small)
+        write_random_file(small_file, SMALL_FILE_SIZE, seed_small)
         info(
             f"Writing large file ({LARGE_FILE_SIZE // (1024*1024)}MB) with seed {seed_large}"
         )
-        _write_random_file(large_file, LARGE_FILE_SIZE, seed_large)
+        write_random_file(large_file, LARGE_FILE_SIZE, seed_large)
 
         info(" Uploading 20MB piece (below 32MB threshold)")
         _upload_file(sdk_dir, small_file.name, "upload 20MB piece")

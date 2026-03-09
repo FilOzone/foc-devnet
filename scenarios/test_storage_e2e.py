@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 import os
-import random
 import sys
 import tempfile
-from pathlib import Path
 
 # Ensure the project root (parent of scenarios/) is on sys.path
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -16,18 +14,6 @@ SYNAPSE_SDK_REPO = "https://github.com/FilOzone/synapse-sdk/"
 RAND_FILE_NAME = "random_file"
 RAND_FILE_SIZE = 20 * 1024 * 1024
 RAND_FILE_SEED = 42
-_RANDOM_CHUNK_SIZE = 1024 * 1024
-
-
-def _write_random_file(path: Path, size: int) -> None:
-    """Write a deterministic pseudo-random file of exactly `size` bytes."""
-    rng = random.Random(RAND_FILE_SEED)
-    remaining = size
-    with path.open("wb") as fh:
-        while remaining > 0:
-            chunk = min(_RANDOM_CHUNK_SIZE, remaining)
-            fh.write(rng.randbytes(chunk))
-            remaining -= chunk
 
 
 def run():
@@ -69,7 +55,7 @@ def run():
 
         random_file = sdk_dir / RAND_FILE_NAME
         info(f"--- Creating random file ({RAND_FILE_SIZE} bytes) ---")
-        _write_random_file(random_file, RAND_FILE_SIZE)
+        write_random_file(random_file, RAND_FILE_SIZE, RAND_FILE_SEED)
         actual_size = random_file.stat().st_size
         assert_eq(
             actual_size,
