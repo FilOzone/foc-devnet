@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-FIX="${FIX:-1}"
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-
-$REPO_ROOT/scripts/lint.sh
