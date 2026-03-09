@@ -34,7 +34,10 @@ pub fn get_repo_path_from_config(location: &Location, component: &str) -> std::p
             // For local sources, check the specified directory
             std::path::PathBuf::from(dir)
         }
-        Location::GitTag { .. } | Location::GitCommit { .. } | Location::GitBranch { .. } | Location::LatestTag { .. } => {
+        Location::GitTag { .. }
+        | Location::GitCommit { .. }
+        | Location::GitBranch { .. }
+        | Location::LatestTag { .. } => {
             // For git sources, check if it exists in the foc-devnet code directory
             foc_devnet_code().join(component)
         }
