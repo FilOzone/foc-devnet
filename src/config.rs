@@ -48,7 +48,7 @@ pub enum Location {
 }
 
 impl Location {
-    /// Parse a location string in the format "type" or "type:value".
+    /// Parse a location string in the format "type:value" or "type:url:value".
     ///
     /// Supported formats:
     /// - `latesttag:<branch>`      — newest tag on specified branch (e.g. `latesttag:main`)
