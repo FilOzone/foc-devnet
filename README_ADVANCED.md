@@ -82,16 +82,9 @@ foc-devnet start [OPTIONS]
 
 See [Detailed Start Sequence](#detailed-start-sequence) for information about which steps are parallelized.
 
-- `--notest` - Skip end-to-end tests. Use when rapid iteration is needed.
-
 **Recommended for faster startup:**
 ```bash
 foc-devnet start --parallel
-```
-
-**Skip tests during development:**
-```bash
-foc-devnet start --parallel --notest
 ```
 
 **After successful start:**
@@ -969,10 +962,9 @@ Steps run sequentially by default, or in parallel when using the `--parallel` fl
    - Approve authorized SPs
    - Save provider IDs
 
-**Synapse E2E Test Step:** (skipped with `--notest`)
+**User Setup Step:**
    - Set up USER_1 for FOC: approve and deposit USDFC into FilecoinPay, approve FWSS as operator
    - Export `devnet-info.json` to `~/.foc-devnet/run/<run-id>/devnet-info.json`
-   - Run synapse-sdk storage E2E test to verify the full deal flow
    - After this step, USER_1 can interact with FOC storage services via synapse-sdk
    - USER_2 and USER_3 are funded with USDFC but not configured for FOC
 
