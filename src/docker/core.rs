@@ -67,8 +67,17 @@ pub fn get_container_logs(container_name: &str) -> Result<String, Box<dyn Error>
     let output = docker_command(&["logs", container_name])?;
 
     let mut logs = String::new();
-    logs.push_str(&String::from_utf8_lossy(&output.stdout));
-    logs.push_str(&String::from_utf8_lossy(&output.stderr));
+    let stdout_str = String::from_utf8_lossy(&output.stdout);
+    let stderr_str = String::from_utf8_lossy(&output.stderr);
+    logs.push_str(&stdout_str);
+    if !stdout_str.is_empty()
+        && !stderr_str.is_empty()
+        && !stdout_str.ends_with('\n')
+        && !stderr_str.starts_with('\n')
+    {
+        logs.push('\n');
+    }
+    logs.push_str(&stderr_str);
     Ok(logs)
 }
 
