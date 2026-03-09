@@ -17,8 +17,6 @@ _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
-# Allow test files to `from core import *` even when core runs as __main__.
-sys.modules.setdefault("core", sys.modules[__name__])
 
 DEVNET_INFO = os.environ.get(
     "DEVNET_INFO", os.path.expanduser("~/.foc-devnet/state/latest/devnet-info.json")
