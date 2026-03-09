@@ -160,7 +160,7 @@ def get_version_info():
     for binary in ["./foc-devnet", "foc-devnet"]:
         try:
             result = subprocess.run(
-                [binary, "version"],
+                [binary, "version", "--noterminal"],
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -249,7 +249,7 @@ report_template = Template("""
 |-------------| ------------------------------------------------------------------- |
 | Type        | **$run_type**                                                           |
 | Date        | $date                                                               |
-| Status.     | PASS ✅:**$pass_count**, FAIL 🟥:**$fail_count**, Total:$total_count |
+| Status      | PASS ✅:**$pass_count**, FAIL 🟥:**$fail_count**, Total:$total_count |
 | CI run      | $ci_run_link                                                        |
 
 ## Versions info
