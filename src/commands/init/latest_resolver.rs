@@ -14,6 +14,9 @@ use crate::config::Location;
 use std::process::Command;
 use tracing::info;
 
+/// Prefix for the temporary bare-repo directory used during tag probing.
+const TEMP_DIR_PREFIX: &str = "foc-devnet-tag-probe-";
+
 /// Temporary bare git repo that deletes itself on drop.
 ///
 /// We use a bare repo (no checkout) so we never download actual file content —
@@ -23,9 +26,7 @@ struct TempBareRepo(std::path::PathBuf);
 
 impl TempBareRepo {
     fn create() -> Result<Self, Box<dyn std::error::Error>> {
-        let temp_dir = tempfile::Builder::new()
-            .prefix("foc-devnet-tag-probe-")
-            .tempdir()?;
+        let temp_dir = tempfile::Builder::new().prefix(TEMP_DIR_PREFIX).tempdir()?;
         let path = temp_dir.into_path();
         let status = Command::new("git")
             .args(["init", "--bare"])
@@ -67,44 +68,65 @@ pub fn resolve_location(location: Location) -> Result<Location, Box<dyn std::err
 
 /// Fetch the newest tag on `branch` from the remote at `url`.
 ///
-/// Steps:
-///   1. `git fetch --tags --filter=blob:none <url> refs/heads/<branch>`
-///      — pulls the branch ref and all tags without downloading any file blobs.
-///   2. `git tag --merged <branch> --sort=-creatordate`
-///      — lists tags reachable from that branch, newest first.
-///   3. Take the first line → that's the latest tag.
+/// Orchestrates: repo creation → ref fetch → tag listing → tag selection.
 fn fetch_latest_tag(url: &str, branch: &str) -> Result<String, Box<dyn std::error::Error>> {
     info!("Fetching newest tag on branch '{}' from {}", branch, url);
-
     let repo = TempBareRepo::create()?;
-    let refspec = format!("refs/heads/{b}:refs/heads/{b}", b = branch);
+    fetch_refs(&repo, url, branch)?;
+    let stdout = list_merged_tags(&repo, branch)?;
+    pick_first_tag(&stdout, branch, url)
+}
 
-    // Fetch branch + tags (no blobs — keeps it fast)
-    let fetch = Command::new("git")
+/// Run `git fetch --tags --filter=blob:none` to pull the branch ref and all
+/// tags without downloading any file blobs.
+fn fetch_refs(
+    repo: &TempBareRepo,
+    url: &str,
+    branch: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let refspec = format!("refs/heads/{b}:refs/heads/{b}", b = branch);
+    let status = Command::new("git")
         .args(["fetch", "--tags", "--filter=blob:none", url, &refspec])
         .current_dir(repo.path())
         .env("GIT_TERMINAL_PROMPT", "0")
         .status()?;
-    if !fetch.success() {
+    if !status.success() {
         return Err(format!("git fetch failed for {} (branch {})", url, branch).into());
     }
+    Ok(())
+}
 
-    // List tags reachable from the branch, newest first
-    let tags = Command::new("git")
+/// Run `git tag --merged <branch> --sort=-creatordate` and return stdout.
+///
+/// The output is a newline-separated list of tag names reachable from `branch`,
+/// ordered newest-first by creator date.
+fn list_merged_tags(
+    repo: &TempBareRepo,
+    branch: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let output = Command::new("git")
         .args(["tag", "--merged", branch, "--sort=-creatordate"])
         .current_dir(repo.path())
         .output()?;
-    if !tags.status.success() {
+    if !output.status.success() {
         return Err(format!(
             "git tag --merged {} failed: {}",
             branch,
-            String::from_utf8_lossy(&tags.stderr).trim()
+            String::from_utf8_lossy(&output.stderr).trim()
         )
         .into());
     }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
 
-    // First non-empty line is the newest tag
-    let stdout = String::from_utf8_lossy(&tags.stdout);
+/// Return the first non-empty line from `stdout` (the newest tag).
+///
+/// Example: given `"v1.35.0\nv1.34.0\n"` this returns `"v1.35.0"`.
+fn pick_first_tag(
+    stdout: &str,
+    branch: &str,
+    url: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
     stdout
         .lines()
         .map(str::trim)
