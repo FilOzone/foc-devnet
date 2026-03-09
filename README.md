@@ -62,9 +62,10 @@ cargo run -- init \
     --curio local:/home/user/code/curio \
     --filecoin-services local:/home/user/code/filecoin-services \
     --lotus local:/home/user/code/lotus \
-    --synapse-sdk local:/home/user/code/synapse-sdk \
-    --force
+    --synapse-sdk local:/home/user/code/synapse-sdk
 ```
+
+**Re-initializing?** Run `cargo run -- clean` first to remove existing state. Config is preserved by default; use `--all` to reset it too.
 
 ### Step 2: Build
 
@@ -188,7 +189,7 @@ Bundled with Portainer for browser-based Docker management—no terminal wizardr
 ## 🛠️ Need More?
 
 See **[README_ADVANCED.md](README_ADVANCED.md)** for comprehensive documentation on:
-- **All commands reference** (init, build, start, stop, status, version)
+- **All commands reference** (init, build, start, stop, clean, status, version)
 - **Configuration system** (config.toml structure, parameters, editing)
 - **Complete directory structure** (what's stored where and why)
 - **Resetting and cleanup** (manual cleanup, disk management)

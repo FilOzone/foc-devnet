@@ -81,10 +81,11 @@ pub fn create_poison(command: &str) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Remove the poison file after successful completion
-/// Does not do anything if the poison file does not exist.
+/// Remove the poison file after successful completion.
+/// Does not do anything if the poison file or state directory do not exist.
 pub fn remove_poison() -> Result<(), Box<dyn std::error::Error>> {
-    let poison_path = poison_file_path()?;
+    let state_dir = foc_devnet_state();
+    let poison_path = state_dir.join(".poison");
 
     if poison_path.exists() {
         fs::remove_file(&poison_path)?;

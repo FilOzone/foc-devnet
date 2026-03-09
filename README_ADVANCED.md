@@ -6,8 +6,29 @@ This guide covers advanced usage, internal architecture, and operational details
 
 ## Commands Reference
 
+### `clean`
+Removes foc-devnet state. Preserves `config.toml` by default so it can be reused on next `init`.
+
+```bash
+foc-devnet clean [OPTIONS]
+```
+
+**Options:**
+- `--all` - Also remove `config.toml`
+- `--images` - Also remove cached foc-* Docker images
+
+**Examples:**
+```bash
+foc-devnet clean               # Remove state, preserve config.toml
+foc-devnet clean --all         # Remove everything including config
+foc-devnet clean --images      # Remove state + Docker images
+foc-devnet clean --all --images # Full reset
+```
+
 ### `init`
 Initializes foc-devnet by downloading repositories, building Docker images, and preparing the environment.
+
+Requires a clean home directory. If existing state is present, `init` will refuse and ask you to run `clean` first. If a `config.toml` was preserved across `clean`, it is reused (with any CLI overrides applied on top).
 
 ```bash
 foc-devnet init [OPTIONS]
@@ -21,7 +42,6 @@ foc-devnet init [OPTIONS]
 - `--yugabyte-url <URL>` - Yugabyte download URL
 - `--yugabyte-archive <PATH>` - Local Yugabyte archive file
 - `--proof-params-dir <PATH>` - Local proof params directory
-- `--force` - Force regeneration of config file. Useful when switching between configurations.
 - `--rand` - Use random mnemonic instead of deterministic one. Use this for unique test scenarios.
 
 **Source Format:**
@@ -35,8 +55,7 @@ foc-devnet init [OPTIONS]
 ```bash
 foc-devnet init \
     --lotus local:/home/user/lotus \
-    --curio gitbranch:pdpv0 \
-    --force
+    --curio gitbranch:pdpv0
 ```
 
 ### `build`
@@ -266,8 +285,8 @@ tag = "synapse-sdk-v0.36.1"
 Defaults are defined in code (see [`src/config.rs`](src/config.rs) `Config::default()`) and written to `config.toml` during `init`. This means:
 
 - **First-time setup:** Running `foc-devnet init` creates `config.toml` with current defaults from code
-- **Updating defaults:** When a new version of `foc-devnet` includes updated defaults (e.g., newer Lotus version), run `foc-devnet init --force` to regenerate `config.toml` with the new defaults
-- **Preserving customizations:** After regenerating, you'll need to reapply any custom settings you had modified
+- **Updating defaults:** When a new version of `foc-devnet` includes updated defaults (e.g., newer Lotus version), run `foc-devnet clean --all` then `foc-devnet init` to regenerate `config.toml` with the new defaults
+- **Preserving config across re-init:** Running `foc-devnet clean` (without `--all`) preserves your `config.toml`, so a subsequent `init` reuses your existing settings
 - **Source of truth:** The code defines what defaults are available; `config.toml` stores your specific configuration
 
 ### Editing Config
@@ -276,8 +295,9 @@ Defaults are defined in code (see [`src/config.rs`](src/config.rs) `Config::defa
 # Edit manually
 vim ~/.foc-devnet/config.toml
 
-# Or use init --force to regenerate
-foc-devnet init --force
+# Or regenerate from defaults
+foc-devnet clean --all
+foc-devnet init
 ```
 
 ---
@@ -468,10 +488,9 @@ cd ~/.foc-devnet/docker/volumes/run-specific
 ls | grep --invert-match "$CURRENT_RUN" | xargs rm -rf
 ```
 
-**Complete nuclear reset (delete EVERYTHING including config):**
+**Complete reset (delete EVERYTHING including config):**
 ```bash
-# This deletes all runs, config, repos, binaries, keys - use with caution!
-rm -rf ~/.foc-devnet
+foc-devnet clean --all --images
 ```
 
 ---
@@ -820,8 +839,7 @@ foc-devnet init \
     --lotus local:/home/user/dev/lotus \
     --curio local:/home/user/dev/curio \
     --filecoin-services local:/home/user/dev/filecoin-services \
-    --synapse-sdk local:/home/user/dev/synapse-sdk \
-    --force
+    --synapse-sdk local:/home/user/dev/synapse-sdk
 ```
 
 **Mixed approach:**
@@ -829,8 +847,7 @@ foc-devnet init \
 ```bash
 foc-devnet init \
     --lotus gitbranch:master \
-    --curio local:/home/user/dev/curio \
-    --force
+    --curio local:/home/user/dev/curio
 ```
 
 ### Sharing Configuration
@@ -1195,7 +1212,8 @@ docker logs foc-<run-id>-lotus
 docker images | grep foc-lotus
 
 # Rebuild if needed
-foc-devnet init --force
+foc-devnet clean
+foc-devnet init
 ```
 
 ### Build failures

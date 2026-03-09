@@ -21,6 +21,15 @@ pub enum Commands {
     },
     /// Stop the local cluster
     Stop,
+    /// Remove foc-devnet state. Preserves config.toml unless --all is passed.
+    Clean {
+        /// Also remove config.toml
+        #[arg(long)]
+        all: bool,
+        /// Also remove cached foc-* Docker images
+        #[arg(long)]
+        images: bool,
+    },
     /// Initialize foc-devnet by building and caching Docker images
     Init {
         /// Curio source location (e.g., 'gittag:tag', 'gittag:url:tag', 'gitcommit:commit', 'gitcommit:url:commit', 'gitbranch:branch', 'gitbranch:url:branch', 'local:/path/to/curio')
@@ -41,9 +50,6 @@ pub enum Commands {
         /// Path to local filecoin-proof-params directory to use instead of downloading
         #[arg(long)]
         proof_params_dir: Option<String>,
-        /// Force regeneration of config file even if it exists
-        #[arg(long)]
-        force: bool,
         /// Use random mnemonic instead of deterministic one
         #[arg(long)]
         rand: bool,
