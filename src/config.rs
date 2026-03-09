@@ -235,7 +235,7 @@ impl Default for Config {
             },
             curio: Location::GitCommit {
                 url: "https://github.com/filecoin-project/curio.git".to_string(),
-                commit: "e109aec78165331efb035b341167674149976cb4".to_string(),
+                commit: "60f77a618eee24cd3482be5fea545e01f26052a4".to_string(),
             },
             filecoin_services: Location::GitCommit {
                 url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
