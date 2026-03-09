@@ -88,13 +88,14 @@ def _ensure_custom_python():
 
     npm_root = sh("npm root -g").strip()
     pkg_dir = Path(npm_root) / "@bjia56" / f"portable-python-{PYTHON_VERSION}"
+    py = ""
     if pkg_dir.exists():
         # look for any python binary under the package (handles headless builds)
         for p in pkg_dir.rglob("bin/python*"):
             py = str(p)
             break
 
-    if not py:
+    if not py or py == "":
         info(f"Installing custom python version {PYTHON_VERSION}")
         info(sh(f"npm i --global --silent @bjia56/portable-python-{PYTHON_VERSION}"))
 
@@ -104,7 +105,7 @@ def _ensure_custom_python():
             py = str(p)
             break
 
-    if not py:
+    if not py or py == "":
         raise RuntimeError(
             f"python {PYTHON_VERSION} not found after installation attempt"
         )
