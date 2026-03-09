@@ -204,6 +204,11 @@ def run():
             label="checkout master HEAD",
         ):
             return
+
+        # Report the git commit of synapse-sdk
+        sdk_commit = sh(f"git -C {sdk_dir} rev-parse HEAD")
+        info(f"synapse-sdk commit: {sdk_commit}")
+
         if not run_cmd(["pnpm", "install"], cwd=str(sdk_dir), label="pnpm install"):
             return
         if not run_cmd(["pnpm", "build"], cwd=str(sdk_dir), label="pnpm build"):
