@@ -27,7 +27,7 @@ struct TempBareRepo(std::path::PathBuf);
 impl TempBareRepo {
     fn create() -> Result<Self, Box<dyn std::error::Error>> {
         let temp_dir = tempfile::Builder::new().prefix(TEMP_DIR_PREFIX).tempdir()?;
-        let path = temp_dir.into_path();
+        let path = temp_dir.keep();
         let status = Command::new("git")
             .args(["init", "--bare"])
             .arg(&path)
