@@ -454,10 +454,7 @@ mod tests {
     #[test]
     fn latesttag_with_url() {
         assert_eq!(
-            canonicalize(&format!(
-                "latesttag:https://github.com/randomorg/randomrepo:v/*"
-            ))
-            .unwrap(),
+            canonicalize("latesttag:https://github.com/randomorg/randomrepo:v/*").unwrap(),
             (
                 "gittag".into(),
                 "https://github.com/randomorg/randomrepo".into(),
@@ -469,7 +466,7 @@ mod tests {
     #[test]
     fn latesttag_without_url() {
         assert_eq!(
-            canonicalize(&format!("latesttag:v/*")).unwrap(),
+            canonicalize("latesttag:v/*").unwrap(),
             ("gittag".into(), DEFAULT_URL.into(), "v1.0.0".into())
         );
     }
