@@ -18,16 +18,6 @@ use crate::docker::status::{get_container_start_time, get_running_foc_containers
 ///
 /// This function queries the lotus node to get the current block height of the chain.
 /// Returns `None` if the lotus container is not running or if the command fails.
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// use foc_devnet::commands::status::uptime::get_lotus_block_height;
-///
-/// if let Some(height) = get_lotus_block_height() {
-///     println!("Current block height: {}", height);
-/// }
-/// ```
 fn get_lotus_block_height() -> Option<u64> {
     let output = Command::new("docker")
         .args([
@@ -55,16 +45,6 @@ fn get_lotus_block_height() -> Option<u64> {
 /// Get the current CPU usage for foc- containers as a percentage.
 ///
 /// This function uses docker stats to get the CPU usage of all running foc- containers.
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// use foc_devnet::commands::status::uptime::get_containers_cpu_usage;
-///
-/// if let Some(cpu) = get_containers_cpu_usage() {
-///     println!("Containers CPU usage: {:.1}%", cpu);
-/// }
-/// ```
 fn get_containers_cpu_usage() -> Option<f32> {
     let output = Command::new("docker")
         .args([
@@ -101,16 +81,6 @@ fn get_containers_cpu_usage() -> Option<f32> {
 /// Get the current memory usage for foc- containers.
 ///
 /// This function returns a tuple of (used_memory_gb, total_limit_gb).
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// use foc_devnet::commands::status::uptime::get_containers_memory_usage;
-///
-/// if let Some((used, limit)) = get_containers_memory_usage() {
-///     println!("Containers memory: {:.1}GB / {:.1}GB", used, limit);
-/// }
-/// ```
 fn get_containers_memory_usage() -> Option<(f64, f64)> {
     let output = Command::new("docker")
         .args([

@@ -142,7 +142,7 @@ mod tests {
         let keys = generate_keys(false).unwrap();
 
         // Check that we have the expected number of keys
-        assert_eq!(keys.len(), 8); // 3 BLS + 5 Ethereum
+        assert_eq!(keys.len(), 14); // 3 BLS + 11 Ethereum
 
         // Check that BLS keys are present
         let bls_keys: Vec<_> = keys

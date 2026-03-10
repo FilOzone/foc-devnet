@@ -268,6 +268,11 @@ pub const CONTAINER_FILECOIN_PROOF_PARAMS_PATH: &str = "/var/tmp/filecoin-proof-
 mod tests {
     use super::*;
     use std::env;
+    use std::sync::Mutex;
+
+    /// Serializes all tests that mutate FOC_DEVNET_BASEDIR to prevent
+    /// race conditions when the test suite uses multiple threads.
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
     /// Helper to safely set and restore environment variables in tests
     struct EnvGuard {
@@ -297,6 +302,7 @@ mod tests {
 
     #[test]
     fn test_foc_devnet_home_with_custom_basedir() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         let _guard = EnvGuard::new("FOC_DEVNET_BASEDIR", Some("/tmp/my-foc-devnet"));
         let path = foc_devnet_home();
         assert_eq!(path, PathBuf::from("/tmp/my-foc-devnet"));
@@ -304,6 +310,7 @@ mod tests {
 
     #[test]
     fn test_foc_devnet_home_with_tilde_expansion() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         let _guard = EnvGuard::new("FOC_DEVNET_BASEDIR", Some("~/my-foc-devnet"));
         let path = foc_devnet_home();
 
@@ -315,6 +322,7 @@ mod tests {
 
     #[test]
     fn test_foc_devnet_home_with_empty_basedir() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         let _guard = EnvGuard::new("FOC_DEVNET_BASEDIR", Some(""));
         let path = foc_devnet_home();
 
@@ -327,6 +335,7 @@ mod tests {
 
     #[test]
     fn test_foc_devnet_home_with_whitespace_basedir() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         let _guard = EnvGuard::new("FOC_DEVNET_BASEDIR", Some("   "));
         let path = foc_devnet_home();
 
@@ -339,8 +348,8 @@ mod tests {
 
     #[test]
     fn test_foc_devnet_home_no_env_var() {
-        // Ensure the env var is not set before the test
-        env::remove_var("FOC_DEVNET_BASEDIR");
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let _guard = EnvGuard::new("FOC_DEVNET_BASEDIR", None);
 
         let path = foc_devnet_home();
 
@@ -353,6 +362,7 @@ mod tests {
 
     #[test]
     fn test_dependent_paths_use_foc_devnet_home() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         let _guard = EnvGuard::new("FOC_DEVNET_BASEDIR", Some("/tmp/test-foc"));
 
         // All dependent paths should use the custom base directory

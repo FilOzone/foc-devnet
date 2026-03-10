@@ -12,14 +12,6 @@ use std::net::TcpListener;
 ///
 /// The allocator tracks which ports have been assigned and ensures
 /// that each allocation is unique and within the configured range.
-///
-/// # Example
-///
-/// ```rust
-/// let mut allocator = PortAllocator::new(5700, 300)?;
-/// let lotus_api_port = allocator.allocate()?;  // Gets 5700
-/// let lotus_p2p_port = allocator.allocate()?;  // Gets 5701
-/// ```
 #[derive(Debug)]
 pub struct PortAllocator {
     /// Starting port of the range

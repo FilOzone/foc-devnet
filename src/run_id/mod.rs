@@ -35,12 +35,6 @@ pub const NOUNS: &[&str] = &[
 /// - ZanyPip is the random name (adjective + noun)
 ///
 /// Uses condensed ISO8601 format (no dashes or colons) for Docker network name compatibility.
-///
-/// # Example
-/// ```no_run
-/// let run_id = generate_run_id();
-/// println!("{}", run_id); // e.g., "20251215T2206_ZanyPip"
-/// ```
 pub fn generate_run_id() -> String {
     let now = Local::now();
     let datetime = now.format("%Y%m%dT%H%M");

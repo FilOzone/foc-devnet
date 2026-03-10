@@ -21,15 +21,6 @@ use crate::run_id::load_current_run_id;
 /// This function displays the status of all expected foc-devnet services,
 /// including Docker containers, their uptime, and port accessibility.
 /// If a run ID exists, it shows the actual container names with run ID prefix.
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// use foc_devnet::commands::status::running_status::print_running_status;
-///
-/// print_running_status().expect("Failed to print running status");
-/// ```
-///
 /// # Errors
 ///
 /// Returns an error if Docker commands fail.
@@ -188,15 +179,15 @@ mod tests {
     #[test]
     fn test_extract_base_image_name() {
         assert_eq!(
-            extract_base_image_name("foc-26jan02-1058_TizzyTike-lotus"),
+            extract_base_image_name("foc-20251215T2206_ZanyPip-lotus"),
             crate::constants::LOTUS_CONTAINER
         );
         assert_eq!(
-            extract_base_image_name("foc-26jan02-1058_TizzyTike-lotus-miner"),
+            extract_base_image_name("foc-20251215T2206_ZanyPip-lotus-miner"),
             crate::constants::LOTUS_MINER_CONTAINER
         );
         assert_eq!(
-            extract_base_image_name("foc-26jan02-1058_TizzyTike-curio-1"),
+            extract_base_image_name("foc-20251215T2206_ZanyPip-curio-1"),
             crate::constants::CURIO_CONTAINER
         );
         assert_eq!(

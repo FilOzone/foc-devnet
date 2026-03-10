@@ -18,24 +18,6 @@ use crate::config::Location;
 /// - Version/branch/tag information
 /// - Commit hash (shortened)
 /// - Status indicator ("Ready" or "Not Ready")
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// use foc_devnet::commands::status::git::formatters::format_location_info;
-/// use foc_devnet::commands::status::git::git_info::GitInfo;
-/// use foc_devnet::config::{Location, GitBranch};
-/// use std::path::Path;
-///
-/// let location = Location::GitBranch(GitBranch {
-///     url: "https://github.com/example/repo".to_string(),
-///     branch: "main".to_string(),
-/// });
-/// let git_info = GitInfo::Branch("main".to_string(), "abc123def456".to_string());
-/// let repo_path = Path::new("/path/to/repo");
-///
-/// let (source_type, version, commit, status) = format_location_info(&location, &git_info, repo_path);
-/// ```
 pub fn format_location_info(
     location: &Location,
     git_info: &GitInfo,
