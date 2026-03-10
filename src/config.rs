@@ -48,23 +48,34 @@ impl Location {
     /// Example: `resolveLatestTag("https://github.com/foo/bar.git", "v*")` might
     /// return `"v1.2.3"`.
     fn resolve_latest_tag(url: &str, selector: &str) -> Result<String, String> {
-        let output = std::process::Command::new("git")
-            .args([
-                "ls-remote",
-                "--tags",
-                "--sort=-version:refname",
-                url,
-                selector,
-            ])
-            .output()
-            .map_err(|e| format!("Failed to run git ls-remote: {}", e))?;
+        let stdout = {
+            #[cfg(not(test))]
+            {
+                let output = std::process::Command::new("git")
+                    .args([
+                        "ls-remote",
+                        "--tags",
+                        "--sort=-version:refname",
+                        url,
+                        selector,
+                    ])
+                    .output()
+                    .map_err(|e| format!("Failed to run git ls-remote: {}", e))?;
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("git ls-remote failed: {}", stderr.trim()));
-        }
+                if !output.status.success() {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    return Err(format!("git ls-remote failed: {}", stderr.trim()));
+                }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
+                String::from_utf8_lossy(&output.stdout).into_owned()
+            }
+
+            #[cfg(test)]
+            {
+                String::from("0000000000000 refs/tags/v1.0.0")
+            }
+        };
+
         let first_line = stdout
             .lines()
             .next()
@@ -84,8 +95,9 @@ impl Location {
 
     /// Canonicalizes the location from a set of following variants:
     ///
-    /// - `latesttag:<selector>`     — newest tag on specified selector (e.g. `latesttag:pdp/v*`)
-    /// - `latesttag:url:<selector>` — newest tag on specified selector (e.g. `latesttag:<url>:pdp/v*`)
+    /// - `latesttag`                — newest tag matching `*` (uses default URL)
+    /// - `latesttag:<selector>`     — newest tag matching selector (e.g. `latesttag:pdp/v*`)
+    /// - `latesttag:<url>:<selector>` — newest tag matching selector at a custom URL
     /// - `gittag:<tag>`             — (uses default URL)
     /// - `gitcommit:<commit>`       — (uses default URL)
     /// - `gitbranch:<branch>`       — (uses default URL)
@@ -104,6 +116,12 @@ impl Location {
         location: &str,
         default_url: &str,
     ) -> Result<(String, String, String), String> {
+        // Special case: bare "latesttag" with no selector — implicitly matches all tags.
+        if location == "latesttag" {
+            let tag = Self::resolve_latest_tag(default_url, "*")?;
+            return Ok(("gittag".into(), default_url.into(), tag));
+        }
+
         // We need to do this setup in two steps since otherwise
         // "gittag:https://github.com/orgs/repo:v1.2.0" would not be parseable
         // and split the <url> string itself in two parts
@@ -138,11 +156,12 @@ impl Location {
     /// May attempt to resolve `latesttag` if provided by reaching over the internet.
     ///
     /// Supported formats:
-    /// - `latesttag:<selector>`        — newest tag on specified selector (e.g. `latesttag:pdp/v*`)
-    /// - `latesttag:<url>:<selector>`  — newest tag on specified selector at a URL (e.g. `latesttag:<url>:pdp/v*`)
-    /// - `gittag:<tag>`                — (uses default URL)
-    /// - `gitcommit:<commit>`          — (uses default URL)
-    /// - `gitbranch:<branch>`          — (uses default URL)
+    /// - `latesttag`                       — newest tag (uses default URL, matches `*`)
+    /// - `latesttag:<selector>`            — newest tag matching selector (e.g. `latesttag:pdp/v*`)
+    /// - `latesttag:<url>:<selector>`      — newest tag matching selector at a custom URL
+    /// - `gittag:<tag>`                    — (uses default URL)
+    /// - `gitcommit:<commit>`              — (uses default URL)
+    /// - `gitbranch:<branch>`              — (uses default URL)
     /// - `local:<dir>`
     /// - `gittag:<url>:<tag>`
     /// - `gitcommit:<url>:<commit>`
@@ -429,6 +448,37 @@ mod tests {
                 DEFAULT_URL.into(),
                 "/home/user/my-project".into()
             )
+        );
+    }
+
+    #[test]
+    fn latesttag_with_url() {
+        assert_eq!(
+            canonicalize(&format!(
+                "latesttag:https://github.com/randomorg/randomrepo:v/*"
+            ))
+            .unwrap(),
+            (
+                "gittag".into(),
+                "https://github.com/randomorg/randomrepo".into(),
+                "v1.0.0".into()
+            )
+        );
+    }
+
+    #[test]
+    fn latesttag_without_url() {
+        assert_eq!(
+            canonicalize(&format!("latesttag:v/*")).unwrap(),
+            ("gittag".into(), DEFAULT_URL.into(), "v1.0.0".into())
+        );
+    }
+
+    #[test]
+    fn latesttag_without_url_without_selector() {
+        assert_eq!(
+            canonicalize("latesttag").unwrap(),
+            ("gittag".into(), DEFAULT_URL.into(), "v1.0.0".into())
         );
     }
 

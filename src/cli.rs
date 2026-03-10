@@ -24,21 +24,24 @@ pub enum Commands {
     /// Initialize foc-devnet by building and caching Docker images
     Init {
         /// Curio source location.
-        /// Magic values: 'latesttag:<branch>' (newest tag on given branch).
+        /// Latest tag: 'latesttag' (newest), 'latesttag:<selector>' (e.g. 'latesttag:pdp/v*'),
+        /// 'latesttag:<url>:<selector>' (custom repo). Resolved once at init.
         /// Explicit: 'gittag:<tag>', 'gittag:<url>:<tag>', 'gitcommit:<sha>',
         /// 'gitcommit:<url>:<sha>', 'gitbranch:<branch>', 'gitbranch:<url>:<branch>',
         /// 'local:/path/to/curio'.
         #[arg(long)]
         curio: Option<String>,
         /// Lotus source location.
-        /// Magic values: 'latesttag:<branch>' (newest tag on given branch).
+        /// Latest tag: 'latesttag' (newest), 'latesttag:<selector>' (e.g. 'latesttag:v/*'),
+        /// 'latesttag:<url>:<selector>' (custom repo). Resolved once at init.
         /// Explicit: 'gittag:<tag>', 'gittag:<url>:<tag>', 'gitcommit:<sha>',
         /// 'gitcommit:<url>:<sha>', 'gitbranch:<branch>', 'gitbranch:<url>:<branch>',
         /// 'local:/path/to/lotus'.
         #[arg(long)]
         lotus: Option<String>,
         /// Filecoin Services source location.
-        /// Magic values: 'latesttag:<branch>' (newest tag on given branch).
+        /// Latest tag: 'latesttag' (newest), 'latesttag:<selector>' (e.g. 'latesttag:v/*'),
+        /// 'latesttag:<url>:<selector>' (custom repo). Resolved once at init.
         /// Explicit: 'gittag:<tag>', 'gittag:<url>:<tag>', 'gitcommit:<sha>',
         /// 'gitcommit:<url>:<sha>', 'gitbranch:<branch>', 'gitbranch:<url>:<branch>',
         /// 'local:/path/to/filecoin-services'.
@@ -94,12 +97,12 @@ pub enum BuildCommands {
 pub enum ConfigCommands {
     /// Configure Lotus source location
     Lotus {
-        /// Lotus source location (e.g., 'latesttag:master', 'gittag:v1.0.0', 'gitcommit:abc123', 'gitbranch:main', 'local:/path/to/lotus')
+        /// Lotus source location (e.g., 'latesttag', 'latesttag:v/*', 'latesttag:<url>:v/*', 'gittag:v1.0.0', 'gitcommit:abc123', 'gitbranch:main', 'local:/path/to/lotus')
         source: String,
     },
     /// Configure Curio source location
     Curio {
-        /// Curio source location (e.g., 'latesttag:pdpv0', 'gittag:v1.0.0', 'gitcommit:abc123', 'gitbranch:main', 'local:/path/to/curio')
+        /// Curio source location (e.g., 'latesttag', 'latesttag:pdp/v*', 'latesttag:<url>:pdp/v*', 'gittag:v1.0.0', 'gitcommit:abc123', 'gitbranch:main', 'local:/path/to/curio')
         source: String,
     },
 }
