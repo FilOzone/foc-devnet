@@ -1288,3 +1288,26 @@ docker run --rm --network host \
   --broadcast
 ```
 
+## Scenario Tests
+
+Scenario tests are Python scripts that validate devnet state after startup. They share a single running devnet and execute serially in a defined order. The runner lives in `scenarios/` and uses **only Python stdlib** — no `pip install` required.
+
+### Running scenarios
+
+```bash
+# Run all scenarios
+python3 scenarios/run.py
+
+# Run a single scenario directly
+python3 scenarios/test_basic_balances.py
+
+# Point at a specific devnet run
+DEVNET_INFO=~/.foc-devnet/state/<run-id>/devnet-info.json python3 scenarios/run.py
+```
+
+Reports are written to `~/.foc-devnet/state/latest/scenario_report.md`.
+
+### CI integration
+
+Scenarios run automatically in CI after the devnet starts. On nightly runs (or manual dispatch with `reporting` enabled), failures automatically create a GitHub issue with a full report.
+
