@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             main_app::command_handlers::handle_build(build_command)
         }
         Commands::Status => main_app::command_handlers::handle_status(),
-        Commands::Version { noterminal } => main_app::version::handle_version(noterminal),
+        Commands::Version { notty } => main_app::version::handle_version(notty),
     };
 
     // Handle the result

@@ -4,6 +4,7 @@
 
 use foc_devnet::config::{Config, Location};
 use foc_devnet::version_info::VersionInfo;
+use std::io::IsTerminal;
 use tracing::info;
 
 /// Emit a line either as a tracing INFO event or a plain println.
@@ -19,8 +20,10 @@ macro_rules! emit {
 
 /// Execute the version command.
 ///
-/// When `noterminal` is true, output is printed without tracing prefixes.
-pub fn handle_version(noterminal: bool) -> Result<(), Box<dyn std::error::Error>> {
+/// Plain output (no tracing prefixes) is used when stdout is not a terminal,
+/// or when `notty` is `true` (explicit override).
+pub fn handle_version(notty: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let plain = notty || !std::io::stdout().is_terminal();
     // Version information is read-only, no poison protection needed
     let version_info = VersionInfo::from_env();
     let dirty_suffix = if version_info.dirty.is_empty() {
@@ -29,46 +32,33 @@ pub fn handle_version(noterminal: bool) -> Result<(), Box<dyn std::error::Error>
         "-dirty"
     };
 
-    emit!(noterminal, "foc-devnet {}", version_info.version);
-    emit!(
-        noterminal,
-        "Commit: {}{}",
-        version_info.commit,
-        dirty_suffix
-    );
-    emit!(noterminal, "Branch: {}", version_info.branch);
+    emit!(plain, "foc-devnet {}", version_info.version);
+    emit!(plain, "Commit: {}{}", version_info.commit, dirty_suffix);
+    emit!(plain, "Branch: {}", version_info.branch);
 
     let relative_time =
         format_relative_time(chrono::Utc::now().timestamp() - version_info.build_timestamp);
 
     emit!(
-        noterminal,
+        plain,
         "Built (UTC): {} {}",
         version_info.build_time_utc,
         relative_time
     );
-    emit!(
-        noterminal,
-        "Built (Local): {}",
-        version_info.build_time_local
-    );
+    emit!(plain, "Built (Local): {}", version_info.build_time_local);
 
     let default_config = Config::default();
-    emit!(noterminal, "");
-    print_location_info(noterminal, "default:code:lotus", &default_config.lotus);
-    print_location_info(noterminal, "default:code:curio", &default_config.curio);
+    emit!(plain, "");
+    print_location_info(plain, "default:code:lotus", &default_config.lotus);
+    print_location_info(plain, "default:code:curio", &default_config.curio);
     print_location_info(
-        noterminal,
+        plain,
         "default:code:filecoin-services",
         &default_config.filecoin_services,
     );
-    print_location_info(
-        noterminal,
-        "default:code:multicall3",
-        &default_config.multicall3,
-    );
+    print_location_info(plain, "default:code:multicall3", &default_config.multicall3);
     emit!(
-        noterminal,
+        plain,
         "default:yugabyte: {}",
         default_config.yugabyte_download_url
     );

@@ -60,9 +60,9 @@ pub enum Commands {
     Status,
     /// Show version information
     Version {
-        /// Print plain output without tracing prefixes
+        /// Force plain output without tracing prefixes, even when stdout is a terminal
         #[arg(long)]
-        noterminal: bool,
+        notty: bool,
     },
 }
 
