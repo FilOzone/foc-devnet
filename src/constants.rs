@@ -32,12 +32,12 @@ pub const REQUIRED_DOCKER_IMAGES: &[&str] = &[
 ];
 
 /// Docker container names (base - will be prefixed with foc-c-<RUN_ID>- in practice)
-pub const LOTUS_CONTAINER: &str = "foc-c-lotus";
-pub const LOTUS_MINER_CONTAINER: &str = "foc-c-lotus-miner";
-pub const BUILDER_CONTAINER: &str = "foc-c-builder";
-pub const YUGABYTE_CONTAINER: &str = "foc-c-yugabyte";
-pub const CURIO_CONTAINER: &str = "foc-c-curio";
-pub const PORTAINER_CONTAINER: &str = "foc-c-portainer";
+pub const LOTUS_CONTAINER: &str = "foc-lotus";
+pub const LOTUS_MINER_CONTAINER: &str = "foc-lotus-miner";
+pub const BUILDER_CONTAINER: &str = "foc-builder";
+pub const YUGABYTE_CONTAINER: &str = "foc-yugabyte";
+pub const CURIO_CONTAINER: &str = "foc-curio";
+pub const PORTAINER_CONTAINER: &str = "foc-portainer";
 
 /// Port numbers
 pub const LOTUS_RPC_PORT: u16 = 1234;

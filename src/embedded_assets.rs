@@ -39,14 +39,6 @@ pub static MOCKUSDFC_ARCHIVE: &[u8] = include_bytes!("../artifacts/MockUSDFC.tar
 /// # Returns
 ///
 /// Returns `Ok(())` if extraction succeeds, or an error if extraction fails
-///
-/// # Example
-///
-/// ```no_run
-/// use std::path::PathBuf;
-/// let temp_dir = PathBuf::from("/tmp/mockusdfc");
-/// extract_mockusdfc_project(&temp_dir)?;
-/// ```
 pub fn extract_mockusdfc_project(target_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
     // Create target directory if it doesn't exist
     fs::create_dir_all(target_dir)?;

@@ -25,28 +25,7 @@ use crate::port_allocator::PortAllocator;
 /// Steps should use the context to communicate important information to downstream steps:
 /// - **Early steps** write values using `context.set(key, value)`
 /// - **Later steps** read values using `context.get(key)`
-///
-/// # Example
-///
-/// ```rust
-/// // Step 1: ETHAccFundingStep creates an address and stores it
-/// fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
-///     let deployer_address = create_deployer_address()?;
-///     context.set("deployer_mockusdfc_eth_address", &deployer_address);
-///     Ok(())
-/// }
-///
-/// // Step 2: USDFCDeployStep reads the address and uses it
-/// fn execute(&self, context: &SetupContext) -> Result<(), Box<dyn Error>> {
-///     let deployer_address = context
-///         .get("deployer_mockusdfc_eth_address")
-///         .ok_or("Deployer address not found")?;
-///     
-///     let contract_address = deploy_contract(&deployer_address)?;
-///     context.set("mockusdfc_contract_address", &contract_address);
-///     Ok(())
-/// }
-/// ```
+
 #[derive(Debug, Clone)]
 pub struct SetupContext {
     /// Shared state that can be passed between steps (thread-safe)
@@ -150,13 +129,6 @@ impl SetupContext {
     /// # Arguments
     /// * `key` - The key to store the command under (free-form, e.g., "lotus_start", "deploy_mockusdfc")
     /// * `command_str` - The formatted command string (e.g., "docker run -it ubuntu")
-    ///
-    /// # Example
-    /// ```
-    /// context.save_command("lotus_container_create", "docker run -d [LOTUS_CONTAINER]");
-    /// // Stored as: "lotus_container_create" = "docker run -d [LOTUS_CONTAINER]"
-    /// // Also appended to: "command_history" list
-    /// ```
     pub fn save_command(&self, key: &str, command_str: &str) {
         {
             let mut state = self.state.lock().expect("Failed to lock state");

@@ -45,13 +45,6 @@ impl VersionInfo {
 /// # Arguments
 /// * `dir` - Directory where version.txt will be created
 /// * `version_info` - Version information to write
-///
-/// # Example
-/// ```no_run
-/// use std::path::PathBuf;
-/// let version_info = VersionInfo::from_env();
-/// write_version_file(&PathBuf::from("/tmp/logs"), &version_info).unwrap();
-/// ```
 pub fn write_version_file(dir: &Path, version_info: &VersionInfo) -> Result<(), Box<dyn Error>> {
     let version_file = dir.join("version.txt");
 
