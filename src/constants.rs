@@ -96,6 +96,9 @@ pub const ENV_FOC_DEVNET_CONTRACT_MULTICALL: &str = "FOC_CONTRACT_MULTICALL";
 pub const ENV_FOC_DEVNET_CONTRACT_SIMPLE: &str = "FOC_CONTRACT_SIMPLE";
 pub const ENV_FOC_DEVNET_CONTRACT_USDFC: &str = "FOC_CONTRACT_USDFC";
 
+/// Curio logging configuration
+pub const CURIO_LOG_LEVEL: &str = "GOLOG_LOG_LEVEL=pdp=debug";
+
 /// File paths within containers
 pub const LOTUS_BINARY_PATH: &str = "/usr/local/bin/lotus-bins/lotus";
 pub const LOTUS_MINER_BINARY_PATH: &str = "/usr/local/bin/lotus-bins/lotus-miner";
