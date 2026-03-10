@@ -1,0 +1,53 @@
+---
+# Runs on a nightly schedule (and optionally via manual dispatch).
+#
+# Executes the full CI matrix: stability (latest tags) and frontier
+# (latest branches). Both runs file GitHub issues with their results
+# unless manually suppressed via workflow_dispatch inputs.
+
+name: CI (Nightly)
+
+on:
+  schedule:
+    # Nightly at 03:00 UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      reporting:
+        description: 'Create GitHub issue with scenario report'
+        type: boolean
+        default: false
+      skip_report_on_pass:
+        description: 'Skip filing issue when all scenarios pass'
+        type: boolean
+        default: true
+
+jobs:
+  foc-devnet-test:
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - name: stability
+            init_flags: "--curio latesttag:pdpv0 --filecoin-services latesttag:main"
+            issue_label: scenarios-run-stability
+            issue_title: "FOC Devnet scenarios run report (stability)"
+          - name: frontier
+            init_flags: "--curio gitbranch:pdpv0 --filecoin-services gitbranch:main"
+            issue_label: scenarios-run-frontier
+            issue_title: "FOC Devnet scenarios run report (frontier)"
+    uses: ./.github/workflows/ci_run.yml
+    with:
+      name: ${{ matrix.name }}
+      init_flags: ${{ matrix.init_flags }}
+      # Reporting is always on for scheduled runs; for manual dispatch it follows the input.
+      enable_reporting: ${{ github.event_name == 'schedule' || inputs.reporting == true }}
+      # On scheduled runs, such as nightly `inputs.skip_report_on_pass` is absent (empty string), so we cannot rely
+      # on it directly. The LHS of || short-circuits to true for any non-dispatch trigger, giving
+      # the desired default (skip on pass). For workflow_dispatch the LHS is false, so the user's
+      # choice in inputs.skip_report_on_pass takes effect.
+      skip_report_on_pass: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_report_on_pass }}
+      issue_label: ${{ matrix.issue_label }}
+      issue_title: ${{ matrix.issue_title }}
+    secrets: inherit
