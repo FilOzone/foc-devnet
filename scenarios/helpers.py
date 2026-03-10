@@ -15,6 +15,9 @@ _log_lines: list = []
 DEVNET_INFO = os.environ.get(
     "DEVNET_INFO", os.path.expanduser("~/.foc-devnet/state/latest/devnet-info.json")
 )
+FOUNDRY_BIN = Path.home() / ".foc-devnet" / "artifacts" / "foundry" / "bin"
+CAST = str(FOUNDRY_BIN / "cast")
+FORGE = str(FOUNDRY_BIN / "forge")
 
 # ── Logging ──────────────────────────────────────────────────
 

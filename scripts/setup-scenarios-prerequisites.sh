@@ -25,13 +25,25 @@ fail()  { printf "${RED}✗${NC} %s\n" "$1"; exit 1; }
 info()  { printf "${BLUE}ℹ${NC} %s\n" "$1"; }
 
 # ── Constants ────────────────────────────────────────────────
+FOUNDRY_VERSION="v1.6.0-rc1"
+PYENV_VERSION="v2.5.3"
 CASSANDRA_VERSION="5.0.6"
 PYTHON_VERSION="3.11.15"
 PYENV_ROOT="${PYENV_ROOT:-$HOME/.pyenv}"
 PYTHON_BIN="${PYENV_ROOT}/versions/${PYTHON_VERSION}/bin/python3"
 CASSANDRA_URL="https://dlcdn.apache.org/cassandra/${CASSANDRA_VERSION}/apache-cassandra-${CASSANDRA_VERSION}-bin.tar.gz"
 CASSANDRA_DIR="$HOME/.foc-devnet/artifacts/cassandra"
+FOUNDRY_DIR="$HOME/.foc-devnet/artifacts/foundry/bin"
 CASSANDRA_HOME="${CASSANDRA_DIR}/apache-cassandra-${CASSANDRA_VERSION}"
+
+verify_checksum() {
+  local file="$1" expected="$2"
+  local actual
+  actual=$(sha256sum "$file" | awk '{print $1}')
+  if [[ "$actual" != "$expected" ]]; then
+    fail "Checksum mismatch for $file (got $actual, want $expected)"
+  fi
+}
 
 # ── 0. Verify basic system tools ────────────────────────────
 info "Checking basic system tools..."
@@ -47,17 +59,31 @@ done
 # ── 1. Foundry (cast / forge) ───────────────────────────────
 info "Checking Foundry..."
 
-if command -v cast &>/dev/null; then
-  pass "Foundry already installed (cast @ $(command -v cast))"
+CAST="$FOUNDRY_DIR/cast"
+
+if [[ -x "$CAST" ]]; then
+  pass "Foundry already installed (cast @ $CAST)"
 else
-  info "Installing Foundry..."
-  curl -sSL https://foundry.paradigm.xyz | bash
-  export PATH="$HOME/.foundry/bin:$PATH"
-  "$HOME/.foundry/bin/foundryup"
-  if command -v cast &>/dev/null; then
+  info "Installing Foundry ${FOUNDRY_VERSION} to $FOUNDRY_DIR..."
+  mkdir -p "$FOUNDRY_DIR"
+  ARCH="$(uname -m)"
+  case "$ARCH" in
+    x86_64)  ARCH="amd64" ;;
+    aarch64|arm64) ARCH="arm64" ;;
+    *) fail "Unsupported architecture: $ARCH" ;;
+  esac
+  OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  TARBALL_NAME="foundry_${FOUNDRY_VERSION}_${OS}_${ARCH}.tar.gz"
+  TARBALL_URL="https://github.com/foundry-rs/foundry/releases/download/${FOUNDRY_VERSION}/${TARBALL_NAME}"
+  TARBALL_PATH="/tmp/${TARBALL_NAME}"
+  info "Downloading $TARBALL_URL"
+  curl -fsSL -o "$TARBALL_PATH" "$TARBALL_URL"
+  tar -xzf "$TARBALL_PATH" -C "$FOUNDRY_DIR"
+  rm -f "$TARBALL_PATH"
+  if [[ -x "$CAST" ]]; then
     pass "Foundry installed successfully"
   else
-    fail "Foundry installation failed — cast not found on PATH"
+    fail "Foundry installation failed — cast not found at $CAST"
   fi
 fi
 
@@ -74,8 +100,13 @@ else
     if [[ -x "${PYENV_ROOT}/bin/pyenv" ]]; then
       export PATH="${PYENV_ROOT}/bin:$PATH"
     else
-      info "Installing pyenv..."
-      curl -fsSL https://pyenv.run | bash
+      info "Installing pyenv ${PYENV_VERSION} from GitHub tarball..."
+      PYENV_TARBALL="/tmp/pyenv-${PYENV_VERSION}.tar.gz"
+      curl -fsSL -o "$PYENV_TARBALL" \
+        "https://github.com/pyenv/pyenv/archive/refs/tags/${PYENV_VERSION}.tar.gz"
+      mkdir -p "${PYENV_ROOT}"
+      tar -xzf "$PYENV_TARBALL" -C "${PYENV_ROOT}" --strip-components=1
+      rm -f "$PYENV_TARBALL"
       export PATH="${PYENV_ROOT}/bin:$PATH"
     fi
   fi
