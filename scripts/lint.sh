@@ -15,9 +15,9 @@ if command -v cargo &>/dev/null; then
   if [[ "$FIX" == "1" ]]; then
     cargo fmt --all && pass "cargo fmt" || fail "cargo fmt"
   else
-    cargo fmt --all -- --check &>/dev/null && pass "cargo fmt" || fail "cargo fmt (run lint.sh to fix)"
+    cargo fmt --all -- --check && pass "cargo fmt" || fail "cargo fmt (run lint.sh to fix)"
   fi
-  cargo clippy --all-targets --all-features -- -D warnings &>/dev/null && pass "cargo clippy" || fail "cargo clippy"
+  cargo clippy --all-targets --all-features -- -D warnings && pass "cargo clippy" || fail "cargo clippy"
 else
   skip "cargo"
 fi
@@ -25,9 +25,9 @@ fi
 if find scenarios -name '*.py' 2>/dev/null | grep -q .; then
   if command -v black &>/dev/null; then
     if [[ "$FIX" == "1" ]]; then
-      black scenarios/ &>/dev/null && pass "black" || fail "black"
+      black scenarios/ && pass "black" || fail "black"
     else
-      black --check scenarios/ &>/dev/null && pass "black" || fail "black (run lint.sh to fix)"
+      black --check scenarios/ && pass "black" || fail "black (run lint.sh to fix)"
     fi
   else
     skip "black (pip install black)"
