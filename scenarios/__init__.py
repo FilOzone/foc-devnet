@@ -1,1 +1,1 @@
-# scenarios_py package
+# scenarios package

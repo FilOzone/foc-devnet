@@ -1,22 +1,17 @@
 #!/usr/bin/env python3
-# Verifies all devnet containers are running and no unexpected foc-* containers exist.
-import os
-import sys
+"""Verifies all devnet containers are running."""
 
-# Ensure the project root (parent of scenarios/) is on sys.path
-_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _project_root not in sys.path:
-    sys.path.insert(0, _project_root)
+import os, sys  # noqa: E401
 
-from scenarios.run import *
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from scenarios.helpers import assert_eq, devnet_info, sh
 
 
 def run():
     d = devnet_info()["info"]
-
     expected = [d["lotus"]["container_name"], d["lotus_miner"]["container_name"]]
-    sps = d.get("pdp_sps", [])
-    for sp in sps:
+    for sp in d.get("pdp_sps", []):
         expected.append(sp["container_name"])
 
     for name in expected:

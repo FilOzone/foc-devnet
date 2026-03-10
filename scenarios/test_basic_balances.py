@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
-# Verifies every devnet user has a positive FIL and USDFC balance.
-import os
-import sys
+"""Verifies every devnet user has a positive FIL and USDFC balance."""
 
-# Ensure the project root (parent of scenarios/) is on sys.path
-_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _project_root not in sys.path:
-    sys.path.insert(0, _project_root)
+import os, sys  # noqa: E401
 
-from scenarios.run import *
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from scenarios.helpers import assert_gt, assert_ok, devnet_info, sh
 
 
 def run():
