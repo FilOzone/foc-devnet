@@ -50,13 +50,6 @@ pub fn prepare_repository(
             prepare_git_repo(&repo_path, url)?;
             checkout_branch(&repo_path, branch)?;
         }
-        Location::LatestTag { .. } => {
-            return Err(format!(
-                "{}: LatestTag should have been resolved at init time",
-                project
-            )
-            .into());
-        }
     }
 
     info!("Repository prepared successfully");
