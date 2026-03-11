@@ -125,7 +125,7 @@ impl Location {
         // We need to do this setup in two steps since otherwise
         // "gittag:https://github.com/orgs/repo:v1.2.0" would not be parseable
         // and split the <url> string itself in two parts
-        let (mut location_type, remaining) = location.split_once(':').ok_or_else(|| {
+        let (location_type, remaining) = location.split_once(':').ok_or_else(|| {
             format!(
                 "Invalid location format: '{}'. Expected \
                  'latesttag:<selector>', or 'gittag/gitcommit/gitbranch/local:...'",
@@ -135,18 +135,16 @@ impl Location {
 
         // If the remaining part contains another ':', the portion before the last ':'
         // is the URL and everything after is the value (handles HTTPS URLs with colons).
-        let (url, mut selector) = if let Some(colon_pos) = remaining.rfind(':') {
+        let (url, selector) = if let Some(colon_pos) = remaining.rfind(':') {
             (&remaining[..colon_pos], &remaining[colon_pos + 1..])
         } else {
             (default_url, remaining)
         };
 
         // Special case: latesttag resolution into GitTag
-        let resolved_tag; // must outlive the match below
         if location_type == "latesttag" {
-            resolved_tag = Self::resolve_latest_tag(url, selector)?;
-            selector = resolved_tag.as_str();
-            location_type = "gittag";
+            let tag = Self::resolve_latest_tag(url, selector)?;
+            return Ok(("gittag".into(), url.into(), tag));
         }
 
         Ok((location_type.into(), url.into(), selector.into()))
