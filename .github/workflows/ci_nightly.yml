@@ -30,7 +30,7 @@ jobs:
       matrix:
         include:
           - name: stability
-            init_flags: "--curio latesttag:pdpv0 --filecoin-services latesttag:main"
+            init_flags: "--curio latesttag:pdp/v* --filecoin-services latesttag:v*"
             issue_label: scenarios-run-stability
             issue_title: "FOC Devnet scenarios run report (stability)"
           - name: frontier
