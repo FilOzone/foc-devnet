@@ -16,12 +16,6 @@ use std::process::{Command, Output};
 ///
 /// # Returns
 /// A formatted string representation of the command
-///
-/// # Example
-/// ```
-/// let cmd = format_command("docker", &["run", "-it", "ubuntu"]);
-/// // Returns: "docker run -it ubuntu"
-/// ```
 pub fn format_command(program: &str, args: &[&str]) -> String {
     let mut cmd = program.to_string();
     for arg in args {

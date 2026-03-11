@@ -15,12 +15,12 @@ use crate::paths::foc_devnet_code;
 ///
 /// ```rust,no_run
 /// use foc_devnet::commands::status::git::repo_paths::get_repo_path_from_config;
-/// use foc_devnet::config::{Location, GitBranch};
+/// use foc_devnet::config::Location;
 ///
-/// let location = Location::GitBranch(GitBranch {
+/// let location = Location::GitBranch {
 ///     url: "https://github.com/example/repo".to_string(),
 ///     branch: "main".to_string(),
-/// });
+/// };
 /// let path = get_repo_path_from_config(&location, "component");
 /// ```
 ///

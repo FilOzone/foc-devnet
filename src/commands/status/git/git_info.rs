@@ -24,23 +24,6 @@ pub enum GitInfo {
 ///
 /// This function attempts to determine the current git state of a repository
 /// by checking for tags, branches, and commit hashes in order of preference.
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// use foc_devnet::commands::status::git::git_info::get_git_info;
-/// use std::path::Path;
-///
-/// let repo_path = Path::new("/path/to/repo");
-/// let info = get_git_info(repo_path).unwrap();
-/// match info {
-///     GitInfo::Tag(tag) => println!("On tag: {}", tag),
-///     GitInfo::Branch(branch, commit) => println!("On branch {} at {}", branch, commit),
-///     GitInfo::Commit(commit) => println!("At commit {}", commit),
-///     GitInfo::None => println!("No git info available"),
-/// }
-/// ```
-///
 /// # Errors
 ///
 /// Returns an error if git commands fail to execute or if the repository path is invalid.

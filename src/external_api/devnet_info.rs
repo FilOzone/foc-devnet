@@ -140,4 +140,6 @@ pub struct YugabyteInfo {
     pub master_rpc_port: u16,
     /// YSQL port for Postgres-compatible connections
     pub ysql_port: u16,
+    /// YCQL port for Cassandra-compatible connections
+    pub ycql_port: u16,
 }

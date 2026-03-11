@@ -286,10 +286,19 @@ fn build_yugabyte_info(
             provider_id
         ))?;
 
+    let ycql_port: u16 = ctx
+        .get(&format!("yugabyte_{}_ycql_port", provider_id))
+        .and_then(|p| p.parse().ok())
+        .ok_or(format!(
+            "yugabyte_{}_ycql_port not found or invalid in context",
+            provider_id
+        ))?;
+
     Ok(YugabyteInfo {
         web_ui_url: format!("http://localhost:{}", web_ui_port),
         master_rpc_port,
         ysql_port,
+        ycql_port,
     })
 }
 

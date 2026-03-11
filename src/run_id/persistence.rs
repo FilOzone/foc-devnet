@@ -29,11 +29,6 @@ fn current_run_id_file() -> PathBuf {
 ///
 /// # Returns
 /// Ok(()) on success, error on failure
-///
-/// # Example
-/// ```no_run
-/// save_current_run_id("251203-1246-thirsty-wolf")?;
-/// ```
 pub fn save_current_run_id(run_id: &str) -> Result<(), Box<dyn Error>> {
     let state_dir = crate::paths::foc_devnet_state();
     fs::create_dir_all(&state_dir)?;
@@ -54,12 +49,6 @@ pub fn save_current_run_id(run_id: &str) -> Result<(), Box<dyn Error>> {
 ///
 /// # Returns
 /// The run ID on success, error if file doesn't exist or can't be parsed
-///
-/// # Example
-/// ```no_run
-/// let run_id = load_current_run_id()?;
-/// println!("Current run: {}", run_id);
-/// ```
 pub fn load_current_run_id() -> Result<String, Box<dyn Error>> {
     let file_path = current_run_id_file();
 

@@ -96,13 +96,16 @@ fn spawn_yugabyte_instance(
 
     // Add YugabyteDB startup command with full configuration
     // CRITICAL: --base_dir must match the volume mount location
+    // NOTE: --advertise_address is intentionally omitted. Setting it to 0.0.0.0 caused
+    // seed DDL via yugabyted to succeed but left the YCQL/YSQL proxies unreachable from
+    // other containers. Without --advertise_address, yugabyted auto-detects the container's
+    // IP on the Docker bridge network, which is reachable by other containers on the same network.
     docker_args.extend_from_slice(&[
         "/yugabyte/bin/yugabyted",
         "start",
         "--base_dir=/home/foc-user/yb_base",
         "--ui=true",
         "--callhome=false",
-        "--advertise_address=0.0.0.0",
         "--master_flags=rpc_bind_addresses=0.0.0.0",
         "--tserver_flags=rpc_bind_addresses=0.0.0.0,pgsql_proxy_bind_address=0.0.0.0:5433,cql_proxy_bind_address=0.0.0.0:9042",
         "--daemon=false",
