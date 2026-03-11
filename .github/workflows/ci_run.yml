@@ -456,7 +456,7 @@ jobs:
       if: always() && inputs.enable_reporting
       run: |
         if [[ "${{ steps.start_cluster.outcome }}" == "success" && \
-              "${{ steps.scenario_tests.outcome }}" != "failure" ]]; then
+              "${{ steps.scenario_tests.outcome }}" == "success" ]]; then
           PASSED="true"
         else
           PASSED="false"
