@@ -466,7 +466,7 @@ mod tests {
     #[test]
     fn latesttag_without_url() {
         assert_eq!(
-            canonicalize("latesttag:v/*").unwrap(),
+            canonicalize("latesttag:v*").unwrap(),
             ("gittag".into(), DEFAULT_URL.into(), "v1.0.0".into())
         );
     }
