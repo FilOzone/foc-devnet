@@ -168,9 +168,9 @@ impl Location {
     /// - `gitbranch:<url>:<branch>`
     pub fn resolve_with_default(location: &str, default_url: &str) -> Result<Self, String> {
         let canonical_location = Self::canonicalize_location(location, default_url)?;
-        let (_type, url, selector) = canonical_location;
+        let (loc_type, url, selector) = canonical_location;
 
-        match _type.as_ref() {
+        match loc_type.as_ref() {
             "local" => Ok(Location::LocalSource { dir: selector }),
             "gittag" => Ok(Location::GitTag { url, tag: selector }),
             "gitcommit" => Ok(Location::GitCommit {
@@ -183,7 +183,7 @@ impl Location {
             }),
             _ => Err(format!(
                 "Unknown location type: {}. Supported types: local, gittag, gitcommit, gitbranch",
-                _type
+                loc_type
             )),
         }
     }
