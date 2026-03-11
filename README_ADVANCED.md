@@ -26,8 +26,8 @@ foc-devnet init [OPTIONS]
 
 **Source Format:**
 - `latesttag` - Newest git tag in the default repo (resolved once at `init`).
-- `latesttag:<selector>` - Newest git tag matching a glob selector, e.g. `latesttag:v/*` or `latesttag:pdp/v*`.
-- `latesttag:<url>:<selector>` - Newest matching tag from a custom repo, e.g. `latesttag:https://github.com/org/repo.git:v/*`.
+- `latesttag:<selector>` - Newest git tag matching a glob selector, e.g. `latesttag:v*` or `latesttag:pdp/v*`.
+- `latesttag:<url>:<selector>` - Newest matching tag from a custom repo, e.g. `latesttag:https://github.com/org/repo.git:v*`.
 - `gittag:<tag>` - Specific git tag (uses default repo)
 - `gittag:<url>:<tag>` - Tag from custom repo, e.g. `gittag:https://github.com/org/repo.git:v1.0.0`
 - `gitcommit:<sha>` - Specific commit (uses default repo)
@@ -817,7 +817,7 @@ port_range_count = 100
 Default versions for these repositories are defined in code (see [`src/config.rs`](src/config.rs) `Config::default()`).
 
 **Version specification methods:**
-- **Latest tag** (`latesttag`, `latesttag:<selector>`, `latesttag:<url>:<selector>`): Resolved once at `init` time via `git ls-remote` and pinned as a concrete `GitTag` in `config.toml`. Use a glob selector to scope which tags are considered, e.g. `latesttag:v/*` or `latesttag:pdp/v*`. Bare `latesttag` matches all tags.
+- **Latest tag** (`latesttag`, `latesttag:<selector>`, `latesttag:<url>:<selector>`): Resolved once at `init` time via `git ls-remote` and pinned as a concrete `GitTag` in `config.toml`. Use a glob selector to scope which tags are considered, e.g. `latesttag:v*` or `latesttag:pdp/v*`. Bare `latesttag` matches all tags.
 - **Git tags** (`GitTag`): Used for stable releases. Tags provide version pinning and stability.
 - **Git commits** (`GitCommit`): Used for repositories where specific commits are required and there isn't a corresponding tag yet. (Generally tags should be preferred over commits.)
 - **Git branches** (`GitBranch`): Used for development or when tracking latest changes.

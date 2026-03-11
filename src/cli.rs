@@ -32,7 +32,7 @@ pub enum Commands {
         #[arg(long)]
         curio: Option<String>,
         /// Lotus source location.
-        /// Latest tag: 'latesttag' (newest), 'latesttag:<selector>' (e.g. 'latesttag:v/*'),
+        /// Latest tag: 'latesttag' (newest), 'latesttag:<selector>' (e.g. 'latesttag:v*'),
         /// 'latesttag:<url>:<selector>' (custom repo). Resolved once at init.
         /// Explicit: 'gittag:<tag>', 'gittag:<url>:<tag>', 'gitcommit:<sha>',
         /// 'gitcommit:<url>:<sha>', 'gitbranch:<branch>', 'gitbranch:<url>:<branch>',
@@ -40,7 +40,7 @@ pub enum Commands {
         #[arg(long)]
         lotus: Option<String>,
         /// Filecoin Services source location.
-        /// Latest tag: 'latesttag' (newest), 'latesttag:<selector>' (e.g. 'latesttag:v/*'),
+        /// Latest tag: 'latesttag' (newest), 'latesttag:<selector>' (e.g. 'latesttag:v*'),
         /// 'latesttag:<url>:<selector>' (custom repo). Resolved once at init.
         /// Explicit: 'gittag:<tag>', 'gittag:<url>:<tag>', 'gitcommit:<sha>',
         /// 'gitcommit:<url>:<sha>', 'gitbranch:<branch>', 'gitbranch:<url>:<branch>',
@@ -97,7 +97,7 @@ pub enum BuildCommands {
 pub enum ConfigCommands {
     /// Configure Lotus source location
     Lotus {
-        /// Lotus source location (e.g., 'latesttag', 'latesttag:v/*', 'latesttag:<url>:v/*', 'gittag:v1.0.0', 'gitcommit:abc123', 'gitbranch:main', 'local:/path/to/lotus')
+        /// Lotus source location (e.g., 'latesttag', 'latesttag:v*', 'latesttag:<url>:v*', 'gittag:v1.0.0', 'gitcommit:abc123', 'gitbranch:main', 'local:/path/to/lotus')
         source: String,
     },
     /// Configure Curio source location

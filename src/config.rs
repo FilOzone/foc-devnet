@@ -452,7 +452,7 @@ mod tests {
     #[test]
     fn latesttag_with_url() {
         assert_eq!(
-            canonicalize("latesttag:https://github.com/randomorg/randomrepo:v/*").unwrap(),
+            canonicalize("latesttag:https://github.com/randomorg/randomrepo:v*").unwrap(),
             (
                 "gittag".into(),
                 "https://github.com/randomorg/randomrepo".into(),
