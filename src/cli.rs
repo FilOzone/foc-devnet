@@ -59,7 +59,11 @@ pub enum Commands {
     /// Show status of the foc-devnet system
     Status,
     /// Show version information
-    Version,
+    Version {
+        /// Force plain output without tracing prefixes, even when stdout is a terminal
+        #[arg(long)]
+        notty: bool,
+    },
 }
 
 /// Build subcommands

@@ -31,6 +31,18 @@ For GitHub Actions, add this step before running foc-devnet:
 - run: echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts
 ```
 
+**Linting (rust + python)**:
+```sh
+sudo apt install pipx && pipx ensurepath && pipx install black
+./scripts/lint.sh        # auto-fix mode (default)
+FIX=0 ./scripts/lint.sh # check-only mode (used in CI)
+```
+
+**Pre-commit hook** (optional — runs `lint.sh` before each commit):
+```sh
+./scripts/install_precommit_hooks.sh
+```
+
 ### Step 1: Initialize
 
 ```bash
