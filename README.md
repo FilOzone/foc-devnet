@@ -62,7 +62,6 @@ cargo run -- init \
     --curio local:/home/user/code/curio \
     --filecoin-services local:/home/user/code/filecoin-services \
     --lotus local:/home/user/code/lotus \
-    --synapse-sdk local:/home/user/code/synapse-sdk
 ```
 
 **Re-initializing?** Run `cargo run -- clean` first to remove existing state. Config is preserved by default; use `--all` to reset it too.
@@ -125,11 +124,10 @@ Only needs three things on your machine:
 Everything else (Lotus, Curio, dependencies) is built inside Docker.
 
 ### ⚙️ Configurable Repositories
-Depends on 4 repositories, all configurable:
+Depends on 3 repositories, all configurable:
 - `filecoin-services` - FOC smart contracts
 - `curio` - Next-gen storage provider
 - `lotus` - Filecoin daemon
-- `synapse-sdk` - PDP verification
 
 Each can be:
 - Auto-downloaded from GitHub (default)

@@ -38,7 +38,6 @@ foc-devnet init [OPTIONS]
 - `--curio <SOURCE>` - Curio source location
 - `--lotus <SOURCE>` - Lotus source location
 - `--filecoin-services <SOURCE>` - Filecoin Services source location
-- `--synapse-sdk <SOURCE>` - Synapse SDK source location
 - `--yugabyte-url <URL>` - Yugabyte download URL
 - `--yugabyte-archive <PATH>` - Local Yugabyte archive file
 - `--proof-params-dir <PATH>` - Local proof params directory
@@ -262,9 +261,6 @@ tag = "v1.0.0"
 url = "https://github.com/mds1/multicall3.git"
 branch = "main"
 
-[synapse_sdk]
-url = "git@github.com:FilOzone/synapse-sdk.git"
-tag = "synapse-sdk-v0.36.1"
 ```
 
 ### Configuration Parameters
@@ -369,8 +365,7 @@ $FOC_DEVNET_BASEDIR/
 │   ├── lotus/                       # Lotus source code
 │   ├── curio/                       # Curio source code
 │   ├── filecoin-services/           # FOC smart contracts
-│   ├── multicall3/                  # Multicall3 contracts
-│   └── synapse-sdk/                 # Synapse SDK
+│   └── multicall3/                  # Multicall3 contracts
 ├── docker/
 │   └── volumes/
 │       ├── cache/                   # Shared cache (proof params, etc.)
@@ -817,8 +812,6 @@ port_range_count = 100
 - **[curio](https://github.com/filecoin-project/curio)** - Storage provider (PDP)
 - **[filecoin-services](https://github.com/FilOzone/filecoin-services)** - FOC smart contracts
 - **[multicall3](https://github.com/mds1/multicall3)** - Multicall3 contract
-- **[synapse-sdk](https://github.com/FilOzone/synapse-sdk)** - PDP verification SDK
-
 ### Dependent Version Strategy
 
 Default versions for these repositories are defined in code (see [`src/config.rs`](src/config.rs) `Config::default()`).
@@ -838,8 +831,7 @@ Default versions for these repositories are defined in code (see [`src/config.rs
 foc-devnet init \
     --lotus local:/home/user/dev/lotus \
     --curio local:/home/user/dev/curio \
-    --filecoin-services local:/home/user/dev/filecoin-services \
-    --synapse-sdk local:/home/user/dev/synapse-sdk
+    --filecoin-services local:/home/user/dev/filecoin-services
 ```
 
 **Mixed approach:**
