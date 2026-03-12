@@ -51,7 +51,7 @@ jobs:
       issues: write
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     # Free up disk space on GitHub Actions runner to avoid "no space left" errors
     - name: "EXEC: {Free up disk space}, independent"
@@ -402,7 +402,7 @@ jobs:
           echo "Warning: could not resolve numeric job ID (GITHUB_JOB=$GITHUB_JOB)"
         fi
 
-    # Setup scenario test prerequisites (Foundry, Python 3.11, cqlsh)
+    # Setup scenario test prerequisites (Foundry, Python 3.11 via pyenv, cqlsh)
     - name: "EXEC: {Setup scenario prerequisites}, independent"
       if: steps.start_cluster.outcome == 'success'
       run: ./scripts/setup-scenarios-prerequisites.sh
@@ -450,16 +450,23 @@ jobs:
         path: ~/.foc-devnet/state/latest/scenario_*.md
         if-no-files-found: ignore
 
-    # Determine whether to file an issue (only when reporting is enabled)
+    # Determine whether to file an issue (only when reporting is enabled).
+    # Uses job.status to catch failures in ANY step — not just start_cluster
+    # and scenario_tests. If an intermediate step (e.g. prerequisites) fails
+    # and scenario_tests is skipped, job.status is still 'failure'.
     - name: "CHECK: {Determine if issue should be filed}"
       id: should_file
       if: always() && inputs.enable_reporting
+      env:
+        JOB_STATUS: ${{ job.status }}
       run: |
-        if [[ "${{ steps.start_cluster.outcome }}" == "success" && \
-              "${{ steps.scenario_tests.outcome }}" == "success" ]]; then
+        if [[ "$JOB_STATUS" == "success" ]]; then
           PASSED="true"
         else
           PASSED="false"
+          echo "Job status: $JOB_STATUS"
+          echo "  start_cluster.outcome=${{ steps.start_cluster.outcome }}"
+          echo "  scenario_tests.outcome=${{ steps.scenario_tests.outcome }}"
         fi
         echo "passed=$PASSED" >> $GITHUB_OUTPUT
         if [[ "$PASSED" == "true" && "${{ inputs.skip_report_on_pass }}" == "true" ]]; then
