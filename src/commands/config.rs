@@ -59,7 +59,7 @@ fn update_config_location(
         .map_err(|e| format!("Failed to parse config file: {}", e))?;
 
     // Parse the source location
-    let location = Location::parse_with_default(&source, default_url)
+    let location = Location::resolve_with_default(&source, default_url)
         .map_err(|e| format!("Invalid {} source format: {}", field, e))?;
 
     // Update the appropriate field

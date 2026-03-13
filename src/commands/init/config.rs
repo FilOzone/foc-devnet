@@ -138,7 +138,7 @@ pub fn apply_location_override(
             Location::GitBranch { ref url, .. } => url.clone(),
             Location::LocalSource { .. } => default_url.to_string(),
         };
-        *location = Location::parse_with_default(&loc_str, &url)
+        *location = Location::resolve_with_default(&loc_str, &url)
             .map_err(|e| format!("Invalid location: {}", e))?;
     }
     Ok(())
