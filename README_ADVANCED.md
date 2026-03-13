@@ -6,8 +6,29 @@ This guide covers advanced usage, internal architecture, and operational details
 
 ## Commands Reference
 
+### `clean`
+Removes foc-devnet state. Preserves `config.toml` by default so it can be reused on next `init`.
+
+```bash
+foc-devnet clean [OPTIONS]
+```
+
+**Options:**
+- `--all` - Also remove `config.toml`
+- `--images` - Also remove cached foc-* Docker images
+
+**Examples:**
+```bash
+foc-devnet clean               # Remove state, preserve config.toml
+foc-devnet clean --all         # Remove everything including config
+foc-devnet clean --images      # Remove state + Docker images
+foc-devnet clean --all --images # Full reset
+```
+
 ### `init`
 Initializes foc-devnet by downloading repositories, building Docker images, and preparing the environment.
+
+Requires a clean home directory. If existing state is present, `init` will refuse and ask you to run `clean` first. If a `config.toml` was preserved across `clean`, it is reused (with any CLI overrides applied on top).
 
 ```bash
 foc-devnet init [OPTIONS]
@@ -17,26 +38,28 @@ foc-devnet init [OPTIONS]
 - `--curio <SOURCE>` - Curio source location
 - `--lotus <SOURCE>` - Lotus source location
 - `--filecoin-services <SOURCE>` - Filecoin Services source location
-- `--synapse-sdk <SOURCE>` - Synapse SDK source location
 - `--yugabyte-url <URL>` - Yugabyte download URL
 - `--yugabyte-archive <PATH>` - Local Yugabyte archive file
 - `--proof-params-dir <PATH>` - Local proof params directory
-- `--force` - Force regeneration of config file. Useful when switching between configurations.
 - `--rand` - Use random mnemonic instead of deterministic one. Use this for unique test scenarios.
 
 **Source Format:**
-- `gittag:v1.0.0` - Specific git tag (uses default repo)
-- `gittag:https://github.com/user/repo.git:v1.0.0` - Tag from custom repo
-- `gitcommit:abc123` - Specific git commit
-- `gitbranch:main` - Specific git branch
-- `local:/path/to/repo` - Local directory
+- `latesttag` - Newest git tag in the default repo (resolved once at `init`).
+- `latesttag:<selector>` - Newest git tag matching a glob selector, e.g. `latesttag:v*` or `latesttag:pdp/v*`.
+- `latesttag:<url>:<selector>` - Newest matching tag from a custom repo, e.g. `latesttag:https://github.com/org/repo.git:v*`.
+- `gittag:<tag>` - Specific git tag (uses default repo)
+- `gittag:<url>:<tag>` - Tag from custom repo, e.g. `gittag:https://github.com/org/repo.git:v1.0.0`
+- `gitcommit:<sha>` - Specific commit (uses default repo)
+- `gitcommit:<url>:<sha>` - Commit from custom repo
+- `gitbranch:<branch>` - Specific branch (uses default repo)
+- `gitbranch:<url>:<branch>` - Branch from custom repo
+- `local:<dir>` - Local directory
 
 **Example:**
 ```bash
 foc-devnet init \
     --lotus local:/home/user/lotus \
-    --curio gitbranch:pdpv0 \
-    --force
+    --curio gitbranch:pdpv0
 ```
 
 ### `build`
@@ -243,9 +266,6 @@ tag = "v1.0.0"
 url = "https://github.com/mds1/multicall3.git"
 branch = "main"
 
-[synapse_sdk]
-url = "git@github.com:FilOzone/synapse-sdk.git"
-tag = "synapse-sdk-v0.36.1"
 ```
 
 ### Configuration Parameters
@@ -266,8 +286,8 @@ tag = "synapse-sdk-v0.36.1"
 Defaults are defined in code (see [`src/config.rs`](src/config.rs) `Config::default()`) and written to `config.toml` during `init`. This means:
 
 - **First-time setup:** Running `foc-devnet init` creates `config.toml` with current defaults from code
-- **Updating defaults:** When a new version of `foc-devnet` includes updated defaults (e.g., newer Lotus version), run `foc-devnet init --force` to regenerate `config.toml` with the new defaults
-- **Preserving customizations:** After regenerating, you'll need to reapply any custom settings you had modified
+- **Updating defaults:** When a new version of `foc-devnet` includes updated defaults (e.g., newer Lotus version), run `foc-devnet clean --all` then `foc-devnet init` to regenerate `config.toml` with the new defaults
+- **Preserving config across re-init:** Running `foc-devnet clean` (without `--all`) preserves your `config.toml`, so a subsequent `init` reuses your existing settings
 - **Source of truth:** The code defines what defaults are available; `config.toml` stores your specific configuration
 
 ### Editing Config
@@ -276,8 +296,9 @@ Defaults are defined in code (see [`src/config.rs`](src/config.rs) `Config::defa
 # Edit manually
 vim ~/.foc-devnet/config.toml
 
-# Or use init --force to regenerate
-foc-devnet init --force
+# Or regenerate from defaults
+foc-devnet clean --all
+foc-devnet init
 ```
 
 ---
@@ -349,8 +370,7 @@ $FOC_DEVNET_BASEDIR/
 │   ├── lotus/                       # Lotus source code
 │   ├── curio/                       # Curio source code
 │   ├── filecoin-services/           # FOC smart contracts
-│   ├── multicall3/                  # Multicall3 contracts
-│   └── synapse-sdk/                 # Synapse SDK
+│   └── multicall3/                  # Multicall3 contracts
 ├── docker/
 │   └── volumes/
 │       ├── cache/                   # Shared cache (proof params, etc.)
@@ -468,10 +488,9 @@ cd ~/.foc-devnet/docker/volumes/run-specific
 ls | grep --invert-match "$CURRENT_RUN" | xargs rm -rf
 ```
 
-**Complete nuclear reset (delete EVERYTHING including config):**
+**Complete reset (delete EVERYTHING including config):**
 ```bash
-# This deletes all runs, config, repos, binaries, keys - use with caution!
-rm -rf ~/.foc-devnet
+foc-devnet clean --all --images
 ```
 
 ---
@@ -798,13 +817,12 @@ port_range_count = 100
 - **[curio](https://github.com/filecoin-project/curio)** - Storage provider (PDP)
 - **[filecoin-services](https://github.com/FilOzone/filecoin-services)** - FOC smart contracts
 - **[multicall3](https://github.com/mds1/multicall3)** - Multicall3 contract
-- **[synapse-sdk](https://github.com/FilOzone/synapse-sdk)** - PDP verification SDK
-
 ### Dependent Version Strategy
 
 Default versions for these repositories are defined in code (see [`src/config.rs`](src/config.rs) `Config::default()`).
 
 **Version specification methods:**
+- **Latest tag** (`latesttag`, `latesttag:<selector>`, `latesttag:<url>:<selector>`): Resolved once at `init` time via `git ls-remote` and pinned as a concrete `GitTag` in `config.toml`. Use a glob selector to scope which tags are considered, e.g. `latesttag:v*` or `latesttag:pdp/v*`. Bare `latesttag` matches all tags.
 - **Git tags** (`GitTag`): Used for stable releases. Tags provide version pinning and stability.
 - **Git commits** (`GitCommit`): Used for repositories where specific commits are required and there isn't a corresponding tag yet. (Generally tags should be preferred over commits.)
 - **Git branches** (`GitBranch`): Used for development or when tracking latest changes.
@@ -819,9 +837,7 @@ Default versions for these repositories are defined in code (see [`src/config.rs
 foc-devnet init \
     --lotus local:/home/user/dev/lotus \
     --curio local:/home/user/dev/curio \
-    --filecoin-services local:/home/user/dev/filecoin-services \
-    --synapse-sdk local:/home/user/dev/synapse-sdk \
-    --force
+    --filecoin-services local:/home/user/dev/filecoin-services
 ```
 
 **Mixed approach:**
@@ -829,8 +845,7 @@ foc-devnet init \
 ```bash
 foc-devnet init \
     --lotus gitbranch:master \
-    --curio local:/home/user/dev/curio \
-    --force
+    --curio local:/home/user/dev/curio
 ```
 
 ### Sharing Configuration
@@ -1195,7 +1210,8 @@ docker logs foc-<run-id>-lotus
 docker images | grep foc-lotus
 
 # Rebuild if needed
-foc-devnet init --force
+foc-devnet clean
+foc-devnet init
 ```
 
 ### Build failures

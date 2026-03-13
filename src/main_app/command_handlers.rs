@@ -24,6 +24,12 @@ pub fn handle_stop() -> Result<(), Box<dyn std::error::Error>> {
     commands::stop_cluster()
 }
 
+/// Execute the clean command
+pub fn handle_clean(all: bool, images: bool) -> Result<(), Box<dyn std::error::Error>> {
+    poison::create_poison("Clean")?;
+    commands::clean(all, images)
+}
+
 /// Execute the init command
 #[allow(clippy::too_many_arguments)]
 pub fn handle_init(
@@ -33,10 +39,17 @@ pub fn handle_init(
     yugabyte_url: Option<String>,
     yugabyte_archive: Option<String>,
     proof_params_dir: Option<String>,
-    force: bool,
     rand: bool,
     no_docker_build: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Check before poison creation, which creates state/ as a side effect
+    if !commands::is_clean_for_init()? {
+        return Err(
+            "Home directory is not clean. Run 'foc-devnet clean' first, then re-run init."
+                .to_string()
+                .into(),
+        );
+    }
     poison::create_poison("Init")?;
     commands::init_environment(InitOptions {
         curio_location: curio,
@@ -45,7 +58,6 @@ pub fn handle_init(
         yugabyte_url,
         yugabyte_archive,
         proof_params_dir,
-        force,
         use_random_mnemonic: rand,
         no_docker_build,
     })

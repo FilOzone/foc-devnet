@@ -7,7 +7,8 @@
 //! - Downloading required artifacts
 //! - Building and caching Docker images
 //!
-//! The initialization process is broken down into logical modules for maintainability.
+//! Requires a clean home directory (or one containing only config.toml).
+//! Run `foc-devnet clean` first if re-initializing.
 
 pub mod artifacts;
 pub mod config;
@@ -16,112 +17,8 @@ pub mod keys;
 pub mod path_setup;
 pub mod repositories;
 
-use std::io::ErrorKind;
-use tracing::{info, warn};
+use tracing::info;
 
-/// Create a friendly error for missing Docker CLI.
-fn docker_not_found_error() -> Box<dyn std::error::Error> {
-    "Docker CLI not found. Install Docker and ensure the 'docker' command is on PATH, then re-run 'foc-devnet init'."
-        .to_string()
-        .into()
-}
-
-/// Clean up previous foc-devnet installation.
-///
-/// Removes the entire ~/.foc-devnet directory and optionally all foc-* Docker
-/// images to ensure a clean slate for initialization.
-///
-/// # Arguments
-/// * `remove_images` - When true, also remove cached foc-* Docker images. This
-///   should stay false when callers rely on preloaded images (e.g., CI caches).
-///
-/// # Returns
-/// Returns `Ok(())` if cleanup succeeds, or an error if cleanup fails.
-fn cleanup_previous_installation(remove_images: bool) -> Result<(), Box<dyn std::error::Error>> {
-    use crate::paths::foc_devnet_home;
-    use std::process::Command;
-
-    info!("Cleaning up previous installation...");
-
-    // Remove the entire foc-devnet home directory
-    let home_dir = foc_devnet_home();
-    if home_dir.exists() {
-        info!("Removing {}", home_dir.display());
-        std::fs::remove_dir_all(&home_dir)?;
-        info!("Removed previous foc-devnet installation");
-    } else {
-        info!("No previous installation found");
-    }
-
-    // Optionally remove foc-devnet Docker images
-    if remove_images {
-        info!("Removing existing foc-devnet Docker images");
-        let output = Command::new("docker")
-            .args(["images", "--format", "{{.Repository}}:{{.Tag}}"])
-            .output()
-            .map_err(|err| match err.kind() {
-                ErrorKind::NotFound => docker_not_found_error(),
-                _ => err.into(),
-            })?;
-
-        if output.status.success() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let mut removed_count = 0;
-
-            for line in stdout.lines() {
-                if line.starts_with("foc-") {
-                    // Remove the image
-                    let remove_output = Command::new("docker")
-                        .args(["rmi", line])
-                        .output()
-                        .map_err(|err| match err.kind() {
-                            ErrorKind::NotFound => docker_not_found_error(),
-                            _ => err.into(),
-                        })?;
-
-                    if remove_output.status.success() {
-                        removed_count += 1;
-                    }
-                }
-            }
-
-            if removed_count > 0 {
-                info!("Removed {} Docker image(s)", removed_count);
-            } else {
-                info!("No foc-devnet Docker images found");
-            }
-        } else {
-            warn!("Could not list Docker images (Docker may not be running)");
-        }
-    }
-
-    Ok(())
-}
-
-/// Initialize foc-devnet comprehensively.
-///
-/// This command performs complete initialization:
-/// 1. Cleans up previous installation (removes ~/.foc-devnet and docker images)
-/// 2. Creates all necessary directories
-/// 3. Generates default config.toml
-/// 4. Sets up PATH variables in shell configs
-/// 5. Downloads required artifacts
-/// 6. Downloads code repositories
-/// 7. Builds and caches Docker images
-///
-/// # Arguments
-/// * `curio_location` - Optional override for Curio repository location
-/// * `lotus_location` - Optional override for Lotus repository location
-/// * `filecoin_services_location` - Optional override for Filecoin Services repository location
-/// * `yugabyte_url` - Optional override for Yugabyte download URL
-/// * `yugabyte_archive` - Optional path to local Yugabyte archive file
-/// * `proof_params_dir` - Optional path to local filecoin-proof-params directory
-/// * `force` - Whether to force regeneration of config file
-/// * `use_random_mnemonic` - Whether to use random mnemonic for key generation
-/// * `no_docker_build` - Whether to skip artifact downloads and Docker image builds (use when images are already cached)
-///
-/// # Returns
-/// Returns `Ok(())` on successful initialization, or an error if any step fails.
 /// Options for environment initialization
 pub struct InitOptions {
     pub curio_location: Option<String>,
@@ -130,28 +27,29 @@ pub struct InitOptions {
     pub yugabyte_url: Option<String>,
     pub yugabyte_archive: Option<String>,
     pub proof_params_dir: Option<String>,
-    pub force: bool,
     pub use_random_mnemonic: bool,
     pub no_docker_build: bool,
 }
 
+/// Initialize foc-devnet comprehensively.
+///
+/// The caller is responsible for checking that the home directory is clean
+/// before calling this function (see `clean::is_clean_for_init`).
+///
+/// # Returns
+/// Returns `Ok(())` on successful initialization, or an error if any step fails.
 pub fn init_environment(options: InitOptions) -> Result<(), Box<dyn std::error::Error>> {
     info!("Initializing foc-devnet environment...");
-
-    // Clean up previous installation
-    // Preserve cached Docker images when --no-docker-build is used (CI cache path)
-    cleanup_previous_installation(!options.no_docker_build)?;
 
     // Create all necessary directories
     directories::create_directories()?;
 
-    // Generate default configuration
+    // Generate default configuration (reuses existing config.toml if present)
     config::generate_default_config(
         options.curio_location.clone(),
         options.lotus_location.clone(),
         options.filecoin_services_location.clone(),
         options.yugabyte_url.clone(),
-        options.force,
     )?;
 
     // Generate keys

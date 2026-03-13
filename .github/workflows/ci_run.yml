@@ -172,15 +172,15 @@ jobs:
     - name: "EXEC: {Initialize with cached Docker}, DEP: {C-docker-images-cache}"
       if: steps.cache-docker-images.outputs.cache-hit == 'true'
       run: |
-        rm -rf ~/.foc-devnet
-        ./foc-devnet init --no-docker-build ${{ inputs.init_flags }}
+        ./foc-devnet clean --all
+        ./foc-devnet init --no-docker-build
 
     # If Docker images are not cached, do full init (downloads YugabyteDB and builds all images)
     - name: "EXEC: {Initialize without cache}, independent"
       if: steps.cache-docker-images.outputs.cache-hit != 'true'
       run: |
-        rm -rf ~/.foc-devnet
-        ./foc-devnet init ${{ inputs.init_flags }}
+        ./foc-devnet clean --all
+        ./foc-devnet init
 
     # CACHE-DOCKER: Save Docker images as tarballs for caching
     - name: "EXEC: {Save Docker images for cache}, DEP: {C-docker-images-cache}"

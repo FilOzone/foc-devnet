@@ -21,15 +21,39 @@ pub enum Commands {
     },
     /// Stop the local cluster
     Stop,
+    /// Remove foc-devnet state. Preserves config.toml unless --all is passed.
+    Clean {
+        /// Also remove config.toml
+        #[arg(long)]
+        all: bool,
+        /// Also remove cached foc-* Docker images
+        #[arg(long)]
+        images: bool,
+    },
     /// Initialize foc-devnet by building and caching Docker images
     Init {
-        /// Curio source location (e.g., 'gittag:tag', 'gittag:url:tag', 'gitcommit:commit', 'gitcommit:url:commit', 'gitbranch:branch', 'gitbranch:url:branch', 'local:/path/to/curio')
+        /// Curio source location.
+        /// Latest tag: 'latesttag' (newest), 'latesttag:<selector>' (e.g. 'latesttag:pdp/v*'),
+        /// 'latesttag:<url>:<selector>' (custom repo). Resolved once at init.
+        /// Explicit: 'gittag:<tag>', 'gittag:<url>:<tag>', 'gitcommit:<sha>',
+        /// 'gitcommit:<url>:<sha>', 'gitbranch:<branch>', 'gitbranch:<url>:<branch>',
+        /// 'local:/path/to/curio'.
         #[arg(long)]
         curio: Option<String>,
-        /// Lotus source location (e.g., 'gittag:v1.0.0', 'gittag:url:tag', 'gitcommit:abc123', 'gitcommit:url:commit', 'gitbranch:main', 'gitbranch:url:main', 'local:/path/to/lotus')
+        /// Lotus source location.
+        /// Latest tag: 'latesttag' (newest), 'latesttag:<selector>' (e.g. 'latesttag:v*'),
+        /// 'latesttag:<url>:<selector>' (custom repo). Resolved once at init.
+        /// Explicit: 'gittag:<tag>', 'gittag:<url>:<tag>', 'gitcommit:<sha>',
+        /// 'gitcommit:<url>:<sha>', 'gitbranch:<branch>', 'gitbranch:<url>:<branch>',
+        /// 'local:/path/to/lotus'.
         #[arg(long)]
         lotus: Option<String>,
-        /// Filecoin Services source location (e.g., 'gittag:v1.0.0', 'gittag:url:tag', 'gitcommit:abc123', 'gitcommit:url:commit', 'gitbranch:main', 'gitbranch:url:main', 'local:/path/to/filecoin-services')
+        /// Filecoin Services source location.
+        /// Latest tag: 'latesttag' (newest), 'latesttag:<selector>' (e.g. 'latesttag:v*'),
+        /// 'latesttag:<url>:<selector>' (custom repo). Resolved once at init.
+        /// Explicit: 'gittag:<tag>', 'gittag:<url>:<tag>', 'gitcommit:<sha>',
+        /// 'gitcommit:<url>:<sha>', 'gitbranch:<branch>', 'gitbranch:<url>:<branch>',
+        /// 'local:/path/to/filecoin-services'.
         #[arg(long)]
         filecoin_services: Option<String>,
         /// Yugabyte download URL
@@ -41,9 +65,6 @@ pub enum Commands {
         /// Path to local filecoin-proof-params directory to use instead of downloading
         #[arg(long)]
         proof_params_dir: Option<String>,
-        /// Force regeneration of config file even if it exists
-        #[arg(long)]
-        force: bool,
         /// Use random mnemonic instead of deterministic one
         #[arg(long)]
         rand: bool,
@@ -86,12 +107,12 @@ pub enum BuildCommands {
 pub enum ConfigCommands {
     /// Configure Lotus source location
     Lotus {
-        /// Lotus source location (e.g., 'gittag:v1.0.0', 'gitcommit:abc123', 'local:/path/to/lotus')
+        /// Lotus source location (e.g., 'latesttag', 'latesttag:v*', 'latesttag:<url>:v*', 'gittag:v1.0.0', 'gitcommit:abc123', 'gitbranch:main', 'local:/path/to/lotus')
         source: String,
     },
     /// Configure Curio source location
     Curio {
-        /// Curio source location (e.g., 'gittag:v1.0.0', 'gitcommit:abc123', 'local:/path/to/curio')
+        /// Curio source location (e.g., 'latesttag', 'latesttag:pdp/v*', 'latesttag:<url>:pdp/v*', 'gittag:v1.0.0', 'gitcommit:abc123', 'gitbranch:main', 'local:/path/to/curio')
         source: String,
     },
 }

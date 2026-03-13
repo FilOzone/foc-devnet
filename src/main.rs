@@ -24,6 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = match cli.command {
         Commands::Start { parallel } => main_app::command_handlers::handle_start(parallel, run_id),
         Commands::Stop => main_app::command_handlers::handle_stop(),
+        Commands::Clean { all, images } => main_app::command_handlers::handle_clean(all, images),
         Commands::Init {
             curio,
             lotus,
@@ -31,7 +32,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             yugabyte_url,
             yugabyte_archive,
             proof_params_dir,
-            force,
             rand,
             no_docker_build,
         } => main_app::command_handlers::handle_init(
@@ -41,7 +41,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             yugabyte_url,
             yugabyte_archive,
             proof_params_dir,
-            force,
             rand,
             no_docker_build,
         ),

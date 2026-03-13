@@ -62,9 +62,9 @@ cargo run -- init \
     --curio local:/home/user/code/curio \
     --filecoin-services local:/home/user/code/filecoin-services \
     --lotus local:/home/user/code/lotus \
-    --synapse-sdk local:/home/user/code/synapse-sdk \
-    --force
 ```
+
+**Re-initializing?** Run `cargo run -- clean` first to remove existing state. Config is preserved by default; use `--all` to reset it too.
 
 ### Step 2: Build
 
@@ -124,11 +124,10 @@ Only needs three things on your machine:
 Everything else (Lotus, Curio, dependencies) is built inside Docker.
 
 ### ⚙️ Configurable Repositories
-Depends on 4 repositories, all configurable:
+Depends on 3 repositories, all configurable:
 - `filecoin-services` - FOC smart contracts
 - `curio` - Next-gen storage provider
 - `lotus` - Filecoin daemon
-- `synapse-sdk` - PDP verification
 
 Each can be:
 - Auto-downloaded from GitHub (default)
@@ -188,7 +187,7 @@ Bundled with Portainer for browser-based Docker management—no terminal wizardr
 ## 🛠️ Need More?
 
 See **[README_ADVANCED.md](README_ADVANCED.md)** for comprehensive documentation on:
-- **All commands reference** (init, build, start, stop, status, version)
+- **All commands reference** (init, build, start, stop, clean, status, version)
 - **Configuration system** (config.toml structure, parameters, editing)
 - **Complete directory structure** (what's stored where and why)
 - **Resetting and cleanup** (manual cleanup, disk management)

@@ -39,76 +39,149 @@ pub enum Location {
 }
 
 impl Location {
-    /// Parse a location string in the format "type:value" or "type:url:value"
+    /// Given a url and a selector, finds the latest tag given that selector.
     ///
-    /// Supported formats:
-    /// - "gittag:tag" (uses default URL)
-    /// - "gitcommit:commit" (uses default URL)
-    /// - "gitbranch:branch" (uses default URL)
-    /// - "local:dir"
-    /// - "gittag:url:tag"
-    /// - "gitcommit:url:commit"
-    /// - "gitbranch:url:branch"
+    /// Runs `git ls-remote --tags --sort=-version:refname <url> <selector>` and
+    /// returns the first tag name from the output (i.e. the lexicographically newest
+    /// version-sorted tag that matches `selector`).
     ///
-    /// Where url can contain colons (e.g., https://github.com/repo.git)
-    pub fn parse_with_default(s: &str, default_url: &str) -> Result<Self, String> {
-        let parts: Vec<&str> = s.split(':').collect();
-        if parts.len() < 2 {
-            return Err(format!(
-                "Invalid location format: {}. Expected 'type:value' or 'type:url:value'",
-                s
-            ));
+    /// Example: `resolveLatestTag("https://github.com/foo/bar.git", "v*")` might
+    /// return `"v1.2.3"`.
+    fn resolve_latest_tag(url: &str, selector: &str) -> Result<String, String> {
+        let stdout = {
+            #[cfg(not(test))]
+            {
+                let output = std::process::Command::new("git")
+                    .args([
+                        "ls-remote",
+                        "--tags",
+                        "--sort=-version:refname",
+                        url,
+                        selector,
+                    ])
+                    .output()
+                    .map_err(|e| format!("Failed to run git ls-remote: {}", e))?;
+
+                if !output.status.success() {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    return Err(format!("git ls-remote failed: {}", stderr.trim()));
+                }
+
+                String::from_utf8_lossy(&output.stdout).into_owned()
+            }
+
+            #[cfg(test)]
+            {
+                String::from("0000000000000 refs/tags/v1.0.0")
+            }
+        };
+
+        let first_line = stdout
+            .lines()
+            .next()
+            .ok_or_else(|| format!("No tags found for selector '{}' at '{}'", selector, url))?;
+
+        // Output format: "<hash>\trefs/tags/<tag>"
+        let tag_ref = first_line
+            .split_whitespace()
+            .nth(1)
+            .ok_or_else(|| format!("Unexpected git ls-remote output: '{}'", first_line))?;
+
+        tag_ref
+            .strip_prefix("refs/tags/")
+            .map(|t| t.to_string())
+            .ok_or_else(|| format!("Unexpected tag ref format: '{}'", tag_ref))
+    }
+
+    /// Canonicalizes the location from a set of following variants:
+    ///
+    /// - `latesttag`                — newest tag matching `*` (uses default URL)
+    /// - `latesttag:<selector>`     — newest tag matching selector (e.g. `latesttag:pdp/v*`)
+    /// - `latesttag:<url>:<selector>` — newest tag matching selector at a custom URL
+    /// - `gittag:<tag>`             — (uses default URL)
+    /// - `gitcommit:<commit>`       — (uses default URL)
+    /// - `gitbranch:<branch>`       — (uses default URL)
+    /// - `local:<dir>`
+    /// - `gittag:<url>:<tag>`
+    /// - `gitcommit:<url>:<commit>`
+    /// - `gitbranch:<url>:<branch>`
+    ///
+    /// to a smaller subset:
+    ///
+    /// - `local:<dir>`              -> `("local",      "",     "dir")`
+    /// - `gittag:<url>:<tag>`       -> `("gittag",     "url",  "tag")`
+    /// - `gitcommit:<url>:<commit>` -> `("gitcommit",  "url",  "commit")`
+    /// - `gitbranch:<url>:<branch>` -> `("gitbranch",  "url",  "branch")`
+    fn canonicalize_location(
+        location: &str,
+        default_url: &str,
+    ) -> Result<(String, String, String), String> {
+        // Special case: bare "latesttag" with no selector — implicitly matches all tags.
+        if location == "latesttag" {
+            let tag = Self::resolve_latest_tag(default_url, "*")?;
+            return Ok(("gittag".into(), default_url.into(), tag));
         }
 
-        let location_type = parts[0];
-        let remaining = &parts[1..].join(":");
+        // We need to do this setup in two steps since otherwise
+        // "gittag:https://github.com/orgs/repo:v1.2.0" would not be parseable
+        // and split the <url> string itself in two parts
+        let (location_type, remaining) = location.split_once(':').ok_or_else(|| {
+            format!(
+                "Invalid location format: '{}'. Expected \
+                 'latesttag:<selector>', or 'gittag/gitcommit/gitbranch/local:...'",
+                location
+            )
+        })?;
 
-        match location_type {
-            "local" => Ok(Location::LocalSource {
-                dir: remaining.to_string(),
+        // If the remaining part contains another ':', the portion before the last ':'
+        // is the URL and everything after is the value (handles HTTPS URLs with colons).
+        let (url, selector) = if let Some(colon_pos) = remaining.rfind(':') {
+            (&remaining[..colon_pos], &remaining[colon_pos + 1..])
+        } else {
+            (default_url, remaining)
+        };
+
+        // Special case: latesttag resolution into GitTag
+        if location_type == "latesttag" {
+            let tag = Self::resolve_latest_tag(url, selector)?;
+            return Ok(("gittag".into(), url.into(), tag));
+        }
+
+        Ok((location_type.into(), url.into(), selector.into()))
+    }
+
+    /// Parse a location string in the format "type:value" or "type:url:value".
+    /// May attempt to resolve `latesttag` if provided by reaching over the internet.
+    ///
+    /// Supported formats:
+    /// - `latesttag`                       — newest tag (uses default URL, matches `*`)
+    /// - `latesttag:<selector>`            — newest tag matching selector (e.g. `latesttag:pdp/v*`)
+    /// - `latesttag:<url>:<selector>`      — newest tag matching selector at a custom URL
+    /// - `gittag:<tag>`                    — (uses default URL)
+    /// - `gitcommit:<commit>`              — (uses default URL)
+    /// - `gitbranch:<branch>`              — (uses default URL)
+    /// - `local:<dir>`
+    /// - `gittag:<url>:<tag>`
+    /// - `gitcommit:<url>:<commit>`
+    /// - `gitbranch:<url>:<branch>`
+    pub fn resolve_with_default(location: &str, default_url: &str) -> Result<Self, String> {
+        let canonical_location = Self::canonicalize_location(location, default_url)?;
+        let (loc_type, url, selector) = canonical_location;
+
+        match loc_type.as_ref() {
+            "local" => Ok(Location::LocalSource { dir: selector }),
+            "gittag" => Ok(Location::GitTag { url, tag: selector }),
+            "gitcommit" => Ok(Location::GitCommit {
+                url,
+                commit: selector,
             }),
-            "gittag" | "gitcommit" | "gitbranch" => {
-                // Check if remaining contains ':' (indicating url:value format)
-                if let Some(colon_pos) = remaining.rfind(':') {
-                    let url = &remaining[..colon_pos];
-                    let value = &remaining[colon_pos + 1..];
-                    match location_type {
-                        "gittag" => Ok(Location::GitTag {
-                            url: url.to_string(),
-                            tag: value.to_string(),
-                        }),
-                        "gitcommit" => Ok(Location::GitCommit {
-                            url: url.to_string(),
-                            commit: value.to_string(),
-                        }),
-                        "gitbranch" => Ok(Location::GitBranch {
-                            url: url.to_string(),
-                            branch: value.to_string(),
-                        }),
-                        _ => unreachable!(),
-                    }
-                } else {
-                    // No colon, so remaining is just the value, use default URL
-                    match location_type {
-                        "gittag" => Ok(Location::GitTag {
-                            url: default_url.to_string(),
-                            tag: remaining.to_string(),
-                        }),
-                        "gitcommit" => Ok(Location::GitCommit {
-                            url: default_url.to_string(),
-                            commit: remaining.to_string(),
-                        }),
-                        "gitbranch" => Ok(Location::GitBranch {
-                            url: default_url.to_string(),
-                            branch: remaining.to_string(),
-                        }),
-                        _ => unreachable!(),
-                    }
-                }
-            }
+            "gitbranch" => Ok(Location::GitBranch {
+                url,
+                branch: selector,
+            }),
             _ => Err(format!(
                 "Unknown location type: {}. Supported types: local, gittag, gitcommit, gitbranch",
-                location_type
+                loc_type
             )),
         }
     }
@@ -285,5 +358,134 @@ impl Config {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Location;
+
+    const DEFAULT_URL: &str = "https://github.com/default/repo.git";
+
+    fn canonicalize(s: &str) -> Result<(String, String, String), String> {
+        Location::canonicalize_location(s, DEFAULT_URL)
+    }
+
+    // --- happy-path tests ---
+
+    #[test]
+    fn gittag_short_uses_default_url() {
+        assert_eq!(
+            canonicalize("gittag:v1.2.3").unwrap(),
+            ("gittag".into(), DEFAULT_URL.into(), "v1.2.3".into())
+        );
+    }
+
+    #[test]
+    fn gittag_explicit_https_url() {
+        assert_eq!(
+            canonicalize("gittag:https://github.com/foo/bar.git:v1.2.3").unwrap(),
+            (
+                "gittag".into(),
+                "https://github.com/foo/bar.git".into(),
+                "v1.2.3".into()
+            )
+        );
+    }
+
+    #[test]
+    fn gitcommit_short_uses_default_url() {
+        assert_eq!(
+            canonicalize("gitcommit:abc123def456").unwrap(),
+            (
+                "gitcommit".into(),
+                DEFAULT_URL.into(),
+                "abc123def456".into()
+            )
+        );
+    }
+
+    #[test]
+    fn gitcommit_explicit_https_url() {
+        assert_eq!(
+            canonicalize("gitcommit:https://github.com/foo/bar.git:abc123def456").unwrap(),
+            (
+                "gitcommit".into(),
+                "https://github.com/foo/bar.git".into(),
+                "abc123def456".into()
+            )
+        );
+    }
+
+    #[test]
+    fn gitbranch_short_uses_default_url() {
+        assert_eq!(
+            canonicalize("gitbranch:main").unwrap(),
+            ("gitbranch".into(), DEFAULT_URL.into(), "main".into())
+        );
+    }
+
+    #[test]
+    fn gitbranch_explicit_https_url() {
+        assert_eq!(
+            canonicalize("gitbranch:https://github.com/foo/bar.git:feature/my-branch").unwrap(),
+            (
+                "gitbranch".into(),
+                "https://github.com/foo/bar.git".into(),
+                "feature/my-branch".into()
+            )
+        );
+    }
+
+    #[test]
+    fn local_dir() {
+        assert_eq!(
+            canonicalize("local:/home/user/my-project").unwrap(),
+            (
+                "local".into(),
+                DEFAULT_URL.into(),
+                "/home/user/my-project".into()
+            )
+        );
+    }
+
+    #[test]
+    fn latesttag_with_url() {
+        assert_eq!(
+            canonicalize("latesttag:https://github.com/randomorg/randomrepo:v*").unwrap(),
+            (
+                "gittag".into(),
+                "https://github.com/randomorg/randomrepo".into(),
+                "v1.0.0".into()
+            )
+        );
+    }
+
+    #[test]
+    fn latesttag_without_url() {
+        assert_eq!(
+            canonicalize("latesttag:v*").unwrap(),
+            ("gittag".into(), DEFAULT_URL.into(), "v1.0.0".into())
+        );
+    }
+
+    #[test]
+    fn latesttag_without_url_without_selector() {
+        assert_eq!(
+            canonicalize("latesttag").unwrap(),
+            ("gittag".into(), DEFAULT_URL.into(), "v1.0.0".into())
+        );
+    }
+
+    // --- error-path tests ---
+
+    #[test]
+    fn missing_colon_returns_error() {
+        assert!(canonicalize("gittag").is_err());
+    }
+
+    #[test]
+    fn empty_string_returns_error() {
+        assert!(canonicalize("").is_err());
     }
 }
