@@ -5,7 +5,7 @@
 #
 # Installs (if not already present):
 #   1. Foundry (cast, forge)
-#   2. Python 3.11.15 via pyenv (for cqlsh / Cassandra)
+#   2. Python 3.11.10 via pyenv (for cqlsh / Cassandra)
 #   3. cqlsh via Apache Cassandra tarball
 #
 # Also verifies that git, node, and pnpm are available.
@@ -28,7 +28,7 @@ info()  { printf "${BLUE}ℹ${NC} %s\n" "$1"; }
 FOUNDRY_VERSION="v1.6.0-rc1"
 PYENV_VERSION="v2.5.3"
 CASSANDRA_VERSION="5.0.6"
-PYTHON_VERSION="3.11.15"
+PYTHON_VERSION="3.11.10"
 PYENV_ROOT="${PYENV_ROOT:-$HOME/.pyenv}"
 PYTHON_BIN="${PYENV_ROOT}/versions/${PYTHON_VERSION}/bin/python3"
 CASSANDRA_URL="https://dlcdn.apache.org/cassandra/${CASSANDRA_VERSION}/apache-cassandra-${CASSANDRA_VERSION}-bin.tar.gz"
@@ -87,7 +87,7 @@ else
   fi
 fi
 
-# ── 2. Python 3.11.15 via pyenv (for cqlsh) ─────────────────
+# ── 2. Python 3.11.10 via pyenv (for cqlsh) ─────────────────
 info "Checking Python ${PYTHON_VERSION} via pyenv..."
 
 CUSTOM_PYTHON="${PYTHON_BIN}"

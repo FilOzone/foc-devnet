@@ -1,52 +1,57 @@
 ---
-name: CI
+# Reusable workflow: a single foc-devnet CI run.
+#
+# Called by ci_pull_request.yml (default config, no reporting) and
+# ci_nightly.yml (stability / frontier matrix, issue reporting enabled).
+#
+# The only behavioural difference between callers is the `init_flags` input,
+# which controls which versions of Curio / filecoin-services are used.
+
+name: CI Run
 
 on:
-  push:
-    branches: ['*']
-  pull_request:
-    branches: [main]
+  workflow_call:
+    inputs:
+      name:
+        description: 'Human-readable run name (e.g. default, stability, frontier)'
+        required: true
+        type: string
+      init_flags:
+        description: 'Extra flags forwarded to `foc-devnet init`'
+        required: false
+        type: string
+        default: ''
+      enable_reporting:
+        description: 'When true, file a GitHub issue with the scenario report'
+        required: false
+        type: boolean
+        default: false
+      skip_report_on_pass:
+        description: 'Skip filing an issue when all scenarios pass'
+        required: false
+        type: boolean
+        default: true
+      issue_label:
+        description: 'Label applied to the filed GitHub issue'
+        required: false
+        type: string
+        default: ''
+      issue_title:
+        description: 'Title of the filed GitHub issue'
+        required: false
+        type: string
+        default: ''
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup Rust toolchain
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        components: rustfmt, clippy
-
-    - name: Run lint checks
-      run: FIX=0 ./scripts/lint.sh
-
-  cargo-test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup Rust toolchain
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-
-    - name: Install build dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y pkg-config libssl-dev
-
-    - name: Run tests
-      run: cargo test --all-targets --all-features
-
   foc-start-test:
     runs-on: ["self-hosted", "linux", "x64", "16xlarge+gpu"]
-    timeout-minutes: 60
+    timeout-minutes: 100
+    permissions:
+      contents: read
+      issues: write
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     # Free up disk space on GitHub Actions runner to avoid "no space left" errors
     - name: "EXEC: {Free up disk space}, independent"
@@ -89,7 +94,9 @@ jobs:
     - name: "EXEC: {Install build dependencies}, independent"
       run: |
         sudo apt-get update
-        sudo apt-get install -y tar openssl pkg-config libssl-dev
+        sudo apt-get install -y tar openssl pkg-config libssl-dev \
+          build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev \
+          libreadline-dev libffi-dev libsqlite3-dev libbz2-dev liblzma-dev curl
 
     # Build the foc-devnet binary
     - name: "EXEC: {Build foc-devnet binary}, DEP: {C-rust-cache}"
@@ -106,7 +113,7 @@ jobs:
           ~/.cargo/git/db/
           target/
         key: ${{ runner.os }}-rust-build-${{ hashFiles('**/Cargo.lock') }}
-    
+
     # Copy binary and clean up Rust artifacts to save disk space
     - name: "EXEC: {Copy binary and clean cache}, DEP: {C-rust-cache}"
       run: |
@@ -175,12 +182,12 @@ jobs:
         ./foc-devnet clean --all
         ./foc-devnet init
 
-    # CACHE-DOCKER: Build Docker images if not cached
-    - name: "EXEC: {Build Docker images}, DEP: {C-docker-images-cache}"
+    # CACHE-DOCKER: Save Docker images as tarballs for caching
+    - name: "EXEC: {Save Docker images for cache}, DEP: {C-docker-images-cache}"
       if: steps.cache-docker-images.outputs.cache-hit != 'true'
       run: |-
         mkdir -p ~/.docker-images-cache
-        echo "Building Docker images for cache..."
+        echo "Saving Docker images for cache..."
         docker save foc-lotus -o ~/.docker-images-cache/foc-lotus.tar
         docker save foc-lotus-miner -o ~/.docker-images-cache/foc-lotus-miner.tar
         docker save foc-builder -o ~/.docker-images-cache/foc-builder.tar
@@ -204,7 +211,7 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ~/.foc-devnet/bin
-        key: ${{ runner.os }}-binaries-${{ steps.version-hashes.outputs.code-hash }}
+        key: ${{ runner.os }}-binaries-${{ inputs.name }}-${{ steps.version-hashes.outputs.code-hash }}
 
     - name: "EXEC: {Ensure permissions on binaries}, DEP: {C-build-artifacts-cache}"
       if: steps.cache-binaries.outputs.cache-hit == 'true'
@@ -217,9 +224,9 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ~/.foc-devnet/docker/volumes/cache/foc-builder
-        key: ${{ runner.os }}-foc-builder-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
+        key: ${{ runner.os }}-foc-builder-cache-${{ inputs.name }}-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
         restore-keys: |
-          ${{ runner.os }}-foc-builder-cache-
+          ${{ runner.os }}-foc-builder-cache-${{ inputs.name }}-
 
     - name: "EXEC: {Ensure permissions}, DEP: {C-foc-builder-cache}"
       if: steps.cache-binaries.outputs.cache-hit != 'true' &&
@@ -245,7 +252,7 @@ jobs:
       uses: actions/cache/save@v4
       with:
         path: ~/.foc-devnet/docker/volumes/cache/foc-builder
-        key: ${{ runner.os }}-foc-builder-cache-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
+        key: ${{ runner.os }}-foc-builder-cache-${{ inputs.name }}-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
 
     # CACHE-BINARIES: Save built Lotus/Curio binaries for future runs
     - name: "CACHE_SAVE: {C-build-artifacts-cache}"
@@ -253,7 +260,7 @@ jobs:
       uses: actions/cache/save@v4
       with:
         path: ~/.foc-devnet/bin
-        key: ${{ runner.os }}-binaries-${{ steps.version-hashes.outputs.code-hash }}
+        key: ${{ runner.os }}-binaries-${{ inputs.name }}-${{ steps.version-hashes.outputs.code-hash }}
 
     # Disk free-up
     - name: "EXEC: {Clean up Go modules}, DEP: {C-build-artifacts-cache}"
@@ -288,8 +295,9 @@ jobs:
       continue-on-error: true
       run: ./foc-devnet start --parallel
 
-    # On failure, collect and print Docker container logs for debugging
-    - name: "EXEC: {Collect Docker logs on failure}, independent"
+    # Collect and print Docker container logs for debugging (always runs for diagnostics)
+    - name: "EXEC: {Collect Docker logs}, independent"
+      if: always()
       run: |
         RUN_DIR="$HOME/.foc-devnet/state/latest"
         
@@ -326,9 +334,11 @@ jobs:
 
     # Verify cluster is running correctly
     - name: "EXEC: {Check cluster status}, independent"
+      if: always()
       run: ./foc-devnet status
 
     - name: "EXEC: {List foc-* containers}, independent"
+      if: always()
       run: |
         echo "Containers using foc-* images (running or exited):"
         docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
@@ -347,7 +357,14 @@ jobs:
       if: steps.start_cluster.outcome == 'success'
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: 'lts/*'
+
+    # Setup pnpm (required by scenario tests)
+    - name: "EXEC: {Setup pnpm}, independent"
+      if: steps.start_cluster.outcome == 'success'
+      uses: pnpm/action-setup@v4
+      with:
+        version: latest
 
     # Validate schema using zod
     - name: "CHECK: {Validate devnet-info.json schema}"
@@ -361,13 +378,143 @@ jobs:
         node check-balances.js "$DEVNET_INFO"
         echo "✓ All examples ran well"
 
-    # Clean shutdown
+    # Resolve the numeric job ID for deep CI links in the scenario report.
+    # GH exposes `GITHUB_RUN_ID`, a string but not the numberic value needed to build links.
+    # Exports GITHUB_CI_JOB_ID into $GITHUB_ENV so run.py can skip all name-matching
+    # heuristics and query the Jobs API directly with a known job ID.
+    - name: "SETUP: {Get CI job ID (numeric)}"
+      if: always()
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        GITHUB_CI_JOB_ID=$(curl -sSfL \
+          -H "Authorization: Bearer $GH_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" \
+          | jq -r --arg job "$GITHUB_JOB" \
+              '[.jobs[] | select(.name == $job or (.name | startswith($job + " (")))] | first | .id // empty')
+        if [[ -n "$GITHUB_CI_JOB_ID" ]]; then
+          echo "GITHUB_CI_JOB_ID=$GITHUB_CI_JOB_ID" >> "$GITHUB_ENV"
+          echo "Resolved CI job ID: $GITHUB_CI_JOB_ID"
+          echo "Job URL: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/job/$GITHUB_CI_JOB_ID"
+        else
+          echo "Warning: could not resolve numeric job ID (GITHUB_JOB=$GITHUB_JOB)"
+        fi
+
+    # Setup scenario test prerequisites (Foundry, Python 3.11 via pyenv, cqlsh)
+    - name: "EXEC: {Setup scenario prerequisites}, independent"
+      if: steps.start_cluster.outcome == 'success'
+      run: ./scripts/setup-scenarios-prerequisites.sh
+
+    # Run scenario tests against the live devnet
+    - name: "TEST: {Run scenario tests}"
+      id: scenario_tests
+      if: steps.start_cluster.outcome == 'success'
+      env:
+        REPORTING: ${{ inputs.enable_reporting }}
+        SKIP_REPORT_ON_PASS: ${{ inputs.skip_report_on_pass }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SCENARIO_RUN_TYPE: ${{ inputs.name }}
+      run: python3 scenarios/run.py
+
+    # Ensure scenario report exists even if tests didn't run (for issue reporting)
+    - name: "EXEC: {Ensure scenario report exists}"
+      if: always()
+      run: |
+        REPORT="$HOME/.foc-devnet/state/latest/scenario_report.md"
+        if [ ! -f "$REPORT" ]; then
+          mkdir -p "$(dirname "$REPORT")"
+          {
+            echo "# Scenario Test Report (${{ inputs.name }})"
+            echo ""
+            echo "**Something failed before a proper scenario report could be generated.**"
+            echo ""
+            echo "**Start cluster outcome**: ${{ steps.start_cluster.outcome }}"
+            echo ""
+            echo "**CI run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo ""
+            echo "## foc-devnet version"
+            echo '```'
+            ./foc-devnet version 2>&1 || echo "version command failed"
+            echo '```'
+          } > "$REPORT"
+        fi
+
+    # Upload scenario report as artifact (name includes run name to avoid collisions in matrix)
+    - name: "EXEC: {Upload scenario report}"
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scenario-report-${{ inputs.name }}
+        path: ~/.foc-devnet/state/latest/scenario_*.md
+        if-no-files-found: ignore
+
+    # Determine whether to file an issue (only when reporting is enabled).
+    # Uses job.status to catch failures in ANY step — not just start_cluster
+    # and scenario_tests. If an intermediate step (e.g. prerequisites) fails
+    # and scenario_tests is skipped, job.status is still 'failure'.
+    - name: "CHECK: {Determine if issue should be filed}"
+      id: should_file
+      if: always() && inputs.enable_reporting
+      env:
+        JOB_STATUS: ${{ job.status }}
+      run: |
+        if [[ "$JOB_STATUS" == "success" ]]; then
+          PASSED="true"
+        else
+          PASSED="false"
+          echo "Job status: $JOB_STATUS"
+          echo "  start_cluster.outcome=${{ steps.start_cluster.outcome }}"
+          echo "  scenario_tests.outcome=${{ steps.scenario_tests.outcome }}"
+        fi
+        echo "passed=$PASSED" >> $GITHUB_OUTPUT
+        if [[ "$PASSED" == "true" && "${{ inputs.skip_report_on_pass }}" == "true" ]]; then
+          echo "file=false" >> $GITHUB_OUTPUT
+          echo "Skipping issue: tests passed and skip_report_on_pass is true"
+        else
+          echo "file=true" >> $GITHUB_OUTPUT
+          echo "Filing issue (${{ inputs.name }}): passed=$PASSED"
+        fi
+
+    # Read scenario report content from the filesystem directly
+    - name: "EXEC: {Read scenario report}"
+      id: report
+      if: always() && steps.should_file.outputs.file == 'true' && inputs.enable_reporting
+      run: |
+        REPORT="$HOME/.foc-devnet/state/latest/scenario_report.md"
+        if [ -f "$REPORT" ]; then
+          CONTENT=$(cat "$REPORT")
+        else
+          CONTENT="No scenario report available for **${{ inputs.name }}** strategy."
+        fi
+        EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+        echo "content<<$EOF" >> $GITHUB_OUTPUT
+        echo "$CONTENT" >> $GITHUB_OUTPUT
+        echo "$EOF" >> $GITHUB_OUTPUT
+
+    # Create or update a GitHub issue with the scenario report
+    - name: "EXEC: {Create or update issue}"
+      if: always() && steps.should_file.outputs.file == 'true' && inputs.enable_reporting
+      uses: ipdxco/create-or-update-issue@v1
+      with:
+        GITHUB_TOKEN: ${{ github.token }}
+        title: ${{ inputs.issue_title }}
+        body: |
+          The **${{ inputs.name }}** scenarios run **${{ steps.should_file.outputs.passed == 'true' && 'passed ✅' || 'failed ❌' }}**.
+          See [the workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+
+          ${{ steps.report.outputs.content }}
+        label: ${{ inputs.issue_label }}
+
+    # Clean shutdown (always runs to avoid leaving containers behind)
     - name: "EXEC: {Stop cluster}, independent"
+      if: always()
       run: ./foc-devnet stop
 
     # Mark job as failed if the start step failed, but only after all steps
     - name: "CHECK: {Fail job if start failed}"
-      if: ${{ always() && steps.start_cluster.outcome == 'failure' }}
+      if: always() && steps.start_cluster.outcome == 'failure'
       run: |
         echo "Start cluster failed earlier; marking job as failed." >&2
         exit 1

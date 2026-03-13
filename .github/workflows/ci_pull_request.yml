@@ -1,0 +1,64 @@
+---
+# Runs on every pull request targeting main, and on every merge to main.
+#
+# Executes lint checks, cargo tests, and a single CI run with the default
+# config (no special init_flags). Issue reporting is disabled — that is
+# reserved for the nightly schedule run.
+
+name: CI (Pull Request)
+
+on:
+  pull_request:
+    branches: ['main']
+  push:
+    branches: ['main']
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Setup Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        components: rustfmt, clippy
+
+    - name: Setup Python tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y pipx
+        pipx install black
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+    - name: Run linting (check mode)
+      run: FIX=0 ./scripts/lint.sh
+
+  cargo-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Setup Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y pkg-config libssl-dev
+
+    - name: Run tests
+      run: cargo test --all-targets --all-features
+
+  foc-devnet-test:
+    needs: [lint, cargo-test]
+    uses: ./.github/workflows/ci_run.yml
+    with:
+      name: default
+      init_flags: ''
+      enable_reporting: false
+    secrets: inherit

@@ -30,7 +30,7 @@ from scenarios.helpers import (
 from scenarios.synapse import clone_and_build, upload_file
 
 CASSANDRA_VERSION = "5.0.6"
-PYTHON_VERSION = "3.11.15"
+PYTHON_VERSION = "3.11.10"
 PYENV_ROOT = Path.home() / ".pyenv"
 PYTHON_DIR = PYENV_ROOT / "versions" / PYTHON_VERSION
 CASSANDRA_DIR = Path.home() / ".foc-devnet" / "artifacts" / "cassandra"
