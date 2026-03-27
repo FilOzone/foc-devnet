@@ -498,7 +498,11 @@ jobs:
       if: always() && steps.should_file.outputs.file == 'true' && inputs.enable_reporting
       uses: ipdxco/create-or-update-issue@v1
       with:
-        GITHUB_TOKEN: ${{ github.token }}
+        # We're not using `github.token` here because it won't trigger other workflows like `add-issues-to-project`.
+        # Instead, we use a PAT to trigger other workflows.
+        # This PAT has permissions to open/update issues, which is why it was used.
+        # Alternatively, we could create a more narrowly scoped PAT, but this would be another PAT to setup/manage.
+        GITHUB_TOKEN: ${{ secrets.FILOZZY_RELEASE_PLEASE_PAT_FILOZONE }}
         title: ${{ inputs.issue_title }}
         body: |
           The **${{ inputs.name }}** scenarios run **${{ steps.should_file.outputs.passed == 'true' && 'passed ✅' || 'failed ❌' }}**.
