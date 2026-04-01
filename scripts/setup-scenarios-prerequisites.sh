@@ -27,11 +27,11 @@ info()  { printf "${BLUE}ℹ${NC} %s\n" "$1"; }
 # ── Constants ────────────────────────────────────────────────
 FOUNDRY_VERSION="v1.6.0-rc1"
 PYENV_VERSION="v2.5.3"
-CASSANDRA_VERSION="5.0.6"
+CASSANDRA_VERSION="5.0.7"
 PYTHON_VERSION="3.11.10"
 PYENV_ROOT="${PYENV_ROOT:-$HOME/.pyenv}"
 PYTHON_BIN="${PYENV_ROOT}/versions/${PYTHON_VERSION}/bin/python3"
-CASSANDRA_URL="https://dlcdn.apache.org/cassandra/${CASSANDRA_VERSION}/apache-cassandra-${CASSANDRA_VERSION}-bin.tar.gz"
+CASSANDRA_URL="https://archive.apache.org/dist/cassandra/${CASSANDRA_VERSION}/apache-cassandra-${CASSANDRA_VERSION}-bin.tar.gz"
 CASSANDRA_DIR="$HOME/.foc-devnet/artifacts/cassandra"
 FOUNDRY_DIR="$HOME/.foc-devnet/artifacts/foundry/bin"
 CASSANDRA_HOME="${CASSANDRA_DIR}/apache-cassandra-${CASSANDRA_VERSION}"
