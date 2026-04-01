@@ -72,3 +72,16 @@ pub fn get_lotus_rpc_url(context: &SetupContext) -> Result<String, Box<dyn Error
         .parse()?;
     Ok(format!("http://localhost:{}/rpc/v1", lotus_api_port))
 }
+
+/// Append `-e LOTUS_XX_HEIGHT=-1` to docker args.
+///
+/// Lotus 2k devnet builds always have one upcoming network upgrade at a positive
+/// epoch height (UpgradeXxHeight, where "Xx" is the placeholder name for the next
+/// unreleased upgrade). When the chain reaches that epoch, it triggers an expensive
+/// state migration that causes transient ErrExpensiveFork errors on eth_call and
+/// estimateGas RPCs. Since the devnet should mirror current mainnet/calibnet
+/// behavior (not an unreleased future upgrade), we disable it.
+pub fn append_lotus_network_env(docker_args: &mut Vec<String>) {
+    docker_args.push("-e".to_string());
+    docker_args.push("LOTUS_XX_HEIGHT=-1".to_string());
+}

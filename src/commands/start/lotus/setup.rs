@@ -3,6 +3,7 @@
 //! This module contains functions that prepare the environment
 //! for starting the Lotus daemon container.
 
+use super::super::lotus_utils::append_lotus_network_env;
 use super::super::step::SetupContext;
 use crate::constants::LOTUS_DOCKER_IMAGE;
 use crate::docker::containers::lotus_container_name;
@@ -135,6 +136,9 @@ pub fn build_docker_command(
 
     // Set working directory
     docker_args.extend_from_slice(&["-w".to_string(), "/data".to_string()]);
+
+    // Disable the next unreleased network upgrade (UpgradeXxHeight)
+    append_lotus_network_env(&mut docker_args);
 
     // Add image name
     docker_args.push(LOTUS_DOCKER_IMAGE.to_string());
