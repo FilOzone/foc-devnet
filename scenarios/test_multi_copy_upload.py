@@ -33,13 +33,13 @@ def run():
 
     with tempfile.TemporaryDirectory(prefix="filecoin-pin-") as tmp:
         if not run_cmd(
-            ["pnpm", "install", "-g", "filecoin-pin"],
-            label="pnpm install -g filecoin-pin",
+            ["npm", "install", "-g", "filecoin-pin"],
+            label="npm install -g filecoin-pin",
         ):
             return
         if not run_cmd(
-            ["pnpm", "install", "-g", "multiformats"],
-            label="pnpm install -g multiformats",
+            ["npm", "install", "-g", "multiformats"],
+            label="npm install -g multiformats",
         ):
             return
 
