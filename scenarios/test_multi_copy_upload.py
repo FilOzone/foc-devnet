@@ -11,7 +11,14 @@ from urllib.request import urlopen
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from scenarios.helpers import assert_eq, assert_ok, fail, info, run_cmd, write_random_file
+from scenarios.helpers import (
+    assert_eq,
+    assert_ok,
+    fail,
+    info,
+    run_cmd,
+    write_random_file,
+)
 
 RAND_FILE_NAME = "random_file"
 RAND_FILE_SIZE = 20 * 1024 * 1024
@@ -25,9 +32,15 @@ def run():
     scripts_dir = Path("scripts").resolve()
 
     with tempfile.TemporaryDirectory(prefix="filecoin-pin-") as tmp:
-        if not run_cmd(["pnpm", "install", "-g", "filecoin-pin"], label="pnpm install -g filecoin-pin"):
+        if not run_cmd(
+            ["pnpm", "install", "-g", "filecoin-pin"],
+            label="pnpm install -g filecoin-pin",
+        ):
             return
-        if not run_cmd(["pnpm", "install", "-g", "multiformats"], label="pnpm install -g multiformats"):
+        if not run_cmd(
+            ["pnpm", "install", "-g", "multiformats"],
+            label="pnpm install -g multiformats",
+        ):
             return
 
         random_file = Path(tmp) / RAND_FILE_NAME
@@ -48,7 +61,9 @@ def run():
         )
         add_details = (add_result.stderr or add_result.stdout or "").strip()
         if add_result.returncode != 0:
-            fail(f"filecoin-pin add --network devnet {tmp} (exit={add_result.returncode}) {add_details}")
+            fail(
+                f"filecoin-pin add --network devnet {tmp} (exit={add_result.returncode}) {add_details}"
+            )
             return
 
         root_cid = None
