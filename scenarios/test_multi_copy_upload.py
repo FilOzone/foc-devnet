@@ -62,13 +62,11 @@ def run():
         add_stdout = (add_result.stdout or "").strip()
         add_stderr = (add_result.stderr or "").strip()
         if add_result.returncode != 0:
-            fail(
-                f"""
+            fail(f"""
                 filecoin-pin add --network devnet {tmp} (exit={add_result.returncode})
                 {add_stdout}
                 {add_stderr}
-                """.strip()
-            )
+                """.strip())
             return
 
         root_cid = None
