@@ -59,10 +59,15 @@ def run():
             text=True,
             capture_output=True,
         )
-        add_details = (add_result.stderr or add_result.stdout or "").strip()
+        add_stdout = (add_result.stdout or "").strip()
+        add_stderr = (add_result.stderr or "").strip()
         if add_result.returncode != 0:
             fail(
-                f"filecoin-pin add --network devnet {tmp} (exit={add_result.returncode}) {add_details}"
+                f"""
+                filecoin-pin add --network devnet {tmp} (exit={add_result.returncode})
+                {add_stdout}
+                {add_stderr}
+                """.strip()
             )
             return
 
@@ -70,7 +75,7 @@ def run():
         piece_cid = None
         piece_retrieval_urls = []
 
-        for line in add_details.splitlines():
+        for line in add_stdout.splitlines():
             stripped = line.strip()
 
             if root_cid is None and stripped.startswith("Root CID:"):
