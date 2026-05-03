@@ -31,9 +31,9 @@ def run():
 
     scripts_dir = Path("scripts").resolve()
 
-    with tempfile.TemporaryDirectory(prefix="filecoin-pin-upload-") as upload_tmp, tempfile.TemporaryDirectory(
-        prefix="filecoin-pin-npm-"
-    ) as npm_tmp:
+    with tempfile.TemporaryDirectory(
+        prefix="filecoin-pin-upload-"
+    ) as upload_tmp, tempfile.TemporaryDirectory(prefix="filecoin-pin-npm-") as npm_tmp:
         upload_dir = Path(upload_tmp)
         npm_dir = Path(npm_tmp)
 
@@ -96,12 +96,10 @@ def run():
         add_details = f"{add_stdout}\n{add_stderr}".strip()
 
         if add_result.returncode != 0:
-            fail(
-                f"""
+            fail(f"""
                 filecoin-pin add --network devnet {upload_dir} (exit={add_result.returncode})
                 {add_details}
-                """.strip()
-            )
+                """.strip())
             return
 
         root_cid = None
