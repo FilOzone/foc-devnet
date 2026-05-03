@@ -2,9 +2,11 @@
 """Multi-copy upload test: upload a random file via filecoin-pin against the devnet."""
 
 import os
+import re
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
@@ -20,16 +22,97 @@ from scenarios.helpers import (
     write_random_file,
 )
 
+ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 RAND_FILE_NAME = "random_file"
 RAND_FILE_SIZE = 20 * 1024 * 1024
 RAND_FILE_SEED = 42
+RETRIEVAL_DEADLINE_SECS = 90
+RETRIEVAL_INTERVAL_SECS = 5
+RETRIEVAL_REQUEST_TIMEOUT_SECS = 10
+VERIFY_CID_SCRIPT = """
+import { readFileSync } from "node:fs";
+import { CID } from "multiformats";
+import { sha256 } from "multiformats/hashes/sha2";
+
+const [cidString, filePath] = process.argv.slice(1);
+
+if (!cidString || !filePath) {
+  console.error("usage: node --input-type=module --eval <script> <cid> <file>");
+  process.exit(1);
+}
+
+const cid = CID.parse(cidString);
+const bytes = readFileSync(filePath);
+const digest = await sha256.digest(bytes);
+
+if (Buffer.from(digest.digest).equals(Buffer.from(cid.multihash.digest))) {
+  console.log("OK");
+} else {
+  console.error("CID mismatch");
+  process.exit(1);
+}
+""".strip()
+
+
+def strip_ansi(value: str) -> str:
+    return ANSI_RE.sub("", value)
+
+
+def download_and_verify(
+    url: str, file: Path, root_cid: str, npm_dir: Path
+) -> str | None:
+    download_url = f"{url}?format=raw"
+    last_error = ""
+    deadline = time.time() + RETRIEVAL_DEADLINE_SECS
+
+    while time.time() < deadline:
+        file.unlink(missing_ok=True)
+
+        try:
+            with urlopen(
+                download_url, timeout=RETRIEVAL_REQUEST_TIMEOUT_SECS
+            ) as resp, open(file, "wb") as f:
+                while True:
+                    chunk = resp.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+        except (URLError, OSError) as e:
+            last_error = f"Failed to download {download_url}: {e}"
+        else:
+            verify_result = subprocess.run(
+                [
+                    "node",
+                    "--input-type=module",
+                    "--eval",
+                    VERIFY_CID_SCRIPT,
+                    root_cid,
+                    str(file),
+                ],
+                cwd=npm_dir,
+                text=True,
+                capture_output=True,
+            )
+
+            if verify_result.returncode == 0:
+                return None
+
+            verify_details = (
+                verify_result.stderr or verify_result.stdout or ""
+            ).strip()
+            last_error = (
+                f"CID verification failed for {download_url} "
+                f"(exit={verify_result.returncode}) {verify_details}"
+            )
+
+        time.sleep(RETRIEVAL_INTERVAL_SECS)
+
+    return last_error or f"Timed out verifying {download_url}"
 
 
 def run():
     assert_ok("command -v node", "node is installed")
     assert_ok("command -v pnpm", "pnpm is installed")
-
-    scripts_dir = Path("scripts").resolve()
 
     with tempfile.TemporaryDirectory(
         prefix="filecoin-pin-upload-"
@@ -51,6 +134,8 @@ def run():
                 "set",
                 "type=module",
                 "dependencies.filecoin-pin=0.20.0",
+                "dependencies.multiformats=13.4.2",
+                "overrides.@filoz/synapse-sdk=0.40.2",
                 "overrides.@filoz/synapse-core=0.3.3",
             ],
             label="pin filecoin-pin dependencies",
@@ -62,14 +147,6 @@ def run():
             ["npm", "install"],
             label="npm install",
             cwd=npm_dir,
-        ):
-            return
-
-        # Keep this global for now; verify_cid.mjs likely imports multiformats
-        # outside the temporary npm project.
-        if not run_cmd(
-            ["npm", "install", "-g", "multiformats"],
-            label="npm install -g multiformats",
         ):
             return
 
@@ -94,11 +171,13 @@ def run():
         add_stdout = (add_result.stdout or "").strip()
         add_stderr = (add_result.stderr or "").strip()
         add_details = f"{add_stdout}\n{add_stderr}".strip()
+        add_stdout_clean = strip_ansi(add_stdout)
+        add_details_clean = strip_ansi(add_details)
 
         if add_result.returncode != 0:
             fail(f"""
                 filecoin-pin add --network devnet {upload_dir} (exit={add_result.returncode})
-                {add_details}
+                {add_details_clean}
                 """.strip())
             return
 
@@ -106,11 +185,13 @@ def run():
         piece_cid = None
         piece_retrieval_urls = []
 
-        for line in add_stdout.splitlines():
+        for line in add_stdout_clean.splitlines():
             stripped = line.strip()
 
-            if root_cid is None and stripped.startswith("Root CID:"):
-                root_cid = stripped.split(":", 1)[1].strip()
+            if root_cid is None:
+                match = re.search(r"\broot CID:\s*(\S+)", stripped, re.IGNORECASE)
+                if match:
+                    root_cid = match.group(1)
 
             if piece_cid is None and stripped.startswith("Piece CID:"):
                 piece_cid = stripped.split(":", 1)[1].strip()
@@ -119,15 +200,18 @@ def run():
                 piece_retrieval_urls.append(stripped.split(":", 1)[1].strip())
 
         if not root_cid:
-            fail(f"Could not parse Root CID from output: {add_details}")
+            fail(f"Could not parse Root CID from output: {add_details_clean}")
             return
 
         if not piece_cid:
-            fail(f"Could not parse Piece CID from output: {add_details}")
+            fail(f"Could not parse Piece CID from output: {add_details_clean}")
             return
 
-        if not piece_retrieval_urls:
-            fail(f"Could not parse Piece Retrieval URLs from output: {add_details}")
+        if len(piece_retrieval_urls) < 2:
+            fail(
+                "Could not parse at least two Piece Retrieval URLs from output: "
+                f"{add_details_clean}"
+            )
             return
 
         root_retrieval_urls = [
@@ -140,24 +224,11 @@ def run():
 
         for i, url in enumerate(root_retrieval_urls, start=1):
             file = ipfs_dir / f"{root_cid}_{i}.bin"
-            download_url = f"{url}?format=raw"
-
-            try:
-                with urlopen(download_url, timeout=60) as resp, open(file, "wb") as f:
-                    while True:
-                        chunk = resp.read(1024 * 1024)
-                        if not chunk:
-                            break
-                        f.write(chunk)
-            except (URLError, OSError) as e:
-                fail(f"Failed to download {download_url}: {e}")
+            error = download_and_verify(url, file, root_cid, npm_dir)
+            if error:
+                fail(error)
                 return
-
-            if not run_cmd(
-                ["node", str(scripts_dir / "verify_cid.mjs"), root_cid, str(file)],
-                label=f"node {scripts_dir / 'verify_cid.mjs'} {root_cid} {file} ({download_url})",
-            ):
-                return
+            info(f"Verified retrieval URL {i}: {url}")
 
 
 if __name__ == "__main__":
