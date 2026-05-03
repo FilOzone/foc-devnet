@@ -6,11 +6,9 @@ use super::key_management;
 use super::prerequisites::check_required_addresses;
 use crate::commands::start::lotus_utils::get_lotus_rpc_url;
 use crate::docker::command_logger::run_and_log_command_strings;
+use crate::paths::foc_devnet_multicall3_repo;
 use std::error::Error;
 use tracing::{error, info};
-
-const MULTICALL3_BYTECODE: &str =
-    include_str!("../../../../contracts/Multicall3/bytecode/Multicall3.bin");
 
 /// Deploy Multicall3 using forge create
 pub fn deploy_multicall3(
@@ -21,22 +19,40 @@ pub fn deploy_multicall3(
 ) -> Result<String, Box<dyn Error>> {
     info!("Deploying Multicall3 contract...");
 
-    info!("Creating Multicall3 contract...");
+    // Get the multicall3 repository path
+    let multicall3_repo = foc_devnet_multicall3_repo();
 
-    // Deploy precompiled bytecode with explicit gas limit for FEVM. Keeping this
-    // path compiler-free avoids startup-time downloads in ephemeral containers.
+    if !multicall3_repo.exists() {
+        return Err(format!(
+            "Multicall3 repository not found at: {}",
+            multicall3_repo.display()
+        )
+        .into());
+    }
+
+    // Check if Multicall3.sol exists in the repo
+    let contract_file = multicall3_repo.join("src/Multicall3.sol");
+    if !contract_file.exists() {
+        return Err(format!("Multicall3.sol not found at: {}", contract_file.display()).into());
+    }
+
+    info!("Compiling and deploying contract...");
+
+    // Deploy using forge create with explicit gas limit for FEVM
     let deploy_cmd = format!(
-        "cast send --json \
+        "cd /workspace && \
+         forge create src/Multicall3.sol:Multicall3 \
          --rpc-url {} \
          --private-key {} \
+         --legacy \
          --gas-limit 1000000000 \
-         --create {}",
-        lotus_rpc_url,
-        private_key,
-        MULTICALL3_BYTECODE.trim()
+         --broadcast \
+         -vv",
+        lotus_rpc_url, private_key
     );
 
     let container_name = format!("foc-{}-multicall3-deploy", run_id);
+    let volume_mount = format!("{}:/workspace", multicall3_repo.display());
     let args: Vec<String> = vec![
         "run".to_string(),
         "-u".to_string(),
@@ -45,6 +61,8 @@ pub fn deploy_multicall3(
         container_name,
         "--network".to_string(),
         "host".to_string(), // Use host network to access Lotus RPC on dynamic port
+        "-v".to_string(),
+        volume_mount,
         crate::constants::BUILDER_DOCKER_IMAGE.to_string(),
         "bash".to_string(),
         "-c".to_string(),
@@ -76,13 +94,12 @@ pub fn deploy_multicall3(
         return Err("Multicall3 deployment failed".into());
     }
 
-    // Extract contract address from cast send JSON output.
-    let receipt: serde_json::Value = serde_json::from_str(stdout.trim())
-        .map_err(|e| format!("Failed to parse deployment JSON output: {}", e))?;
-    let contract_address = receipt
-        .get("contractAddress")
-        .and_then(|value| value.as_str())
-        .filter(|value| !value.is_empty())
+    // Extract contract address from output
+    // Look for "Deployed to:" in the output
+    let contract_address = stdout
+        .lines()
+        .find(|line| line.contains("Deployed to:"))
+        .and_then(|line| line.split_whitespace().last())
         .ok_or("Failed to extract contract address from deployment output")?;
 
     info!("✓ Multicall3 deployed at: {}", contract_address);

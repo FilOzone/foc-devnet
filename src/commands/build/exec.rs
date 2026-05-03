@@ -6,7 +6,6 @@ use super::docker;
 use super::logging;
 use super::Project;
 use crate::docker::core::{get_current_gid, get_current_uid};
-use std::fs;
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
@@ -28,7 +27,7 @@ pub fn run_build_in_container(
 
     // Create log file for this build
     let log_path = logging::create_build_log_path()?;
-    ensure_directory_writable(
+    fix_directory_ownership(
         log_path
             .parent()
             .unwrap()
@@ -125,41 +124,20 @@ pub fn execute_build_process(
     Ok(())
 }
 
-/// Ensure a directory is writable by the current user.
+/// Fix ownership of a directory to the current user.
 ///
-/// Build logs are written by the host process, so avoid invoking sudo unless the
-/// directory is actually not writable.
-fn ensure_directory_writable(dir: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let write_probe_path =
-        Path::new(dir).join(format!(".foc-devnet-write-test-{}", std::process::id()));
-    match OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&write_probe_path)
-    {
-        Ok(_) => {
-            fs::remove_file(write_probe_path)?;
-            return Ok(());
-        }
-        Err(e) => {
-            warn!("Build log directory {} is not writable: {}", dir, e);
-        }
-    }
-
+/// This ensures the Docker container (running as current user) can access the directory.
+fn fix_directory_ownership(dir: &str) -> Result<(), Box<dyn std::error::Error>> {
     let uid = get_current_uid()?;
     let gid = get_current_gid()?;
 
     let output = Command::new("sudo")
-        .args(["-n", "chown", "-R", &format!("{}:{}", uid, gid), dir])
+        .args(["chown", "-R", &format!("{}:{}", uid, gid), dir])
         .output()?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
-            "Build log directory {} is not writable and ownership could not be fixed automatically: {}",
-            dir, stderr
-        )
-        .into());
+        return Err(format!("Failed to fix ownership of {}: {}", dir, stderr).into());
     }
 
     Ok(())

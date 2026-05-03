@@ -3,11 +3,14 @@
 //! This module handles the setup and preparation of the Foundry project
 //! for deploying the MockUSDFC contract.
 
+use crate::commands::start::step::SetupContext;
+use crate::docker::command_logger::run_and_log_command;
 use crate::embedded_assets;
 use crate::paths::foc_devnet_run_dir;
 use std::error::Error;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use tracing::info;
 
 /// Get or create the MockUSDFC project directory from embedded assets
 ///
@@ -37,4 +40,119 @@ pub fn get_mockusdfc_project_dir(run_id: &str) -> Result<PathBuf, Box<dyn Error>
     }
 
     Ok(mockusdfc_dir)
+}
+
+/// Setup the Foundry project (install dependencies if needed)
+pub fn setup_foundry_project(
+    context: &SetupContext,
+    contract_dir: &Path,
+    run_id: &str,
+) -> Result<(), Box<dyn Error>> {
+    let openzeppelin_path = contract_dir.join("lib/openzeppelin-contracts");
+
+    if !openzeppelin_path.exists() {
+        info!("Installing OpenZeppelin contracts...");
+
+        // First, initialize git repo if it doesn't exist
+        let git_dir = contract_dir.join(".git");
+        if !git_dir.exists() {
+            info!("Initializing git repository...");
+            let key = format!("usdfc_setup_git_init_{}", run_id);
+            let container_name = format!("foc-{}-usdfc-git-init", run_id);
+            let output = run_and_log_command(
+                "docker",
+                &[
+                    "run",
+                    "--name",
+                    &container_name,
+                    "-u",
+                    "foc-user",
+                    "-v",
+                    &format!("{}:/workspace", contract_dir.display()),
+                    crate::constants::BUILDER_DOCKER_IMAGE,
+                    "bash",
+                    "-c",
+                    "cd /workspace && git init && git config user.email 'foc@devnet' && git config user.name 'FOC DevNet'",
+                ],
+                context,
+                &key,
+            )?;
+
+            if !output.status.success() {
+                return Err(format!(
+                    "Failed to initialize git repository: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                )
+                .into());
+            }
+        }
+
+        // Install dependencies
+        let key = format!("usdfc_setup_install_deps_{}", run_id);
+        let container_name = format!("foc-{}-usdfc-install-deps", run_id);
+        let output = run_and_log_command(
+            "docker",
+            &[
+                "run",
+                "--name",
+                &container_name,
+                "-u",
+                "foc-user",
+                "-v",
+                &format!("{}:/workspace", contract_dir.display()),
+                crate::constants::BUILDER_DOCKER_IMAGE,
+                "bash",
+                "-c",
+                "cd /workspace && \
+                 forge install OpenZeppelin/openzeppelin-contracts@v5.0.0 && \
+                 forge install foundry-rs/forge-std",
+            ],
+            context,
+            &key,
+        )?;
+
+        if !output.status.success() {
+            return Err(format!(
+                "Failed to install dependencies: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .into());
+        }
+
+        info!("Dependencies installed");
+    }
+
+    // Build contracts
+    info!("Building MockUSDFC contract...");
+    let key = format!("usdfc_setup_build_{}", run_id);
+    let container_name = format!("foc-{}-usdfc-build", run_id);
+    let output = run_and_log_command(
+        "docker",
+        &[
+            "run",
+            "--name",
+            &container_name,
+            "-u",
+            "foc-user",
+            "-v",
+            &format!("{}:/workspace", contract_dir.display()),
+            crate::constants::BUILDER_DOCKER_IMAGE,
+            "bash",
+            "-c",
+            "cd /workspace && forge build",
+        ],
+        context,
+        &key,
+    )?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "Failed to build contracts: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
+    }
+
+    info!("Contracts built");
+    Ok(())
 }

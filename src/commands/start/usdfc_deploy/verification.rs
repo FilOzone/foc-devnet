@@ -33,38 +33,13 @@ pub fn verify_mock_usdfc(
     let verification_result = retry_with_fixed_delay(
         || {
             let verify_cmd = format!(
-                "set -euo pipefail && \
-                 DEPLOYER=$(cast wallet address --private-key {}) && \
-                 NAME=$(cast call --rpc-url {} {} 'name()(string)') && \
-                 SYMBOL=$(cast call --rpc-url {} {} 'symbol()(string)') && \
-                 DECIMALS=$(cast call --rpc-url {} {} 'decimals()(uint8)') && \
-                 TOTAL_SUPPLY=$(cast call --rpc-url {} {} 'totalSupply()(uint256)') && \
-                 BALANCE=$(cast call --rpc-url {} {} 'balanceOf(address)(uint256)' $DEPLOYER) && \
-                 echo \"Name: $NAME\" && \
-                 echo \"Symbol: $SYMBOL\" && \
-                 echo \"Decimals: $DECIMALS\" && \
-                 echo \"Total supply: $TOTAL_SUPPLY\" && \
-                 echo \"Deployer balance: $BALANCE\" && \
-                 TOTAL_SUPPLY_VALUE=$(echo \"$TOTAL_SUPPLY\" | awk '{{print $1}}') && \
-                 BALANCE_VALUE=$(echo \"$BALANCE\" | awk '{{print $1}}') && \
-                 ([ \"$NAME\" = 'Mock USDC' ] || [ \"$NAME\" = '\"Mock USDC\"' ]) && \
-                 ([ \"$SYMBOL\" = 'USDFC' ] || [ \"$SYMBOL\" = '\"USDFC\"' ]) && \
-                 [ \"$DECIMALS\" = '18' ] && \
-                 [ \"$TOTAL_SUPPLY_VALUE\" = '{}' ] && \
-                 [ \"$BALANCE_VALUE\" = '{}' ]",
-                private_key,
-                lotus_rpc_url,
-                contract_address,
-                lotus_rpc_url,
-                contract_address,
-                lotus_rpc_url,
-                contract_address,
-                lotus_rpc_url,
-                contract_address,
-                lotus_rpc_url,
-                contract_address,
-                crate::constants::MOCK_USDFC_INITIAL_SUPPLY,
-                crate::constants::MOCK_USDFC_INITIAL_SUPPLY
+                "cd /workspace && \
+                 forge script script/Verify.s.sol:VerifyMockUSDFC \
+                 --rpc-url {} \
+                 --private-key {} \
+                 --sig 'run(address)' {} \
+                 -vv",
+                lotus_rpc_url, private_key, contract_address
             );
 
             let key = format!("usdfc_verify_{}", run_id);
@@ -73,7 +48,6 @@ pub fn verify_mock_usdfc(
                 "docker",
                 &[
                     "run",
-                    "--rm",
                     "--name",
                     &container_name,
                     "-u",
