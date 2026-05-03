@@ -106,8 +106,8 @@ fn spawn_yugabyte_instance(
         "--base_dir=/home/foc-user/yb_base",
         "--ui=true",
         "--callhome=false",
-        "--master_flags=rpc_bind_addresses=0.0.0.0",
-        "--tserver_flags=rpc_bind_addresses=0.0.0.0,pgsql_proxy_bind_address=0.0.0.0:5433,cql_proxy_bind_address=0.0.0.0:9042",
+        "--master_flags=rpc_bind_addresses=0.0.0.0,tablet_replicas_per_core_limit=0,tablet_replicas_per_gib_limit=0",
+        "--tserver_flags=rpc_bind_addresses=0.0.0.0,pgsql_proxy_bind_address=0.0.0.0:5433,cql_proxy_bind_address=0.0.0.0:9042,yb_num_shards_per_tserver=1,ysql_num_shards_per_tserver=1,tablet_replicas_per_core_limit=0,tablet_replicas_per_gib_limit=0",
         "--daemon=false",
     ]);
 

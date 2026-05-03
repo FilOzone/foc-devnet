@@ -18,6 +18,7 @@ Examples:
   scripts/run-local-scenarios.py test_containers test_basic_balances
   scripts/run-local-scenarios.py --all
   scripts/run-local-scenarios.py --clean --keep-running test_multi_copy_upload
+  scripts/run-local-scenarios.py --skip-init test_multi_copy_upload
 
 The setup and teardown steps are intentionally kept in separate functions so
 they can be moved into shared local-dev helpers later.
@@ -41,11 +42,30 @@ from scenarios.run import ORDER, _print_summary, _run_single_test  # noqa: E402
 
 DEFAULT_BINARY = REPO_ROOT / "target" / "release" / "foc-devnet"
 SCENARIO_TIMEOUTS = dict(ORDER)
+RUNTIME_DOCKER_IMAGES = (
+    ("foc-lotus", REPO_ROOT / "docker" / "lotus" / "Dockerfile", REPO_ROOT),
+    ("foc-lotus-miner", REPO_ROOT / "docker" / "lotus-miner" / "Dockerfile", REPO_ROOT),
+    ("foc-curio", REPO_ROOT / "docker" / "curio" / "Dockerfile", REPO_ROOT),
+    (
+        "foc-yugabyte",
+        REPO_ROOT / "docker" / "yugabyte" / "Dockerfile",
+        Path.home() / ".foc-devnet" / "artifacts",
+    ),
+)
 
 
 def run_command(cmd: list[str], *, env: dict[str, str] | None = None) -> None:
     print(f"+ {shlex.join(cmd)}", flush=True)
     subprocess.run(cmd, cwd=REPO_ROOT, env=env, check=True)
+
+
+def command_succeeds(cmd: list[str]) -> bool:
+    return (
+        subprocess.run(
+            cmd, cwd=REPO_ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        ).returncode
+        == 0
+    )
 
 
 def ensure_host_docker_internal() -> None:
@@ -81,6 +101,47 @@ def clean_devnet(binary: Path, *, all_config: bool) -> None:
 
 def init_devnet(binary: Path, init_flags: str) -> None:
     run_command([str(binary), "init", *shlex.split(init_flags)])
+
+
+def image_exists(image: str) -> bool:
+    return command_succeeds(["docker", "image", "inspect", image])
+
+
+def build_runtime_docker_images() -> None:
+    uid = str(os.getuid())
+    gid = str(os.getgid())
+
+    for image, dockerfile, context in RUNTIME_DOCKER_IMAGES:
+        if image_exists(image):
+            print(
+                f"[INFO] Docker image {image} already exists, skipping build",
+                flush=True,
+            )
+            continue
+
+        if image == "foc-yugabyte" and not (context / "yugabyte").is_dir():
+            raise SystemExit(
+                f"Missing Yugabyte artifact directory: {context / 'yugabyte'}\n"
+                "Run foc-devnet init once, or provide the artifact before using --skip-init."
+            )
+
+        run_command(
+            [
+                "docker",
+                "build",
+                "--progress",
+                "plain",
+                "--build-arg",
+                f"USER_ID={uid}",
+                "--build-arg",
+                f"GROUP_ID={gid}",
+                "-f",
+                str(dockerfile),
+                "-t",
+                image,
+                str(context),
+            ]
+        )
 
 
 def build_components(binary: Path) -> None:
@@ -171,6 +232,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--skip-init", action="store_true", help="Skip init.")
     parser.add_argument(
+        "--skip-image-build",
+        action="store_true",
+        help="Skip runtime Docker image builds normally covered by init.",
+    )
+    parser.add_argument(
         "--skip-component-build",
         action="store_true",
         help="Skip foc-devnet build lotus/curio.",
@@ -221,6 +287,8 @@ def main() -> int:
         if not args.skip_init:
             assert binary is not None
             init_devnet(binary, args.init_flags)
+        elif not args.skip_image_build:
+            build_runtime_docker_images()
 
         if not args.skip_component_build:
             assert binary is not None

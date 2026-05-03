@@ -64,8 +64,11 @@ fn verify_pdp_ping(context: &SetupContext, sp_index: usize) -> Result<(), Box<dy
 fn verify_upload_download(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
     info!("Testing upload/download functionality via pdptool...");
 
-    // Create temporary directory for test files
-    let temp_dir = TempDir::new()?;
+    // Create temporary directory for test files under the foc-devnet home. Docker
+    // on macOS/Colima may not be able to mount the default OS temp directory.
+    let tmp_root = crate::paths::foc_devnet_tmp();
+    fs::create_dir_all(&tmp_root)?;
+    let temp_dir = TempDir::new_in(tmp_root)?;
     let test_file_path = create_random_test_file(&temp_dir)?;
 
     // Upload file via pdptool

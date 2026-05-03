@@ -2,7 +2,7 @@
 //!
 //! This module contains the core deployment functionality for the MockUSDFC token.
 
-use super::foundry_setup::{get_mockusdfc_project_dir, setup_foundry_project};
+use super::foundry_setup::get_mockusdfc_project_dir;
 use super::key_management::get_deployer_private_key;
 use super::prerequisites::check_required_addresses;
 use crate::commands::start::lotus_utils::get_lotus_rpc_url;
@@ -11,6 +11,9 @@ use crate::docker::command_logger::run_and_log_command;
 use std::error::Error;
 use std::path::PathBuf;
 use tracing::{error, info};
+
+const MOCK_USDFC_BYTECODE: &str =
+    include_str!("../../../../contracts/MockUSDFC/bytecode/MockUSDFC.bin");
 
 /// Deploy MockUSDFC using the Foundry project
 pub fn deploy_mock_usdfc_foundry(
@@ -24,22 +27,23 @@ pub fn deploy_mock_usdfc_foundry(
     // Get the contract directory from embedded assets
     let contract_dir = get_mockusdfc_project_dir(run_id)?;
 
-    // Setup the Foundry project (install deps, build)
-    setup_foundry_project(context, &contract_dir, run_id)?;
-
-    // Deploy using forge script with explicit gas limit for FEVM
-    info!("Executing deployment script...");
+    // Deploy precompiled bytecode with explicit gas limit for FEVM. Keeping this
+    // path compiler-free avoids startup-time downloads in ephemeral containers.
+    info!("Creating MockUSDFC contract...");
 
     let deploy_cmd = format!(
         "cd /workspace && \
-         forge script script/Deploy.s.sol:DeployMockUSDFC \
+         CONSTRUCTOR_ARGS=$(cast abi-encode 'constructor(uint256)' {}) && \
+         DEPLOY_BYTECODE={}$(echo $CONSTRUCTOR_ARGS | sed 's/^0x//') && \
+         cast send --json \
          --rpc-url {} \
          --private-key {} \
-         --broadcast \
-         --slow \
-         --gas-estimate-multiplier 10000 \
-         -vv",
-        lotus_rpc_url, private_key
+         --gas-limit 1000000000 \
+         --create \"$DEPLOY_BYTECODE\"",
+        super::usdfc_deploy_step::MOCK_USDFC_INITIAL_SUPPLY,
+        MOCK_USDFC_BYTECODE.trim(),
+        lotus_rpc_url,
+        private_key
     );
 
     let key = format!("usdfc_deploy_{}", run_id);
@@ -86,12 +90,13 @@ pub fn deploy_mock_usdfc_foundry(
         return Err("MockUSDFC deployment failed".into());
     }
 
-    // Extract contract address from output
-    // Look for "MockUSDFC deployed at:" in the output
-    let contract_address = stdout
-        .lines()
-        .find(|line| line.contains("MockUSDFC deployed at:"))
-        .and_then(|line| line.split_whitespace().last())
+    // Extract contract address from cast send JSON output.
+    let receipt: serde_json::Value = serde_json::from_str(stdout.trim())
+        .map_err(|e| format!("Failed to parse deployment JSON output: {}", e))?;
+    let contract_address = receipt
+        .get("contractAddress")
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.is_empty())
         .ok_or("Failed to extract contract address from deployment output")?;
 
     info!("✓ MockUSDFC deployed at: {}", contract_address);

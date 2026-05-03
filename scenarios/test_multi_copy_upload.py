@@ -26,12 +26,13 @@ ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 RAND_FILE_NAME = "random_file"
 RAND_FILE_SIZE = 20 * 1024 * 1024
 RAND_FILE_SEED = 42
-ADD_DEADLINE_SECS = 120
+ADD_DEADLINE_SECS = 240
 ADD_INTERVAL_SECS = 10
-ADD_ATTEMPT_TIMEOUT_SECS = 75
+ADD_ATTEMPT_TIMEOUT_SECS = 180
 RETRIEVAL_DEADLINE_SECS = 90
 RETRIEVAL_INTERVAL_SECS = 5
 RETRIEVAL_REQUEST_TIMEOUT_SECS = 10
+PROVIDER_IDS = (1, 2)
 VERIFY_CID_SCRIPT = """
 import { readFileSync } from "node:fs";
 import { CID } from "multiformats";
@@ -67,15 +68,74 @@ def output_text(value) -> str:
     return value or ""
 
 
-def run_filecoin_pin_add(filecoin_pin_bin: Path, upload_dir: Path):
-    cmd = [str(filecoin_pin_bin), "add", "--network", "devnet", str(upload_dir)]
+def patch_synapse_core_streaming_upload(npm_dir: Path) -> bool:
+    """Patch the temporary dependency tree for Node's streaming fetch behavior."""
+    patched = False
+    replacements = {
+        """const headers = {
+        'Content-Type': 'application/octet-stream',
+        ...(size == null ? {} : { 'Content-Length': size.toString() }),
+    };""": """const headers = {
+        'Content-Type': 'application/octet-stream',
+    };""",
+    }
+
+    candidates = [
+        npm_dir
+        / "node_modules"
+        / "@filoz"
+        / "synapse-core"
+        / "dist"
+        / "src"
+        / "sp"
+        / "sp.js",
+        npm_dir
+        / "node_modules"
+        / "@filoz"
+        / "synapse-core"
+        / "dist"
+        / "src"
+        / "sp"
+        / "upload-streaming.js",
+    ]
+
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+
+        text = candidate.read_text()
+        updated = text
+        for old, new in replacements.items():
+            updated = updated.replace(old, new)
+
+        if updated != text:
+            candidate.write_text(updated)
+            patched = True
+
+    return patched
+
+
+def run_filecoin_pin_add(
+    filecoin_pin_bin: Path,
+    upload_dir: Path,
+    extra_args: list[str],
+    label: str,
+):
+    cmd = [
+        str(filecoin_pin_bin),
+        "add",
+        "--network",
+        "devnet",
+        *extra_args,
+        str(upload_dir),
+    ]
     deadline = time.time() + ADD_DEADLINE_SECS
     attempt = 0
     last_result = None
 
     while time.time() < deadline:
         attempt += 1
-        info(f"filecoin-pin add attempt {attempt}")
+        info(f"filecoin-pin add attempt {attempt} ({label})")
 
         try:
             result = subprocess.run(
@@ -98,7 +158,7 @@ def run_filecoin_pin_add(filecoin_pin_bin: Path, upload_dir: Path):
         add_details = strip_ansi(f"{add_stdout}\n{add_stderr}".strip())
         info(
             "filecoin-pin add failed; retrying if time remains "
-            f"(attempt={attempt}, exit={result.returncode})"
+            f"(label={label}, attempt={attempt}, exit={result.returncode})"
         )
         if add_details:
             info(add_details[-1200:])
@@ -137,7 +197,7 @@ def download_and_verify(
                     "--eval",
                     VERIFY_CID_SCRIPT,
                     root_cid,
-                    str(file),
+                    str(file.resolve()),
                 ],
                 cwd=npm_dir,
                 text=True,
@@ -200,6 +260,11 @@ def run():
         ):
             return
 
+        if not patch_synapse_core_streaming_upload(npm_dir):
+            fail("Could not patch @filoz/synapse-core streaming upload")
+            return
+        info("Patched @filoz/synapse-core streaming upload in temp npm project")
+
         random_file = upload_dir / RAND_FILE_NAME
         info(f"Creating random file ({RAND_FILE_SIZE} bytes)")
         write_random_file(random_file, RAND_FILE_SIZE, RAND_FILE_SEED)
@@ -213,35 +278,58 @@ def run():
 
         filecoin_pin_bin = npm_dir / "node_modules" / ".bin" / "filecoin-pin"
 
-        add_result = run_filecoin_pin_add(filecoin_pin_bin, upload_dir)
-        if add_result is None:
-            fail(f"filecoin-pin add --network devnet {upload_dir} did not run")
-            return
+        add_results = []
+        for provider_id in PROVIDER_IDS:
+            label = f"provider {provider_id}"
+            add_result = run_filecoin_pin_add(
+                filecoin_pin_bin,
+                upload_dir,
+                ["--copies", "1", "--provider-ids", str(provider_id)],
+                label,
+            )
+            if add_result is None:
+                fail(
+                    f"filecoin-pin add --network devnet {upload_dir} ({label}) did not run"
+                )
+                return
 
-        add_stdout = output_text(add_result.stdout).strip()
-        add_stderr = output_text(add_result.stderr).strip()
-        add_details = f"{add_stdout}\n{add_stderr}".strip()
-        add_stdout_clean = strip_ansi(add_stdout)
-        add_details_clean = strip_ansi(add_details)
+            add_stdout = output_text(add_result.stdout).strip()
+            add_stderr = output_text(add_result.stderr).strip()
+            add_details = f"{add_stdout}\n{add_stderr}".strip()
+            add_details_clean = strip_ansi(add_details)
 
-        if add_result.returncode != 0:
-            fail(f"""
-                filecoin-pin add --network devnet {upload_dir} (exit={add_result.returncode})
-                Retried for {ADD_DEADLINE_SECS}s.
-                {add_details_clean}
-                """.strip())
-            return
+            if add_result.returncode != 0:
+                fail(f"""
+                    filecoin-pin add --network devnet --copies 1 --provider-ids {provider_id} {upload_dir} (exit={add_result.returncode})
+                    Retried for {ADD_DEADLINE_SECS}s.
+                    {add_details_clean}
+                    """.strip())
+                return
+
+            add_results.append(add_result)
+
+        add_stdout_clean = "\n".join(
+            strip_ansi(output_text(result.stdout).strip()) for result in add_results
+        )
+        add_details_clean = "\n".join(
+            strip_ansi(
+                f"{output_text(result.stdout).strip()}\n{output_text(result.stderr).strip()}".strip()
+            )
+            for result in add_results
+        )
 
         root_cid = None
         piece_cid = None
         piece_retrieval_urls = []
+        parsed_root_cids = set()
 
         for line in add_stdout_clean.splitlines():
             stripped = line.strip()
 
-            if root_cid is None:
-                match = re.search(r"\broot CID:\s*(\S+)", stripped, re.IGNORECASE)
-                if match:
+            match = re.search(r"\broot CID:\s*(\S+)", stripped, re.IGNORECASE)
+            if match:
+                parsed_root_cids.add(match.group(1))
+                if root_cid is None:
                     root_cid = match.group(1)
 
             if piece_cid is None and stripped.startswith("Piece CID:"):
@@ -252,6 +340,12 @@ def run():
 
         if not root_cid:
             fail(f"Could not parse Root CID from output: {add_details_clean}")
+            return
+
+        if len(parsed_root_cids) != 1:
+            fail(
+                f"Provider uploads returned different Root CIDs: {sorted(parsed_root_cids)}"
+            )
             return
 
         if not piece_cid:
@@ -270,7 +364,7 @@ def run():
             for url in piece_retrieval_urls
         ]
 
-        ipfs_dir = Path("ipfs")
+        ipfs_dir = Path("ipfs").resolve()
         ipfs_dir.mkdir(parents=True, exist_ok=True)
 
         for i, url in enumerate(root_retrieval_urls, start=1):

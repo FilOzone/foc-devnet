@@ -3,7 +3,7 @@
 //! This module handles Docker image building and container execution for project builds.
 
 use crate::docker::{
-    build::build_docker_image,
+    build::build_image_with_args,
     core::{get_current_gid, get_current_uid, image_exists},
 };
 use crate::embedded_assets;
@@ -81,7 +81,10 @@ pub fn build_image_from_dockerfile(
     image_tag: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let dockerfile_path = "docker/builder/Dockerfile";
-    let output = build_docker_image(dockerfile_path, image_tag, dockerfile_dir)?;
+    let uid = get_current_uid()?;
+    let gid = get_current_gid()?;
+    let build_args = vec![("USER_ID", uid.as_str()), ("GROUP_ID", gid.as_str())];
+    let output = build_image_with_args(dockerfile_path, image_tag, dockerfile_dir, &build_args)?;
 
     if !output.status.success() {
         return Err("Failed to build Docker image".into());
