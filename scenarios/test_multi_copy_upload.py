@@ -51,7 +51,7 @@ def run():
                 "set",
                 "type=module",
                 "dependencies.filecoin-pin=0.20.0",
-                "overrides.@filoz/synapse-core=0.4.1",
+                "overrides.@filoz/synapse-core=0.3.3",
             ],
             label="pin filecoin-pin dependencies",
             cwd=npm_dir,
