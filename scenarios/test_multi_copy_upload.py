@@ -26,6 +26,9 @@ ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 RAND_FILE_NAME = "random_file"
 RAND_FILE_SIZE = 20 * 1024 * 1024
 RAND_FILE_SEED = 42
+ADD_DEADLINE_SECS = 120
+ADD_INTERVAL_SECS = 10
+ADD_ATTEMPT_TIMEOUT_SECS = 75
 RETRIEVAL_DEADLINE_SECS = 90
 RETRIEVAL_INTERVAL_SECS = 5
 RETRIEVAL_REQUEST_TIMEOUT_SECS = 10
@@ -56,6 +59,53 @@ if (Buffer.from(digest.digest).equals(Buffer.from(cid.multihash.digest))) {
 
 def strip_ansi(value: str) -> str:
     return ANSI_RE.sub("", value)
+
+
+def output_text(value) -> str:
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    return value or ""
+
+
+def run_filecoin_pin_add(filecoin_pin_bin: Path, upload_dir: Path):
+    cmd = [str(filecoin_pin_bin), "add", "--network", "devnet", str(upload_dir)]
+    deadline = time.time() + ADD_DEADLINE_SECS
+    attempt = 0
+    last_result = None
+
+    while time.time() < deadline:
+        attempt += 1
+        info(f"filecoin-pin add attempt {attempt}")
+
+        try:
+            result = subprocess.run(
+                cmd,
+                text=True,
+                capture_output=True,
+                timeout=ADD_ATTEMPT_TIMEOUT_SECS,
+            )
+        except subprocess.TimeoutExpired as e:
+            stdout = e.stdout or ""
+            stderr = e.stderr or ""
+            result = subprocess.CompletedProcess(cmd, -1, stdout, stderr)
+
+        last_result = result
+        if result.returncode == 0:
+            return result
+
+        add_stdout = output_text(result.stdout).strip()
+        add_stderr = output_text(result.stderr).strip()
+        add_details = strip_ansi(f"{add_stdout}\n{add_stderr}".strip())
+        info(
+            "filecoin-pin add failed; retrying if time remains "
+            f"(attempt={attempt}, exit={result.returncode})"
+        )
+        if add_details:
+            info(add_details[-1200:])
+
+        time.sleep(ADD_INTERVAL_SECS)
+
+    return last_result
 
 
 def download_and_verify(
@@ -163,13 +213,13 @@ def run():
 
         filecoin_pin_bin = npm_dir / "node_modules" / ".bin" / "filecoin-pin"
 
-        add_result = subprocess.run(
-            [str(filecoin_pin_bin), "add", "--network", "devnet", str(upload_dir)],
-            text=True,
-            capture_output=True,
-        )
-        add_stdout = (add_result.stdout or "").strip()
-        add_stderr = (add_result.stderr or "").strip()
+        add_result = run_filecoin_pin_add(filecoin_pin_bin, upload_dir)
+        if add_result is None:
+            fail(f"filecoin-pin add --network devnet {upload_dir} did not run")
+            return
+
+        add_stdout = output_text(add_result.stdout).strip()
+        add_stderr = output_text(add_result.stderr).strip()
         add_details = f"{add_stdout}\n{add_stderr}".strip()
         add_stdout_clean = strip_ansi(add_stdout)
         add_details_clean = strip_ansi(add_details)
@@ -177,6 +227,7 @@ def run():
         if add_result.returncode != 0:
             fail(f"""
                 filecoin-pin add --network devnet {upload_dir} (exit={add_result.returncode})
+                Retried for {ADD_DEADLINE_SECS}s.
                 {add_details_clean}
                 """.strip())
             return
