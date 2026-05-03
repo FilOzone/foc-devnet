@@ -6,7 +6,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from urllib.error import HTTPError, URLError
+from urllib.error import URLError
 from urllib.request import urlopen
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -31,19 +31,49 @@ def run():
 
     scripts_dir = Path("scripts").resolve()
 
-    with tempfile.TemporaryDirectory(prefix="filecoin-pin-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="filecoin-pin-upload-") as upload_tmp, tempfile.TemporaryDirectory(
+        prefix="filecoin-pin-npm-"
+    ) as npm_tmp:
+        upload_dir = Path(upload_tmp)
+        npm_dir = Path(npm_tmp)
+
         if not run_cmd(
-            ["npm", "install", "-g", "filecoin-pin"],
-            label="npm install -g filecoin-pin",
+            ["npm", "init", "-y"],
+            label="npm init",
+            cwd=npm_dir,
         ):
             return
+
+        if not run_cmd(
+            [
+                "npm",
+                "pkg",
+                "set",
+                "type=module",
+                "dependencies.filecoin-pin=0.20.0",
+                "overrides.@filoz/synapse-core=0.4.1",
+            ],
+            label="pin filecoin-pin dependencies",
+            cwd=npm_dir,
+        ):
+            return
+
+        if not run_cmd(
+            ["npm", "install"],
+            label="npm install",
+            cwd=npm_dir,
+        ):
+            return
+
+        # Keep this global for now; verify_cid.mjs likely imports multiformats
+        # outside the temporary npm project.
         if not run_cmd(
             ["npm", "install", "-g", "multiformats"],
             label="npm install -g multiformats",
         ):
             return
 
-        random_file = Path(tmp) / RAND_FILE_NAME
+        random_file = upload_dir / RAND_FILE_NAME
         info(f"Creating random file ({RAND_FILE_SIZE} bytes)")
         write_random_file(random_file, RAND_FILE_SIZE, RAND_FILE_SEED)
         assert_eq(
@@ -54,19 +84,24 @@ def run():
 
         info("Running filecoin-pin multi-copy upload script against devnet")
 
+        filecoin_pin_bin = npm_dir / "node_modules" / ".bin" / "filecoin-pin"
+
         add_result = subprocess.run(
-            ["filecoin-pin", "add", "--network", "devnet", tmp],
+            [str(filecoin_pin_bin), "add", "--network", "devnet", str(upload_dir)],
             text=True,
             capture_output=True,
         )
         add_stdout = (add_result.stdout or "").strip()
         add_stderr = (add_result.stderr or "").strip()
+        add_details = f"{add_stdout}\n{add_stderr}".strip()
+
         if add_result.returncode != 0:
-            fail(f"""
-                filecoin-pin add --network devnet {tmp} (exit={add_result.returncode})
-                {add_stdout}
-                {add_stderr}
-                """.strip())
+            fail(
+                f"""
+                filecoin-pin add --network devnet {upload_dir} (exit={add_result.returncode})
+                {add_details}
+                """.strip()
+            )
             return
 
         root_cid = None
