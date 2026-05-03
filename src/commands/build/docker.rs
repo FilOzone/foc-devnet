@@ -19,7 +19,7 @@ pub fn build_builder_image(dockerfile_dir: &str) -> Result<String, Box<dyn std::
     let image_tag = crate::constants::BUILDER_DOCKER_IMAGE;
 
     // Check if image already exists in Docker
-    if image_exists(image_tag)? {
+    if image_exists(image_tag)? && builder_image_matches_current_user(image_tag)? {
         info!("Docker image {} already exists, skipping build", image_tag);
     } else {
         info!("Building Docker image for builder...");
@@ -27,6 +27,52 @@ pub fn build_builder_image(dockerfile_dir: &str) -> Result<String, Box<dyn std::
     }
 
     Ok(image_tag.to_string())
+}
+
+fn builder_image_matches_current_user(image_tag: &str) -> Result<bool, Box<dyn std::error::Error>> {
+    let uid = get_current_uid()?;
+    let gid = get_current_gid()?;
+    let output = std::process::Command::new("docker")
+        .args([
+            "run",
+            "--rm",
+            "--entrypoint",
+            "getent",
+            image_tag,
+            "passwd",
+            "foc-user",
+        ])
+        .output()?;
+
+    if !output.status.success() {
+        info!(
+            "Docker image {} does not expose foc-user metadata, rebuilding",
+            image_tag
+        );
+        return Ok(false);
+    }
+
+    let passwd_entry = String::from_utf8_lossy(&output.stdout);
+    let fields: Vec<&str> = passwd_entry.trim().split(':').collect();
+    if fields.len() < 4 {
+        info!(
+            "Docker image {} has malformed foc-user metadata, rebuilding",
+            image_tag
+        );
+        return Ok(false);
+    }
+
+    let image_uid = fields[2];
+    let image_gid = fields[3];
+    if image_uid == uid && image_gid == gid {
+        return Ok(true);
+    }
+
+    info!(
+        "Docker image {} was built for UID:GID {}:{}, current user is {}:{}, rebuilding",
+        image_tag, image_uid, image_gid, uid, gid
+    );
+    Ok(false)
 }
 
 /// Build Docker image from Dockerfile.
