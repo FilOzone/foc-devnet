@@ -68,6 +68,45 @@ def output_text(value) -> str:
     return value or ""
 
 
+def patch_synapse_core_streaming_upload(npm_dir: Path) -> bool:
+    """Patch the temporary dependency tree for Node's streaming fetch behavior."""
+    patched = False
+    replacements = {
+        """const headers = {
+        'Content-Type': 'application/octet-stream',
+        ...(size == null ? {} : { 'Content-Length': size.toString() }),
+    };""": """const headers = {
+        'Content-Type': 'application/octet-stream',
+    };""",
+    }
+
+    candidates = [
+        npm_dir
+        / "node_modules"
+        / "@filoz"
+        / "synapse-core"
+        / "dist"
+        / "src"
+        / "sp"
+        / "upload-streaming.js",
+    ]
+
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+
+        text = candidate.read_text()
+        updated = text
+        for old, new in replacements.items():
+            updated = updated.replace(old, new)
+
+        if updated != text:
+            candidate.write_text(updated)
+            patched = True
+
+    return patched
+
+
 def run_filecoin_pin_add(
     filecoin_pin_bin: Path,
     upload_dir: Path,
@@ -210,6 +249,11 @@ def run():
             cwd=npm_dir,
         ):
             return
+
+        if not patch_synapse_core_streaming_upload(npm_dir):
+            fail("Could not patch @filoz/synapse-core streaming upload")
+            return
+        info("Patched @filoz/synapse-core streaming upload in temp npm project")
 
         random_file = upload_dir / RAND_FILE_NAME
         info(f"Creating random file ({RAND_FILE_SIZE} bytes)")
