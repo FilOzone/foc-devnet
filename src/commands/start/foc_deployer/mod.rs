@@ -129,6 +129,40 @@ pub fn deploy_foc_contracts(
 mkdir -p /home/foc-user/.foundry/keystores
 cast wallet import foc-deployer --private-key {} --unsafe-password ''
 cd /service_contracts
+
+# filecoin-services v1.2.0 added three PDPVerifier constructor arguments, but
+# warm-storage-deploy-all.sh still deploys it with only the initializer version.
+# Predeploy the dependencies for that ABI shape and let the upstream script reuse
+# the exported addresses.
+PDP_CONSTRUCTOR_INPUTS="$(jq '[.[] | select(.type == "constructor") | .inputs[]] | length' abi/PDPVerifier.abi.json)"
+if [ "$PDP_CONSTRUCTOR_INPUTS" = "4" ] && [ -z "$PDP_VERIFIER_IMPLEMENTATION_ADDRESS" ]; then
+  PDP_INIT_COUNTER=1
+  if [ -n "$PDP_VERIFIER_PROXY_ADDRESS" ]; then
+    PDP_INIT_COUNTER="$(expr "$(tools/get-initialized-counter.sh "$PDP_VERIFIER_PROXY_ADDRESS")" + "1")"
+  fi
+  PDP_USDFC_SYBIL_FEE="${{PDP_USDFC_SYBIL_FEE:-100000000000000000}}"
+
+  if [ -z "$FILECOIN_PAY_ADDRESS" ]; then
+    echo "Predeploying FilecoinPayV1 for PDPVerifier constructor"
+    FILECOIN_PAY_OUTPUT="$(forge create --password "$PASSWORD" --broadcast lib/fws-payments/src/FilecoinPayV1.sol:FilecoinPayV1)"
+    echo "$FILECOIN_PAY_OUTPUT"
+    export FILECOIN_PAY_ADDRESS="$(echo "$FILECOIN_PAY_OUTPUT" | grep "Deployed to" | awk '{{print $3}}')"
+    if [ -z "$FILECOIN_PAY_ADDRESS" ]; then
+      echo "Failed to extract FilecoinPayV1 address"
+      exit 1
+    fi
+  fi
+
+  echo "Predeploying PDPVerifier implementation with USDFC constructor args"
+  PDP_VERIFIER_OUTPUT="$(forge create --password "$PASSWORD" --broadcast lib/pdp/src/PDPVerifier.sol:PDPVerifier --constructor-args "$PDP_INIT_COUNTER" "$USDFC_TOKEN_ADDRESS" "$PDP_USDFC_SYBIL_FEE" "$FILECOIN_PAY_ADDRESS")"
+  echo "$PDP_VERIFIER_OUTPUT"
+  export PDP_VERIFIER_IMPLEMENTATION_ADDRESS="$(echo "$PDP_VERIFIER_OUTPUT" | grep "Deployed to" | awk '{{print $3}}')"
+  if [ -z "$PDP_VERIFIER_IMPLEMENTATION_ADDRESS" ]; then
+    echo "Failed to extract PDPVerifier implementation address"
+    exit 1
+  fi
+fi
+
 bash /service_contracts/tools/warm-storage-deploy-all.sh 2>&1 | tee /tmp/foc-deploy.log"#,
         private_key
     );
