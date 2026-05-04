@@ -32,7 +32,6 @@ ADD_ATTEMPT_TIMEOUT_SECS = 180
 RETRIEVAL_DEADLINE_SECS = 90
 RETRIEVAL_INTERVAL_SECS = 5
 RETRIEVAL_REQUEST_TIMEOUT_SECS = 10
-PROVIDER_IDS = (1, 2)
 VERIFY_CID_SCRIPT = """
 import { readFileSync } from "node:fs";
 import { CID } from "multiformats";
@@ -268,45 +267,29 @@ def run():
 
         filecoin_pin_bin = npm_dir / "node_modules" / ".bin" / "filecoin-pin"
 
-        add_results = []
-        for provider_id in PROVIDER_IDS:
-            label = f"provider {provider_id}"
-            add_result = run_filecoin_pin_add(
-                filecoin_pin_bin,
-                upload_dir,
-                ["--copies", "1", "--provider-ids", str(provider_id)],
-                label,
-            )
-            if add_result is None:
-                fail(
-                    f"filecoin-pin add --network devnet {upload_dir} ({label}) did not run"
-                )
-                return
-
-            add_stdout = output_text(add_result.stdout).strip()
-            add_stderr = output_text(add_result.stderr).strip()
-            add_details = f"{add_stdout}\n{add_stderr}".strip()
-            add_details_clean = strip_ansi(add_details)
-
-            if add_result.returncode != 0:
-                fail(f"""
-                    filecoin-pin add --network devnet --copies 1 --provider-ids {provider_id} {upload_dir} (exit={add_result.returncode})
-                    Retried for {ADD_DEADLINE_SECS}s.
-                    {add_details_clean}
-                    """.strip())
-                return
-
-            add_results.append(add_result)
-
-        add_stdout_clean = "\n".join(
-            strip_ansi(output_text(result.stdout).strip()) for result in add_results
+        add_result = run_filecoin_pin_add(
+            filecoin_pin_bin,
+            upload_dir,
+            [],
+            "default multi-copy",
         )
-        add_details_clean = "\n".join(
-            strip_ansi(
-                f"{output_text(result.stdout).strip()}\n{output_text(result.stderr).strip()}".strip()
-            )
-            for result in add_results
-        )
+        if add_result is None:
+            fail(f"filecoin-pin add --network devnet {upload_dir} did not run")
+            return
+
+        add_stdout = output_text(add_result.stdout).strip()
+        add_stderr = output_text(add_result.stderr).strip()
+        add_details_clean = strip_ansi(f"{add_stdout}\n{add_stderr}".strip())
+
+        if add_result.returncode != 0:
+            fail(f"""
+                filecoin-pin add --network devnet {upload_dir} (exit={add_result.returncode})
+                Retried for {ADD_DEADLINE_SECS}s.
+                {add_details_clean}
+                """.strip())
+            return
+
+        add_stdout_clean = strip_ansi(add_stdout)
 
         root_cid = None
         piece_cid = None
@@ -334,7 +317,7 @@ def run():
 
         if len(parsed_root_cids) != 1:
             fail(
-                f"Provider uploads returned different Root CIDs: {sorted(parsed_root_cids)}"
+                f"filecoin-pin output returned different Root CIDs: {sorted(parsed_root_cids)}"
             )
             return
 
