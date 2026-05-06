@@ -132,8 +132,9 @@ jobs:
         # Get version output
         VERSION_OUTPUT=$(./foc-devnet version 2>&1)
         
-        # Compute CODE_HASH from all default:code: lines (Lotus/Curio versions)
-        CODE_HASH=$(echo "$VERSION_OUTPUT" | grep 'default:code:' | sha256sum | cut -d' ' -f1)
+        # Compute CODE_HASH from Lotus/Curio versions only (filecoin-services contains contracts/scripts
+        # that are compiled by Foundry at deploy time, not compiled into Lotus/Curio binaries)
+        CODE_HASH=$(echo "$VERSION_OUTPUT" | grep -E 'default:code:(lotus|curio)' | sha256sum | cut -d' ' -f1)
         echo "code-hash=$CODE_HASH" >> $GITHUB_OUTPUT
         echo "CODE_HASH: $CODE_HASH"
         
