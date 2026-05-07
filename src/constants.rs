@@ -118,3 +118,31 @@ pub const CURIO_LOG_LEVEL: &str = "GOLOG_LOG_LEVEL=pdp=debug";
 /// File paths within containers
 pub const LOTUS_BINARY_PATH: &str = "/usr/local/bin/lotus-bins/lotus";
 pub const LOTUS_MINER_BINARY_PATH: &str = "/usr/local/bin/lotus-bins/lotus-miner";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_foc_devnet_image_accepts_known_images() {
+        for image in REQUIRED_DOCKER_IMAGES {
+            assert!(is_foc_devnet_image(image), "{} should match", image);
+            assert!(
+                is_foc_devnet_image(&format!("{}:latest", image)),
+                "{}:latest should match",
+                image
+            );
+        }
+    }
+
+    #[test]
+    fn test_is_foc_devnet_image_rejects_unrelated() {
+        assert!(!is_foc_devnet_image("foc-observer-foc-observer"));
+        assert!(!is_foc_devnet_image("foc-observer-foc-observer:latest"));
+        assert!(!is_foc_devnet_image("foc-observer-ponder-mainnet"));
+        assert!(!is_foc_devnet_image("portainer/portainer-ce:latest"));
+        assert!(!is_foc_devnet_image("foc-portainer"));
+        assert!(!is_foc_devnet_image("nginx"));
+        assert!(!is_foc_devnet_image(""));
+    }
+}

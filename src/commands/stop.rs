@@ -1,5 +1,5 @@
 use crate::docker::core::{container_exists, container_is_running, docker_command};
-use crate::docker::{delete_all_networks, list_foc_devnet_containers};
+use crate::docker::{delete_all_networks, is_foc_devnet_network, list_foc_devnet_containers};
 use crate::run_id::{delete_current_run_id, load_current_run_id};
 use std::error::Error;
 use tracing::{info, warn};
@@ -182,25 +182,20 @@ fn force_kill_foc_containers() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Force remove all Docker networks belonging to foc-devnet. Devnet networks are
-/// named `foc_{run_id}_*` (underscore separator); the `^foc_` anchor avoids
-/// matching unrelated networks like `foc-observer_default`.
+/// Force remove all Docker networks belonging to foc-devnet, identified by exact
+/// match against the `foc_{run_id}_{lot-net|lot-m-net|cur-m-net-N}` naming scheme.
+/// Listing all networks then filtering in Rust avoids edge cases with docker's
+/// own filter syntax and any unrelated networks that share a `foc_` prefix.
 fn force_remove_foc_networks() -> Result<(), Box<dyn Error>> {
     info!("Force removing any remaining foc-devnet networks...");
 
-    let output = docker_command(&[
-        "network",
-        "ls",
-        "--filter",
-        "name=^foc_",
-        "--format",
-        "{{.Name}}",
-    ])?;
+    let output = docker_command(&["network", "ls", "--format", "{{.Name}}"])?;
 
     let stdout_str = String::from_utf8_lossy(&output.stdout);
     let network_names: Vec<&str> = stdout_str
         .lines()
-        .filter(|line| !line.trim().is_empty())
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && is_foc_devnet_network(line))
         .collect();
 
     if network_names.is_empty() {

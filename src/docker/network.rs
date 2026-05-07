@@ -7,13 +7,22 @@
 use crate::constants::MAX_PDP_SP_COUNT;
 
 use super::core::docker_command;
+use regex::Regex;
 use std::error::Error;
+use std::sync::LazyLock;
 use tracing::info;
 
 /// Network names (suffixes)
 const LOTUS_NET_SUFFIX: &str = "lot-net";
 const LOTUS_MINER_NET_SUFFIX: &str = "lot-m-net";
 const CURIO_MINER_NET_SUFFIX: &str = "cur-m-net";
+
+/// Matches the exact foc-devnet network naming scheme: `foc_{run_id}_{suffix}`,
+/// where suffix is one of the known network types. Used to scope cleanup so
+/// unrelated docker-compose networks (e.g. `foc_observer_default`) are not touched.
+static FOC_DEVNET_NETWORK_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^foc_.+_(lot-net|lot-m-net|cur-m-net-\d+)$").expect("static regex pattern")
+});
 
 /// Get the Lotus network name for a run ID
 pub fn lotus_network_name(run_id: &str) -> String {
@@ -28,6 +37,11 @@ pub fn lotus_miner_network_name(run_id: &str) -> String {
 /// Get the Curio miner network name for a run ID
 pub fn pdp_miner_network_name(run_id: &str, sp_idx: usize) -> String {
     format!("foc_{}_{}-{}", run_id, CURIO_MINER_NET_SUFFIX, sp_idx)
+}
+
+/// Check whether a Docker network name matches the foc-devnet naming scheme.
+pub fn is_foc_devnet_network(name: &str) -> bool {
+    FOC_DEVNET_NETWORK_RE.is_match(name)
 }
 
 /// Check if a Docker network exists
@@ -162,4 +176,39 @@ pub fn connect_container_to_network(
 ) -> Result<(), Box<dyn Error>> {
     docker_command(&["network", "connect", network_name, container_name])?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_foc_devnet_network_matches_real_names() {
+        let run_id = "20260507T1747_DoofyBear";
+        assert!(is_foc_devnet_network(&lotus_network_name(run_id)));
+        assert!(is_foc_devnet_network(&lotus_miner_network_name(run_id)));
+        assert!(is_foc_devnet_network(&pdp_miner_network_name(run_id, 1)));
+        assert!(is_foc_devnet_network(&pdp_miner_network_name(run_id, 5)));
+    }
+
+    #[test]
+    fn test_is_foc_devnet_network_rejects_unrelated() {
+        assert!(!is_foc_devnet_network("foc-observer_default"));
+        assert!(!is_foc_devnet_network("foc_observer_default"));
+        assert!(!is_foc_devnet_network("bridge"));
+        assert!(!is_foc_devnet_network("foc-portainer"));
+        assert!(!is_foc_devnet_network(""));
+    }
+
+    #[test]
+    fn test_is_foc_devnet_network_rejects_partial_matches() {
+        // Must end with a known suffix, no trailing junk.
+        assert!(!is_foc_devnet_network("foc_run_lot-net-extra"));
+        // cur-m-net requires a numeric SP index.
+        assert!(!is_foc_devnet_network("foc_run_cur-m-net"));
+        assert!(!is_foc_devnet_network("foc_run_cur-m-net-"));
+        assert!(!is_foc_devnet_network("foc_run_cur-m-net-x"));
+        // Run ID portion must be non-empty.
+        assert!(!is_foc_devnet_network("foc__lot-net"));
+    }
 }
