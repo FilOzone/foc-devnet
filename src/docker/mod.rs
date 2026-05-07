@@ -36,7 +36,7 @@ pub use containers::{
 };
 pub use init::{create_volume_directories_for_images, set_volume_ownership};
 pub use logs::{
-    list_containers_by_image_prefix, persist_foc_container_logs, remove_dead_foc_containers,
+    list_foc_devnet_containers, persist_foc_container_logs, remove_dead_foc_containers,
     write_post_start_status_log,
 };
 pub use network::{

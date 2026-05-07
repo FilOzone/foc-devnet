@@ -1,5 +1,5 @@
 use crate::docker::core::{container_exists, container_is_running, docker_command};
-use crate::docker::delete_all_networks;
+use crate::docker::{delete_all_networks, list_foc_devnet_containers};
 use crate::run_id::{delete_current_run_id, load_current_run_id};
 use std::error::Error;
 use tracing::{info, warn};
@@ -155,29 +155,24 @@ fn get_run_containers(run_id: &str) -> Vec<(String, &'static str)> {
     ]
 }
 
-/// Force kill all containers whose name starts with "foc-"
+/// Force kill all foc-devnet containers, identified by exact image name. Avoids
+/// touching unrelated containers that happen to share the "foc-" prefix
+/// (e.g. foc-observer-*).
 fn force_kill_foc_containers() -> Result<(), Box<dyn Error>> {
-    info!("Force killing any remaining foc* containers...");
+    info!("Force killing any remaining foc-devnet containers...");
 
-    // Get all containers (running and stopped) whose name starts with "foc"
-    let output = docker_command(&["ps", "-aq", "--filter", "name=^foc*"])?;
-    let stdout_str = String::from_utf8_lossy(&output.stdout);
-    let container_ids: Vec<&str> = stdout_str
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .collect();
+    let containers = list_foc_devnet_containers()?;
 
-    if container_ids.is_empty() {
-        info!("No remaining foc* containers found");
+    if containers.is_empty() {
+        info!("No remaining foc-devnet containers found");
         return Ok(());
     }
 
-    info!("Found {} remaining container(s)", container_ids.len());
+    info!("Found {} remaining container(s)", containers.len());
 
-    for container_id in container_ids {
-        info!("Force removing container {}...", container_id);
-        let result = docker_command(&["rm", "-f", container_id]);
-        match result {
+    for c in containers {
+        info!("Force removing container {}...", c.name);
+        match docker_command(&["rm", "-f", &c.name]) {
             Ok(_) => info!("Removed"),
             Err(e) => warn!("Failed: {}", e),
         }
@@ -187,16 +182,17 @@ fn force_kill_foc_containers() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Force remove all Docker networks starting with "foc-" or "foc_"
+/// Force remove all Docker networks belonging to foc-devnet. Devnet networks are
+/// named `foc_{run_id}_*` (underscore separator); the `^foc_` anchor avoids
+/// matching unrelated networks like `foc-observer_default`.
 fn force_remove_foc_networks() -> Result<(), Box<dyn Error>> {
-    info!("Force removing any remaining foc* networks...");
+    info!("Force removing any remaining foc-devnet networks...");
 
-    // Get all networks starting with foc- or foc_
     let output = docker_command(&[
         "network",
         "ls",
         "--filter",
-        "name=^foc*",
+        "name=^foc_",
         "--format",
         "{{.Name}}",
     ])?;
@@ -208,7 +204,7 @@ fn force_remove_foc_networks() -> Result<(), Box<dyn Error>> {
         .collect();
 
     if network_names.is_empty() {
-        info!("No remaining foc-* networks found");
+        info!("No remaining foc-devnet networks found");
         return Ok(());
     }
 
