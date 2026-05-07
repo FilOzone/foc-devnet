@@ -67,19 +67,29 @@ def output_text(value) -> str:
     return value or ""
 
 
-def patch_synapse_core_streaming_upload(npm_dir: Path) -> bool:
-    """Patch the temporary dependency tree for Node's streaming fetch behavior."""
-    patched = False
-    replacements = {
-        """const headers = {
-        'Content-Type': 'application/octet-stream',
-        ...(size == null ? {} : { 'Content-Length': size.toString() }),
-    };""": """const headers = {
-        'Content-Type': 'application/octet-stream',
-    };""",
-    }
+_CONTENT_LENGTH_LINE_RE = re.compile(
+    r"^[ \t]*\.\.\.\(size == null \? \{\} : \{ 'Content-Length': size\.toString\(\) \}\),\r?\n",
+    re.MULTILINE,
+)
 
-    candidates = [
+
+def patch_synapse_core_streaming_upload(npm_dir: Path) -> bool:
+    """Strip Content-Length from @filoz/synapse-core's streaming upload headers.
+
+    synapse-core (as of 0.4.1, which filecoin-pin 0.20.1 resolves to) sets a
+    Content-Length header on a body that flows through a streaming Transform.
+    Node/undici rejects that as 'invalid content-length header', which
+    filecoin-pin surfaces as
+    'StorageContext store failed: Failed to store piece on service provider -
+    Network request failed'.
+
+    TODO: drop this patch once filecoin-pin pins a synapse-core release that
+    omits Content-Length on streaming bodies (track upstream in FilOzone/synapse-sdk).
+
+    Returns True when the target file is in the desired state (whether or not
+    a change was applied). Returns False only when the file is missing.
+    """
+    target = (
         npm_dir
         / "node_modules"
         / "@filoz"
@@ -87,23 +97,25 @@ def patch_synapse_core_streaming_upload(npm_dir: Path) -> bool:
         / "dist"
         / "src"
         / "sp"
-        / "upload-streaming.js",
-    ]
+        / "upload-streaming.js"
+    )
+    if not target.exists():
+        return False
 
-    for candidate in candidates:
-        if not candidate.exists():
-            continue
-
-        text = candidate.read_text()
-        updated = text
-        for old, new in replacements.items():
-            updated = updated.replace(old, new)
-
-        if updated != text:
-            candidate.write_text(updated)
-            patched = True
-
-    return patched
+    text = target.read_text()
+    updated, count = _CONTENT_LENGTH_LINE_RE.subn("", text)
+    if count > 0:
+        target.write_text(updated)
+        info(
+            "Patched @filoz/synapse-core streaming upload "
+            f"(stripped {count} Content-Length line(s))"
+        )
+    else:
+        info(
+            "@filoz/synapse-core streaming upload already free of "
+            "Content-Length header; no patch needed"
+        )
+    return True
 
 
 def run_filecoin_pin_add(
@@ -213,22 +225,22 @@ def download_and_verify(
 
 def run():
     assert_ok("command -v node", "node is installed")
-    assert_ok("command -v pnpm", "pnpm is installed")
+    assert_ok("command -v npm", "npm is installed")
 
     with tempfile.TemporaryDirectory(
         prefix="filecoin-pin-upload-"
-    ) as upload_tmp, tempfile.TemporaryDirectory(prefix="filecoin-pin-npm-") as npm_tmp:
+    ) as upload_tmp, tempfile.TemporaryDirectory(
+        prefix="filecoin-pin-npm-"
+    ) as npm_tmp, tempfile.TemporaryDirectory(
+        prefix="filecoin-pin-download-"
+    ) as download_tmp:
         upload_dir = Path(upload_tmp)
         npm_dir = Path(npm_tmp)
+        download_dir = Path(download_tmp)
 
-        if not run_cmd(
-            ["npm", "init", "-y"],
-            label="npm init",
-            cwd=npm_dir,
-        ):
-            return
+        run_cmd(["npm", "init", "-y"], label="npm init", cwd=npm_dir)
 
-        if not run_cmd(
+        run_cmd(
             [
                 "npm",
                 "pkg",
@@ -239,20 +251,16 @@ def run():
             ],
             label="pin filecoin-pin dependencies",
             cwd=npm_dir,
-        ):
-            return
+        )
 
-        if not run_cmd(
-            ["npm", "install"],
-            label="npm install",
-            cwd=npm_dir,
-        ):
-            return
+        run_cmd(["npm", "install"], label="npm install", cwd=npm_dir)
 
         if not patch_synapse_core_streaming_upload(npm_dir):
-            fail("Could not patch @filoz/synapse-core streaming upload")
+            fail(
+                "Could not locate @filoz/synapse-core streaming upload "
+                "to patch (file missing under node_modules)"
+            )
             return
-        info("Patched @filoz/synapse-core streaming upload in temp npm project")
 
         random_file = upload_dir / RAND_FILE_NAME
         info(f"Creating random file ({RAND_FILE_SIZE} bytes)")
@@ -332,16 +340,21 @@ def run():
             )
             return
 
-        root_retrieval_urls = [
-            url.replace("/piece/", "/ipfs/").replace(piece_cid, root_cid)
-            for url in piece_retrieval_urls
-        ]
-
-        ipfs_dir = Path("ipfs").resolve()
-        ipfs_dir.mkdir(parents=True, exist_ok=True)
+        root_retrieval_urls = []
+        for url in piece_retrieval_urls:
+            if "/piece/" not in url or piece_cid not in url:
+                fail(
+                    "Retrieval URL does not match the expected "
+                    "/piece/<piece_cid> shape; cannot rewrite to /ipfs/<root_cid>: "
+                    f"url={url} piece_cid={piece_cid}"
+                )
+                return
+            root_retrieval_urls.append(
+                url.replace("/piece/", "/ipfs/").replace(piece_cid, root_cid)
+            )
 
         for i, url in enumerate(root_retrieval_urls, start=1):
-            file = ipfs_dir / f"{root_cid}_{i}.bin"
+            file = download_dir / f"{root_cid}_{i}.bin"
             error = download_and_verify(url, file, root_cid, npm_dir)
             if error:
                 fail(error)
