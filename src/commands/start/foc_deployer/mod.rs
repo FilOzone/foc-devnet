@@ -125,7 +125,7 @@ pub fn deploy_foc_contracts(
     // Import wallet into keystore first (required by warm-storage-deploy-all.sh)
     // The script uses forge create --password which requires a keystore file
     let deploy_cmd = format!(
-        r#"set -e
+        r#"set -eo pipefail
 mkdir -p /home/foc-user/.foundry/keystores
 cast wallet import foc-deployer --private-key {} --unsafe-password ''
 cd /service_contracts
@@ -134,6 +134,8 @@ cd /service_contracts
 # warm-storage-deploy-all.sh still deploys it with only the initializer version.
 # Predeploy the dependencies for that ABI shape and let the upstream script reuse
 # the exported addresses.
+# TODO: drop this whole block once warm-storage-deploy-all.sh passes the
+# USDFC/sybil-fee/FilecoinPay constructor args to PDPVerifier natively.
 PDP_CONSTRUCTOR_INPUTS="$(jq '[.[] | select(.type == "constructor") | .inputs[]] | length' abi/PDPVerifier.abi.json)"
 if [ "$PDP_CONSTRUCTOR_INPUTS" = "4" ] && [ -z "$PDP_VERIFIER_IMPLEMENTATION_ADDRESS" ]; then
   PDP_INIT_COUNTER=1
