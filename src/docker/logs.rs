@@ -23,8 +23,9 @@ pub struct ContainerInfo {
     pub status: String,
 }
 
-/// List all containers (running or stopped) belonging to foc-devnet, identified by
-/// exact image name (with optional tag). Excludes unrelated images like foc-observer-*.
+/// List all containers (running or stopped) whose image repository is recognized as a
+/// foc-devnet image. Matching is based on the repository name via `is_foc_devnet_image`
+/// and does not distinguish between tags; unrelated repositories are excluded.
 pub fn list_foc_devnet_containers() -> Result<Vec<ContainerInfo>, Box<dyn Error>> {
     let output = docker_command(&["ps", "-a", "--format", "{{.Names}}|{{.Image}}|{{.Status}}"])?;
     let stdout = String::from_utf8_lossy(&output.stdout);
