@@ -26,7 +26,8 @@ from scenarios.report import TestResult, write_report
 ORDER = [
     ("test_containers", 5),
     ("test_basic_balances", 10),
-    ("test_storage_e2e", 100),
+    ("test_storage_e2e", 200),
+    ("test_multi_copy_upload", 600),
     ("test_caching_subsystem", 200),
 ]
 
