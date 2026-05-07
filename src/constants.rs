@@ -31,6 +31,22 @@ pub const REQUIRED_DOCKER_IMAGES: &[&str] = &[
     CURIO_DOCKER_IMAGE,
 ];
 
+/// Check whether a Docker image identifier (optionally tagged, e.g. "foc-lotus:latest")
+/// belongs to foc-devnet. Used to scope destructive cleanup to our own images
+/// and avoid sweeping up unrelated images that happen to start with "foc-"
+/// (e.g. foc-observer-*).
+pub fn is_foc_devnet_image(image: &str) -> bool {
+    let repo = image.split(':').next().unwrap_or(image);
+    matches!(
+        repo,
+        LOTUS_DOCKER_IMAGE
+            | LOTUS_MINER_DOCKER_IMAGE
+            | BUILDER_DOCKER_IMAGE
+            | YUGABYTE_DOCKER_IMAGE
+            | CURIO_DOCKER_IMAGE
+    )
+}
+
 /// Docker container names (base - will be prefixed with foc-c-<RUN_ID>- in practice)
 pub const LOTUS_CONTAINER: &str = "foc-lotus";
 pub const LOTUS_MINER_CONTAINER: &str = "foc-lotus-miner";
@@ -102,3 +118,31 @@ pub const CURIO_LOG_LEVEL: &str = "GOLOG_LOG_LEVEL=pdp=debug";
 /// File paths within containers
 pub const LOTUS_BINARY_PATH: &str = "/usr/local/bin/lotus-bins/lotus";
 pub const LOTUS_MINER_BINARY_PATH: &str = "/usr/local/bin/lotus-bins/lotus-miner";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_foc_devnet_image_accepts_known_images() {
+        for image in REQUIRED_DOCKER_IMAGES {
+            assert!(is_foc_devnet_image(image), "{} should match", image);
+            assert!(
+                is_foc_devnet_image(&format!("{}:latest", image)),
+                "{}:latest should match",
+                image
+            );
+        }
+    }
+
+    #[test]
+    fn test_is_foc_devnet_image_rejects_unrelated() {
+        assert!(!is_foc_devnet_image("foc-observer-foc-observer"));
+        assert!(!is_foc_devnet_image("foc-observer-foc-observer:latest"));
+        assert!(!is_foc_devnet_image("foc-observer-ponder-mainnet"));
+        assert!(!is_foc_devnet_image("portainer/portainer-ce:latest"));
+        assert!(!is_foc_devnet_image("foc-portainer"));
+        assert!(!is_foc_devnet_image("nginx"));
+        assert!(!is_foc_devnet_image(""));
+    }
+}

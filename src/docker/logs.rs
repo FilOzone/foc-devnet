@@ -7,6 +7,7 @@
 //! The log files are stored under the run-specific directory:
 //! ~/.foc-devnet/run/<run_id>/logs/<container_name>.<image_name>.docker.log
 
+use crate::constants::is_foc_devnet_image;
 use crate::docker::core::{docker_command, get_container_logs};
 use crate::paths::foc_devnet_run_dir;
 use std::error::Error;
@@ -22,8 +23,10 @@ pub struct ContainerInfo {
     pub status: String,
 }
 
-/// List all containers (running or stopped) whose image name starts with the given prefix.
-pub fn list_containers_by_image_prefix(prefix: &str) -> Result<Vec<ContainerInfo>, Box<dyn Error>> {
+/// List all containers (running or stopped) whose image repository is recognized as a
+/// foc-devnet image. Matching is based on the repository name via `is_foc_devnet_image`
+/// and does not distinguish between tags; unrelated repositories are excluded.
+pub fn list_foc_devnet_containers() -> Result<Vec<ContainerInfo>, Box<dyn Error>> {
     let output = docker_command(&["ps", "-a", "--format", "{{.Names}}|{{.Image}}|{{.Status}}"])?;
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -34,7 +37,7 @@ pub fn list_containers_by_image_prefix(prefix: &str) -> Result<Vec<ContainerInfo
             let name = parts[0].trim().to_string();
             let image = parts[1].trim().to_string();
             let status = parts[2].trim().to_string();
-            if image.starts_with(prefix) {
+            if is_foc_devnet_image(&image) {
                 result.push(ContainerInfo {
                     name,
                     image,
@@ -46,14 +49,14 @@ pub fn list_containers_by_image_prefix(prefix: &str) -> Result<Vec<ContainerInfo
     Ok(result)
 }
 
-/// Persist logs for all containers whose image starts with "foc" under the run logs directory.
+/// Persist logs for all foc-devnet containers under the run logs directory.
 pub fn persist_foc_container_logs(run_id: &str) -> Result<(), Box<dyn Error>> {
-    let containers = list_containers_by_image_prefix("foc")?;
+    let containers = list_foc_devnet_containers()?;
     let logs_dir = foc_devnet_run_dir(run_id).join("logs");
     fs::create_dir_all(&logs_dir)?;
 
     info!(
-        "Persisting logs for {} foc* containers to {}",
+        "Persisting logs for {} foc-devnet containers to {}",
         containers.len(),
         logs_dir.display()
     );
@@ -77,9 +80,9 @@ pub fn persist_foc_container_logs(run_id: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Remove all containers whose image starts with "foc" and are not running.
+/// Remove all foc-devnet containers that are not running.
 pub fn remove_dead_foc_containers() -> Result<(), Box<dyn Error>> {
-    let containers = list_containers_by_image_prefix("foc")?;
+    let containers = list_foc_devnet_containers()?;
     let mut removed_count = 0;
 
     for c in containers {
@@ -106,7 +109,7 @@ pub fn remove_dead_foc_containers() -> Result<(), Box<dyn Error>> {
             }
         }
     }
-    info!("✓ Removed {} dead foc* containers", removed_count);
+    info!("✓ Removed {} dead foc-devnet containers", removed_count);
     Ok(())
 }
 

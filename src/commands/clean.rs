@@ -2,6 +2,7 @@ use std::io::ErrorKind;
 use std::process::Command;
 use tracing::{info, warn};
 
+use crate::constants::is_foc_devnet_image;
 use crate::paths::{foc_devnet_config, foc_devnet_home};
 
 /// Remove foc-devnet state from the home directory.
@@ -81,7 +82,7 @@ fn docker_not_found_error() -> Box<dyn std::error::Error> {
 }
 
 fn clean_docker_images() -> Result<(), Box<dyn std::error::Error>> {
-    info!("Removing foc-* Docker images");
+    info!("Removing foc-devnet Docker images");
     let output = Command::new("docker")
         .args(["images", "--format", "{{.Repository}}:{{.Tag}}"])
         .output()
@@ -99,7 +100,7 @@ fn clean_docker_images() -> Result<(), Box<dyn std::error::Error>> {
     let mut removed_count = 0;
 
     for line in stdout.lines() {
-        if line.starts_with("foc-") {
+        if is_foc_devnet_image(line) {
             let remove_output = Command::new("docker")
                 .args(["rmi", line])
                 .output()
@@ -117,7 +118,7 @@ fn clean_docker_images() -> Result<(), Box<dyn std::error::Error>> {
     if removed_count > 0 {
         info!("Removed {} Docker image(s)", removed_count);
     } else {
-        info!("No foc-* Docker images found");
+        info!("No foc-devnet Docker images found");
     }
 
     Ok(())

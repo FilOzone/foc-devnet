@@ -36,11 +36,11 @@ pub use containers::{
 };
 pub use init::{create_volume_directories_for_images, set_volume_ownership};
 pub use logs::{
-    list_containers_by_image_prefix, persist_foc_container_logs, remove_dead_foc_containers,
+    list_foc_devnet_containers, persist_foc_container_logs, remove_dead_foc_containers,
     write_post_start_status_log,
 };
 pub use network::{
-    connect_container_to_network, create_all_networks, delete_all_networks,
+    connect_container_to_network, create_all_networks, delete_all_networks, is_foc_devnet_network,
     lotus_miner_network_name, lotus_network_name, pdp_miner_network_name,
 };
 pub use portainer::{start_portainer, stop_portainer};
