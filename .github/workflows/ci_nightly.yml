@@ -34,7 +34,7 @@ jobs:
             issue_label: scenarios-run-stability
             issue_title: "FOC Devnet scenarios run report (stability)"
           - name: frontier
-            init_flags: "--curio gitbranch:pdpv0 --filecoin-services gitbranch:main"
+            init_flags: "--curio gitbranch:main --filecoin-services gitbranch:main"
             issue_label: scenarios-run-frontier
             issue_title: "FOC Devnet scenarios run report (frontier)"
     uses: ./.github/workflows/ci_run.yml
