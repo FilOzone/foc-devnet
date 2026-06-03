@@ -12,8 +12,11 @@ pub const CONTAINER_FP_APPROVE_OPERATOR: &str = "user-fp-approve-operator";
 /// Gas limit for cast send transactions on Filecoin FEVM.
 pub const CAST_GAS_LIMIT: &str = "100000000";
 
-/// 1 USDFC expressed in the token's 18-decimal base unit.
-pub const USDFC_DEPOSIT_AMOUNT: &str = "1000000000000000000";
+/// 2 USDFC expressed in the token's 18-decimal base unit.
+///
+/// Latest filecoin-pin defaults to a two-copy upload path that can require more
+/// than 1 USDFC of locked funds before creating both data sets.
+pub const USDFC_DEPOSIT_AMOUNT: &str = "2000000000000000000";
 
 /// uint256 max value, used for unlimited operator approval allowances.
 pub const MAX_UINT256: &str =
