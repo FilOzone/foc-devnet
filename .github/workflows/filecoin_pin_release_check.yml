@@ -1,0 +1,147 @@
+---
+name: Check filecoin-pin Release
+
+on:
+  schedule:
+    # Daily at 09:20 UTC.
+    - cron: '20 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-filecoin-pin-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check latest filecoin-pin release
+        id: versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          target="scenarios/test_multi_copy_upload.py"
+          current="$(sed -nE 's/.*dependencies\.filecoin-pin=([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$target" | head -n1)"
+
+          if [[ -z "$current" ]]; then
+            echo "Could not find filecoin-pin dependency pin in $target" >&2
+            exit 1
+          fi
+
+          latest_tag="$(gh release view --repo filecoin-project/filecoin-pin --json tagName --jq .tagName)"
+          latest="${latest_tag#v}"
+
+          if [[ ! "$latest" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Latest filecoin-pin tag is not a plain semver release: $latest_tag" >&2
+            exit 1
+          fi
+
+          newest="$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -n1)"
+
+          if [[ "$current" == "$latest" || "$newest" != "$latest" ]]; then
+            echo "filecoin-pin is already current enough: $current (latest release: $latest_tag)"
+            echo "update_available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          npm_version="$(npm view "filecoin-pin@$latest" version)"
+          if [[ "$npm_version" != "$latest" ]]; then
+            echo "GitHub release $latest_tag does not match npm package version $npm_version" >&2
+            exit 1
+          fi
+
+          sed -i -E "s/dependencies\.filecoin-pin=$current/dependencies.filecoin-pin=$latest/" "$target"
+
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+          echo "update_available=true" >> "$GITHUB_OUTPUT"
+
+      - name: Verify dependency install
+        if: steps.versions.outputs.update_available == 'true'
+        env:
+          LATEST: ${{ steps.versions.outputs.latest }}
+        run: |
+          set -euo pipefail
+
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+
+          cd "$tmp"
+          npm init -y >/dev/null
+          npm pkg set type=module "dependencies.filecoin-pin=$LATEST" dependencies.multiformats=13.4.2 >/dev/null
+          npm install --silent
+
+          node - <<'NODE'
+          const pin = require('./node_modules/filecoin-pin/package.json')
+          const core = require('./node_modules/@filoz/synapse-core/package.json')
+          const sdk = require('./node_modules/@filoz/synapse-sdk/package.json')
+
+          console.log(`filecoin-pin ${pin.version}`)
+          console.log(`@filoz/synapse-core ${core.version}`)
+          console.log(`@filoz/synapse-sdk ${sdk.version}`)
+          NODE
+
+      - name: Create update pull request
+        if: steps.versions.outputs.update_available == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT: ${{ steps.versions.outputs.current }}
+          LATEST: ${{ steps.versions.outputs.latest }}
+          LATEST_TAG: ${{ steps.versions.outputs.latest_tag }}
+          TARGET: ${{ steps.versions.outputs.target }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          branch="automation/filecoin-pin-v${LATEST}"
+          body_file="$(mktemp)"
+          trap 'rm -f "$body_file"' EXIT
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add "$TARGET"
+          git commit -m "Update filecoin-pin to v${LATEST}"
+          git push --force-with-lease origin "$branch"
+
+          cat > "$body_file" <<EOF
+          ## Summary
+          - Update the \`filecoin-pin\` scenario dependency from \`${CURRENT}\` to \`${LATEST}\`.
+
+          ## Why
+          The scheduled filecoin-pin release check found a newer upstream release: filecoin-project/filecoin-pin@${LATEST_TAG}.
+
+          Keeping the devnet scenario aligned with the latest filecoin-pin release helps avoid debugging stale packaged Synapse behavior when investigating FOC Devnet scenario failures.
+
+          ## Validation
+          - Confirmed \`filecoin-pin@${LATEST}\` is published on npm.
+          - Installed the dependency set used by \`${TARGET}\`.
+          EOF
+
+          existing_pr="$(
+            gh pr list \
+              --repo "$REPO" \
+              --head "$branch" \
+              --state open \
+              --json number \
+              --jq '.[0].number'
+          )"
+
+          if [[ -n "$existing_pr" ]]; then
+            gh pr edit "$existing_pr" --repo "$REPO" --body-file "$body_file"
+          else
+            gh pr create \
+              --repo "$REPO" \
+              --base main \
+              --head "$branch" \
+              --title "Update filecoin-pin to v${LATEST}" \
+              --body-file "$body_file"
+          fi
