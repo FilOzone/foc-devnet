@@ -139,9 +139,11 @@ pub fn setup_build_script(
             container_source_dir, container_source_dir, container_output_dir
         ),
         Project::Curio => format!(
+            // FFI_USE_OPENCL=1: curio main requires CUDA or OpenCL for libfilecoin;
+            // the builder image ships OpenCL, and this flag also skips the supraseal dep.
             r#"git config --global --add safe.directory {} && \
                 cd {} && \
-                make clean 2k pdptool && \
+                make FFI_USE_OPENCL=1 clean 2k pdptool && \
                 cp curio sptool pdptool {}"#,
             container_source_dir, container_source_dir, container_output_dir
         ),
