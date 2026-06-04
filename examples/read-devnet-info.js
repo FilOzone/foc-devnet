@@ -101,9 +101,9 @@ function printCurioProviders(providers) {
     console.log(`  PDP Service URL:  ${provider.pdp_service_url}`);
     console.log(`  Container:        ${provider.container_name}`);
     console.log(`  Container ID:     ${provider.container_id.substring(0, 12)}...`);
-    console.log(`  YugabyteDB:`);
-    console.log(`    Web UI:         ${provider.yugabyte.web_ui_url}`);
-    console.log(`    YSQL Port:      ${provider.yugabyte.ysql_port}`);
+    console.log(`  Databases:`);
+    console.log(`    Postgres Port:  ${provider.database.postgres_port}`);
+    console.log(`    Scylla Port:    ${provider.database.scylla_port}`);
     console.log();
   }
 }

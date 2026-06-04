@@ -1,8 +1,9 @@
 //! Port allocation module for managing dynamic port assignment.
 //!
 //! This module provides a `PortAllocator` that manages a contiguous range of ports
-//! for the devnet cluster. All components (Lotus, Lotus-Miner, Curio, Yugabyte)
-//! dynamically allocate ports from this pool, ensuring no conflicts.
+//! for the devnet cluster. All components (Lotus, Lotus-Miner, Curio, the
+//! Postgres/Scylla databases) dynamically allocate ports from this pool,
+//! ensuring no conflicts.
 
 use std::collections::HashSet;
 use std::error::Error;

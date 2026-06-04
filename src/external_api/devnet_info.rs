@@ -13,14 +13,16 @@ pub struct VersionedDevnetInfo {
     /// Schema version number. Increment when breaking changes are made.
     pub version: u32,
     /// The actual DevNet information payload.
-    pub info: DevnetInfoV1,
+    pub info: DevnetInfoV2,
 }
 
-/// DevNet information schema version 1.
+/// DevNet information schema version 2.
 ///
 /// Contains all relevant information about a running DevNet instance.
+/// v2 replaced the per-SP `yugabyte` block with a `database` block
+/// (Postgres + Scylla).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DevnetInfoV1 {
+pub struct DevnetInfoV2 {
     /// Unique identifier for this run (e.g., "26jan20-1622_GoofyNubs")
     pub run_id: String,
     /// ISO 8601 formatted start time
@@ -127,19 +129,18 @@ pub struct CurioInfo {
     pub is_approved: bool,
     /// Whether this provider is endorsed in the Endorsements contract
     pub is_endorsed: bool,
-    /// YugabyteDB information for this provider
-    pub yugabyte: YugabyteInfo,
+    /// Database connection info (Postgres + Scylla) for this provider
+    pub database: DatabaseInfo,
 }
 
-/// YugabyteDB connection information.
+/// Database connection information for a provider's Curio.
+///
+/// HarmonyDB uses the Postgres endpoint; the IndexStore uses the Scylla (CQL)
+/// endpoint. Both ports are host-mapped for tooling and tests.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct YugabyteInfo {
-    /// Web UI URL exposed to host
-    pub web_ui_url: String,
-    /// Master RPC port
-    pub master_rpc_port: u16,
-    /// YSQL port for Postgres-compatible connections
-    pub ysql_port: u16,
-    /// YCQL port for Cassandra-compatible connections
-    pub ycql_port: u16,
+pub struct DatabaseInfo {
+    /// Postgres (HarmonyDB) port exposed to host
+    pub postgres_port: u16,
+    /// Scylla (IndexStore, CQL) port exposed to host
+    pub scylla_port: u16,
 }

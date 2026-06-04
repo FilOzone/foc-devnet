@@ -22,7 +22,7 @@ use tracing::info;
 ///
 /// This step:
 /// - Verifies Lotus is running and producing blocks
-/// - Sets up Yugabyte database for each Curio SP
+/// - Runs database migrations against each Curio SP's Postgres
 /// - Configures base and PDP layers
 /// - Starts Curio daemon with appropriate layers
 /// - Attaches storage locations

@@ -4,7 +4,7 @@
 
 **foc-devnet** is a Rust CLI tool for managing local Filecoin networks with FOC (Filecoin Onchain Contracts) support for warm storage services. It orchestrates Docker containers running Lotus nodes, miners, databases, and deploys smart contracts using Foundry (Forge/Cast).
 
-**Key Technologies**: Rust, Docker, Filecoin Lotus, FEVM (Filecoin EVM), Foundry, YugabyteDB, Solidity
+**Key Technologies**: Rust, Docker, Filecoin Lotus, FEVM (Filecoin EVM), Foundry, PostgreSQL, ScyllaDB, Solidity
 
 ## Architecture Patterns
 
@@ -36,7 +36,7 @@ Steps execute in this strict order (see `src/commands/start/mod.rs`):
 2. **Lotus** - Start Filecoin daemon with FEVM enabled
 3. **Lotus-Miner** - Start first-generation block producer
 4. **FOC Deploy** - Deploy MockUSDFC token and FOC warm storage contracts
-5. **Yugabyte** - Start database for Curio
+5. **Databases** - Start Postgres + Scylla for Curio
 6. **Curio** - Start second-generation miner (commented out, WIP)
 
 **Critical**: Each step depends on previous steps being healthy. DO NOT reorder.
@@ -47,7 +47,7 @@ Steps execute in this strict order (see `src/commands/start/mod.rs`):
 foc-lotus           # Lotus daemon (ports 1234 API, 1235 P2P)
 foc-lotus-miner     # First-gen miner (port 2345)
 foc-builder         # Foundry tools (--network host)
-foc-yugabyte        # Database for Curio (port 5433)
+postgres / scylla   # Databases for Curio (stock images, dynamic ports)
 foc-curio           # Second-gen miner (WIP)
 ```
 
@@ -71,7 +71,6 @@ All persistent data lives under `~/.foc-devnet/` (see `src/paths.rs`):
 │       ├── genesis/            # Genesis block config
 │       ├── genesis-sectors/    # Pre-sealed sectors
 │       ├── lotus-keys/         # BLS signing keys
-│       ├── yugabyte-data/      # Database data
 │       └── foc-contract-addresses.json  # Deployed contract addresses
 ├── logs/                       # Container logs
 ├── repos/

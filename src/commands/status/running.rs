@@ -10,6 +10,10 @@
 
 use tracing::info;
 
+use crate::constants::MAX_PDP_SP_COUNT;
+use crate::docker::containers::{
+    curio_container_name, postgres_container_name, scylla_container_name,
+};
 use crate::docker::core::image_exists;
 use crate::docker::status::{
     get_container_ports, get_container_uptime, get_running_foc_containers,
@@ -35,7 +39,6 @@ pub fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
         vec![
             ("Lotus Daemon", format!("foc-{}-lotus", id)),
             ("Lotus Miner", format!("foc-{}-lotus-miner", id)),
-            ("YugabyteDB", format!("foc-{}-yugabyte", id)),
             ("Builder", format!("foc-{}-builder", id)),
         ]
     } else {
@@ -49,10 +52,6 @@ pub fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
                 crate::constants::LOTUS_MINER_CONTAINER.to_string(),
             ),
             ("Curio", crate::constants::CURIO_CONTAINER.to_string()),
-            (
-                "YugabyteDB",
-                crate::constants::YUGABYTE_CONTAINER.to_string(),
-            ),
             ("Builder", crate::constants::BUILDER_CONTAINER.to_string()),
         ]
     };
@@ -80,17 +79,24 @@ pub fn print_running_status() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Check for Curio instances if run ID exists
+    // Show per-SP instances (Curio + its databases) that exist for this run.
+    // The SP count is config-driven, so probe up to the maximum and report
+    // whatever is running.
     if let Some(ref id) = run_id {
-        for sp_idx in 1..=5 {
-            let curio_container = format!("foc-{}-curio-{}", id, sp_idx);
-            if containers.contains(&curio_container) {
-                let uptime = get_container_uptime(&curio_container)?;
-                let ports = format_container_ports(&curio_container)?;
-                info!(
-                    "Curio SP-{}: Running | Uptime: {} | Ports: {}",
-                    sp_idx, uptime, ports
-                );
+        for sp_idx in 1..=MAX_PDP_SP_COUNT {
+            for (service, container_name) in [
+                ("Curio", curio_container_name(id, sp_idx)),
+                ("Postgres", postgres_container_name(id, sp_idx)),
+                ("Scylla", scylla_container_name(id, sp_idx)),
+            ] {
+                if containers.contains(&container_name) {
+                    let uptime = get_container_uptime(&container_name)?;
+                    let ports = format_container_ports(&container_name)?;
+                    info!(
+                        "{} SP-{}: Running | Uptime: {} | Ports: {}",
+                        service, sp_idx, uptime, ports
+                    );
+                }
             }
         }
     }

@@ -7,9 +7,23 @@
 pub const LOTUS_DOCKER_IMAGE: &str = "foc-lotus";
 pub const LOTUS_MINER_DOCKER_IMAGE: &str = "foc-lotus-miner";
 pub const BUILDER_DOCKER_IMAGE: &str = "foc-builder";
-pub const YUGABYTE_DOCKER_IMAGE: &str = "foc-yugabyte";
 pub const CURIO_DOCKER_IMAGE: &str = "foc-curio";
 pub const PORTAINER_DOCKER_IMAGE: &str = "foc-portainer";
+
+/// Stock database images, pulled on demand by the database step (not built).
+/// Curio's HarmonyDB speaks Postgres and its IndexStore speaks Cassandra/CQL;
+/// Scylla serves the latter.
+pub const POSTGRES_DOCKER_IMAGE: &str = "postgres:18";
+pub const SCYLLA_DOCKER_IMAGE: &str = "scylladb/scylla:2026.1";
+
+/// Database container ports (inside the container) and shared credentials.
+/// The database step provisions Postgres with these and the Curio env wiring
+/// (start/curio/db_setup.rs) connects with them; they must agree.
+pub const POSTGRES_CONTAINER_PORT: u16 = 5432;
+pub const SCYLLA_CQL_CONTAINER_PORT: u16 = 9042;
+pub const DB_USER: &str = "curio";
+pub const DB_PASSWORD: &str = "curio";
+pub const DB_NAME: &str = "curio";
 
 /// Required binaries for cluster startup
 pub const REQUIRED_BINARIES: &[&str] = &[
@@ -22,43 +36,44 @@ pub const REQUIRED_BINARIES: &[&str] = &[
     "sptool",
 ];
 
-/// Required Docker images for cluster startup
+/// Images foc-devnet builds itself. Used to scope destructive cleanup to our own
+/// images; stock images (postgres, scylla) are shared and must not be swept.
+pub const FOC_BUILT_IMAGES: &[&str] = &[
+    LOTUS_DOCKER_IMAGE,
+    LOTUS_MINER_DOCKER_IMAGE,
+    BUILDER_DOCKER_IMAGE,
+    CURIO_DOCKER_IMAGE,
+];
+
+/// foc-built images that must exist before a cluster can start. The stock
+/// database images (postgres/scylla) are not listed: the database step pulls
+/// them on demand.
 pub const REQUIRED_DOCKER_IMAGES: &[&str] = &[
     LOTUS_DOCKER_IMAGE,
     LOTUS_MINER_DOCKER_IMAGE,
     BUILDER_DOCKER_IMAGE,
-    YUGABYTE_DOCKER_IMAGE,
     CURIO_DOCKER_IMAGE,
 ];
 
 /// Check whether a Docker image identifier (optionally tagged, e.g. "foc-lotus:latest")
-/// belongs to foc-devnet. Used to scope destructive cleanup to our own images
-/// and avoid sweeping up unrelated images that happen to start with "foc-"
-/// (e.g. foc-observer-*).
+/// is one foc-devnet builds. Used to scope destructive cleanup to our own images
+/// and avoid sweeping up unrelated images that share a "foc-" prefix (e.g.
+/// foc-observer-*) or shared stock images (postgres, scylla).
 pub fn is_foc_devnet_image(image: &str) -> bool {
     let repo = image.split(':').next().unwrap_or(image);
-    matches!(
-        repo,
-        LOTUS_DOCKER_IMAGE
-            | LOTUS_MINER_DOCKER_IMAGE
-            | BUILDER_DOCKER_IMAGE
-            | YUGABYTE_DOCKER_IMAGE
-            | CURIO_DOCKER_IMAGE
-    )
+    FOC_BUILT_IMAGES.contains(&repo)
 }
 
 /// Docker container names (base - will be prefixed with foc-c-<RUN_ID>- in practice)
 pub const LOTUS_CONTAINER: &str = "foc-lotus";
 pub const LOTUS_MINER_CONTAINER: &str = "foc-lotus-miner";
 pub const BUILDER_CONTAINER: &str = "foc-builder";
-pub const YUGABYTE_CONTAINER: &str = "foc-yugabyte";
 pub const CURIO_CONTAINER: &str = "foc-curio";
 pub const PORTAINER_CONTAINER: &str = "foc-portainer";
 
 /// Port numbers
 pub const LOTUS_RPC_PORT: u16 = 1234;
 pub const LOTUS_MINER_API_PORT: u16 = 2345;
-pub const YUGABYTE_PORT: u16 = 5433;
 pub const PORTAINER_PORT: u16 = 9009;
 
 /// Sleep durations (in seconds)
@@ -125,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_is_foc_devnet_image_accepts_known_images() {
-        for image in REQUIRED_DOCKER_IMAGES {
+        for image in FOC_BUILT_IMAGES {
             assert!(is_foc_devnet_image(image), "{} should match", image);
             assert!(
                 is_foc_devnet_image(&format!("{}:latest", image)),
@@ -142,7 +157,10 @@ mod tests {
         assert!(!is_foc_devnet_image("foc-observer-ponder-mainnet"));
         assert!(!is_foc_devnet_image("portainer/portainer-ce:latest"));
         assert!(!is_foc_devnet_image("foc-portainer"));
+        assert!(!is_foc_devnet_image("foc-yugabyte"));
         assert!(!is_foc_devnet_image("nginx"));
+        assert!(!is_foc_devnet_image("postgres:18"));
+        assert!(!is_foc_devnet_image("scylladb/scylla:latest"));
         assert!(!is_foc_devnet_image(""));
     }
 }

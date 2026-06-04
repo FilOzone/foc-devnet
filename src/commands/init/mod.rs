@@ -24,8 +24,6 @@ pub struct InitOptions {
     pub curio_location: Option<String>,
     pub lotus_location: Option<String>,
     pub filecoin_services_location: Option<String>,
-    pub yugabyte_url: Option<String>,
-    pub yugabyte_archive: Option<String>,
     pub proof_params_dir: Option<String>,
     pub use_random_mnemonic: bool,
     pub no_docker_build: bool,
@@ -49,7 +47,6 @@ pub fn init_environment(options: InitOptions) -> Result<(), Box<dyn std::error::
         options.curio_location.clone(),
         options.lotus_location.clone(),
         options.filecoin_services_location.clone(),
-        options.yugabyte_url.clone(),
     )?;
 
     // Generate keys
@@ -61,12 +58,12 @@ pub fn init_environment(options: InitOptions) -> Result<(), Box<dyn std::error::
     // Download code repositories
     repositories::download_code_repositories()?;
 
-    // Download required artifacts and build Docker images (unless skipped)
+    // Stage artifacts and build Docker images (unless skipped)
     if options.no_docker_build {
-        info!("Skipping artifact downloads and Docker image builds (--no-docker-build flag set)");
+        info!("Skipping artifact staging and Docker image builds (--no-docker-build flag set)");
     } else {
-        // Download required artifacts (or copy from local paths)
-        artifacts::download_artifacts(options.yugabyte_archive, options.proof_params_dir)?;
+        // Stage artifacts (copied from local paths when provided)
+        artifacts::stage_artifacts(options.proof_params_dir)?;
 
         // Build and cache Docker images
         crate::docker::build::build_and_cache_docker_images()?;

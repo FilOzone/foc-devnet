@@ -22,6 +22,7 @@ EnableCommP = true
 EnableMoveStorage = true
 EnablePDP = true
 EnableParkPiece = true
+ParkPieceMinFreeStoragePercent = 0
 
 [StorageMarket.IPNI]
 Disable = true

@@ -8,10 +8,9 @@
 
 import { z } from "zod";
 
-const YugabyteInfo = z.object({
-  web_ui_url: z.string().url(),
-  master_rpc_port: z.number().int().positive(),
-  ysql_port: z.number().int().positive(),
+const DatabaseInfo = z.object({
+  postgres_port: z.number().int().positive(),
+  scylla_port: z.number().int().positive(),
 });
 
 const CurioInfo = z.object({
@@ -23,7 +22,7 @@ const CurioInfo = z.object({
   container_name: z.string().min(1),
   is_approved: z.boolean(),
   is_endorsed: z.boolean(),
-  yugabyte: YugabyteInfo,
+  database: DatabaseInfo,
 });
 
 const ContractsInfo = z.object({
@@ -60,7 +59,7 @@ const LotusMinerInfo = z.object({
   api_port: z.number().int().positive(),
 });
 
-const DevnetInfoV1 = z.object({
+const DevnetInfoV2 = z.object({
   run_id: z.string().min(1),
   start_time: z.string(),
   startup_duration: z.string().min(1),
@@ -72,8 +71,8 @@ const DevnetInfoV1 = z.object({
 });
 
 export const VersionedDevnetInfo = z.object({
-  version: z.literal(1),
-  info: DevnetInfoV1,
+  version: z.literal(2),
+  info: DevnetInfoV2,
 });
 
 /**

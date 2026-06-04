@@ -7,7 +7,6 @@ use tracing::{info, warn};
 /// Container names for all services
 const CONTAINERS: &[(&str, &str)] = &[
     (crate::constants::CURIO_CONTAINER, "Curio"),
-    (crate::constants::YUGABYTE_CONTAINER, "YugabyteDB"),
     (crate::constants::LOTUS_MINER_CONTAINER, "Lotus-Miner"),
     (crate::constants::LOTUS_CONTAINER, "Lotus"),
 ];
@@ -145,14 +144,22 @@ fn stop_and_remove_service_container(
     Ok(())
 }
 
-/// Get container names for a specific run ID
+/// Get container names for a specific run ID, in reverse of start order so
+/// dependents go before their dependencies: Curio SPs, then their databases,
+/// then Lotus-Miner, then Lotus. Names for SP indices that were never started
+/// are skipped by stop_and_remove_service_container.
 fn get_run_containers(run_id: &str) -> Vec<(String, &'static str)> {
-    vec![
-        (format!("foc-{}-curio", run_id), "Curio"),
-        (format!("foc-{}-yugabyte", run_id), "YugabyteDB"),
-        (format!("foc-{}-lotus-miner", run_id), "Lotus-Miner"),
-        (format!("foc-{}-lotus", run_id), "Lotus"),
-    ]
+    let mut containers: Vec<(String, &'static str)> = (1..=crate::constants::MAX_PDP_SP_COUNT)
+        .map(|sp| (crate::docker::curio_container_name(run_id, sp), "Curio"))
+        .collect();
+    // Per-SP database containers run stock images and are invisible to the
+    // image-based force-kill sweep. Remove them explicitly by name.
+    for name in crate::docker::db_container_names(run_id) {
+        containers.push((name, "Database"));
+    }
+    containers.push((format!("foc-{}-lotus-miner", run_id), "Lotus-Miner"));
+    containers.push((format!("foc-{}-lotus", run_id), "Lotus"));
+    containers
 }
 
 /// Force kill all foc-devnet containers, identified by exact image name. Avoids

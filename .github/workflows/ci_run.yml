@@ -143,8 +143,7 @@ jobs:
         echo "docker-hash=$DOCKER_HASH" >> $GITHUB_OUTPUT
         echo "DOCKER_HASH: $DOCKER_HASH"
 
-    # CACHE-DOCKER: Try to restore pre-built Docker images (foc-lotus, foc-lotus-miner, foc-builder, foc-curio, foc-yugabyte)
-    # These images contain YugabyteDB and all build dependencies
+    # CACHE-DOCKER: Try to restore pre-built Docker images (foc-lotus, foc-lotus-miner, foc-builder, foc-curio)
     - name: "CACHE_RESTORE: {C-docker-images-cache}"
       id: cache-docker-images
       uses: actions/cache/restore@v4
@@ -168,15 +167,14 @@ jobs:
         rm -rf ~/.docker-images-cache
         df -h
 
-    # If Docker images are cached, skip building them AND skip downloading YugabyteDB
-    # (YugabyteDB is already baked into the foc-yugabyte Docker image)
+    # If Docker images are cached, skip building them
     - name: "EXEC: {Initialize with cached Docker}, DEP: {C-docker-images-cache}"
       if: steps.cache-docker-images.outputs.cache-hit == 'true'
       run: |
         ./foc-devnet clean --all
         ./foc-devnet init --no-docker-build ${{ inputs.init_flags }}
 
-    # If Docker images are not cached, do full init (downloads YugabyteDB and builds all images)
+    # If Docker images are not cached, do full init (builds all images)
     - name: "EXEC: {Initialize without cache}, independent"
       if: steps.cache-docker-images.outputs.cache-hit != 'true'
       run: |
@@ -193,7 +191,6 @@ jobs:
         docker save foc-lotus-miner -o ~/.docker-images-cache/foc-lotus-miner.tar
         docker save foc-builder -o ~/.docker-images-cache/foc-builder.tar
         docker save foc-curio -o ~/.docker-images-cache/foc-curio.tar
-        docker save foc-yugabyte -o ~/.docker-images-cache/foc-yugabyte.tar
         echo "Docker images saved to cache"
         ls -lath ~/.docker-images-cache/
         df -h
@@ -403,7 +400,7 @@ jobs:
           echo "Warning: could not resolve numeric job ID (GITHUB_JOB=$GITHUB_JOB)"
         fi
 
-    # Setup scenario test prerequisites (Foundry, Python 3.11 via pyenv, cqlsh)
+    # Setup scenario test prerequisites (Foundry; CQL queries use the Scylla container's bundled cqlsh)
     - name: "EXEC: {Setup scenario prerequisites}, independent"
       if: steps.start_cluster.outcome == 'success'
       run: ./scripts/setup-scenarios-prerequisites.sh

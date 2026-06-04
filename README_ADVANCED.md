@@ -38,8 +38,6 @@ foc-devnet init [OPTIONS]
 - `--curio <SOURCE>` - Curio source location
 - `--lotus <SOURCE>` - Lotus source location
 - `--filecoin-services <SOURCE>` - Filecoin Services source location
-- `--yugabyte-url <URL>` - Yugabyte download URL
-- `--yugabyte-archive <PATH>` - Local Yugabyte archive file
 - `--proof-params-dir <PATH>` - Local proof params directory
 - `--rand` - Use random mnemonic instead of deterministic one. Use this for unique test scenarios.
 
@@ -123,7 +121,7 @@ foc-devnet stop
 ```
 
 **What it does:**
-- Stops containers in reverse order (Curio → Yugabyte → Lotus-Miner → Lotus)
+- Stops containers in reverse order (Curio → Databases → Lotus-Miner → Lotus)
 - Removes containers to ensure clean state
 - Deletes Docker networks
 - Preserves Portainer for persistent access
@@ -234,7 +232,7 @@ If resolution fails, you'll get clear error messages with exact fix instructions
 ```toml
 # Port range for dynamic allocation
 # foc-devnet uses a contiguous range of ports to avoid conflicts with other
-# services on your machine. All components (Lotus, Curio SPs, Yugabyte, etc.)
+# services on your machine. All components (Lotus, Curio SPs, databases, etc.)
 # dynamically allocate ports from this range. Using a dedicated range ensures:
 # - No conflicts with system services (MySQL, PostgreSQL, etc.)
 # - Easy firewall configuration (just open one range)
@@ -245,9 +243,6 @@ port_range_count = 100
 # Service Provider configuration
 approved_pdp_sp_count = 1  # SPs registered and approved in registry
 active_pdp_sp_count = 1    # Total SPs actually running
-
-# Yugabyte database
-yugabyte_download_url = "https://software.yugabyte.com/releases/2.25.1.0/..."
 
 # Component sources
 [lotus]
@@ -276,7 +271,6 @@ branch = "main"
 | `port_range_count` | u16 | 100 | Number of ports in the range |
 | `approved_pdp_sp_count` | usize | 1 | Number of approved service providers |
 | `active_pdp_sp_count` | usize | 1 | Number of running service providers |
-| `yugabyte_download_url` | string | (URL) | Yugabyte database tarball URL |
 
 **Constraints:**
 - `approved_pdp_sp_count` ≤ `active_pdp_sp_count` ≤ `MAX_PDP_SP_COUNT` (5)
@@ -379,7 +373,6 @@ $FOC_DEVNET_BASEDIR/
 │           └── <run-id>/            # Each run has its own volumes
 │               ├── lotus-data/      # Lotus blockchain data
 │               ├── lotus-miner-data/
-│               ├── yugabyte-data/
 │               ├── curio-1/         # First Curio SP
 │               ├── curio-2/         # Second Curio SP (if active)
 │               └── ...
@@ -672,7 +665,7 @@ These keys are string literals used throughout the codebase (see step implementa
 # → Run: curio info (to check status)
 
 # 4. Check database connectivity
-# → Containers → foc-<run-id>-yugabyte → Stats
+# → Containers → foc-<run-id>-postgres-1 → Stats
 # → Verify it's running and consuming resources
 ```
 
@@ -687,8 +680,8 @@ These keys are string literals used throughout the codebase (see step implementa
 |-----------|-------|---------|-------|
 | `foc-<run-id>-lotus` | foc-lotus | Filecoin daemon (FEVM enabled) | 1234 (API), 1235 (P2P) |
 | `foc-<run-id>-lotus-miner` | foc-lotus-miner | First-gen miner (PoRep) | 2345 (API) |
-| `foc-<run-id>-yugabyte-1` | foc-yugabyte | Database for Curio SP 1 | 5433 (PostgreSQL) |
-| `foc-<run-id>-yugabyte-N` | foc-yugabyte | Database for Curio SP N (one per SP) | Dynamic from range |
+| `foc-<run-id>-postgres-N` | postgres | HarmonyDB for Curio SP N (one per SP) | Dynamic from range |
+| `foc-<run-id>-scylla-N` | scylladb/scylla | IndexStore for Curio SP N (one per SP) | Dynamic from range |
 | `foc-<run-id>-curio-1` | foc-curio | First Curio SP (PDP) | Dynamic from range |
 | `foc-<run-id>-curio-N` | foc-curio | Nth Curio SP (PDP) | Dynamic from range |
 | `foc-builder` | foc-builder | Foundry tools (contract deployment) | Host network |
@@ -720,7 +713,7 @@ graph TB
         portainer["🌐 Portainer<br/>:5700"]
         lotus_api["📡 Lotus API<br/>:5701"]
         miner_api["⛏️ Miner API<br/>:5702"]
-        yugabyte_api["🗄️ Yugabyte<br/>:5710"]
+        db_api["🗄️ Postgres / Scylla<br/>:5710"]
     end
 
     subgraph lotus_net["foc-&lt;run-id&gt;-lot-net (Lotus Network)"]
@@ -734,25 +727,25 @@ graph TB
     end
 
     subgraph curio_net_n["foc-&lt;run-id&gt;-cur-m-net-n (Curio SP N Network)"]
-        yugabyte_n["foc-yugabyte-n<br/>(Database)"]
+        dbs_n["foc-postgres-n + foc-scylla-n<br/>(Databases)"]
         curio_n["foc-curio-n<br/>(PDP Service Provider)"]
     end
 
     %% Container to Host connections
     lotus -.->|exposes| lotus_api
     miner -.->|exposes| miner_api
-    yugabyte_n -.->|exposes| yugabyte_api
+    dbs_n -.->|exposes| db_api
 
     %% Network connections
     builder -->|uses host network| lotus
     curio_n -->|same container| curio_n_lot
     miner -->|connects to| lotus
     curio_n_lot -->|connects to| lotus
-    yugabyte_n <-->|database| curio_n
+    dbs_n <-->|databases| curio_n
 
     %% Styling
     classDef container fill:#fff,stroke:#333,stroke-width:1px
-    class lotus,builder,curio_n_lot,miner,yugabyte_n,curio_n container
+    class lotus,builder,curio_n_lot,miner,dbs_n,curio_n container
 ```
 
 **Legend:**
@@ -773,8 +766,8 @@ graph TB
    
 3. **Curio Networks (`foc-<run-id>-cur-m-net-N`)**: 
    - Each Curio SP gets its own network
-   - Each Curio SP has its own Yugabyte database instance on its network
-   - Provides DNS: Curio SP N can use `foc-<run-id>-yugabyte-N` as database host
+   - Each Curio SP has its own Postgres and Scylla instances on its network
+   - Provides DNS: Curio SP N can use `foc-<run-id>-postgres-N` and `foc-<run-id>-scylla-N` as database hosts
 
 **Builder uses host network** (`--network host`) to access Lotus RPC at `http://localhost:1234/rpc/v1`.
 
@@ -783,7 +776,7 @@ graph TB
 Despite network segregation, you can still access all services from your host:
 - Lotus API: `http://localhost:1234/rpc/v1`
 - Lotus Miner API: `http://localhost:2345`
-- Yugabyte Database: `postgresql://localhost:5433`
+- Databases: dynamic ports per SP (see `devnet-info.json`)
 - Portainer UI: `http://localhost:5700`
 - Curio instances: Dynamic ports (check `docker ps`)
 
@@ -797,7 +790,7 @@ The networks only affect container-to-container communication, not host-to-conta
 
 **Port allocation order:**
 1. **First port (5700):** Portainer web UI - always uses `port_range_start`
-2. **Remaining ports:** Dynamically assigned to Curio instances, Yugabyte, and other services as needed
+2. **Remaining ports:** Dynamically assigned to Curio instances, databases, and other services as needed
 
 ```bash
 # Configure in config.toml
@@ -921,8 +914,8 @@ Steps run sequentially by default, or in parallel when using the `--parallel` fl
 | 2 | Lotus Miner | No | Needs Lotus running |
 | 3 | ETH Account Funding | No | Needs blockchain active |
 | 4 | MockUSDFC Deploy + Multicall3 Deploy | **⚡ YES** | Independent contract deployments |
-| 5 | FOC Deploy + USDFC Funding + Yugabyte | **⚡ YES** | Parallel contract work + DB startup |
-| 6 | Curio SPs | No | Needs Yugabyte ready |
+| 5 | FOC Deploy + USDFC Funding + Databases | **⚡ YES** | Parallel contract work + DB startup |
+| 6 | Curio SPs | No | Needs databases ready |
 | 7 | PDP SP Registration | No | Needs Curio running for ports |
 | 8 | User Setup Step | No | User setup step |
 
@@ -963,9 +956,9 @@ Steps run sequentially by default, or in parallel when using the `--parallel` fl
    - Deploy PDPVerifier, ServiceProviderRegistry, etc.
    - Save all contract addresses
 
-**Yugabyte Step:**
-   - Start Yugabyte database (one instance per Curio SP, on the SP's network)
-   - Verify PostgreSQL port
+**Database Step:**
+   - Start Postgres and Scylla (one pair per Curio SP, on the SP's network)
+   - Verify Postgres and CQL ports
 
 **Curio Step:**
    - Initialize Curio database schemas
@@ -1164,8 +1157,8 @@ docker logs foc-<run-id>-curio-2
 # Query provider IDs
 cat ~/.foc-devnet/state/latest/pdp_sps/*.provider_id.json
 
-# Access Yugabyte (one per SP, see below for more detail)
-docker exec -it foc-<run-id>-yugabyte-1 ysqlsh -h localhost -p 5433
+# Access Postgres (one per SP, see below for more detail)
+docker exec -it foc-<run-id>-postgres-1 psql -U curio -d curio
 
 # Query Lotus for miner info
 docker exec foc-<run-id>-lotus lotus state miner-info f01000
@@ -1177,15 +1170,16 @@ docker exec foc-<run-id>-builder cast call \
     <provider_id>
 ```
 
-### Querying Yugabyte Database
+### Querying the Databases
 
-Each Curio has its own Yugabyte (curio-N → yugabyte-N). Tables are in `curio` schema. Credentials: `yugabyte`/`yugabyte`/`yugabyte` (user/pass/db).
+Each Curio has its own Postgres and Scylla (curio-N → postgres-N / scylla-N). Postgres tables are in the `curio` schema. Credentials: `curio`/`curio`/`curio` (user/pass/db).
 
 ```bash
-docker exec foc-<run-id>-yugabyte-1 bash -c "PGPASSWORD=yugabyte /yugabyte/bin/ysqlsh -h 127.0.0.1 -U yugabyte -d yugabyte -c \"<SQL>\""
+docker exec foc-<run-id>-postgres-1 psql -U curio -d curio -c "<SQL>"
+docker exec foc-<run-id>-scylla-1 cqlsh -e "<CQL>"
 ```
 
-Key tables: `curio.harmony_machines`, `curio.harmony_task`, `curio.harmony_task_history`, `curio.parked_pieces`.
+Key tables: `curio.harmony_machines`, `curio.harmony_task`, `curio.harmony_task_history`, `curio.parked_pieces`. The Scylla IndexStore holds the piece index and PDP proof cache (`curio.pdp_cache_layer`).
 
 ---
 

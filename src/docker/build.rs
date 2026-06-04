@@ -100,68 +100,6 @@ pub fn build_image_with_args(
     docker_command(&args)
 }
 
-/// Build the YugabyteDB Docker image with special context handling.
-pub fn build_yugabyte_image(name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let image_tag = format!("foc-{}", name);
-
-    if image_exists(&image_tag)? {
-        info!("Docker image {} already exists, skipping build", image_tag);
-        return Ok(());
-    }
-
-    validate_yugabyte_artifacts()?;
-    perform_yugabyte_build(name, &image_tag)
-}
-
-/// Validate that YugabyteDB artifacts are available for building.
-fn validate_yugabyte_artifacts() -> Result<(), Box<dyn std::error::Error>> {
-    use crate::paths::foc_devnet_artifacts;
-
-    let artifacts_dir = foc_devnet_artifacts();
-    let yugabyte_dir = artifacts_dir.join("yugabyte");
-
-    if !yugabyte_dir.exists() {
-        return Err(format!(
-            "Yugabyte directory not found at {}. Please ensure artifacts are downloaded first.",
-            yugabyte_dir.display()
-        )
-        .into());
-    }
-    Ok(())
-}
-
-/// Perform the actual YugabyteDB image build process.
-fn perform_yugabyte_build(name: &str, image_tag: &str) -> Result<(), Box<dyn std::error::Error>> {
-    use crate::paths::foc_devnet_artifacts;
-
-    let dockerfile_content = embedded_assets::get_dockerfile(name)
-        .ok_or_else(|| format!("Embedded Dockerfile not found for: {}", name))?;
-
-    let artifacts_dir = foc_devnet_artifacts();
-
-    print_yugabyte_build_info(image_tag, &artifacts_dir);
-
-    let pb = setup_build_progress_bar(image_tag);
-    let (uid, gid) = get_build_user_ids()?;
-    let temp_dockerfile_path =
-        create_temp_dockerfile(name, std::str::from_utf8(dockerfile_content)?)?;
-
-    let result =
-        execute_yugabyte_build(&temp_dockerfile_path, image_tag, &artifacts_dir, &uid, &gid);
-
-    let _ = fs::remove_file(&temp_dockerfile_path);
-    finalize_build_progress(&pb, image_tag, result)
-}
-
-/// Print build information for YugabyteDB image.
-fn print_yugabyte_build_info(image_tag: &str, artifacts_dir: &Path) {
-    info!(
-        "Building Docker image: {} from embedded Dockerfile (Yugabyte)",
-        image_tag
-    );
-    info!("Using build context: {}", artifacts_dir.display());
-}
-
 /// Set up progress bar for Docker build.
 fn setup_build_progress_bar(image_tag: &str) -> ProgressBar {
     let pb = ProgressBar::new_spinner();
@@ -191,28 +129,6 @@ fn create_temp_dockerfile(
     Ok(temp_path)
 }
 
-/// Execute the YugabyteDB Docker build.
-fn execute_yugabyte_build(
-    dockerfile_path: &Path,
-    image_tag: &str,
-    artifacts_dir: &Path,
-    uid: &str,
-    gid: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let build_args = vec![("USER_ID", uid), ("GROUP_ID", gid)];
-    let output = build_image_with_args(
-        &dockerfile_path.to_string_lossy(),
-        image_tag,
-        &artifacts_dir.to_string_lossy(),
-        &build_args,
-    )?;
-
-    if !output.status.success() {
-        return Err(format!("Failed to build Docker image: {}", image_tag).into());
-    }
-    Ok(())
-}
-
 /// Finalize build progress and report results.
 fn finalize_build_progress(
     pb: &ProgressBar,
@@ -239,21 +155,15 @@ fn finalize_build_progress(
 /// - BUILDER_DOCKER_IMAGE (Foundry tools)
 /// - LOTUS_DOCKER_IMAGE (Filecoin daemon)
 /// - LOTUS_MINER_DOCKER_IMAGE (Filecoin miner)
-/// - YUGABYTE_DOCKER_IMAGE (Database)
 /// - CURIO_DOCKER_IMAGE (Second-generation miner)
 pub fn build_and_cache_docker_images() -> Result<(), Box<dyn std::error::Error>> {
     info!("Building and caching Docker images...");
 
-    let images = ["builder", "lotus", "lotus-miner", "yugabyte", "curio"];
+    let images = ["builder", "lotus", "lotus-miner", "curio"];
 
     for image_name in &images {
         info!("Building image: foc-{}", image_name);
-        // Yugabyte requires special handling with artifacts directory as build context
-        if image_name == &"yugabyte" {
-            build_yugabyte_image(image_name)?;
-        } else {
-            build_image_from_embedded(image_name)?;
-        }
+        build_image_from_embedded(image_name)?;
     }
 
     info!("✓ All Docker images built and cached");
