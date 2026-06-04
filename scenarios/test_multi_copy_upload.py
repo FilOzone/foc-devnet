@@ -76,15 +76,15 @@ _CONTENT_LENGTH_LINE_RE = re.compile(
 def patch_synapse_core_streaming_upload(npm_dir: Path) -> bool:
     """Strip Content-Length from @filoz/synapse-core's streaming upload headers.
 
-    synapse-core (as of 0.4.1, which filecoin-pin 0.20.1 resolves to) sets a
+    synapse-core 0.4.1 (which older filecoin-pin releases resolved to) set a
     Content-Length header on a body that flows through a streaming Transform.
     Node/undici rejects that as 'invalid content-length header', which
     filecoin-pin surfaces as
     'StorageContext store failed: Failed to store piece on service provider -
     Network request failed'.
 
-    TODO: drop this patch once filecoin-pin pins a synapse-core release that
-    omits Content-Length on streaming bodies (track upstream in FilOzone/synapse-sdk).
+    Keep this tolerant until the older workaround has been exercised against
+    the latest filecoin-pin release in CI.
 
     Returns True when the target file is in the desired state (whether or not
     a change was applied). Returns False only when the file is missing.
@@ -246,7 +246,7 @@ def run():
                 "pkg",
                 "set",
                 "type=module",
-                "dependencies.filecoin-pin=0.20.1",
+                "dependencies.filecoin-pin=0.22.3",
                 "dependencies.multiformats=13.4.2",
             ],
             label="pin filecoin-pin dependencies",
