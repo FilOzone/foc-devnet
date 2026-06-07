@@ -1,4 +1,4 @@
-# foc-devnet
+# foc-devnet (test)
 
 **Run a local Filecoin network with FOC (Filecoin Onchain Contracts) in minutes.**
 
