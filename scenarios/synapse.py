@@ -6,7 +6,10 @@ from pathlib import Path
 
 from scenarios.helpers import info, run_cmd, sh
 
-SYNAPSE_SDK_REPO = "https://github.com/FilOzone/synapse-sdk/"
+SYNAPSE_SDK_REPO = os.environ.get(
+    "SYNAPSE_SDK_REPO", "https://github.com/FilOzone/synapse-sdk/"
+)
+SYNAPSE_SDK_REF = os.environ.get("SYNAPSE_SDK_REF", "synapse-sdk-v1.0.1")
 
 
 def clone_and_build(tmp_dir: Path) -> Path | None:
@@ -17,7 +20,9 @@ def clone_and_build(tmp_dir: Path) -> Path | None:
     ):
         return None
     if not run_cmd(
-        ["git", "checkout", "master"], cwd=str(sdk_dir), label="checkout master HEAD"
+        ["git", "checkout", SYNAPSE_SDK_REF],
+        cwd=str(sdk_dir),
+        label=f"checkout {SYNAPSE_SDK_REF}",
     ):
         return None
     sdk_commit = sh(f"git -C {sdk_dir} rev-parse HEAD")

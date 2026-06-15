@@ -26,6 +26,7 @@ ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 RAND_FILE_NAME = "random_file"
 RAND_FILE_SIZE = 20 * 1024 * 1024
 RAND_FILE_SEED = 42
+FILECOIN_PIN_VERSION = "0.23.2"
 ADD_DEADLINE_SECS = 240
 ADD_INTERVAL_SECS = 10
 ADD_ATTEMPT_TIMEOUT_SECS = 180
@@ -74,17 +75,14 @@ _CONTENT_LENGTH_LINE_RE = re.compile(
 
 
 def patch_synapse_core_streaming_upload(npm_dir: Path) -> bool:
-    """Strip Content-Length from @filoz/synapse-core's streaming upload headers.
+    """Strip legacy Content-Length from @filoz/synapse-core streaming uploads.
 
-    synapse-core (as of 0.4.1, which filecoin-pin 0.20.1 resolves to) sets a
-    Content-Length header on a body that flows through a streaming Transform.
-    Node/undici rejects that as 'invalid content-length header', which
-    filecoin-pin surfaces as
+    Older synapse-core builds set a Content-Length header on a body that flows
+    through a streaming Transform. Node/undici rejects that as
+    'invalid content-length header', which filecoin-pin surfaces as
     'StorageContext store failed: Failed to store piece on service provider -
-    Network request failed'.
-
-    TODO: drop this patch once filecoin-pin pins a synapse-core release that
-    omits Content-Length on streaming bodies (track upstream in FilOzone/synapse-sdk).
+    Network request failed'. Newer builds only set Content-Length for the
+    non-streaming Blob fallback, so this helper is intentionally a no-op there.
 
     Returns True when the target file is in the desired state (whether or not
     a change was applied). Returns False only when the file is missing.
@@ -112,8 +110,8 @@ def patch_synapse_core_streaming_upload(npm_dir: Path) -> bool:
         )
     else:
         info(
-            "@filoz/synapse-core streaming upload already free of "
-            "Content-Length header; no patch needed"
+            "@filoz/synapse-core streaming upload has no legacy "
+            "Content-Length header pattern; no patch needed"
         )
     return True
 
@@ -246,7 +244,7 @@ def run():
                 "pkg",
                 "set",
                 "type=module",
-                "dependencies.filecoin-pin=0.20.1",
+                f"dependencies.filecoin-pin={FILECOIN_PIN_VERSION}",
                 "dependencies.multiformats=13.4.2",
             ],
             label="pin filecoin-pin dependencies",
