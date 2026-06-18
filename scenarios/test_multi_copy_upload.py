@@ -246,7 +246,7 @@ def run():
                 "pkg",
                 "set",
                 "type=module",
-                "dependencies.filecoin-pin=0.22.3",
+                "dependencies.filecoin-pin=1.0.1",
                 "dependencies.multiformats=13.4.2",
             ],
             label="pin filecoin-pin dependencies",
