@@ -285,15 +285,15 @@ impl Default for Config {
             port_range_count: 100,
             lotus: Location::GitTag {
                 url: "https://github.com/filecoin-project/lotus.git".to_string(),
-                tag: "v1.35.0".to_string(),
+                tag: "v1.36.0".to_string(),
             },
-            curio: Location::GitCommit {
+            curio: Location::GitTag {
                 url: "https://github.com/filecoin-project/curio.git".to_string(),
-                commit: "60f77a618eee24cd3482be5fea545e01f26052a4".to_string(),
+                tag: "v1.28.2".to_string(),
             },
             filecoin_services: Location::GitTag {
                 url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
-                tag: "v1.2.0".to_string(),
+                tag: "v1.3.0".to_string(),
             },
             multicall3: Location::GitTag {
                 url: "https://github.com/mds1/multicall3.git".to_string(),
