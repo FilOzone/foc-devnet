@@ -86,10 +86,15 @@ def assert_ok(cmd, msg):
 
 
 def sh(cmd):
-    """Run cmd in a shell and return stdout stripped, or '' on error."""
-    return subprocess.run(
-        cmd, shell=True, text=True, capture_output=True
-    ).stdout.strip()
+    """Run cmd in a shell and return stdout stripped, or fail with command output."""
+    result = subprocess.run(cmd, shell=True, text=True, capture_output=True)
+    stdout = result.stdout.strip()
+    stderr = result.stderr.strip()
+    if result.returncode == 0:
+        return stdout
+
+    details = stderr or stdout or "no output"
+    fail(f"shell command failed (exit={result.returncode}): {cmd} ({details})")
 
 
 def run_cmd(
