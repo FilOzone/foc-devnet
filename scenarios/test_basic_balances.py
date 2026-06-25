@@ -21,7 +21,8 @@ def run():
         fil_wei = sh(f"{CAST} balance {user_addr} --rpc-url {lotus_rpc}")
         assert_gt(fil_wei, 0, f"{name} FIL balance > 0")
         usdfc_raw = sh(
-            f"{CAST} call {usdfc_addr} 'balanceOf(address)(uint256)' {user_addr} --rpc-url {lotus_rpc}"
+            f"{CAST} call {usdfc_addr} 'balanceOf(address)(uint256)' {user_addr} "
+            f"--from {user_addr} --rpc-url {lotus_rpc}"
         )
         usdfc_wei = "".join(c for c in usdfc_raw if c.isdigit())
         assert_gt(usdfc_wei, 0, f"{name} USDFC balance > 0")
