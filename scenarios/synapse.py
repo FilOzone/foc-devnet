@@ -69,9 +69,7 @@ def _log_chain_head(url: str, label: str) -> None:
 
     result = response.get("result") or {}
     height = result.get("Height")
-    cids = [
-        cid.get("/") for cid in result.get("Cids", []) if isinstance(cid, dict)
-    ]
+    cids = [cid.get("/") for cid in result.get("Cids", []) if isinstance(cid, dict)]
     info(f"RPC diagnostics ({label}): ChainHead height={height} cids={cids}")
 
 
@@ -96,8 +94,7 @@ def _log_eth_block_number(url: str, label: str) -> None:
     except (TypeError, ValueError):
         block_number = "unknown"
     info(
-        f"RPC diagnostics ({label}): eth_blockNumber={block_number} "
-        f"raw={block_hex}"
+        f"RPC diagnostics ({label}): eth_blockNumber={block_number} " f"raw={block_hex}"
     )
 
 
