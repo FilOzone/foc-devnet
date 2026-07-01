@@ -120,10 +120,10 @@ Some profile selections can include an optional `overrides` object:
 
 ```json
 {
-  "strategy": "npm_version",
-  "version": "1.0.1",
+  "strategy": "git_tag",
+  "tag": "synapse-sdk-v1.0.1",
   "overrides": {
-    "multiformats": "14.0.2"
+    "nanoid": "3.3.13"
   }
 }
 ```
