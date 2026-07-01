@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Multi-copy upload test: upload a random file via filecoin-pin against the devnet."""
 
+from __future__ import annotations
+
 import os
 import re
 import subprocess
@@ -13,6 +15,7 @@ from urllib.request import urlopen
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from scenarios.dependencies import component
 from scenarios.helpers import (
     assert_eq,
     assert_ok,
@@ -68,13 +71,13 @@ def output_text(value) -> str:
 
 
 def run_filecoin_pin_add(
-    filecoin_pin_bin: Path,
+    filecoin_pin_command: list[str],
     upload_dir: Path,
     extra_args: list[str],
     label: str,
 ):
     cmd = [
-        str(filecoin_pin_bin),
+        *filecoin_pin_command,
         "add",
         "--network",
         "devnet",
@@ -118,6 +121,54 @@ def run_filecoin_pin_add(
         time.sleep(ADD_INTERVAL_SECS)
 
     return last_result
+
+
+def setup_filecoin_pin(work_dir: Path) -> tuple[list[str], Path]:
+    dependency = component("filecoin-pin")
+    source = dependency["source"]
+    overrides = dependency.get("overrides", {})
+
+    if source == "npm":
+        run_cmd(["npm", "init", "-y"], label="npm init", cwd=work_dir)
+        package_fields = [
+            "type=module",
+            f"dependencies.filecoin-pin={dependency['version']}",
+        ]
+        for package, version in sorted(overrides.items()):
+            package_fields.extend(
+                [
+                    f"dependencies.{package}={version}",
+                    f"overrides.{package}={version}",
+                ]
+            )
+        run_cmd(
+            ["npm", "pkg", "set", *package_fields],
+            label=f"pin filecoin-pin {dependency['version']}",
+            cwd=work_dir,
+        )
+        run_cmd(["npm", "install"], label="npm install", cwd=work_dir)
+        return [str(work_dir / "node_modules" / ".bin" / "filecoin-pin")], work_dir
+
+    if source == "git":
+        repository_dir = work_dir / "filecoin-pin"
+        run_cmd(
+            ["git", "clone", dependency["repository"], str(repository_dir)],
+            label="clone filecoin-pin",
+        )
+        run_cmd(
+            ["git", "checkout", "--detach", dependency["commit"]],
+            cwd=repository_dir,
+            label=f"checkout filecoin-pin {dependency['commit']}",
+        )
+        run_cmd(
+            ["pnpm", "install", "--frozen-lockfile"],
+            cwd=repository_dir,
+            label="pnpm install",
+        )
+        run_cmd(["pnpm", "build"], cwd=repository_dir, label="pnpm build")
+        return ["node", str(repository_dir / "dist" / "cli.js")], repository_dir
+
+    raise RuntimeError(f"Unsupported filecoin-pin source: {source}")
 
 
 def download_and_verify(
@@ -187,22 +238,7 @@ def run():
         npm_dir = Path(npm_tmp)
         download_dir = Path(download_tmp)
 
-        run_cmd(["npm", "init", "-y"], label="npm init", cwd=npm_dir)
-
-        run_cmd(
-            [
-                "npm",
-                "pkg",
-                "set",
-                "type=module",
-                "dependencies.filecoin-pin=1.0.1",
-                "dependencies.multiformats=13.4.2",
-            ],
-            label="pin filecoin-pin dependencies",
-            cwd=npm_dir,
-        )
-
-        run_cmd(["npm", "install"], label="npm install", cwd=npm_dir)
+        filecoin_pin_command, dependency_dir = setup_filecoin_pin(npm_dir)
 
         random_file = upload_dir / RAND_FILE_NAME
         info(f"Creating random file ({RAND_FILE_SIZE} bytes)")
@@ -215,10 +251,8 @@ def run():
 
         info("Running filecoin-pin multi-copy upload script against devnet")
 
-        filecoin_pin_bin = npm_dir / "node_modules" / ".bin" / "filecoin-pin"
-
         add_result = run_filecoin_pin_add(
-            filecoin_pin_bin,
+            filecoin_pin_command,
             upload_dir,
             [],
             "default multi-copy",
@@ -297,7 +331,7 @@ def run():
 
         for i, url in enumerate(root_retrieval_urls, start=1):
             file = download_dir / f"{root_cid}_{i}.bin"
-            error = download_and_verify(url, file, root_cid, npm_dir)
+            error = download_and_verify(url, file, root_cid, dependency_dir)
             if error:
                 fail(error)
                 return

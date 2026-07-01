@@ -30,17 +30,15 @@ jobs:
       matrix:
         include:
           - name: stability
-            init_flags: "--curio latesttag:v* --filecoin-services latesttag:v*"
             issue_label: scenarios-run-stability
             issue_title: "FOC Devnet scenarios run report (stability)"
           - name: frontier
-            init_flags: "--curio gitbranch:main --filecoin-services gitbranch:main"
             issue_label: scenarios-run-frontier
             issue_title: "FOC Devnet scenarios run report (frontier)"
     uses: ./.github/workflows/ci_run.yml
     with:
       name: ${{ matrix.name }}
-      init_flags: ${{ matrix.init_flags }}
+      profile: ${{ matrix.name }}
       # Reporting is always on for scheduled runs; for manual dispatch it follows the input.
       enable_reporting: ${{ github.event_name == 'schedule' || inputs.reporting == true }}
       # On scheduled runs, such as nightly `inputs.skip_report_on_pass` is absent (empty string), so we cannot rely
