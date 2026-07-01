@@ -151,7 +151,7 @@ class ResolverTests(unittest.TestCase):
             "default": {
                 "strategy": "npm_version",
                 "version": "1.0.1",
-                "overrides": {"multiformats": "14.0.2"},
+                "overrides": {"nanoid": {"version": "3.3.13", "reason": "test"}},
             },
         }
         runner = FakeRunner(
@@ -177,16 +177,19 @@ class ResolverTests(unittest.TestCase):
             "filecoin-pin", component, "default", runner
         )
 
-        self.assertEqual(resolved["overrides"], {"multiformats": "14.0.2"})
+        self.assertEqual(
+            resolved["overrides"],
+            {"nanoid": {"version": "3.3.13", "reason": "test"}},
+        )
 
-    def test_profile_overrides_must_be_string_map(self):
+    def test_profile_overrides_require_version_and_reason(self):
         component = {
             "repository": "https://example.test/filecoin-pin.git",
             "npm_package": "filecoin-pin",
             "default": {
                 "strategy": "npm_version",
                 "version": "1.0.1",
-                "overrides": {"multiformats": 14},
+                "overrides": {"nanoid": {"version": "3.3.13"}},
             },
         }
         runner = FakeRunner(
@@ -208,7 +211,7 @@ class ResolverTests(unittest.TestCase):
             }
         )
 
-        with self.assertRaisesRegex(resolver.ResolutionError, "overrides"):
+        with self.assertRaisesRegex(resolver.ResolutionError, "reason"):
             resolver.resolve_component("filecoin-pin", component, "default", runner)
 
     def test_overrides_are_rejected_for_core_git_components(self):
@@ -217,7 +220,7 @@ class ResolverTests(unittest.TestCase):
             "frontier": {
                 "strategy": "git_branch",
                 "branch": "master",
-                "overrides": {"nanoid": "3.3.13"},
+                "overrides": {"nanoid": {"version": "3.3.13", "reason": "test"}},
             },
         }
         runner = FakeRunner(
@@ -240,7 +243,7 @@ class ResolverTests(unittest.TestCase):
             "frontier": {
                 "strategy": "git_branch",
                 "branch": "master",
-                "overrides": {"multiformats": "14.0.2"},
+                "overrides": {"nanoid": {"version": "3.3.13", "reason": "test"}},
             },
         }
         runner = FakeRunner(

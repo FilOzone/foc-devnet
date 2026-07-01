@@ -43,16 +43,12 @@ def apply_pnpm_workspace_overrides(sdk_dir: Path, overrides: dict) -> bool:
     if updated and updated[-1]:
         updated.append("")
     updated.append("overrides:")
-    for package, version in sorted(overrides.items()):
-        updated.append(f"  {json.dumps(package)}: {json.dumps(version)}")
+    for package, spec in sorted(overrides.items()):
+        updated.append(f"  {json.dumps(package)}: {json.dumps(spec['version'])}")
 
     workspace.write_text("\n".join(updated) + "\n")
-    info(
-        "Applied pnpm workspace overrides: "
-        + ", ".join(
-            f"{package}={version}" for package, version in sorted(overrides.items())
-        )
-    )
+    for package, spec in sorted(overrides.items()):
+        info(f"pnpm override {package}={spec['version']} ({spec['reason']})")
     return True
 
 

@@ -21,13 +21,12 @@ class ScenarioDependencyTests(unittest.TestCase):
                     "source": "git",
                     "version": "0.41.0",
                     "commit": "bbb",
-                    "overrides": {"nanoid": "3.3.13"},
+                    "overrides": {"nanoid": {"version": "3.3.13", "reason": "test"}},
                 },
                 "filecoin-pin": {
                     "source": "npm",
                     "version": "1.0.1",
                     "commit": "ccc",
-                    "overrides": {"multiformats": "14.0.2"},
                 },
             }
         }
@@ -37,11 +36,9 @@ class ScenarioDependencyTests(unittest.TestCase):
             "synapse-sdk",
             "filecoin-pin",
             "nanoid",
-            "multiformats",
             "aaa",
             "1.0.1",
             "3.3.13",
-            "14.0.2",
         ):
             self.assertIn(expected, table)
 
@@ -53,7 +50,7 @@ class ScenarioDependencyTests(unittest.TestCase):
             "repository": "https://example.test/synapse.git",
             "ref": "sdk-v1.0.0",
             "commit": "deadbeef",
-            "overrides": {"nanoid": "3.3.13"},
+            "overrides": {"nanoid": {"version": "3.3.13", "reason": "test"}},
         },
     )
     def test_synapse_checkout_uses_resolved_commit(self, _component, run_cmd, _sh):
@@ -86,7 +83,7 @@ class ScenarioDependencyTests(unittest.TestCase):
         return_value={
             "source": "npm",
             "version": "1.0.1",
-            "overrides": {"multiformats": "14.0.2"},
+            "overrides": {"nanoid": {"version": "3.3.13", "reason": "test"}},
         },
     )
     def test_filecoin_pin_npm_install_path(self, _component, run_cmd):
@@ -99,11 +96,11 @@ class ScenarioDependencyTests(unittest.TestCase):
             run_cmd.call_args_list[1].args[0],
         )
         self.assertIn(
-            "dependencies.multiformats=14.0.2",
+            "dependencies.nanoid=3.3.13",
             run_cmd.call_args_list[1].args[0],
         )
         self.assertIn(
-            "overrides.multiformats=14.0.2",
+            "overrides.nanoid=3.3.13",
             run_cmd.call_args_list[1].args[0],
         )
 
