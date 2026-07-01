@@ -1,0 +1,38 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "enabledManagers": ["custom.regex"],
+  "schedule": ["before 4am on monday"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": ["^src/config\\.rs$"],
+      "matchStrings": [
+        "url:\\s*\"https://github\\.com/(?<depName>[^\"]+?)(?:\\.git)?\"\\.to_string\\(\\),\\s*tag:\\s*\"(?<currentValue>v[0-9][^\"]*)\""
+      ],
+      "datasourceTemplate": "github-tags",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": ["^ci/dependency-profiles\\.json$"],
+      "matchStrings": [
+        "\"tag\":\\s*\"synapse-sdk-v(?<currentValue>[0-9][^\"]*)\""
+      ],
+      "depNameTemplate": "FilOzone/synapse-sdk",
+      "datasourceTemplate": "github-tags",
+      "extractVersionTemplate": "^synapse-sdk-v(?<version>.+)$",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": ["^ci/dependency-profiles\\.json$"],
+      "matchStrings": [
+        "\"strategy\":\\s*\"npm_version\",\\s*\"version\":\\s*\"(?<currentValue>[0-9][^\"]*)\""
+      ],
+      "depNameTemplate": "filecoin-pin",
+      "datasourceTemplate": "npm",
+      "versioningTemplate": "npm"
+    }
+  ]
+}
