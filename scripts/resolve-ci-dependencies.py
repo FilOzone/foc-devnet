@@ -189,11 +189,19 @@ def npm_metadata(package: str, version: str, runner=run_command) -> dict:
 def validate_overrides(name: str, strategy: str, overrides) -> dict:
     if overrides is None:
         return {}
-    if not isinstance(overrides, dict) or not all(
-        isinstance(key, str) and isinstance(value, str)
-        for key, value in overrides.items()
-    ):
-        raise ResolutionError(f"{name} overrides must be a string map")
+    if not isinstance(overrides, dict):
+        raise ResolutionError(f"{name} overrides must be a map")
+    for package, spec in overrides.items():
+        if (
+            not isinstance(package, str)
+            or not isinstance(spec, dict)
+            or set(spec) != {"version", "reason"}
+            or not all(isinstance(spec[key], str) and spec[key] for key in spec)
+        ):
+            raise ResolutionError(
+                f"{name} override {package!r} must be an object with non-empty "
+                "string 'version' and 'reason' fields"
+            )
 
     if name == "synapse-sdk":
         return dict(sorted(overrides.items()))

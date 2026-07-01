@@ -134,11 +134,12 @@ def setup_filecoin_pin(work_dir: Path) -> tuple[list[str], Path]:
             "type=module",
             f"dependencies.filecoin-pin={dependency['version']}",
         ]
-        for package, version in sorted(overrides.items()):
+        for package, spec in sorted(overrides.items()):
+            info(f"npm override {package}={spec['version']} ({spec['reason']})")
             package_fields.extend(
                 [
-                    f"dependencies.{package}={version}",
-                    f"overrides.{package}={version}",
+                    f"dependencies.{package}={spec['version']}",
+                    f"overrides.{package}={spec['version']}",
                 ]
             )
         run_cmd(

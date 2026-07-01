@@ -79,8 +79,8 @@ def format_markdown_table(metadata: dict | None = None) -> str:
         overrides = value.get("overrides") or {}
         overrides_text = (
             ", ".join(
-                f"`{package}={override_version}`"
-                for package, override_version in sorted(overrides.items())
+                f"`{package}={spec['version']}`"
+                for package, spec in sorted(overrides.items())
             )
             or "-"
         )

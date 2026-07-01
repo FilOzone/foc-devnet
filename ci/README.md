@@ -116,21 +116,27 @@ and npm `gitHead` when available.
 
 ## Overrides
 
-Some profile selections can include an optional `overrides` object:
+Some profile selections can include an optional `overrides` object. Each entry
+maps a package name to a `version` and a `reason` explaining why the override
+exists:
 
 ```json
 {
   "strategy": "git_tag",
   "tag": "synapse-sdk-v1.0.1",
   "overrides": {
-    "nanoid": "3.3.13"
+    "nanoid": {
+      "version": "3.3.13",
+      "reason": "nanoid 5.x is ESM-only and breaks the CJS build"
+    }
   }
 }
 ```
 
-Overrides are explicit profile policy. The resolver validates that this is a
-string-to-string map and copies it into resolved metadata. It does not infer
-overrides from package metadata.
+Overrides are explicit profile policy. Both `version` and `reason` are required
+non-empty strings; the resolver rejects any override missing either field, so an
+override cannot be added without documenting why. The reason is logged when the
+override is applied. The resolver does not infer overrides from package metadata.
 
 Overrides are currently allowed only for:
 
