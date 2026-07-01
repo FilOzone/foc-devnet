@@ -91,8 +91,8 @@ fn verify_upload_download(context: &SetupContext, sp_index: usize) -> Result<(),
 /// Create a random test file.
 fn create_random_test_file(temp_dir: &TempDir) -> Result<PathBuf, Box<dyn Error>> {
     let test_file_path = temp_dir.path().join("test_data.bin");
-    let mut rng = rand::thread_rng();
-    let random_data: Vec<u8> = (0..TEST_FILE_SIZE_BYTES).map(|_| rng.gen()).collect();
+    let mut rng = rand::rng();
+    let random_data: Vec<u8> = (0..TEST_FILE_SIZE_BYTES).map(|_| rng.random()).collect();
 
     fs::write(&test_file_path, random_data)?;
 
