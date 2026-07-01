@@ -104,7 +104,7 @@ pub fn compute_bls_address(public_key: &PublicKey) -> Result<String, Box<dyn std
     // Step 5: Encode to base32 (lowercase, no padding)
     // 52 bytes → ceil(52 * 8 / 5) = 84 base32 characters
     let address =
-        base32::encode(base32::Alphabet::RFC4648 { padding: false }, &address_bytes).to_lowercase();
+        base32::encode(base32::Alphabet::Rfc4648 { padding: false }, &address_bytes).to_lowercase();
 
     // Step 6: Construct final address with network and protocol prefix
     // Format: "t" + "3" + base32_encoded_data

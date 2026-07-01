@@ -76,7 +76,7 @@ pub fn compute_native_address(
     let mut sub_address = eth_bytes;
     sub_address.extend(checksum);
     let base32 =
-        base32::encode(base32::Alphabet::RFC4648 { padding: false }, &sub_address).to_lowercase();
+        base32::encode(base32::Alphabet::Rfc4648 { padding: false }, &sub_address).to_lowercase();
     Ok(format!("t4{}f{}", manager_id, base32))
 }
 

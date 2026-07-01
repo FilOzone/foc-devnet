@@ -8,7 +8,7 @@ mod persistence;
 pub use persistence::{delete_current_run_id, load_current_run_id, save_current_run_id};
 
 use chrono::Local;
-use rand::seq::SliceRandom;
+use rand::seq::IndexedRandom;
 
 /// Adjectives for random name generation.
 pub const ADJECTIVES: &[&str] = &[
@@ -41,7 +41,7 @@ pub fn generate_run_id() -> String {
 
     // Implement our own random name generator to control format
     let random_name = {
-        let rng = &mut rand::thread_rng();
+        let rng = &mut rand::rng();
         let adjective = ADJECTIVES.choose(rng).unwrap();
         let noun = NOUNS.choose(rng).unwrap();
         format!("{}{}", adjective, noun)
