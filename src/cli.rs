@@ -56,12 +56,6 @@ pub enum Commands {
         /// 'local:/path/to/filecoin-services'.
         #[arg(long)]
         filecoin_services: Option<String>,
-        /// Yugabyte download URL
-        #[arg(long)]
-        yugabyte_url: Option<String>,
-        /// Path to local Yugabyte archive file (.tar.gz) to use instead of downloading
-        #[arg(long)]
-        yugabyte_archive: Option<String>,
         /// Path to local filecoin-proof-params directory to use instead of downloading
         #[arg(long)]
         proof_params_dir: Option<String>,

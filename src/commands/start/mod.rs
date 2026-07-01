@@ -1,4 +1,5 @@
 mod curio;
+mod database;
 mod endorsement;
 mod eth_acc_funding;
 mod foc_deploy;
@@ -15,9 +16,9 @@ pub mod step;
 mod usdfc_deploy;
 mod usdfc_funding;
 mod user_setup;
-mod yugabyte;
 
 use curio::CurioStep;
+use database::DatabaseStep;
 use endorsement::EndorsementStep;
 use eth_acc_funding::ETHAccFundingStep;
 use foc_deploy::FOCDeployStep;
@@ -30,7 +31,6 @@ use prerequisites_check::PrerequisitesCheckStep;
 pub use step::{execute_steps, execute_steps_parallel, SetupContext, Step};
 use usdfc_deploy::USDFCDeployStep;
 use user_setup::UserSetupStep;
-use yugabyte::YugabyteStep;
 
 use crate::commands::start::usdfc_funding::USDFCFundingStep;
 use crate::config::Config;
@@ -152,7 +152,6 @@ fn stop_running_containers() -> Result<(), Box<dyn std::error::Error>> {
         crate::constants::LOTUS_MINER_CONTAINER,
         crate::constants::LOTUS_CONTAINER,
         crate::constants::CURIO_CONTAINER,
-        crate::constants::YUGABYTE_CONTAINER,
     ];
     for container in containers {
         if container_is_running(container)? {
@@ -279,7 +278,7 @@ fn create_steps(volumes_dir: &Path, run_dir: &Path, config: &Config) -> Vec<Box<
         config.active_pdp_sp_count,
         config.approved_pdp_sp_count,
     );
-    let yugabyte_step = YugabyteStep::new(
+    let database_step = DatabaseStep::new(
         volumes_dir.to_path_buf(),
         run_dir.to_path_buf(),
         config.active_pdp_sp_count,
@@ -308,7 +307,7 @@ fn create_steps(volumes_dir: &Path, run_dir: &Path, config: &Config) -> Vec<Box<
         Box::new(usdfc_funding_step),
         Box::new(multicall3_deploy_step),
         Box::new(foc_deploy_step),
-        Box::new(yugabyte_step),
+        Box::new(database_step),
         Box::new(curio_step),
         Box::new(pdp_sp_reg_step),
         Box::new(endorsement_step),
@@ -328,8 +327,8 @@ fn create_steps(volumes_dir: &Path, run_dir: &Path, config: &Config) -> Vec<Box<
 /// - Epoch 3: Lotus Miner (depends on Lotus)
 /// - Epoch 4: ETH Account Funding (needs blockchain running)
 /// - Epoch 5: MockUSDFC Deploy + MultiCall3 Deploy (can be parallelized)
-/// - Epoch 6: FOC Deploy + MockUSDFC Funding + Yugabyte (can be parallelized, needs USDFC deployed)
-/// - Epoch 7: Curio daemons (needs Yugabyte)
+/// - Epoch 6: FOC Deploy + MockUSDFC Funding + Databases (can be parallelized, needs USDFC deployed)
+/// - Epoch 7: Curio daemons (needs Databases)
 /// - Epoch 8: PDP SP Registration (needs Curio running, for port information)
 /// - Epoch 9: Endorse PDP SPs (final step)
 /// - Epoch 10: USER_1 payment setup (depends on FOC contracts + Lotus)
@@ -340,7 +339,7 @@ fn create_step_epochs(
 ) -> Vec<Vec<Box<dyn Step>>> {
     let prerequisites_check_step = PrerequisitesCheckStep::new();
     let lotus_step = LotusStep::new(volumes_dir.to_path_buf(), run_dir.to_path_buf());
-    let yugabyte_step = YugabyteStep::new(
+    let database_step = DatabaseStep::new(
         volumes_dir.to_path_buf(),
         run_dir.to_path_buf(),
         config.active_pdp_sp_count,
@@ -387,11 +386,11 @@ fn create_step_epochs(
             Box::new(usdfc_deploy_step),
             Box::new(multicall3_deploy_step),
         ],
-        // Epoch 6: Fund accounts with USDFC, deploy foc (needs usdfc deployed), start yugabyte for curio later
+        // Epoch 6: Fund accounts with USDFC, deploy foc (needs usdfc deployed), start databases for curio later
         vec![
             Box::new(foc_deploy_step),
             Box::new(usdfc_funding_step),
-            Box::new(yugabyte_step),
+            Box::new(database_step),
         ],
         // Epoch 7: Start Curio daemons
         vec![Box::new(curio_step)],

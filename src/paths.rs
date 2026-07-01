@@ -223,18 +223,6 @@ pub fn foc_devnet_curio_sp_volume(run_id: &str, sp_index: usize) -> PathBuf {
     foc_devnet_curio_volumes(run_id).join(sp_index.to_string())
 }
 
-/// Returns the path to the yugabyte volumes directory
-/// e.g., ~/.foc-devnet/docker/volumes/run-specific/<run_id>/yugabyte
-pub fn foc_devnet_yugabyte_volumes(run_id: &str) -> PathBuf {
-    foc_devnet_docker_volumes_run_specific(run_id).join("yugabyte")
-}
-
-/// Returns the path to a specific yugabyte instance volume directory (base-1 indexed)
-/// e.g., ~/.foc-devnet/docker/volumes/run-specific/<run_id>/yugabyte/1
-pub fn foc_devnet_yugabyte_sp_volume(run_id: &str, sp_index: usize) -> PathBuf {
-    foc_devnet_yugabyte_volumes(run_id).join(sp_index.to_string())
-}
-
 /// Returns the path to the project root directory
 /// This is determined by finding the directory containing Cargo.toml
 pub fn project_root() -> Result<PathBuf, std::io::Error> {

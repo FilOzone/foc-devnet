@@ -96,9 +96,11 @@ pub fn is_port_available(port: u16) -> bool {
 pub fn image_exists(image_name: &str) -> Result<bool, Box<dyn Error>> {
     let output = docker_command(&["images", "--format", "{{.Repository}}:{{.Tag}}"])?;
     let stdout = String::from_utf8_lossy(&output.stdout);
+    // image_name may be tagged ("postgres:18") -> exact match, or untagged
+    // ("foc-lotus") -> match any tag.
     Ok(stdout
         .lines()
-        .any(|line| line.starts_with(&format!("{}:", image_name))))
+        .any(|line| line == image_name || line.starts_with(&format!("{}:", image_name))))
 }
 
 /// Check if a container with the given name exists

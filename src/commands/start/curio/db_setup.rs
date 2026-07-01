@@ -9,8 +9,13 @@ use super::constants::{DB_SETUP_WAIT_SECS, PDP_LAYER_CONFIG_TEMPLATE};
 use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
 use crate::commands::start::genesis::constants::PDP_SP_MINER_ID_START;
 use crate::commands::start::lotus_utils::{build_fullnode_api_info, read_lotus_token};
+use crate::constants::{
+    DB_NAME, DB_PASSWORD, DB_USER, POSTGRES_CONTAINER_PORT, SCYLLA_CQL_CONTAINER_PORT,
+};
 use crate::docker::command_logger::run_and_log_command;
-use crate::docker::containers::lotus_container_name;
+use crate::docker::containers::{
+    lotus_container_name, postgres_container_name, scylla_container_name,
+};
 use crate::docker::core::docker_command;
 use crate::docker::network::{lotus_network_name, pdp_miner_network_name};
 use crate::paths::foc_devnet_bin;
@@ -37,7 +42,11 @@ pub fn build_foc_contract_env_vars(context: &SetupContext) -> Result<Vec<String>
     }
 
     // Get FOC service contracts
-    if let Some(payment) = addresses.foc_contracts.get("payment_contract") {
+    if let Some(payment) = addresses
+        .foc_contracts
+        .get("payment_contract")
+        .or_else(|| addresses.foc_contracts.get("filecoin_pay_v1_contract"))
+    {
         env_vars.push(format!("CURIO_DEVNET_PAYMENTS_ADDRESS={}", payment));
     }
     if let Some(multicall) = addresses.foc_contracts.get("multicall_address") {
@@ -80,16 +89,21 @@ pub fn build_db_env_vars(
     sp_index: usize,
 ) -> Result<Vec<String>, Box<dyn Error>> {
     let run_id = context.run_id();
-    let yugabyte_name = format!("foc-{}-yugabyte-{}", run_id, sp_index);
+    let postgres_host = postgres_container_name(run_id, sp_index);
+    let scylla_host = scylla_container_name(run_id, sp_index);
 
     Ok(vec![
         "CURIO_DB_SSLMODE=disable".to_string(),
-        format!("CURIO_DB_HOST={}", yugabyte_name),
-        "CURIO_DB_PORT=5433".to_string(),
-        "CURIO_DB_USER=yugabyte".to_string(),
-        "CURIO_DB_PASSWORD=yugabyte".to_string(),
-        "CURIO_DB_NAME=yugabyte".to_string(),
+        // HarmonyDB (Postgres-wire)
+        format!("CURIO_DB_HOST={}", postgres_host),
+        format!("CURIO_DB_PORT={}", POSTGRES_CONTAINER_PORT),
+        format!("CURIO_DB_USER={}", DB_USER),
+        format!("CURIO_DB_PASSWORD={}", DB_PASSWORD),
+        format!("CURIO_DB_NAME={}", DB_NAME),
         "CURIO_DB_LOAD_BALANCE=false".to_string(),
+        // IndexStore (Cassandra/CQL-wire): separate Scylla host
+        format!("CURIO_DB_HOST_CQL={}", scylla_host),
+        format!("CURIO_DB_CASSANDRA_PORT={}", SCYLLA_CQL_CONTAINER_PORT),
     ])
 }
 

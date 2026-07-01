@@ -21,7 +21,7 @@ struct VolumesMap {
 /// Create volume directories for all Docker images.
 pub fn create_volume_directories_for_images() -> Result<(), Box<dyn std::error::Error>> {
     let volumes_base_dir = foc_devnet_docker_volumes();
-    let volume_map_names = ["builder", "curio", "lotus-miner", "lotus", "yugabyte"];
+    let volume_map_names = ["builder", "curio", "lotus-miner", "lotus"];
 
     for image_name in volume_map_names {
         create_volumes_for_image_from_embedded(image_name, &volumes_base_dir)?;

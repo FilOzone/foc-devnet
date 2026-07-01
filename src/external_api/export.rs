@@ -12,8 +12,8 @@ use crate::constants::USER_ACCOUNT_COUNT;
 use crate::crypto::derive_ethereum_key;
 use crate::crypto::mnemonic::load_mnemonic;
 use crate::external_api::{
-    ContractsInfo, CurioInfo, DevnetInfoV1, LotusInfo, LotusMinerInfo, UserInfo,
-    VersionedDevnetInfo, YugabyteInfo, DEVNET_INFO_SCHEMA_VERSION,
+    ContractsInfo, CurioInfo, DatabaseInfo, DevnetInfoV2, LotusInfo, LotusMinerInfo, UserInfo,
+    VersionedDevnetInfo, DEVNET_INFO_SCHEMA_VERSION,
 };
 use crate::paths;
 
@@ -35,9 +35,9 @@ pub fn export_devnet_info(context: &SetupContext) -> Result<(), Box<dyn std::err
     Ok(())
 }
 
-/// Build DevnetInfoV1 from SetupContext.
-fn build_devnet_info(ctx: &SetupContext) -> Result<DevnetInfoV1, Box<dyn std::error::Error>> {
-    Ok(DevnetInfoV1 {
+/// Build DevnetInfoV2 from SetupContext.
+fn build_devnet_info(ctx: &SetupContext) -> Result<DevnetInfoV2, Box<dyn std::error::Error>> {
+    Ok(DevnetInfoV2 {
         run_id: ctx.run_id().to_string(),
         start_time: Utc::now().to_rfc3339(),
         startup_duration: ctx
@@ -242,7 +242,7 @@ fn build_single_pdp_service_provider(
         .and_then(|v| v.parse::<bool>().ok())
         .unwrap_or(false);
 
-    let yugabyte = build_yugabyte_info(ctx, provider_id)?;
+    let database = build_database_info(ctx, provider_id)?;
 
     Ok(CurioInfo {
         provider_id,
@@ -253,52 +253,34 @@ fn build_single_pdp_service_provider(
         container_name,
         is_approved,
         is_endorsed,
-        yugabyte,
+        database,
     })
 }
 
-/// Build YugabyteDB info for a provider.
-fn build_yugabyte_info(
+/// Build database (Postgres + Scylla) info for a provider.
+fn build_database_info(
     ctx: &SetupContext,
     provider_id: u32,
-) -> Result<YugabyteInfo, Box<dyn std::error::Error>> {
-    let web_ui_port: u16 = ctx
-        .get(&format!("yugabyte_{}_web_ui_port", provider_id))
+) -> Result<DatabaseInfo, Box<dyn std::error::Error>> {
+    let postgres_port: u16 = ctx
+        .get(&format!("db_{}_postgres_port", provider_id))
         .and_then(|p| p.parse().ok())
         .ok_or(format!(
-            "yugabyte_{}_web_ui_port not found or invalid in context",
+            "db_{}_postgres_port not found or invalid in context",
             provider_id
         ))?;
 
-    let master_rpc_port: u16 = ctx
-        .get(&format!("yugabyte_{}_master_rpc_port", provider_id))
+    let scylla_port: u16 = ctx
+        .get(&format!("db_{}_scylla_port", provider_id))
         .and_then(|p| p.parse().ok())
         .ok_or(format!(
-            "yugabyte_{}_master_rpc_port not found or invalid in context",
+            "db_{}_scylla_port not found or invalid in context",
             provider_id
         ))?;
 
-    let ysql_port: u16 = ctx
-        .get(&format!("yugabyte_{}_ysql_port", provider_id))
-        .and_then(|p| p.parse().ok())
-        .ok_or(format!(
-            "yugabyte_{}_ysql_port not found or invalid in context",
-            provider_id
-        ))?;
-
-    let ycql_port: u16 = ctx
-        .get(&format!("yugabyte_{}_ycql_port", provider_id))
-        .and_then(|p| p.parse().ok())
-        .ok_or(format!(
-            "yugabyte_{}_ycql_port not found or invalid in context",
-            provider_id
-        ))?;
-
-    Ok(YugabyteInfo {
-        web_ui_url: format!("http://localhost:{}", web_ui_port),
-        master_rpc_port,
-        ysql_port,
-        ycql_port,
+    Ok(DatabaseInfo {
+        postgres_port,
+        scylla_port,
     })
 }
 

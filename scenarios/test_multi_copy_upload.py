@@ -67,57 +67,6 @@ def output_text(value) -> str:
     return value or ""
 
 
-_CONTENT_LENGTH_LINE_RE = re.compile(
-    r"^[ \t]*\.\.\.\(size == null \? \{\} : \{ 'Content-Length': size\.toString\(\) \}\),\r?\n",
-    re.MULTILINE,
-)
-
-
-def patch_synapse_core_streaming_upload(npm_dir: Path) -> bool:
-    """Strip Content-Length from @filoz/synapse-core's streaming upload headers.
-
-    synapse-core 0.4.1 (which older filecoin-pin releases resolved to) set a
-    Content-Length header on a body that flows through a streaming Transform.
-    Node/undici rejects that as 'invalid content-length header', which
-    filecoin-pin surfaces as
-    'StorageContext store failed: Failed to store piece on service provider -
-    Network request failed'.
-
-    Keep this tolerant until the older workaround has been exercised against
-    the latest filecoin-pin release in CI.
-
-    Returns True when the target file is in the desired state (whether or not
-    a change was applied). Returns False only when the file is missing.
-    """
-    target = (
-        npm_dir
-        / "node_modules"
-        / "@filoz"
-        / "synapse-core"
-        / "dist"
-        / "src"
-        / "sp"
-        / "upload-streaming.js"
-    )
-    if not target.exists():
-        return False
-
-    text = target.read_text()
-    updated, count = _CONTENT_LENGTH_LINE_RE.subn("", text)
-    if count > 0:
-        target.write_text(updated)
-        info(
-            "Patched @filoz/synapse-core streaming upload "
-            f"(stripped {count} Content-Length line(s))"
-        )
-    else:
-        info(
-            "@filoz/synapse-core streaming upload already free of "
-            "Content-Length header; no patch needed"
-        )
-    return True
-
-
 def run_filecoin_pin_add(
     filecoin_pin_bin: Path,
     upload_dir: Path,
@@ -254,13 +203,6 @@ def run():
         )
 
         run_cmd(["npm", "install"], label="npm install", cwd=npm_dir)
-
-        if not patch_synapse_core_streaming_upload(npm_dir):
-            fail(
-                "Could not locate @filoz/synapse-core streaming upload "
-                "to patch (file missing under node_modules)"
-            )
-            return
 
         random_file = upload_dir / RAND_FILE_NAME
         info(f"Creating random file ({RAND_FILE_SIZE} bytes)")

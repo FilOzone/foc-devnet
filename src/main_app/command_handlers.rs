@@ -31,13 +31,10 @@ pub fn handle_clean(all: bool, images: bool) -> Result<(), Box<dyn std::error::E
 }
 
 /// Execute the init command
-#[allow(clippy::too_many_arguments)]
 pub fn handle_init(
     curio: Option<String>,
     lotus: Option<String>,
     filecoin_services: Option<String>,
-    yugabyte_url: Option<String>,
-    yugabyte_archive: Option<String>,
     proof_params_dir: Option<String>,
     rand: bool,
     no_docker_build: bool,
@@ -55,8 +52,6 @@ pub fn handle_init(
         curio_location: curio,
         lotus_location: lotus,
         filecoin_services_location: filecoin_services,
-        yugabyte_url,
-        yugabyte_archive,
         proof_params_dir,
         use_random_mnemonic: rand,
         no_docker_build,

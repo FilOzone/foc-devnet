@@ -14,7 +14,6 @@ pub static DOCKERFILE_BUILDER: &[u8] = include_bytes!("../docker/builder/Dockerf
 pub static DOCKERFILE_CURIO: &[u8] = include_bytes!("../docker/curio/Dockerfile");
 pub static DOCKERFILE_LOTUS: &[u8] = include_bytes!("../docker/lotus/Dockerfile");
 pub static DOCKERFILE_LOTUS_MINER: &[u8] = include_bytes!("../docker/lotus-miner/Dockerfile");
-pub static DOCKERFILE_YUGABYTE: &[u8] = include_bytes!("../docker/yugabyte/Dockerfile");
 
 // Volumes maps
 pub static BUILDER_VOLUMES_MAP: &[u8] = include_bytes!("../docker/builder/volumes_map.toml");
@@ -22,7 +21,6 @@ pub static CURIO_VOLUMES_MAP: &[u8] = include_bytes!("../docker/curio/volumes_ma
 pub static LOTUS_MINER_VOLUMES_MAP: &[u8] =
     include_bytes!("../docker/lotus-miner/volumes_map.toml");
 pub static LOTUS_VOLUMES_MAP: &[u8] = include_bytes!("../docker/lotus/volumes_map.toml");
-pub static YUGABYTE_VOLUMES_MAP: &[u8] = include_bytes!("../docker/yugabyte/volumes_map.toml");
 
 // MockUSDFC Foundry Project (as tar.gz archive)
 pub static MOCKUSDFC_ARCHIVE: &[u8] = include_bytes!("../artifacts/MockUSDFC.tar.gz");
@@ -60,7 +58,6 @@ pub fn get_dockerfile(name: &str) -> Option<&'static [u8]> {
         "curio" => Some(DOCKERFILE_CURIO),
         "lotus" => Some(DOCKERFILE_LOTUS),
         "lotus-miner" => Some(DOCKERFILE_LOTUS_MINER),
-        "yugabyte" => Some(DOCKERFILE_YUGABYTE),
         _ => None,
     }
 }
@@ -72,7 +69,6 @@ pub fn get_volumes_map(name: &str) -> Option<&'static [u8]> {
         "curio" => Some(CURIO_VOLUMES_MAP),
         "lotus-miner" => Some(LOTUS_MINER_VOLUMES_MAP),
         "lotus" => Some(LOTUS_VOLUMES_MAP),
-        "yugabyte" => Some(YUGABYTE_VOLUMES_MAP),
         _ => None,
     }
 }

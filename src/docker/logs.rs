@@ -8,6 +8,7 @@
 //! ~/.foc-devnet/run/<run_id>/logs/<container_name>.<image_name>.docker.log
 
 use crate::constants::is_foc_devnet_image;
+use crate::docker::containers::is_devnet_db_container_name;
 use crate::docker::core::{docker_command, get_container_logs};
 use crate::paths::foc_devnet_run_dir;
 use std::error::Error;
@@ -23,10 +24,8 @@ pub struct ContainerInfo {
     pub status: String,
 }
 
-/// List all containers (running or stopped) whose image repository is recognized as a
-/// foc-devnet image. Matching is based on the repository name via `is_foc_devnet_image`
-/// and does not distinguish between tags; unrelated repositories are excluded.
-pub fn list_foc_devnet_containers() -> Result<Vec<ContainerInfo>, Box<dyn Error>> {
+/// List all containers (running or stopped) with name, image, and status.
+fn list_all_containers() -> Result<Vec<ContainerInfo>, Box<dyn Error>> {
     let output = docker_command(&["ps", "-a", "--format", "{{.Names}}|{{.Image}}|{{.Status}}"])?;
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -34,22 +33,30 @@ pub fn list_foc_devnet_containers() -> Result<Vec<ContainerInfo>, Box<dyn Error>
     for line in stdout.lines() {
         let parts: Vec<&str> = line.split('|').collect();
         if parts.len() >= 3 {
-            let name = parts[0].trim().to_string();
-            let image = parts[1].trim().to_string();
-            let status = parts[2].trim().to_string();
-            if is_foc_devnet_image(&image) {
-                result.push(ContainerInfo {
-                    name,
-                    image,
-                    status,
-                });
-            }
+            result.push(ContainerInfo {
+                name: parts[0].trim().to_string(),
+                image: parts[1].trim().to_string(),
+                status: parts[2].trim().to_string(),
+            });
         }
     }
     Ok(result)
 }
 
-/// Persist logs for all foc-devnet containers under the run logs directory.
+/// List all containers (running or stopped) belonging to foc-devnet: those whose
+/// image repository is recognized via `is_foc_devnet_image`, plus the per-SP
+/// database containers, which run stock images (postgres/scylla) and so are
+/// matched structurally by name instead. Unrelated containers (including
+/// stock-image ones like foc-observer's postgres) are excluded.
+pub fn list_foc_devnet_containers() -> Result<Vec<ContainerInfo>, Box<dyn Error>> {
+    Ok(list_all_containers()?
+        .into_iter()
+        .filter(|c| is_foc_devnet_image(&c.image) || is_devnet_db_container_name(&c.name))
+        .collect())
+}
+
+/// Persist logs for all foc-devnet containers (including the per-SP database
+/// containers) under the run logs directory.
 pub fn persist_foc_container_logs(run_id: &str) -> Result<(), Box<dyn Error>> {
     let containers = list_foc_devnet_containers()?;
     let logs_dir = foc_devnet_run_dir(run_id).join("logs");
@@ -80,7 +87,8 @@ pub fn persist_foc_container_logs(run_id: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Remove all foc-devnet containers that are not running.
+/// Remove all foc-devnet containers (including the per-SP database containers)
+/// that are not running.
 pub fn remove_dead_foc_containers() -> Result<(), Box<dyn Error>> {
     let containers = list_foc_devnet_containers()?;
     let mut removed_count = 0;

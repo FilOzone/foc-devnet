@@ -57,11 +57,6 @@ pub fn handle_version(notty: bool) -> Result<(), Box<dyn std::error::Error>> {
         &default_config.filecoin_services,
     );
     print_location_info(plain, "default:code:multicall3", &default_config.multicall3);
-    emit!(
-        plain,
-        "default:yugabyte: {}",
-        default_config.yugabyte_download_url
-    );
 
     Ok(())
 }

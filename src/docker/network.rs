@@ -107,7 +107,7 @@ pub fn delete_network(network_name: &str) -> Result<(), Box<dyn Error>> {
 /// Networks created:
 /// - `foc-<RUN_ID>-filecoin-net`: For Lotus daemon containers
 /// - `foc-<RUN_ID>-porep-miner-net`: For Lotus miner containers (also connected to filecoin-net)
-/// - `foc-<RUN_ID>-pdp-miner-net`: For Curio and YugabyteDB containers (Curio also connects to filecoin-net)
+/// - `foc-<RUN_ID>-pdp-miner-net`: For Curio and its Postgres/Scylla containers (Curio also connects to filecoin-net)
 ///
 /// # Arguments
 /// * `run_id` - The run ID for this cluster

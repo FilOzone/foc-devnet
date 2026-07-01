@@ -15,13 +15,12 @@ use crate::paths::foc_devnet_config;
 /// reused as-is with any CLI location overrides applied on top. Otherwise a
 /// fresh default config is created.
 ///
-/// Location overrides can be provided for Curio, Lotus, Filecoin Services, and Yugabyte URL.
+/// Location overrides can be provided for Curio, Lotus, and Filecoin Services.
 ///
 /// # Arguments
 /// * `curio_location` - Optional override for Curio repository location
 /// * `lotus_location` - Optional override for Lotus repository location
 /// * `filecoin_services_location` - Optional override for Filecoin Services repository location
-/// * `yugabyte_url` - Optional override for Yugabyte download URL
 ///
 /// # Returns
 /// Returns `Ok(())` on successful config generation, or an error if generation fails.
@@ -29,7 +28,6 @@ pub fn generate_default_config(
     curio_location: Option<String>,
     lotus_location: Option<String>,
     filecoin_services_location: Option<String>,
-    yugabyte_url: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let config_path = foc_devnet_config();
 
@@ -39,7 +37,6 @@ pub fn generate_default_config(
         if curio_location.is_some()
             || lotus_location.is_some()
             || filecoin_services_location.is_some()
-            || yugabyte_url.is_some()
         {
             let content = fs::read_to_string(&config_path)?;
             let mut config: Config = toml::from_str(&content)
@@ -49,7 +46,6 @@ pub fn generate_default_config(
                 curio_location,
                 lotus_location,
                 filecoin_services_location,
-                yugabyte_url,
             )?;
             let updated = toml::to_string(&config)
                 .map_err(|e| format!("Failed to serialize config: {}", e))?;
@@ -70,7 +66,6 @@ pub fn generate_default_config(
         curio_location,
         lotus_location,
         filecoin_services_location,
-        yugabyte_url,
     )?;
 
     let default_config = toml::to_string(&config)
@@ -82,13 +77,12 @@ pub fn generate_default_config(
     Ok(())
 }
 
-/// Apply location and URL overrides to a config.
+/// Apply location overrides to a config.
 fn apply_overrides(
     config: &mut Config,
     curio_location: Option<String>,
     lotus_location: Option<String>,
     filecoin_services_location: Option<String>,
-    yugabyte_url: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     apply_location_override(
         &mut config.lotus,
@@ -105,11 +99,6 @@ fn apply_overrides(
         filecoin_services_location,
         "https://github.com/FilOzone/filecoin-services.git",
     )?;
-
-    // Override yugabyte URL if provided
-    if let Some(url) = yugabyte_url {
-        config.yugabyte_download_url = url;
-    }
 
     Ok(())
 }

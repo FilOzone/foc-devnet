@@ -2,8 +2,8 @@
 """Caching subsystem scenario.
 
 Checks whether uploading a small piece does not trigger caching and
-whether a larger piece does trigger caching (> 32MB). Ensures that
-cassandra rows are populated.
+whether a larger piece does trigger caching (> 32MB). Ensures the Scylla
+CQL proof-cache (curio.pdp_cache_layer) rows are populated.
 
 Standalone run:
   python3 scenarios/test_caching_subsystem.py
@@ -29,14 +29,8 @@ from scenarios.helpers import (
 )
 from scenarios.synapse import clone_and_build, upload_file
 
-CASSANDRA_VERSION = "5.0.7"
-PYTHON_VERSION = "3.11.10"
-PYENV_ROOT = Path.home() / ".pyenv"
-PYTHON_DIR = PYENV_ROOT / "versions" / PYTHON_VERSION
-CASSANDRA_DIR = Path.home() / ".foc-devnet" / "artifacts" / "cassandra"
-CASSANDRA_HOME = CASSANDRA_DIR / f"apache-cassandra-{CASSANDRA_VERSION}"
-SMALL_FILE_SIZE = 20 * 1024 * 1024  # 20MB -- below 32MB threshold
-LARGE_FILE_SIZE = 80 * 1024 * 1024  # 80MB -- above 32MB threshold
+SMALL_FILE_SIZE = 20 * 1024 * 1024  # 20MB, below the 32MB threshold
+LARGE_FILE_SIZE = 80 * 1024 * 1024  # 80MB, above the 32MB threshold
 RAND_SEED_SMALL = 42
 RAND_SEED_LARGE = 85
 RUN_COUNTER_FILE = (
@@ -57,47 +51,34 @@ def _next_run_index() -> int:
     return next_index
 
 
-def _find_cqlsh():
-    """Locate cqlsh and custom Python. Returns (cqlsh_path, python_path)."""
-    python_bin = PYTHON_DIR / "bin" / "python3"
-    if not python_bin.exists():
-        raise RuntimeError(
-            f"Python {PYTHON_VERSION} not found at {python_bin}. "
-            f"Run scripts/setup-scenarios-prerequisites.sh first."
-        )
-    cqlsh = CASSANDRA_HOME / "bin" / "cqlsh"
-    if not cqlsh.exists():
-        raise RuntimeError(
-            f"cqlsh not found at {cqlsh}. "
-            f"Run scripts/setup-scenarios-prerequisites.sh first."
-        )
-    info(f"cqlsh version: {sh(f'CQLSH_PYTHON={python_bin} {cqlsh} --version')}")
-    return str(cqlsh), str(python_bin)
+def _scylla_container() -> str:
+    """Derive the first SP's Scylla container name from devnet-info."""
+    dn = devnet_info()["info"]
+    provider_id = dn["pdp_sps"][0]["provider_id"]
+    return f"foc-{dn['run_id']}-scylla-{provider_id}"
 
 
-def _ycql(cqlsh, python, ycql_port, query):
-    """Run a YCQL query via cqlsh, return raw output."""
-    return sh(
-        f'{cqlsh} --python {python} localhost {ycql_port} -u cassandra -p cassandra -e "{query}"'
-    )
+def _cql(scylla_container, query):
+    """Run a CQL query via the Scylla container's bundled cqlsh, return raw output."""
+    return sh(f'docker exec {scylla_container} cqlsh -e "{query}"')
 
 
-def _row_count(ycql_output):
+def _row_count(cql_output):
     """Extract row count from cqlsh output. Calls fail() if pattern not found."""
-    match = re.search(r"\((\d+)\s+rows\)", ycql_output)
+    match = re.search(r"\((\d+)\s+rows\)", cql_output)
     if match is None:
-        fail(f"Could not parse row count from cqlsh output: {ycql_output!r}")
+        fail(f"Could not parse row count from cqlsh output: {cql_output!r}")
     return int(match.group(1))
 
 
-def _upload_and_count(sdk_dir, filepath, label, cqlsh, python, ycql_port):
+def _upload_and_count(sdk_dir, filepath, label, scylla_container):
     """Upload a file and return the cache row count afterward."""
     import time
 
     upload_file(sdk_dir, filepath.name, label)
     info(f"Waiting {CACHE_WAIT_SECS}s for caching tasks")
     time.sleep(CACHE_WAIT_SECS)
-    output = _ycql(cqlsh, python, ycql_port, "SELECT * FROM curio.pdp_cache_layer")
+    output = _cql(scylla_container, "SELECT * FROM curio.pdp_cache_layer")
     count = _row_count(output)
     info(f"row_count after '{label}' = {count}")
     return count
@@ -113,11 +94,10 @@ def run():
     seed_large = RAND_SEED_LARGE + run_index
     info(f"Run index: {run_index}, seeds: small={seed_small}, large={seed_large}")
 
-    cqlsh, python = _find_cqlsh()
-    ycql_port = devnet_info()["info"]["pdp_sps"][0]["yugabyte"]["ycql_port"]
-    info(f"Yugabyte cassandra port: localhost:{ycql_port}")
+    scylla_container = _scylla_container()
+    info(f"Scylla container: {scylla_container}")
 
-    init_output = _ycql(cqlsh, python, ycql_port, "SELECT * FROM curio.pdp_cache_layer")
+    init_output = _cql(scylla_container, "SELECT * FROM curio.pdp_cache_layer")
     init_count = _row_count(init_output)
     info(f"Initial row count = {init_count}")
 
@@ -133,13 +113,13 @@ def run():
 
         info("Uploading 20MB piece (below 32MB threshold)")
         after_small = _upload_and_count(
-            sdk_dir, small_file, "upload 20MB piece", cqlsh, python, ycql_port
+            sdk_dir, small_file, "upload 20MB piece", scylla_container
         )
         assert_eq(after_small, init_count, "cache rows count should not increase")
 
         info("Uploading 80MB piece (above 32MB threshold)")
         after_large = _upload_and_count(
-            sdk_dir, large_file, "upload 80MB piece", cqlsh, python, ycql_port
+            sdk_dir, large_file, "upload 80MB piece", scylla_container
         )
         assert_gt(after_large, init_count, "cache rows count should increase")
 
