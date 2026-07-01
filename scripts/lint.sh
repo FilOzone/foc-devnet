@@ -34,7 +34,11 @@ if find scenarios scripts -name '*.py' 2>/dev/null | grep -q .; then
   fi
 fi
 
-python3 -m unittest discover -s scripts/tests -p 'test_*.py' &&
-  pass "dependency resolver tests" || fail "dependency resolver tests"
+if command -v python3 &>/dev/null; then
+  python3 -m unittest discover -s scripts/tests -p 'test_*.py' &&
+    pass "dependency resolver tests" || fail "dependency resolver tests"
+else
+  skip "dependency resolver tests (python3)"
+fi
 
 [[ $FAIL -eq 0 ]] && printf "\033[32m✓ All checks passed.\033[0m\n" || { printf "\033[31m✗ Linting failed.\033[0m\n"; exit 1; }
