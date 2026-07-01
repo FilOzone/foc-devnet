@@ -1321,3 +1321,10 @@ Reports are written to `~/.foc-devnet/state/latest/scenario_report.md`.
 
 Scenarios run automatically in CI after the devnet starts. On nightly runs (or manual dispatch with `reporting` enabled), failures automatically create a GitHub issue with a full report.
 
+CI resolves compatibility-sensitive dependencies from `ci/dependency-profiles.json`.
+Pull requests use the pinned `default` profile, while nightly `stability` runs use
+the latest final releases and nightly `frontier` runs pin current development
+branch heads to immutable commits. The resolved metadata path is exposed to
+scenarios as `CI_DEPENDENCY_METADATA`; Synapse SDK and filecoin-pin also receive
+their exact source, version/ref, and commit through `SYNAPSE_SDK_*` and
+`FILECOIN_PIN_*` environment variables.

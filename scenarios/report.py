@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Report generation and version info for scenario test results."""
 
+from __future__ import annotations
+
 import datetime
 import os
 import subprocess
 from dataclasses import dataclass
 from string import Template
+
+from scenarios.dependencies import format_markdown_table
 
 REPORT_MD = os.environ.get(
     "REPORT_FILE", os.path.expanduser("~/.foc-devnet/state/latest/scenario_report.md")
@@ -27,7 +31,7 @@ def get_version_info():
     for binary in ["./foc-devnet", "foc-devnet"]:
         try:
             result = subprocess.run(
-                [binary, "version", "--noterminal"],
+                [binary, "version", "--notty"],
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -51,6 +55,9 @@ _REPORT_TEMPLATE = Template("""
 
 ## Versions info
 $version_info
+
+## Resolved dependencies
+$dependency_table
 
 ## Tests summary
 $test_summary
@@ -100,6 +107,7 @@ def write_report(results: list[TestResult] | None = None, elapsed: int = 0):
         total_count=total,
         ci_run_link=_build_ci_run_link(),
         version_info=f"```\n{get_version_info()}\n```",
+        dependency_table=format_markdown_table(),
         test_summary=_build_test_summary(results),
     )
     with open(REPORT_MD, "w") as fh:

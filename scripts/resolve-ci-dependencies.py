@@ -1,0 +1,380 @@
+#!/usr/bin/env python3
+"""Resolve CI dependency profiles to immutable versions and verify checkouts."""
+
+from __future__ import annotations
+
+import argparse
+import fnmatch
+import hashlib
+import json
+import os
+import re
+import shlex
+import subprocess
+from pathlib import Path
+
+PROFILES = {"default", "stability", "frontier"}
+INIT_COMPONENT_FLAGS = {
+    "lotus": "--lotus",
+    "curio": "--curio",
+    "filecoin-services": "--filecoin-services",
+}
+VERSION_RE = re.compile(r"^\d+(?:\.\d+)*(?:[-+][0-9A-Za-z.-]+)?$")
+STABLE_VERSION_RE = re.compile(r"^\d+(?:\.\d+)*$")
+COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+
+
+class ResolutionError(RuntimeError):
+    pass
+
+
+def run_command(command: list[str]) -> str:
+    result = subprocess.run(command, text=True, capture_output=True)
+    if result.returncode != 0:
+        details = (result.stderr or result.stdout).strip()
+        raise ResolutionError(f"{shlex.join(command)} failed: {details}")
+    return result.stdout.strip()
+
+
+def load_manifest(path: Path) -> dict:
+    try:
+        manifest = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise ResolutionError(
+            f"Cannot load dependency manifest {path}: {error}"
+        ) from error
+
+    if manifest.get("schema_version") != 1:
+        raise ResolutionError("Dependency manifest schema_version must be 1")
+    components = manifest.get("components")
+    if not isinstance(components, dict):
+        raise ResolutionError("Dependency manifest must contain a components object")
+
+    required = set(INIT_COMPONENT_FLAGS) | {"synapse-sdk", "filecoin-pin"}
+    missing = sorted(required - set(components))
+    if missing:
+        raise ResolutionError(f"Dependency manifest is missing: {', '.join(missing)}")
+    return manifest
+
+
+def parse_ls_remote(output: str) -> list[tuple[str, str]]:
+    refs = []
+    for line in output.splitlines():
+        fields = line.split()
+        if len(fields) == 2:
+            refs.append((fields[0], fields[1]))
+    return refs
+
+
+def resolve_ref(repository: str, ref: str, runner=run_command) -> str:
+    refs = parse_ls_remote(runner(["git", "ls-remote", repository, ref]))
+    if not refs:
+        raise ResolutionError(f"No ref {ref} found in {repository}")
+    return refs[0][0]
+
+
+def resolve_tag(repository: str, tag: str, runner=run_command) -> str:
+    refs = parse_ls_remote(
+        runner(["git", "ls-remote", repository, f"refs/tags/{tag}*"])
+    )
+    target = f"refs/tags/{tag}"
+    exact_refs = [
+        (commit, ref) for commit, ref in refs if ref in {target, f"{target}^{{}}"}
+    ]
+    if not exact_refs:
+        raise ResolutionError(f"No tag {tag} found in {repository}")
+    peeled = next((commit for commit, ref in exact_refs if ref.endswith("^{}")), None)
+    return peeled or exact_refs[0][0]
+
+
+def tag_version(tag: str, pattern: str) -> str | None:
+    if not fnmatch.fnmatchcase(tag, pattern):
+        return None
+    star = pattern.find("*")
+    version = tag
+    if star >= 0:
+        prefix = pattern[:star]
+        suffix = pattern[star + 1 :]
+        version = tag[len(prefix) :]
+        if suffix:
+            version = version[: -len(suffix)]
+    version = version.removeprefix("v")
+    if not VERSION_RE.fullmatch(version):
+        return None
+    return version
+
+
+def stable_version(tag: str, pattern: str) -> tuple[int, ...] | None:
+    version = tag_version(tag, pattern)
+    if version is None:
+        return None
+    if not STABLE_VERSION_RE.fullmatch(version):
+        return None
+    return tuple(int(part) for part in version.split("."))
+
+
+def version_sort_key(version: str) -> tuple[tuple[int, ...], int, str]:
+    public_version = version.split("+", 1)[0]
+    numeric_text, separator, prerelease = public_version.partition("-")
+    numeric = tuple(int(part) for part in numeric_text.split("."))
+    return numeric, 0 if separator else 1, prerelease
+
+
+def select_latest_non_prerelease_tag(output: str, pattern: str) -> tuple[str, str]:
+    tag_commits = {}
+    peeled_commits = {}
+    for commit, ref in parse_ls_remote(output):
+        if not ref.startswith("refs/tags/"):
+            continue
+        tag = ref.removeprefix("refs/tags/").removesuffix("^{}")
+        if ref.endswith("^{}"):
+            peeled_commits[tag] = commit
+        else:
+            tag_commits[tag] = commit
+
+    candidates = []
+    for tag, commit in tag_commits.items():
+        version = stable_version(tag, pattern)
+        if version is not None:
+            candidates.append((version, tag, peeled_commits.get(tag, commit)))
+    if not candidates:
+        raise ResolutionError(f"No stable tags match {pattern}")
+    _, tag, commit = max(candidates)
+    return tag, commit
+
+
+def select_latest_tag(
+    output: str, pattern: str, include_prereleases: bool = False
+) -> tuple[str, str]:
+    if not include_prereleases:
+        return select_latest_non_prerelease_tag(output, pattern)
+
+    tag_commits = {}
+    peeled_commits = {}
+    for commit, ref in parse_ls_remote(output):
+        if not ref.startswith("refs/tags/"):
+            continue
+        tag = ref.removeprefix("refs/tags/").removesuffix("^{}")
+        if ref.endswith("^{}"):
+            peeled_commits[tag] = commit
+        else:
+            tag_commits[tag] = commit
+
+    candidates = []
+    for tag, commit in tag_commits.items():
+        version = tag_version(tag, pattern)
+        if version is not None:
+            candidates.append(
+                (version_sort_key(version), tag, peeled_commits.get(tag, commit))
+            )
+    if not candidates:
+        raise ResolutionError(f"No tags match {pattern}")
+    _, tag, commit = max(candidates)
+    return tag, commit
+
+
+def npm_metadata(package: str, version: str, runner=run_command) -> dict:
+    resolved_version = json.loads(
+        runner(["npm", "view", f"{package}@{version}", "version", "--json"])
+    )
+    if not resolved_version:
+        raise ResolutionError(f"npm returned no version for {package}@{version}")
+    git_head_output = runner(
+        ["npm", "view", f"{package}@{resolved_version}", "gitHead", "--json"]
+    )
+    git_head = json.loads(git_head_output) if git_head_output else ""
+    return {"version": resolved_version, "gitHead": git_head}
+
+
+def validate_overrides(name: str, strategy: str, overrides) -> dict:
+    if overrides is None:
+        return {}
+    if not isinstance(overrides, dict) or not all(
+        isinstance(key, str) and isinstance(value, str)
+        for key, value in overrides.items()
+    ):
+        raise ResolutionError(f"{name} overrides must be a string map")
+
+    if name == "synapse-sdk":
+        return dict(sorted(overrides.items()))
+    if name == "filecoin-pin" and strategy == "npm_version":
+        return dict(sorted(overrides.items()))
+    raise ResolutionError(
+        f"{name} overrides are not supported with strategy {strategy!r}"
+    )
+
+
+def resolve_component(
+    name: str, component: dict, profile: str, runner=run_command
+) -> dict:
+    try:
+        selection = component[profile]
+        strategy = selection["strategy"]
+        repository = component["repository"]
+    except KeyError as error:
+        raise ResolutionError(f"{name} is missing required field {error}") from error
+
+    resolved = {
+        "name": name,
+        "repository": repository,
+        "strategy": strategy,
+    }
+
+    if strategy == "config_default":
+        resolved["source"] = "config_default"
+    elif strategy == "git_commit":
+        commit = selection["commit"]
+        if not COMMIT_RE.fullmatch(commit):
+            raise ResolutionError(f"{name} has invalid commit SHA {commit!r}")
+        resolved.update(source="git", ref_type="commit", ref=commit, commit=commit)
+    elif strategy == "git_tag":
+        tag = selection["tag"]
+        if any(char in tag for char in "*?["):
+            include_prereleases = selection.get("include_prereleases", False)
+            if not isinstance(include_prereleases, bool):
+                raise ResolutionError(f"{name} include_prereleases must be a boolean")
+            output = runner(["git", "ls-remote", "--tags", repository, tag])
+            tag, commit = select_latest_tag(output, tag, include_prereleases)
+        else:
+            commit = resolve_tag(repository, tag, runner)
+        resolved.update(source="git", ref_type="tag", ref=tag, commit=commit)
+    elif strategy == "git_branch":
+        branch = selection["branch"]
+        commit = resolve_ref(repository, f"refs/heads/{branch}", runner)
+        resolved.update(source="git", ref_type="branch", ref=branch, commit=commit)
+    elif strategy == "npm_version":
+        requested = selection["version"]
+        data = npm_metadata(component["npm_package"], requested, runner)
+        resolved.update(
+            source="npm",
+            package=component["npm_package"],
+            version=data["version"],
+            commit=data.get("gitHead", ""),
+        )
+    else:
+        raise ResolutionError(f"Unsupported strategy {strategy!r} for {name}")
+    overrides = selection.get("overrides")
+    if overrides is not None:
+        resolved["overrides"] = validate_overrides(name, strategy, overrides)
+    return resolved
+
+
+def build_init_args(components: dict) -> list[str]:
+    args = []
+    for name, flag in INIT_COMPONENT_FLAGS.items():
+        component = components[name]
+        if component["source"] == "config_default":
+            continue
+        args.extend(
+            [
+                flag,
+                f"gitcommit:{component['repository']}:{component['commit']}",
+            ]
+        )
+    return args
+
+
+def cache_hash(components: dict) -> str:
+    values = [f"{name}:{components[name]['commit']}" for name in ("lotus", "curio")]
+    return hashlib.sha256("\n".join(values).encode()).hexdigest()
+
+
+def write_github_file(path: str | None, values: dict) -> None:
+    if not path:
+        return
+    with open(path, "a") as output:
+        for key, value in values.items():
+            output.write(f"{key}={value}\n")
+
+
+def scenario_environment(metadata_path: Path, components: dict) -> dict:
+    synapse = components["synapse-sdk"]
+    filecoin_pin = components["filecoin-pin"]
+    return {
+        "CI_DEPENDENCY_METADATA": str(metadata_path.resolve()),
+        "SYNAPSE_SDK_SOURCE": synapse["source"],
+        "SYNAPSE_SDK_REF": synapse.get("ref", ""),
+        "SYNAPSE_SDK_COMMIT": synapse.get("commit", ""),
+        "FILECOIN_PIN_SOURCE": filecoin_pin["source"],
+        "FILECOIN_PIN_VERSION": filecoin_pin.get("version", ""),
+        "FILECOIN_PIN_COMMIT": filecoin_pin.get("commit", ""),
+    }
+
+
+def resolve(args) -> None:
+    if args.profile not in PROFILES:
+        raise ResolutionError(f"Unknown profile {args.profile!r}")
+    manifest = load_manifest(args.manifest)
+    components = {
+        name: resolve_component(name, component, args.profile)
+        for name, component in manifest["components"].items()
+    }
+    metadata = {
+        "schema_version": 1,
+        "profile": args.profile,
+        "components": components,
+    }
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
+
+    init_args = shlex.join(build_init_args(components))
+    write_github_file(args.github_output, {"init-args": init_args})
+    write_github_file(args.github_env, scenario_environment(args.output, components))
+    print(json.dumps(metadata, indent=2, sort_keys=True))
+
+
+def verify(args) -> None:
+    metadata = json.loads(args.metadata.read_text())
+    components = metadata["components"]
+    for name in INIT_COMPONENT_FLAGS:
+        repository_path = args.code_dir / name
+        actual = run_command(["git", "-C", str(repository_path), "rev-parse", "HEAD"])
+        expected = components[name].get("commit")
+        if expected and actual != expected:
+            raise ResolutionError(f"{name} checkout is {actual}, expected {expected}")
+        components[name]["commit"] = actual
+        components[name]["verified"] = True
+
+    args.metadata.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
+    source_hash = cache_hash(components)
+    write_github_file(
+        args.github_output,
+        {"source-hash": source_hash, "go-cache-key": source_hash},
+    )
+    print(f"Verified dependency checkouts; source hash: {source_hash}")
+
+
+def parser() -> argparse.ArgumentParser:
+    root = argparse.ArgumentParser()
+    subparsers = root.add_subparsers(dest="operation", required=True)
+
+    resolve_parser = subparsers.add_parser("resolve")
+    resolve_parser.add_argument("--profile", required=True)
+    resolve_parser.add_argument(
+        "--manifest", type=Path, default=Path("ci/dependency-profiles.json")
+    )
+    resolve_parser.add_argument("--output", type=Path, required=True)
+    resolve_parser.add_argument("--github-output")
+    resolve_parser.add_argument("--github-env")
+    resolve_parser.set_defaults(handler=resolve)
+
+    verify_parser = subparsers.add_parser("verify")
+    verify_parser.add_argument("--metadata", type=Path, required=True)
+    verify_parser.add_argument(
+        "--code-dir", type=Path, default=Path.home() / ".foc-devnet" / "code"
+    )
+    verify_parser.add_argument("--github-output")
+    verify_parser.set_defaults(handler=verify)
+    return root
+
+
+def main() -> None:
+    args = parser().parse_args()
+    try:
+        args.handler(args)
+    except (ResolutionError, KeyError, json.JSONDecodeError) as error:
+        raise SystemExit(f"dependency resolution failed: {error}") from error
+
+
+if __name__ == "__main__":
+    main()

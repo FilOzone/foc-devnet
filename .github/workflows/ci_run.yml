@@ -4,8 +4,8 @@
 # Called by ci_pull_request.yml (default config, no reporting) and
 # ci_nightly.yml (stability / frontier matrix, issue reporting enabled).
 #
-# The only behavioural difference between callers is the `init_flags` input,
-# which controls which versions of Curio / filecoin-services are used.
+# The dependency profile controls the versions of compatibility-sensitive
+# server and client components used by the run.
 
 name: CI Run
 
@@ -16,11 +16,10 @@ on:
         description: 'Human-readable run name (e.g. default, stability, frontier)'
         required: true
         type: string
-      init_flags:
-        description: 'Extra flags forwarded to `foc-devnet init`'
-        required: false
+      profile:
+        description: 'Dependency profile: default, stability, or frontier'
+        required: true
         type: string
-        default: ''
       enable_reporting:
         description: 'When true, file a GitHub issue with the scenario report'
         required: false
@@ -123,22 +122,27 @@ jobs:
         rm -rf target/
         df -h
 
-    # Compute cache keys based on version info and source files
-    # - CODE_HASH: Changes when Lotus/Curio versions change (for build artifacts cache)
-    # - DOCKER_HASH: Changes when Dockerfiles change (for Docker images cache)
-    - name: "CHECK: {Compute version hashes}"
-      id: version-hashes
-      run: |   
-        # Get version output
-        VERSION_OUTPUT=$(./foc-devnet version 2>&1)
-        
-        # Compute CODE_HASH from Lotus/Curio versions only (filecoin-services contains contracts/scripts
-        # that are compiled by Foundry at deploy time, not compiled into Lotus/Curio binaries)
-        CODE_HASH=$(echo "$VERSION_OUTPUT" | grep -E 'default:code:(lotus|curio)' | sha256sum | cut -d' ' -f1)
-        echo "code-hash=$CODE_HASH" >> $GITHUB_OUTPUT
-        echo "CODE_HASH: $CODE_HASH"
-        
-        # Compute DOCKER_HASH from docker/ directory (Dockerfile changes)
+    # Dependency profile resolution queries npm release metadata.
+    - name: "EXEC: {Setup Node.js}, independent"
+      uses: actions/setup-node@v4
+      with:
+        node-version: 'lts/*'
+
+    - name: "CHECK: {Resolve dependency profile}"
+      id: dependencies
+      run: |
+        METADATA="$RUNNER_TEMP/ci-dependencies.json"
+        python3 scripts/resolve-ci-dependencies.py resolve \
+          --profile '${{ inputs.profile }}' \
+          --output "$METADATA" \
+          --github-output "$GITHUB_OUTPUT" \
+          --github-env "$GITHUB_ENV"
+
+    # Docker images do not contain Lotus/Curio binaries, so their cache identity
+    # depends only on the Docker build inputs.
+    - name: "CHECK: {Compute Docker hash}"
+      id: docker-hash
+      run: |
         DOCKER_HASH=$(find docker -type f -exec sha256sum {} \; | sort | sha256sum | cut -d' ' -f1)
         echo "docker-hash=$DOCKER_HASH" >> $GITHUB_OUTPUT
         echo "DOCKER_HASH: $DOCKER_HASH"
@@ -149,7 +153,7 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ~/.docker-images-cache
-        key: ${{ runner.os }}-docker-images-${{ steps.version-hashes.outputs.docker-hash }}
+        key: ${{ runner.os }}-docker-images-${{ steps.docker-hash.outputs.docker-hash }}
 
     # CACHE-DOCKER: If Docker images are cached, load them from tarballs
     - name: "EXEC: {Load Docker images}, DEP: {C-docker-images-cache}"
@@ -172,14 +176,14 @@ jobs:
       if: steps.cache-docker-images.outputs.cache-hit == 'true'
       run: |
         ./foc-devnet clean --all
-        ./foc-devnet init --no-docker-build ${{ inputs.init_flags }}
+        ./foc-devnet init --no-docker-build ${{ steps.dependencies.outputs.init-args }}
 
     # If Docker images are not cached, do full init (builds all images)
     - name: "EXEC: {Initialize without cache}, independent"
       if: steps.cache-docker-images.outputs.cache-hit != 'true'
       run: |
         ./foc-devnet clean --all
-        ./foc-devnet init ${{ inputs.init_flags }}
+        ./foc-devnet init ${{ steps.dependencies.outputs.init-args }}
 
     # CACHE-DOCKER: Save Docker images as tarballs for caching
     - name: "EXEC: {Save Docker images for cache}, DEP: {C-docker-images-cache}"
@@ -201,7 +205,17 @@ jobs:
       uses: actions/cache/save@v4
       with:
         path: ~/.docker-images-cache
-        key: ${{ runner.os }}-docker-images-${{ steps.version-hashes.outputs.docker-hash }}
+        key: ${{ runner.os }}-docker-images-${{ steps.docker-hash.outputs.docker-hash }}
+
+    # Verify the exact repositories cloned by init and derive source-based cache
+    # identities. filecoin-services is intentionally excluded because it does
+    # not contribute to the Lotus/Curio binaries.
+    - name: "CHECK: {Verify dependency checkouts}"
+      id: verified-dependencies
+      run: |
+        python3 scripts/resolve-ci-dependencies.py verify \
+          --metadata "$CI_DEPENDENCY_METADATA" \
+          --github-output "$GITHUB_OUTPUT"
 
     # CACHE-BINARIES: Try to restore previously built Lotus/Curio binaries
     - name: "CACHE_RESTORE: {C-build-artifacts-cache}"
@@ -209,7 +223,7 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ~/.foc-devnet/bin
-        key: ${{ runner.os }}-binaries-${{ inputs.name }}-${{ steps.version-hashes.outputs.code-hash }}
+        key: ${{ runner.os }}-binaries-${{ steps.verified-dependencies.outputs.source-hash }}
 
     - name: "EXEC: {Ensure permissions on binaries}, DEP: {C-build-artifacts-cache}"
       if: steps.cache-binaries.outputs.cache-hit == 'true'
@@ -222,9 +236,9 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ~/.foc-devnet/docker/volumes/cache/foc-builder
-        key: ${{ runner.os }}-foc-builder-cache-${{ inputs.name }}-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
+        key: ${{ runner.os }}-foc-builder-cache-${{ steps.verified-dependencies.outputs.go-cache-key }}-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
         restore-keys: |
-          ${{ runner.os }}-foc-builder-cache-${{ inputs.name }}-
+          ${{ runner.os }}-foc-builder-cache-${{ steps.verified-dependencies.outputs.go-cache-key }}-
 
     - name: "EXEC: {Ensure permissions}, DEP: {C-foc-builder-cache}"
       if: steps.cache-binaries.outputs.cache-hit != 'true' &&
@@ -250,7 +264,7 @@ jobs:
       uses: actions/cache/save@v4
       with:
         path: ~/.foc-devnet/docker/volumes/cache/foc-builder
-        key: ${{ runner.os }}-foc-builder-cache-${{ inputs.name }}-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
+        key: ${{ runner.os }}-foc-builder-cache-${{ steps.verified-dependencies.outputs.go-cache-key }}-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
 
     # CACHE-BINARIES: Save built Lotus/Curio binaries for future runs
     - name: "CACHE_SAVE: {C-build-artifacts-cache}"
@@ -258,7 +272,7 @@ jobs:
       uses: actions/cache/save@v4
       with:
         path: ~/.foc-devnet/bin
-        key: ${{ runner.os }}-binaries-${{ inputs.name }}-${{ steps.version-hashes.outputs.code-hash }}
+        key: ${{ runner.os }}-binaries-${{ steps.verified-dependencies.outputs.source-hash }}
 
     # Disk free-up
     - name: "EXEC: {Clean up Go modules}, DEP: {C-build-artifacts-cache}"
@@ -333,6 +347,7 @@ jobs:
     # Verify cluster is running correctly
     - name: "EXEC: {Check cluster status}, independent"
       if: always()
+      continue-on-error: true
       run: ./foc-devnet status
 
     - name: "EXEC: {List foc-* containers}, independent"
@@ -349,13 +364,6 @@ jobs:
         test -f "$DEVNET_INFO" || exit 1
         echo "✓ devnet-info.json created"
         jq '.version' "$DEVNET_INFO"
-
-    # Setup Node.js for JavaScript examples
-    - name: "EXEC: {Setup Node.js}, independent"
-      if: steps.start_cluster.outcome == 'success'
-      uses: actions/setup-node@v4
-      with:
-        node-version: 'lts/*'
 
     # Setup pnpm (required by scenario tests)
     - name: "EXEC: {Setup pnpm}, independent"
@@ -436,6 +444,15 @@ jobs:
             echo '```'
             ./foc-devnet version 2>&1 || echo "version command failed"
             echo '```'
+            echo ""
+            echo "## Resolved dependencies"
+            if [ -f "$CI_DEPENDENCY_METADATA" ]; then
+              echo '```json'
+              cat "$CI_DEPENDENCY_METADATA"
+              echo '```'
+            else
+              echo "Dependency metadata is unavailable."
+            fi
           } > "$REPORT"
         fi
 

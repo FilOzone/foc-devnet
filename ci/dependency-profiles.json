@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "components": {
+    "lotus": {
+      "repository": "https://github.com/filecoin-project/lotus.git",
+      "default": {
+        "strategy": "config_default"
+      },
+      "stability": {
+        "strategy": "git_tag",
+        "tag": "v*"
+      },
+      "frontier": {
+        "strategy": "git_branch",
+        "branch": "master"
+      }
+    },
+    "curio": {
+      "repository": "https://github.com/filecoin-project/curio.git",
+      "default": {
+        "strategy": "config_default"
+      },
+      "stability": {
+        "strategy": "git_tag",
+        "tag": "v*"
+      },
+      "frontier": {
+        "strategy": "git_branch",
+        "branch": "main"
+      }
+    },
+    "filecoin-services": {
+      "repository": "https://github.com/FilOzone/filecoin-services.git",
+      "default": {
+        "strategy": "config_default"
+      },
+      "stability": {
+        "strategy": "git_tag",
+        "tag": "v*"
+      },
+      "frontier": {
+        "strategy": "git_branch",
+        "branch": "main"
+      }
+    },
+    "synapse-sdk": {
+      "repository": "https://github.com/FilOzone/synapse-sdk.git",
+      "npm_package": "@filoz/synapse-sdk",
+      "default": {
+        "strategy": "git_commit",
+        "commit": "c18a0de03935002487ece0a99f697be490cd3eee",
+        "overrides": {
+          "nanoid": "3.3.13"
+        }
+      },
+      "stability": {
+        "strategy": "git_tag",
+        "tag": "synapse-sdk-v*",
+        "overrides": {
+          "nanoid": "3.3.13"
+        }
+      },
+      "frontier": {
+        "strategy": "git_branch",
+        "branch": "master",
+        "overrides": {
+          "nanoid": "3.3.13"
+        }
+      }
+    },
+    "filecoin-pin": {
+      "repository": "https://github.com/filecoin-project/filecoin-pin.git",
+      "npm_package": "filecoin-pin",
+      "default": {
+        "strategy": "npm_version",
+        "version": "1.0.1",
+        "overrides": {
+          "multiformats": "14.0.2"
+        }
+      },
+      "stability": {
+        "strategy": "npm_version",
+        "version": "latest"
+      },
+      "frontier": {
+        "strategy": "git_branch",
+        "branch": "master"
+      }
+    }
+  }
+}

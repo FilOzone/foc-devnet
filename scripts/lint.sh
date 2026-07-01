@@ -22,16 +22,19 @@ else
   skip "cargo"
 fi
 
-if find scenarios -name '*.py' 2>/dev/null | grep -q .; then
+if find scenarios scripts -name '*.py' 2>/dev/null | grep -q .; then
   if command -v black &>/dev/null; then
     if [[ "$FIX" == "1" ]]; then
-      black scenarios/ && pass "black" || fail "black"
+      black scenarios/ scripts/ && pass "black" || fail "black"
     else
-      black --check scenarios/ && pass "black" || fail "black (run lint.sh to fix)"
+      black --check scenarios/ scripts/ && pass "black" || fail "black (run lint.sh to fix)"
     fi
   else
     skip "black (pip install black)"
   fi
 fi
+
+python3 -m unittest discover -s scripts/tests -p 'test_*.py' &&
+  pass "dependency resolver tests" || fail "dependency resolver tests"
 
 [[ $FAIL -eq 0 ]] && printf "\033[32m✓ All checks passed.\033[0m\n" || { printf "\033[31m✗ Linting failed.\033[0m\n"; exit 1; }
