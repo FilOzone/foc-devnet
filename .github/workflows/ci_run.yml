@@ -50,7 +50,7 @@ jobs:
       issues: write
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     # Free up disk space on GitHub Actions runner to avoid "no space left" errors
     - name: "EXEC: {Free up disk space}, independent"
@@ -69,13 +69,13 @@ jobs:
 
     # Setup Rust toolchain and restore cached dependencies
     - name: "EXEC: {Setup Rust toolchain}, independent"
-      uses: actions-rust-lang/setup-rust-toolchain@v1
+      uses: actions-rust-lang/setup-rust-toolchain@v1.16.1
 
     # CACHE-RUST: Rust dependencies and build artifacts
     # These are keyed on the Cargo.lock file to ensure cache validity
     - name: "CACHE_RESTORE: {C-rust-cache}"
       id: cache-rust
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v6.1.0
       with:
         path: |
           ~/.cargo/registry/index/
@@ -88,7 +88,7 @@ jobs:
 
     # Setup Docker for building and running containers
     - name: "EXEC: {Setup Docker}, independent"
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@v4
 
     - name: "EXEC: {Install build dependencies}, independent"
       run: |
@@ -104,7 +104,7 @@ jobs:
     # CACHE-RUST: Save Rust build cache for future runs
     - name: "CACHE_SAVE: {C-rust-cache}"
       if: steps.cache-rust.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v6.1.0
       with:
         path: |
           ~/.cargo/registry/index/
@@ -124,7 +124,7 @@ jobs:
 
     # Dependency profile resolution queries npm release metadata.
     - name: "EXEC: {Setup Node.js}, independent"
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: 'lts/*'
 
@@ -150,7 +150,7 @@ jobs:
     # CACHE-DOCKER: Try to restore pre-built Docker images (foc-lotus, foc-lotus-miner, foc-builder, foc-curio)
     - name: "CACHE_RESTORE: {C-docker-images-cache}"
       id: cache-docker-images
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v6.1.0
       with:
         path: ~/.docker-images-cache
         key: ${{ runner.os }}-docker-images-${{ steps.docker-hash.outputs.docker-hash }}
@@ -202,7 +202,7 @@ jobs:
     # CACHE-DOCKER: Save Docker images cache for future runs
     - name: "CACHE_SAVE: {C-docker-images-cache}"
       if: steps.cache-docker-images.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v6.1.0
       with:
         path: ~/.docker-images-cache
         key: ${{ runner.os }}-docker-images-${{ steps.docker-hash.outputs.docker-hash }}
@@ -220,7 +220,7 @@ jobs:
     # CACHE-BINARIES: Try to restore previously built Lotus/Curio binaries
     - name: "CACHE_RESTORE: {C-build-artifacts-cache}"
       id: cache-binaries
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v6.1.0
       with:
         path: ~/.foc-devnet/bin
         key: ${{ runner.os }}-binaries-${{ steps.verified-dependencies.outputs.source-hash }}
@@ -233,7 +233,7 @@ jobs:
     - name: "CACHE_RESTORE: {C-foc-builder-cache}"
       id: cache-go
       if: steps.cache-binaries.outputs.cache-hit != 'true'
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v6.1.0
       with:
         path: ~/.foc-devnet/docker/volumes/cache/foc-builder
         key: ${{ runner.os }}-foc-builder-cache-${{ steps.verified-dependencies.outputs.go-cache-key }}-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
@@ -261,7 +261,7 @@ jobs:
     - name: "CACHE_SAVE: {C-foc-builder-cache}"
       if: steps.cache-binaries.outputs.cache-hit != 'true' &&
           steps.cache-go.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v6.1.0
       with:
         path: ~/.foc-devnet/docker/volumes/cache/foc-builder
         key: ${{ runner.os }}-foc-builder-cache-${{ steps.verified-dependencies.outputs.go-cache-key }}-${{ hashFiles('docker/**') }}-${{ hashFiles('src/config.rs') }}
@@ -269,7 +269,7 @@ jobs:
     # CACHE-BINARIES: Save built Lotus/Curio binaries for future runs
     - name: "CACHE_SAVE: {C-build-artifacts-cache}"
       if: steps.cache-binaries.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v6.1.0
       with:
         path: ~/.foc-devnet/bin
         key: ${{ runner.os }}-binaries-${{ steps.verified-dependencies.outputs.source-hash }}
@@ -368,7 +368,7 @@ jobs:
     # Setup pnpm (required by scenario tests)
     - name: "EXEC: {Setup pnpm}, independent"
       if: steps.start_cluster.outcome == 'success'
-      uses: pnpm/action-setup@v4
+      uses: pnpm/action-setup@v6
       with:
         version: latest
 
@@ -459,7 +459,7 @@ jobs:
     # Upload scenario report as artifact (name includes run name to avoid collisions in matrix)
     - name: "EXEC: {Upload scenario report}"
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: scenario-report-${{ inputs.name }}
         path: ~/.foc-devnet/state/latest/scenario_*.md
