@@ -277,7 +277,7 @@ impl Default for Config {
             port_range_count: 100,
             lotus: Location::GitTag {
                 url: "https://github.com/filecoin-project/lotus.git".to_string(),
-                tag: "v1.36.0".to_string(),
+                tag: "v1.36.1".to_string(),
             },
             curio: Location::GitTag {
                 url: "https://github.com/filecoin-project/curio.git".to_string(),
