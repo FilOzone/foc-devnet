@@ -78,9 +78,28 @@ def clone_and_build(tmp_dir: Path) -> Path | None:
     overrides = dependency.get("overrides", {})
     if not apply_pnpm_workspace_overrides(sdk_dir, overrides):
         return None
-    if not run_cmd(["pnpm", "install"], cwd=str(sdk_dir), label="pnpm install"):
+    # Install/build only what the e2e example needs, skipping the unrelated
+    # playground, docs and react workspaces.
+    if not run_cmd(
+        ["pnpm", "install", "--filter", "utils..."],
+        cwd=str(sdk_dir),
+        label="pnpm install",
+    ):
         return None
-    if not run_cmd(["pnpm", "build"], cwd=str(sdk_dir), label="pnpm build"):
+    if not run_cmd(
+        [
+            "pnpm",
+            "-r",
+            "--filter",
+            "@filoz/synapse-core",
+            "--filter",
+            "@filoz/synapse-sdk",
+            "run",
+            "build",
+        ],
+        cwd=str(sdk_dir),
+        label="pnpm build",
+    ):
         return None
     return sdk_dir
 

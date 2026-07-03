@@ -122,7 +122,10 @@ class ScenarioDependencyTests(unittest.TestCase):
         commands = [call.args[0] for call in run_cmd.call_args_list]
         self.assertIn(["git", "checkout", "--detach", "deadbeef"], commands)
         self.assertNotIn(["pnpm", "pkg", "set"], [command[:3] for command in commands])
-        self.assertIn(["pnpm", "install", "--frozen-lockfile"], commands)
+        self.assertIn(
+            ["pnpm", "install", "--frozen-lockfile", "--filter", "filecoin-pin..."],
+            commands,
+        )
         self.assertIn(["pnpm", "build"], commands)
 
 
