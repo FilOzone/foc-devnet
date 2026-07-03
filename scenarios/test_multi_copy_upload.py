@@ -161,8 +161,9 @@ def setup_filecoin_pin(work_dir: Path) -> tuple[list[str], Path]:
             cwd=repository_dir,
             label=f"checkout filecoin-pin {dependency['commit']}",
         )
+        # Only filecoin-pin itself is needed; skip the upload-action workspace.
         run_cmd(
-            ["pnpm", "install", "--frozen-lockfile"],
+            ["pnpm", "install", "--frozen-lockfile", "--filter", "filecoin-pin..."],
             cwd=repository_dir,
             label="pnpm install",
         )
