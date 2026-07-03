@@ -6,7 +6,9 @@
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": ["^src/config\\.rs$"],
+      "managerFilePatterns": [
+        "/^src/config\\.rs$/"
+      ],
       "matchStrings": [
         "url:\\s*\"https://github\\.com/(?<depName>[^\"]+?)(?:\\.git)?\"\\.to_string\\(\\),\\s*tag:\\s*\"(?<currentValue>v[0-9][^\"]*)\""
       ],
@@ -15,7 +17,9 @@
     },
     {
       "customType": "regex",
-      "fileMatch": ["^ci/dependency-profiles\\.json$"],
+      "managerFilePatterns": [
+        "/^ci/dependency-profiles\\.json$/"
+      ],
       "matchStrings": [
         "\"tag\":\\s*\"synapse-sdk-v(?<currentValue>[0-9][^\"]*)\""
       ],
@@ -26,7 +30,9 @@
     },
     {
       "customType": "regex",
-      "fileMatch": ["^ci/dependency-profiles\\.json$"],
+      "managerFilePatterns": [
+        "/^ci/dependency-profiles\\.json$/"
+      ],
       "matchStrings": [
         "\"strategy\":\\s*\"npm_version\",\\s*\"version\":\\s*\"(?<currentValue>[0-9][^\"]*)\""
       ],
