@@ -370,7 +370,10 @@ jobs:
       if: steps.start_cluster.outcome == 'success'
       uses: pnpm/action-setup@v6
       with:
-        version: latest
+        version: 11.12.0
+        # The regular pnpm 11.7.0 bootstrap cannot self-update to 11.12.0.
+        # Use @pnpm/exe until the upstream self-update fix is released.
+        standalone: true
 
     # Validate schema using zod
     - name: "CHECK: {Validate devnet-info.json schema}"
