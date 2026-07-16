@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 import os
+import json
 import subprocess
 import time
-import json
 from pathlib import Path
 
 from scenarios.dependencies import component
@@ -104,19 +104,34 @@ def clone_and_build(tmp_dir: Path) -> Path | None:
     return sdk_dir
 
 
-def upload_file(sdk_dir: Path, filepath: str, label: str):
-    """Upload a single file via example-storage-e2e.js."""
-    env = {**os.environ, "NETWORK": "devnet"}
-    cmd = ["node", "utils/example-storage-e2e.js", str(filepath)]
+def run_node_script(
+    sdk_dir: Path,
+    script_path: Path,
+    label: str,
+    args: list[str] | None = None,
+    env: dict | None = None,
+    timeout: int | None = None,
+):
+    """Run a Node script in synapse-sdk with retry handling for transient state forks."""
+    script_arg = str(script_path)
+    if script_path.is_absolute():
+        try:
+            script_arg = str(script_path.relative_to(sdk_dir))
+        except ValueError:
+            pass
+
+    cmd = ["node", script_arg, *(args or [])]
+    process_env = {**os.environ, **(env or {})}
     max_attempts = len(UPLOAD_RETRY_DELAYS_SECS) + 1
 
     for attempt in range(1, max_attempts + 1):
         result = subprocess.run(
             cmd,
             cwd=str(sdk_dir),
-            env=env,
+            env=process_env,
             text=True,
             capture_output=True,
+            timeout=timeout,
         )
         details = "\n".join(
             part for part in (result.stderr.strip(), result.stdout.strip()) if part
@@ -136,3 +151,15 @@ def upload_file(sdk_dir: Path, filepath: str, label: str):
             f"retrying in {delay}s (attempt {attempt}/{max_attempts})"
         )
         time.sleep(delay)
+
+
+def upload_file(sdk_dir: Path, filepath: str, label: str):
+    """Upload a single file via example-storage-e2e.js."""
+    env = {**os.environ, "NETWORK": "devnet"}
+    run_node_script(
+        sdk_dir,
+        Path("utils/example-storage-e2e.js"),
+        label,
+        args=[str(filepath)],
+        env=env,
+    )
