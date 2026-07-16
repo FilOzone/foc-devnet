@@ -1,5 +1,34 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "profiles": {
+    "default": {
+      "base": "default"
+    },
+    "stability": {
+      "base": "stability"
+    },
+    "frontier": {
+      "base": "frontier"
+    },
+    "stability-frontier-lotus": {
+      "base": "stability",
+      "components": {
+        "lotus": "frontier"
+      }
+    },
+    "stability-frontier-curio": {
+      "base": "stability",
+      "components": {
+        "curio": "frontier"
+      }
+    },
+    "stability-frontier-filecoin-services": {
+      "base": "stability",
+      "components": {
+        "filecoin-services": "frontier"
+      }
+    }
+  },
   "components": {
     "lotus": {
       "repository": "https://github.com/filecoin-project/lotus.git",

@@ -2,6 +2,8 @@ import importlib.util
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
@@ -29,6 +31,74 @@ class FakeRunner:
 
 
 class ResolverTests(unittest.TestCase):
+    def manifest(self, profiles=None, components=None):
+        if components is None:
+            components = {
+                "lotus": self.component("a", "b"),
+                "curio": self.component("c", "d"),
+                "filecoin-services": self.component("e", "f"),
+                "synapse-sdk": self.component("1", "2"),
+                "filecoin-pin": self.component("3", "4"),
+            }
+        if profiles is None:
+            profiles = {
+                "default": {"base": "default"},
+                "stability": {"base": "stability"},
+                "frontier": {"base": "frontier"},
+                "stability-frontier-lotus": {
+                    "base": "stability",
+                    "components": {"lotus": "frontier"},
+                },
+                "stability-frontier-curio": {
+                    "base": "stability",
+                    "components": {"curio": "frontier"},
+                },
+                "stability-frontier-filecoin-services": {
+                    "base": "stability",
+                    "components": {"filecoin-services": "frontier"},
+                },
+            }
+        return {
+            "schema_version": 2,
+            "profiles": profiles,
+            "components": components,
+        }
+
+    def component(self, stability_prefix, frontier_prefix):
+        return {
+            "repository": "https://example.test/project.git",
+            "default": {"strategy": "config_default"},
+            "stability": {
+                "strategy": "git_commit",
+                "commit": stability_prefix * 40,
+            },
+            "frontier": {
+                "strategy": "git_commit",
+                "commit": frontier_prefix * 40,
+            },
+        }
+
+    def resolve_manifest(self, manifest, profile):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            manifest_path = directory / "manifest.json"
+            output_path = directory / "resolved.json"
+            manifest_path.write_text(json.dumps(manifest))
+            args = type(
+                "Args",
+                (),
+                {
+                    "profile": profile,
+                    "manifest": manifest_path,
+                    "output": output_path,
+                    "github_output": None,
+                    "github_env": None,
+                },
+            )
+            with redirect_stdout(StringIO()):
+                resolver.resolve(args)
+            return json.loads(output_path.read_text())
+
     def test_latest_non_prerelease_tag_excludes_prereleases_and_annotated_refs(self):
         output = "\n".join(
             [
@@ -90,26 +160,100 @@ class ResolverTests(unittest.TestCase):
         self.assertEqual(resolved["commit"], "bbb")
 
     def test_unknown_profile_fails(self):
+        manifest = self.manifest()
         with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            manifest_path = directory / "manifest.json"
+            output_path = directory / "resolved.json"
+            manifest_path.write_text(json.dumps(manifest))
             args = type(
                 "Args",
                 (),
                 {
                     "profile": "unknown",
-                    "manifest": Path(directory) / "manifest.json",
-                    "output": Path(directory) / "resolved.json",
+                    "manifest": manifest_path,
+                    "output": output_path,
                     "github_output": None,
                     "github_env": None,
                 },
             )
-            with self.assertRaises(resolver.ResolutionError):
+            with self.assertRaisesRegex(resolver.ResolutionError, "Unknown profile"):
                 resolver.resolve(args)
 
     def test_manifest_missing_component_fails(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "manifest.json"
-            path.write_text(json.dumps({"schema_version": 1, "components": {}}))
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "profiles": {"default": {"base": "default"}},
+                        "components": {},
+                    }
+                )
+            )
             with self.assertRaisesRegex(resolver.ResolutionError, "missing"):
+                resolver.load_manifest(path)
+
+    def test_mixed_profile_resolves_only_selected_component_from_frontier(self):
+        metadata = self.resolve_manifest(self.manifest(), "stability-frontier-curio")
+        components = metadata["components"]
+
+        self.assertEqual(metadata["profile"], "stability-frontier-curio")
+        self.assertEqual(components["lotus"]["selection_profile"], "stability")
+        self.assertEqual(components["lotus"]["commit"], "a" * 40)
+        self.assertEqual(components["curio"]["selection_profile"], "frontier")
+        self.assertEqual(components["curio"]["commit"], "d" * 40)
+        self.assertEqual(
+            components["filecoin-services"]["selection_profile"], "stability"
+        )
+        self.assertEqual(components["synapse-sdk"]["selection_profile"], "stability")
+        self.assertEqual(components["filecoin-pin"]["selection_profile"], "stability")
+
+    def test_absent_mixed_profile_is_rejected(self):
+        profiles = {
+            "default": {"base": "default"},
+            "stability": {"base": "stability"},
+            "frontier": {"base": "frontier"},
+            "stability-frontier-curio": {
+                "base": "stability",
+                "components": {"curio": "frontier"},
+            },
+        }
+        manifest = self.manifest(profiles=profiles)
+        with self.assertRaisesRegex(resolver.ResolutionError, "Unknown profile"):
+            self.resolve_manifest(manifest, "stability-frontier-filecoin-pin")
+
+    def test_manifest_profile_rejects_unknown_component_override(self):
+        manifest = self.manifest(
+            profiles={
+                "default": {"base": "default"},
+                "bad": {
+                    "base": "stability",
+                    "components": {"missing": "frontier"},
+                },
+            }
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.json"
+            path.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(resolver.ResolutionError, "unknown components"):
+                resolver.load_manifest(path)
+
+    def test_manifest_profile_rejects_missing_component_selection(self):
+        manifest = self.manifest(
+            profiles={
+                "default": {"base": "default"},
+                "bad": {
+                    "base": "stability",
+                    "components": {"lotus": "not-a-selection"},
+                },
+            }
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.json"
+            path.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(resolver.ResolutionError, "no such selection"):
                 resolver.load_manifest(path)
 
     def test_npm_version_resolves_dist_tag_to_npm_version(self):

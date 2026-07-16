@@ -1324,7 +1324,9 @@ Scenarios run automatically in CI after the devnet starts. On nightly runs (or m
 CI resolves compatibility-sensitive dependencies from `ci/dependency-profiles.json`.
 Pull requests use the pinned `default` profile, while nightly `stability` runs use
 the latest final releases and nightly `frontier` runs pin current development
-branch heads to immutable commits. The resolved metadata path is exposed to
-scenarios as `CI_DEPENDENCY_METADATA`; Synapse SDK and filecoin-pin also receive
-their exact source, version/ref, and commit through `SYNAPSE_SDK_*` and
-`FILECOIN_PIN_*` environment variables.
+branch heads to immutable commits. Nightly CI also runs manifest-declared mixed
+profiles such as `stability-frontier-curio`, where all dependencies come from
+`stability` except the named component, which comes from `frontier`. The resolved
+metadata path is exposed to scenarios as `CI_DEPENDENCY_METADATA`; Synapse SDK
+and filecoin-pin also receive their exact source, version/ref, and commit
+through `SYNAPSE_SDK_*` and `FILECOIN_PIN_*` environment variables.
