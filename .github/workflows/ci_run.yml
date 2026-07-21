@@ -370,7 +370,7 @@ jobs:
       if: steps.start_cluster.outcome == 'success'
       uses: pnpm/action-setup@v6
       with:
-        version: 11.13.1
+        version: latest
 
     # Validate schema using zod
     - name: "CHECK: {Validate devnet-info.json schema}"
