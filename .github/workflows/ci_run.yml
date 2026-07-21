@@ -368,13 +368,9 @@ jobs:
     # Setup pnpm (required by scenario tests)
     - name: "EXEC: {Setup pnpm}, independent"
       if: steps.start_cluster.outcome == 'success'
-      # TEMPORARY work-around pending solution to https://github.com/pnpm/action-setup/issues/276.
-      # Bypass pnpm/action-setup's broken 11.7.0 -> 11.12.0 self-update and
-      # the incomplete @pnpm/exe 11.12.0 platform packages. Node is set up
-      # above, so install the regular Node-based pnpm package directly.
-      run: |
-        npm install --global pnpm@11.12.0
-        test "$(pnpm --version)" = "11.12.0"
+      uses: pnpm/action-setup@v6
+      with:
+        version: 11.13.1
 
     # Validate schema using zod
     - name: "CHECK: {Validate devnet-info.json schema}"
