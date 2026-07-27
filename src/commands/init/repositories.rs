@@ -38,6 +38,12 @@ pub fn download_code_repositories() -> Result<(), Box<dyn std::error::Error>> {
     // Download filecoin-services repository if Git-based
     download_repository("filecoin-services", &config.filecoin_services)?;
 
+    // Download PDP repository if independently configured. Otherwise use the
+    // filecoin-services submodule.
+    if let Some(pdp) = &config.pdp {
+        download_repository("pdp", pdp)?;
+    }
+
     // Download multicall3 repository if Git-based
     download_repository("multicall3", &config.multicall3)?;
 

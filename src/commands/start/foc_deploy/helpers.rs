@@ -7,7 +7,7 @@ use crate::config::{Config, Location};
 use crate::constants::LOCAL_NETWORK_CHAIN_ID;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::core::container_is_running;
-use crate::paths::{foc_devnet_config, foc_devnet_filecoin_services_repo};
+use crate::paths::{foc_devnet_config, foc_devnet_filecoin_services_repo, foc_devnet_pdp_repo};
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
@@ -35,6 +35,23 @@ pub fn get_filecoin_services_repo_path() -> Result<PathBuf, Box<dyn Error>> {
             // For Git-based locations, use the foc-devnet directory
             foc_devnet_filecoin_services_repo()
         }
+    };
+
+    Ok(repo_path)
+}
+
+/// Get the independently configured PDP repository path, if any.
+pub fn get_pdp_repo_path() -> Result<Option<PathBuf>, Box<dyn Error>> {
+    let config_path = foc_devnet_config();
+    let config_content = fs::read_to_string(&config_path)
+        .map_err(|e| format!("Failed to read config file at {:?}: {}", config_path, e))?;
+    let config: Config = toml::from_str(&config_content)
+        .map_err(|e| format!("Failed to parse config file: {}", e))?;
+
+    let repo_path = match &config.pdp {
+        Some(Location::LocalSource { dir }) => Some(PathBuf::from(dir)),
+        Some(_) => Some(foc_devnet_pdp_repo()),
+        None => None,
     };
 
     Ok(repo_path)

@@ -6,6 +6,7 @@
 use super::deployment::{check_existing_deployment, perform_deployment, post_execute_verification};
 use super::helpers::{
     check_lotus_running, check_required_addresses, get_filecoin_services_repo_path,
+    get_pdp_repo_path,
 };
 use crate::commands::start::step::{SetupContext, Step};
 use std::error::Error;
@@ -55,6 +56,18 @@ impl Step for FOCDeployStep {
             .into());
         }
         info!("filecoin-services repository found");
+
+        if let Some(pdp_repo) = get_pdp_repo_path()? {
+            if !pdp_repo.exists() {
+                return Err(format!(
+                    "PDP repository not found at {}. \
+                     Please run 'foc-devnet init' to clone the repository.",
+                    pdp_repo.display()
+                )
+                .into());
+            }
+            info!("PDP repository found");
+        }
 
         // Check if deployment script exists
         let deploy_script = services_repo

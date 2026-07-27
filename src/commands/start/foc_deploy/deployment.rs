@@ -4,7 +4,7 @@
 //! including contract deployment and output parsing.
 
 use crate::commands::start::foc_deploy::contract_addresses::ContractAddresses;
-use crate::commands::start::foc_deployer::deploy_foc_contracts;
+use crate::commands::start::foc_deployer::{deploy_foc_contracts, DeployFocContractsParams};
 use crate::paths::{contract_addresses_file, foc_metadata_file};
 use std::error::Error;
 use tracing::{info, warn};
@@ -51,6 +51,7 @@ pub fn perform_deployment(
         super::helpers::check_required_addresses(context)?;
 
     let services_repo = super::helpers::get_filecoin_services_repo_path()?;
+    let pdp_repo = super::helpers::get_pdp_repo_path()?;
 
     // Get Lotus container name and RPC URL
     let run_id = context.run_id();
@@ -58,15 +59,16 @@ pub fn perform_deployment(
     let lotus_rpc_url = crate::commands::start::lotus_utils::get_lotus_rpc_url(context)?;
 
     // Deploy FOC contracts using deployment script
-    let contract_addresses = deploy_foc_contracts(
-        &foc_deployer,
-        &foc_deployer_eth,
-        &mock_usdfc_address,
-        &services_repo,
-        &lotus_container,
-        &lotus_rpc_url,
+    let contract_addresses = deploy_foc_contracts(DeployFocContractsParams {
+        foc_deployer: &foc_deployer,
+        deployer_eth_addr: &foc_deployer_eth,
+        mock_usdfc_address: &mock_usdfc_address,
+        services_repo_path: &services_repo,
+        pdp_repo_path: pdp_repo.as_deref(),
+        lotus_container: &lotus_container,
+        lotus_rpc_url: &lotus_rpc_url,
         run_id,
-    )?;
+    })?;
 
     // Store contract addresses in context
     for (name, addr) in &contract_addresses.addresses {

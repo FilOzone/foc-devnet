@@ -24,6 +24,7 @@ pub struct InitOptions {
     pub curio_location: Option<String>,
     pub lotus_location: Option<String>,
     pub filecoin_services_location: Option<String>,
+    pub pdp_location: Option<String>,
     pub proof_params_dir: Option<String>,
     pub use_random_mnemonic: bool,
     pub no_docker_build: bool,
@@ -47,6 +48,7 @@ pub fn init_environment(options: InitOptions) -> Result<(), Box<dyn std::error::
         options.curio_location.clone(),
         options.lotus_location.clone(),
         options.filecoin_services_location.clone(),
+        options.pdp_location.clone(),
     )?;
 
     // Generate keys

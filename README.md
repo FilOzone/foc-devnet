@@ -61,6 +61,7 @@ This will:
 cargo run -- init \
     --curio local:/home/user/code/curio \
     --filecoin-services local:/home/user/code/filecoin-services \
+    --pdp local:/home/user/code/pdp \
     --lotus local:/home/user/code/lotus \
 ```
 
@@ -124,8 +125,9 @@ Only needs three things on your machine:
 Everything else (Lotus, Curio, dependencies) is built inside Docker.
 
 ### ⚙️ Configurable Repositories
-Depends on 3 repositories, all configurable:
+Depends on these repositories, all configurable:
 - `filecoin-services` - FOC smart contracts
+- `pdp` - PDP contracts, optionally pinned independently from filecoin-services
 - `curio` - Next-gen storage provider
 - `lotus` - Filecoin daemon
 

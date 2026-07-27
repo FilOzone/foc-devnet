@@ -56,6 +56,14 @@ pub enum Commands {
         /// 'local:/path/to/filecoin-services'.
         #[arg(long)]
         filecoin_services: Option<String>,
+        /// PDP source location. If omitted, uses filecoin-services' bundled lib/pdp submodule.
+        /// Latest tag: 'latesttag' (newest), 'latesttag:<selector>' (e.g. 'latesttag:v*'),
+        /// 'latesttag:<url>:<selector>' (custom repo). Resolved once at init.
+        /// Explicit: 'gittag:<tag>', 'gittag:<url>:<tag>', 'gitcommit:<sha>',
+        /// 'gitcommit:<url>:<sha>', 'gitbranch:<branch>', 'gitbranch:<url>:<branch>',
+        /// 'local:/path/to/pdp'.
+        #[arg(long)]
+        pdp: Option<String>,
         /// Path to local filecoin-proof-params directory to use instead of downloading
         #[arg(long)]
         proof_params_dir: Option<String>,
