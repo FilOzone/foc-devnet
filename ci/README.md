@@ -159,7 +159,7 @@ components.
 Installation currently lives in three places (which consume the resolved
 metadata):
 
-- `foc-devnet init`: Lotus, Curio, and filecoin-services.
+- `foc-devnet init`: Lotus, Curio, filecoin-services, and optionally PDP.
 - `scenarios/synapse.py`: Synapse SDK scenario dependency.
 - `scenarios/test_multi_copy_upload.py`: filecoin-pin scenario dependency.
 

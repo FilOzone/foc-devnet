@@ -90,6 +90,16 @@ pub fn print_code_version() -> Result<(), Box<dyn std::error::Error>> {
         "Filecoin-Services: [{},{},{}] {}",
         fc_services_source_type, fc_services_version, fc_services_commit, fc_services_status
     );
+    if let Some(pdp) = &config.pdp {
+        let pdp_repo_path = get_repo_path_from_config(pdp, "pdp");
+        let pdp_git_info = get_git_info(&pdp_repo_path)?;
+        let (pdp_source_type, pdp_version, pdp_commit, pdp_status) =
+            format_location_info(pdp, &pdp_git_info, &pdp_repo_path);
+        info!(
+            "PDP: [{},{},{}] {}",
+            pdp_source_type, pdp_version, pdp_commit, pdp_status
+        );
+    }
 
     Ok(())
 }

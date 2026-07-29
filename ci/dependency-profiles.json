@@ -43,6 +43,19 @@
         "branch": "main"
       }
     },
+    "pdp": {
+      "repository": "https://github.com/FilOzone/pdp.git",
+      "default": {
+        "strategy": "config_default"
+      },
+      "stability": {
+        "strategy": "config_default"
+      },
+      "frontier": {
+        "strategy": "git_branch",
+        "branch": "main"
+      }
+    },
     "synapse-sdk": {
       "repository": "https://github.com/FilOzone/synapse-sdk.git",
       "npm_package": "@filoz/synapse-sdk",

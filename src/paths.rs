@@ -129,6 +129,11 @@ pub fn foc_devnet_filecoin_services_repo() -> PathBuf {
     foc_devnet_code().join("filecoin-services")
 }
 
+/// Returns the path to the "pdp" repository
+pub fn foc_devnet_pdp_repo() -> PathBuf {
+    foc_devnet_code().join("pdp")
+}
+
 /// Returns the path to the "multicall3" repository
 pub fn foc_devnet_multicall3_repo() -> PathBuf {
     foc_devnet_code().join("multicall3")
