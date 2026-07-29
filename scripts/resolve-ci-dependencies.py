@@ -18,6 +18,7 @@ INIT_COMPONENT_FLAGS = {
     "lotus": "--lotus",
     "curio": "--curio",
     "filecoin-services": "--filecoin-services",
+    "pdp": "--pdp",
 }
 VERSION_RE = re.compile(r"^\d+(?:\.\d+)*(?:[-+][0-9A-Za-z.-]+)?$")
 STABLE_VERSION_RE = re.compile(r"^\d+(?:\.\d+)*$")
@@ -365,6 +366,9 @@ def scenario_environment(metadata_path: Path, components: dict) -> dict:
         "FILECOIN_PIN_SOURCE": filecoin_pin["source"],
         "FILECOIN_PIN_VERSION": filecoin_pin.get("version", ""),
         "FILECOIN_PIN_COMMIT": filecoin_pin.get("commit", ""),
+        "PDP_SOURCE": components["pdp"]["source"],
+        "PDP_REF": components["pdp"].get("ref", ""),
+        "PDP_COMMIT": components["pdp"].get("commit", ""),
     }
 
 
@@ -393,6 +397,8 @@ def verify(args) -> None:
     metadata = json.loads(args.metadata.read_text())
     components = metadata["components"]
     for name in INIT_COMPONENT_FLAGS:
+        if name == "pdp" and components[name]["source"] == "config_default":
+            continue
         repository_path = args.code_dir / name
         actual = run_command(["git", "-C", str(repository_path), "rev-parse", "HEAD"])
         expected = components[name].get("commit")

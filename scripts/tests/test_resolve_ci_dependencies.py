@@ -37,6 +37,7 @@ class ResolverTests(unittest.TestCase):
                 "lotus": self.component("a", "b"),
                 "curio": self.component("c", "d"),
                 "filecoin-services": self.component("e", "f"),
+                "pdp": self.component("5", "6"),
                 "synapse-sdk": self.component("1", "2"),
                 "filecoin-pin": self.component("3", "4"),
             }
@@ -207,6 +208,7 @@ class ResolverTests(unittest.TestCase):
         self.assertEqual(
             components["filecoin-services"]["selection_profile"], "stability"
         )
+        self.assertEqual(components["pdp"]["selection_profile"], "stability")
         self.assertEqual(components["synapse-sdk"]["selection_profile"], "stability")
         self.assertEqual(components["filecoin-pin"]["selection_profile"], "stability")
 
@@ -458,6 +460,11 @@ class ResolverTests(unittest.TestCase):
                 "repository": "https://example.test/services.git",
                 "commit": "def",
             },
+            "pdp": {
+                "source": "git",
+                "repository": "https://example.test/pdp.git",
+                "commit": "123",
+            },
         }
         self.assertEqual(
             resolver.build_init_args(components),
@@ -466,8 +473,19 @@ class ResolverTests(unittest.TestCase):
                 "gitcommit:https://example.test/curio.git:abc",
                 "--filecoin-services",
                 "gitcommit:https://example.test/services.git:def",
+                "--pdp",
+                "gitcommit:https://example.test/pdp.git:123",
             ],
         )
+
+    def test_init_args_skip_default_pdp(self):
+        components = {
+            "lotus": {"source": "config_default"},
+            "curio": {"source": "config_default"},
+            "filecoin-services": {"source": "config_default"},
+            "pdp": {"source": "config_default"},
+        }
+        self.assertEqual(resolver.build_init_args(components), [])
 
     def test_cache_hash_depends_only_on_lotus_and_curio_commits(self):
         base = {
@@ -492,7 +510,10 @@ class ResolverTests(unittest.TestCase):
         metadata = {
             "schema_version": 1,
             "profile": "default",
-            "components": {name: {"source": "config_default"} for name in commits},
+            "components": {
+                **{name: {"source": "config_default"} for name in commits},
+                "pdp": {"source": "config_default"},
+            },
         }
         with tempfile.TemporaryDirectory() as directory:
             directory = Path(directory)
@@ -514,7 +535,44 @@ class ResolverTests(unittest.TestCase):
 
         self.assertEqual(verified["components"]["lotus"]["commit"], "aaa")
         self.assertTrue(verified["components"]["curio"]["verified"])
+        self.assertFalse(verified["components"]["pdp"].get("verified", False))
         self.assertIn("source-hash=", outputs)
+
+    @patch.object(resolver, "run_command")
+    def test_verify_checks_independent_pdp_checkout(self, run_command):
+        commits = {
+            "lotus": "aaa",
+            "curio": "bbb",
+            "filecoin-services": "ccc",
+            "pdp": "ddd",
+        }
+        run_command.side_effect = lambda command: commits[Path(command[2]).name]
+        metadata = {
+            "schema_version": 1,
+            "profile": "frontier",
+            "components": {
+                name: {"source": "git", "commit": commit}
+                for name, commit in commits.items()
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            metadata_path = directory / "metadata.json"
+            metadata_path.write_text(json.dumps(metadata))
+            args = type(
+                "Args",
+                (),
+                {
+                    "metadata": metadata_path,
+                    "code_dir": directory / "code",
+                    "github_output": None,
+                },
+            )
+            resolver.verify(args)
+            verified = json.loads(metadata_path.read_text())
+
+        self.assertTrue(verified["components"]["pdp"]["verified"])
+        self.assertEqual(verified["components"]["pdp"]["commit"], "ddd")
 
 
 if __name__ == "__main__":

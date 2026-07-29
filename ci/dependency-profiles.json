@@ -72,12 +72,25 @@
         "branch": "main"
       }
     },
+    "pdp": {
+      "repository": "https://github.com/FilOzone/pdp.git",
+      "default": {
+        "strategy": "config_default"
+      },
+      "stability": {
+        "strategy": "config_default"
+      },
+      "frontier": {
+        "strategy": "git_branch",
+        "branch": "main"
+      }
+    },
     "synapse-sdk": {
       "repository": "https://github.com/FilOzone/synapse-sdk.git",
       "npm_package": "@filoz/synapse-sdk",
       "default": {
         "strategy": "git_tag",
-        "tag": "synapse-sdk-v1.0.1"
+        "tag": "synapse-sdk-v1.1.0"
       },
       "stability": {
         "strategy": "git_tag",
@@ -93,7 +106,7 @@
       "npm_package": "filecoin-pin",
       "default": {
         "strategy": "npm_version",
-        "version": "1.1.1"
+        "version": "1.2.0"
       },
       "stability": {
         "strategy": "npm_version",

@@ -38,6 +38,7 @@ foc-devnet init [OPTIONS]
 - `--curio <SOURCE>` - Curio source location
 - `--lotus <SOURCE>` - Lotus source location
 - `--filecoin-services <SOURCE>` - Filecoin Services source location
+- `--pdp <SOURCE>` - PDP source location. If omitted, uses the PDP submodule bundled with Filecoin Services.
 - `--proof-params-dir <PATH>` - Local proof params directory
 - `--rand` - Use random mnemonic instead of deterministic one. Use this for unique test scenarios.
 
@@ -256,6 +257,12 @@ branch = "pdpv0"
 [filecoin_services]
 url = "https://github.com/FilOzone/filecoin-services.git"
 tag = "v1.0.0"
+
+# Optional. When omitted, filecoin-services' service_contracts/lib/pdp
+# submodule is used.
+[pdp]
+url = "https://github.com/FilOzone/pdp.git"
+tag = "v3.4.0"
 
 [multicall3]
 url = "https://github.com/mds1/multicall3.git"
@@ -809,6 +816,7 @@ port_range_count = 100
 - **[lotus](https://github.com/filecoin-project/lotus)** - Filecoin daemon
 - **[curio](https://github.com/filecoin-project/curio)** - Storage provider (PDP)
 - **[filecoin-services](https://github.com/FilOzone/filecoin-services)** - FOC smart contracts
+- **[pdp](https://github.com/FilOzone/pdp)** - PDP contracts; optional independent override mounted over `service_contracts/lib/pdp`
 - **[multicall3](https://github.com/mds1/multicall3)** - Multicall3 contract
 ### Dependent Version Strategy
 
@@ -830,7 +838,8 @@ Default versions for these repositories are defined in code (see [`src/config.rs
 foc-devnet init \
     --lotus local:/home/user/dev/lotus \
     --curio local:/home/user/dev/curio \
-    --filecoin-services local:/home/user/dev/filecoin-services
+    --filecoin-services local:/home/user/dev/filecoin-services \
+    --pdp local:/home/user/dev/pdp
 ```
 
 **Mixed approach:**
@@ -1326,7 +1335,10 @@ Pull requests use the pinned `default` profile, while nightly `stability` runs u
 the latest final releases and nightly `frontier` runs pin current development
 branch heads to immutable commits. Nightly CI also runs manifest-declared mixed
 profiles such as `stability-frontier-curio`, where all dependencies come from
-`stability` except the named component, which comes from `frontier`. The resolved
+`stability` except the named component, which comes from `frontier`. In
+`stability`, PDP comes from the stable filecoin-services checkout's bundled
+submodule; in `frontier`, PDP is pinned as an independent repo. The resolved
 metadata path is exposed to scenarios as `CI_DEPENDENCY_METADATA`; Synapse SDK
 and filecoin-pin also receive their exact source, version/ref, and commit
-through `SYNAPSE_SDK_*` and `FILECOIN_PIN_*` environment variables.
+through `SYNAPSE_SDK_*` and `FILECOIN_PIN_*` environment variables. PDP receives
+`PDP_SOURCE`, `PDP_REF`, and `PDP_COMMIT` when dependency profiles are resolved.

@@ -229,6 +229,15 @@ pub struct Config {
     /// See [`Location`] for available options.
     pub filecoin_services: Location,
 
+    /// Optional location specification for the PDP repository.
+    ///
+    /// When unset, foc-devnet uses the PDP submodule bundled with
+    /// filecoin-services. When set, this checkout is mounted over
+    /// service_contracts/lib/pdp during FOC contract deployment.
+    /// See [`Location`] for available options.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pdp: Option<Location>,
+
     /// Location specification for the multicall3 repository.
     ///
     /// Defines how to obtain the multicall3 code, which provides the
@@ -287,6 +296,7 @@ impl Default for Config {
                 url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
                 tag: "v1.3.0".to_string(),
             },
+            pdp: None,
             multicall3: Location::GitTag {
                 url: "https://github.com/mds1/multicall3.git".to_string(),
                 tag: "v3.1.0".to_string(),
@@ -333,7 +343,7 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
-    use super::Location;
+    use super::{Config, Location};
 
     const DEFAULT_URL: &str = "https://github.com/default/repo.git";
 
@@ -457,5 +467,31 @@ mod tests {
     #[test]
     fn empty_string_returns_error() {
         assert!(canonicalize("").is_err());
+    }
+
+    #[test]
+    fn default_config_omits_optional_pdp_and_parses_without_it() {
+        let serialized = toml::to_string(&Config::default()).unwrap();
+
+        assert!(!serialized.contains("[pdp"));
+        assert!(!serialized.contains("pdp ="));
+        let parsed: Config = toml::from_str(&serialized).unwrap();
+        assert!(parsed.pdp.is_none());
+    }
+
+    #[test]
+    fn config_serializes_configured_pdp() {
+        let config = Config {
+            pdp: Some(Location::GitTag {
+                url: "https://github.com/FilOzone/pdp.git".to_string(),
+                tag: "v3.4.0".to_string(),
+            }),
+            ..Default::default()
+        };
+
+        let serialized = toml::to_string(&config).unwrap();
+
+        assert!(serialized.contains("pdp"));
+        assert!(serialized.contains("https://github.com/FilOzone/pdp.git"));
     }
 }

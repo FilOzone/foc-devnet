@@ -23,6 +23,18 @@ pub struct DeploymentResult {
     pub metadata: FOCMetadata,
 }
 
+/// Inputs required to deploy FOC contracts.
+pub struct DeployFocContractsParams<'a> {
+    pub foc_deployer: &'a str,
+    pub deployer_eth_addr: &'a str,
+    pub mock_usdfc_address: &'a str,
+    pub services_repo_path: &'a std::path::Path,
+    pub pdp_repo_path: Option<&'a std::path::Path>,
+    pub lotus_container: &'a str,
+    pub lotus_rpc_url: &'a str,
+    pub run_id: &'a str,
+}
+
 /// Get the private key for an address in hex format (for use with cast/forge)
 ///
 /// # Arguments
@@ -67,23 +79,18 @@ pub fn get_private_key(address: &str, _lotus_container: &str) -> Result<String, 
 ///
 /// Returns deployment result with contract addresses and network metadata
 pub fn deploy_foc_contracts(
-    foc_deployer: &str,
-    deployer_eth_addr: &str,
-    mock_usdfc_address: &str,
-    services_repo_path: &std::path::Path,
-    lotus_container: &str,
-    lotus_rpc_url: &str,
-    run_id: &str,
+    params: DeployFocContractsParams<'_>,
 ) -> Result<DeploymentResult, Box<dyn Error>> {
     info!("Running warm-storage-deploy-all.sh...");
 
     // Log the RPC URL for debugging
-    info!("Lotus RPC URL: {}", lotus_rpc_url);
+    info!("Lotus RPC URL: {}", params.lotus_rpc_url);
 
     // Resolve symlinks to get the real path for Docker mounting
-    let services_repo = services_repo_path
+    let services_repo = params
+        .services_repo_path
         .canonicalize()
-        .unwrap_or_else(|_| services_repo_path.to_path_buf());
+        .unwrap_or_else(|_| params.services_repo_path.to_path_buf());
     let contracts_dir = services_repo.join("service_contracts");
     let deploy_script = contracts_dir
         .join("tools")
@@ -98,12 +105,12 @@ pub fn deploy_foc_contracts(
         foc_devnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
 
     // Get the private key from lotus for the deployer address
-    let private_key = get_private_key(foc_deployer, lotus_container)?;
+    let private_key = get_private_key(params.foc_deployer, params.lotus_container)?;
 
     // Prepare environment variables for the deployment script
     let env_vars = [
-        ("ETH_RPC_URL", lotus_rpc_url.to_string()),
-        ("USDFC_TOKEN_ADDRESS", mock_usdfc_address.to_string()),
+        ("ETH_RPC_URL", params.lotus_rpc_url.to_string()),
+        ("USDFC_TOKEN_ADDRESS", params.mock_usdfc_address.to_string()),
         ("SERVICE_NAME", "FOC DevNet Warm Storage".to_string()),
         (
             "SERVICE_DESCRIPTION",
@@ -111,7 +118,7 @@ pub fn deploy_foc_contracts(
         ),
         ("DRY_RUN", "false".to_string()),
         ("CHAIN", LOCAL_NETWORK_CHAIN_ID.to_string()),
-        ("DEPLOYER_ADDRESS", deployer_eth_addr.to_string()),
+        ("DEPLOYER_ADDRESS", params.deployer_eth_addr.to_string()),
         ("AUTO_VERIFY", "false".to_string()),
         ("ETH_PRIVATE_KEY", private_key.clone()),
         ("PASSWORD", "".to_string()),
@@ -171,7 +178,7 @@ bash /service_contracts/tools/warm-storage-deploy-all.sh 2>&1 | tee /tmp/foc-dep
 
     info!("This may take several minutes...");
 
-    let container_name = format!("foc-{}-foc-deploy", run_id);
+    let container_name = format!("foc-{}-foc-deploy", params.run_id);
 
     let mut docker_args = vec![
         "run".to_string(),
@@ -199,6 +206,13 @@ bash /service_contracts/tools/warm-storage-deploy-all.sh 2>&1 | tee /tmp/foc-dep
     ));
     docker_args.push("-v".to_string());
     docker_args.push(format!("{}:/service_contracts", contracts_dir.display()));
+    if let Some(pdp_repo_path) = params.pdp_repo_path {
+        let pdp_repo = pdp_repo_path
+            .canonicalize()
+            .unwrap_or_else(|_| pdp_repo_path.to_path_buf());
+        docker_args.push("-v".to_string());
+        docker_args.push(format!("{}:/service_contracts/lib/pdp", pdp_repo.display()));
+    }
 
     // Add image and command
     docker_args.push(BUILDER_DOCKER_IMAGE.to_string());

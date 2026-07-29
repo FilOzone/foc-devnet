@@ -89,8 +89,16 @@ fn generate_mockusdfc_archive() {
         }
     }
 
-    // Create tar.gz archive in contracts/ directory
+    // Create tar.gz archive in contracts/ directory.
+    //
+    // COPYFILE_DISABLE=1 stops macOS `tar` from synthesizing AppleDouble
+    // (`._*`) members out of extended attributes such as com.apple.provenance.
+    // Without it, extracting this archive at runtime drops a `._MockUSDFC.sol`
+    // next to the real source, and Foundry then fails to compile it with
+    // "stream did not contain valid UTF-8". The variable is a no-op for GNU
+    // tar on Linux/CI, so it is safe to set unconditionally.
     let output = Command::new("tar")
+        .env("COPYFILE_DISABLE", "1")
         .args(["-czf", "artifacts/MockUSDFC.tar.gz", "contracts/MockUSDFC"])
         .current_dir(".")
         .output();
