@@ -16,6 +16,8 @@ The manifest declares valid profiles in its top-level `profiles` object:
   except Curio, which is resolved from `frontier`.
 - `stability-frontier-filecoin-services`: used by nightly CI to test stable
   releases except filecoin-services, which is resolved from `frontier`.
+- `stability-frontier-pdp`: used by nightly CI to test stable releases except
+  PDP, which is resolved from `frontier`.
 
 Each component must define a selection for every component profile referenced by
 the top-level profile definitions. Today those component selections are

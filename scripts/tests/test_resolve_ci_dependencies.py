@@ -58,6 +58,10 @@ class ResolverTests(unittest.TestCase):
                     "base": "stability",
                     "components": {"filecoin-services": "frontier"},
                 },
+                "stability-frontier-pdp": {
+                    "base": "stability",
+                    "components": {"pdp": "frontier"},
+                },
             }
         return {
             "schema_version": 2,
@@ -209,6 +213,21 @@ class ResolverTests(unittest.TestCase):
             components["filecoin-services"]["selection_profile"], "stability"
         )
         self.assertEqual(components["pdp"]["selection_profile"], "stability")
+        self.assertEqual(components["synapse-sdk"]["selection_profile"], "stability")
+        self.assertEqual(components["filecoin-pin"]["selection_profile"], "stability")
+
+    def test_pdp_mixed_profile_resolves_only_pdp_from_frontier(self):
+        metadata = self.resolve_manifest(self.manifest(), "stability-frontier-pdp")
+        components = metadata["components"]
+
+        self.assertEqual(metadata["profile"], "stability-frontier-pdp")
+        self.assertEqual(components["lotus"]["selection_profile"], "stability")
+        self.assertEqual(components["curio"]["selection_profile"], "stability")
+        self.assertEqual(
+            components["filecoin-services"]["selection_profile"], "stability"
+        )
+        self.assertEqual(components["pdp"]["selection_profile"], "frontier")
+        self.assertEqual(components["pdp"]["commit"], "6" * 40)
         self.assertEqual(components["synapse-sdk"]["selection_profile"], "stability")
         self.assertEqual(components["filecoin-pin"]["selection_profile"], "stability")
 

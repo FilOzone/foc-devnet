@@ -27,6 +27,12 @@
       "components": {
         "filecoin-services": "frontier"
       }
+    },
+    "stability-frontier-pdp": {
+      "base": "stability",
+      "components": {
+        "pdp": "frontier"
+      }
     }
   },
   "components": {
