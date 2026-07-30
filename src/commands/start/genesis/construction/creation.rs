@@ -3,7 +3,8 @@
 //! This module handles creating the initial genesis file using lotus-seed.
 
 use crate::commands::start::genesis::constants;
-use crate::paths::{foc_devnet_bin, foc_devnet_docker_volumes_cache, foc_devnet_genesis};
+use crate::docker::push_bind_mount;
+use crate::paths::{foc_devnet_bin, foc_devnet_genesis};
 use std::fs;
 use std::process::Command;
 use tracing::info;
@@ -31,8 +32,6 @@ pub fn create_genesis_file(run_id: &str) -> Result<(), Box<dyn std::error::Error
 
     // Run lotus-seed genesis new in builder container
     let bin_dir = foc_devnet_bin();
-    let builder_volumes_dir =
-        foc_devnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
 
     // Build docker args with network environment variables
     let mut docker_args = vec![
@@ -43,14 +42,10 @@ pub fn create_genesis_file(run_id: &str) -> Result<(), Box<dyn std::error::Error
         format!("foc-{}-genesis-creation", run_id),
     ];
 
-    // Add volume mounts and command
-    docker_args.extend(vec![
-        "-v".to_string(),
-        format!("{}:/opt/bin", bin_dir.display()),
-        "-v".to_string(),
-        format!("{}:/home/foc-user/.cargo", builder_volumes_dir.join("cargo").display()),
-        "-v".to_string(),
-        format!("{}:/genesis", genesis_dir.display()),
+    // Add validated bind mounts and command
+    push_bind_mount(&mut docker_args, &bin_dir, "/opt/bin")?;
+    push_bind_mount(&mut docker_args, &genesis_dir, "/genesis")?;
+    docker_args.extend([
         crate::constants::BUILDER_DOCKER_IMAGE.to_string(),
         "/bin/bash".to_string(),
         "-c".to_string(),

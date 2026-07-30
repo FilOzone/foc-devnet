@@ -7,6 +7,7 @@ use super::key_management::get_deployer_private_key;
 use super::prerequisites::check_required_addresses;
 use crate::commands::start::lotus_utils::get_lotus_rpc_url;
 use crate::commands::start::step::SetupContext;
+use crate::docker::bind_mount;
 use crate::docker::command_logger::run_and_log_command;
 use std::error::Error;
 use std::path::PathBuf;
@@ -43,6 +44,7 @@ pub fn deploy_mock_usdfc_foundry(
     );
 
     let key = format!("usdfc_deploy_{}", run_id);
+    let contract_mount = bind_mount(&contract_dir, "/workspace")?;
     let output = run_and_log_command(
         "docker",
         &[
@@ -53,8 +55,8 @@ pub fn deploy_mock_usdfc_foundry(
             &format!("foc-{}-usdfc-deploy", run_id),
             "--network",
             "host", // Use host network to access Lotus RPC on dynamic port
-            "-v",
-            &format!("{}:/workspace", contract_dir.display()),
+            "--mount",
+            &contract_mount,
             crate::constants::BUILDER_DOCKER_IMAGE,
             "bash",
             "-c",

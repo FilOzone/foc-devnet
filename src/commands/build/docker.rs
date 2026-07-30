@@ -2,6 +2,7 @@
 //!
 //! This module handles Docker image building and container execution for project builds.
 
+use crate::docker::push_bind_mount;
 use crate::docker::{
     build::build_docker_image,
     core::{get_current_gid, get_current_uid, image_exists},
@@ -9,7 +10,7 @@ use crate::docker::{
 use crate::embedded_assets;
 use crate::paths::foc_devnet_docker_volumes_cache;
 use std::collections::HashMap;
-use std::fs;
+use std::path::Path;
 use tracing::info;
 
 use super::Project;
@@ -89,11 +90,17 @@ pub fn setup_docker_run_args(
         container_name,
         "-e".to_string(),
         "HOME=/home/foc-user".to_string(),
-        "-v".to_string(),
-        format!("{}:{}", source_dir, container_source_dir),
-        "-v".to_string(),
-        format!("{}:{}", output_dir, container_output_dir),
     ];
+    push_bind_mount(
+        &mut docker_run_args,
+        Path::new(source_dir),
+        container_source_dir,
+    )?;
+    push_bind_mount(
+        &mut docker_run_args,
+        Path::new(output_dir),
+        container_output_dir,
+    )?;
 
     // Load and apply volume mappings for this image
     let volume_map = load_volume_map("builder")?;
@@ -103,10 +110,7 @@ pub fn setup_docker_run_args(
 
         for (host_subdir, container_path) in volume_map {
             let host_path = image_volumes_dir.join(&host_subdir);
-            // Ensure the directory exists
-            fs::create_dir_all(&host_path)?;
-            docker_run_args.push("-v".to_string());
-            docker_run_args.push(format!("{}:{}", host_path.display(), container_path));
+            push_bind_mount(&mut docker_run_args, &host_path, &container_path)?;
         }
     }
 

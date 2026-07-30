@@ -9,7 +9,9 @@ use crate::commands::start::curio::constants::CURIO_LAYERS;
 use crate::docker::command_logger::run_and_log_command_strings;
 use crate::docker::init::set_volume_ownership;
 use crate::docker::network::{lotus_network_name, pdp_miner_network_name};
-use crate::docker::{container_exists, stop_and_remove_container};
+use crate::docker::{
+    container_exists, push_bind_mount, push_read_only_bind_mount, stop_and_remove_container,
+};
 use crate::paths::{
     foc_devnet_bin, foc_devnet_curio_sp_volume, foc_devnet_genesis_sectors_pdp_sp,
     foc_devnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
@@ -201,35 +203,33 @@ fn build_docker_create_args(
         format!("{}:4702", pdp_port),
     ]);
 
-    // Volume mounts
-    let volume_mounts = vec![
-        format!(
-            "{}:/home/foc-user/.curio",
-            curio_sp_dir.join(".curio").display()
-        ),
-        format!(
-            "{}:/home/foc-user/curio/fast-storage",
-            curio_sp_dir.join("fast-storage").display()
-        ),
-        format!(
-            "{}:/home/foc-user/curio/long-term-storage",
-            curio_sp_dir.join("long-term-storage").display()
-        ),
-        format!("{}:/usr/local/bin/lotus-bins", bin_dir.display()),
-        format!(
-            "{}:/home/foc-user/genesis-sectors:ro",
-            genesis_sectors_dir.display()
-        ),
-        format!(
-            "{}:{}",
-            proof_params_dir.display(),
-            CONTAINER_FILECOIN_PROOF_PARAMS_PATH
-        ),
-    ];
-
-    for mount in volume_mounts {
-        docker_args.extend_from_slice(&["-v".to_string(), mount]);
-    }
+    // Validated bind mounts
+    push_bind_mount(
+        &mut docker_args,
+        &curio_sp_dir.join(".curio"),
+        "/home/foc-user/.curio",
+    )?;
+    push_bind_mount(
+        &mut docker_args,
+        &curio_sp_dir.join("fast-storage"),
+        "/home/foc-user/curio/fast-storage",
+    )?;
+    push_bind_mount(
+        &mut docker_args,
+        &curio_sp_dir.join("long-term-storage"),
+        "/home/foc-user/curio/long-term-storage",
+    )?;
+    push_bind_mount(&mut docker_args, &bin_dir, "/usr/local/bin/lotus-bins")?;
+    push_read_only_bind_mount(
+        &mut docker_args,
+        &genesis_sectors_dir,
+        "/home/foc-user/genesis-sectors",
+    )?;
+    push_bind_mount(
+        &mut docker_args,
+        &proof_params_dir,
+        CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
+    )?;
 
     // Add environment variables using shared builders
     let foc_env = build_foc_contract_env_vars(context)?;

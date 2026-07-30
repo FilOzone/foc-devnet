@@ -7,7 +7,8 @@
 use super::foc_metadata::FOCMetadata;
 use crate::constants::*;
 use crate::docker::core::docker_command;
-use crate::paths::{foc_devnet_bin, foc_devnet_docker_volumes_cache};
+use crate::docker::push_bind_mount;
+use crate::paths::foc_devnet_bin;
 use std::error::Error;
 use tracing::{info, warn};
 
@@ -101,8 +102,6 @@ pub fn deploy_foc_contracts(
     }
 
     let bin_dir = foc_devnet_bin();
-    let builder_volumes_dir =
-        foc_devnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
 
     // Get the private key from lotus for the deployer address
     let private_key = get_private_key(params.foc_deployer, params.lotus_container)?;
@@ -196,22 +195,14 @@ bash /service_contracts/tools/warm-storage-deploy-all.sh 2>&1 | tee /tmp/foc-dep
         docker_args.push(format!("{}={}", key, value));
     }
 
-    // Add volumes
-    docker_args.push("-v".to_string());
-    docker_args.push(format!("{}:/opt/bin", bin_dir.display()));
-    docker_args.push("-v".to_string());
-    docker_args.push(format!(
-        "{}:/home/foc-user/.cargo",
-        builder_volumes_dir.join("cargo").display()
-    ));
-    docker_args.push("-v".to_string());
-    docker_args.push(format!("{}:/service_contracts", contracts_dir.display()));
+    // Add validated bind mounts
+    push_bind_mount(&mut docker_args, &bin_dir, "/opt/bin")?;
+    push_bind_mount(&mut docker_args, &contracts_dir, "/service_contracts")?;
     if let Some(pdp_repo_path) = params.pdp_repo_path {
         let pdp_repo = pdp_repo_path
             .canonicalize()
             .unwrap_or_else(|_| pdp_repo_path.to_path_buf());
-        docker_args.push("-v".to_string());
-        docker_args.push(format!("{}:/service_contracts/lib/pdp", pdp_repo.display()));
+        push_bind_mount(&mut docker_args, &pdp_repo, "/service_contracts/lib/pdp")?;
     }
 
     // Add image and command

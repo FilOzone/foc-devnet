@@ -8,6 +8,7 @@ use super::super::step::SetupContext;
 use crate::constants::LOTUS_DOCKER_IMAGE;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::network::lotus_network_name;
+use crate::docker::push_bind_mount;
 use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -112,27 +113,22 @@ pub fn build_docker_command(
         format!("{}:1946", lotus_p2p_port), // host:container
     ]);
 
-    // Add volume mounts (paths updated for foc-user)
-    let volume_mounts = vec![
-        format!("{}:/usr/local/bin/lotus-bins", bin_dir.display()),
-        format!(
-            "{}:/home/foc-user/.lotus-local-net",
-            volumes_dir.join("lotus-data").display()
-        ),
-        format!("{}:/devgen", volumes_dir.join("devgen").display()),
-        format!(
-            "{}:{}",
-            params_dir.display(),
-            CONTAINER_FILECOIN_PROOF_PARAMS_PATH
-        ),
-        format!("{}:/genesis", genesis_dir.display()),
-        format!("{}:/sectors", sectors_dir.display()),
-        format!("{}:/keys", keys_dir.display()),
-    ];
-
-    for mount in &volume_mounts {
-        docker_args.extend_from_slice(&["-v".to_string(), mount.clone()]);
-    }
+    // Add validated bind mounts (paths updated for foc-user)
+    push_bind_mount(&mut docker_args, &bin_dir, "/usr/local/bin/lotus-bins")?;
+    push_bind_mount(
+        &mut docker_args,
+        &volumes_dir.join("lotus-data"),
+        "/home/foc-user/.lotus-local-net",
+    )?;
+    push_bind_mount(&mut docker_args, &volumes_dir.join("devgen"), "/devgen")?;
+    push_bind_mount(
+        &mut docker_args,
+        &params_dir,
+        CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
+    )?;
+    push_bind_mount(&mut docker_args, &genesis_dir, "/genesis")?;
+    push_bind_mount(&mut docker_args, &sectors_dir, "/sectors")?;
+    push_bind_mount(&mut docker_args, &keys_dir, "/keys")?;
 
     // Set working directory
     docker_args.extend_from_slice(&["-w".to_string(), "/data".to_string()]);

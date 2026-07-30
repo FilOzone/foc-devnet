@@ -86,7 +86,7 @@ pub fn start_portainer(run_id: &str, port: u16) -> Result<(), Box<dyn Error>> {
     // Start Portainer container
     info!("Starting container...");
     let port_mapping = format!("{}:9000", port);
-    let volume_mapping = format!("{}:/data", PORTAINER_DATA_VOLUME);
+    let volume_mount = format!("type=volume,source={},target=/data", PORTAINER_DATA_VOLUME);
     docker_command(&[
         "run",
         "-d",
@@ -94,10 +94,10 @@ pub fn start_portainer(run_id: &str, port: u16) -> Result<(), Box<dyn Error>> {
         &container_name,
         "-p",
         &port_mapping,
-        "-v",
-        "/var/run/docker.sock:/var/run/docker.sock",
-        "-v",
-        &volume_mapping,
+        "--mount",
+        "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock",
+        "--mount",
+        &volume_mount,
         "--restart",
         "unless-stopped",
         PORTAINER_IMAGE,
