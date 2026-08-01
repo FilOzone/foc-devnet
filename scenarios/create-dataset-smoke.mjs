@@ -8,6 +8,7 @@ import { Synapse } from '../packages/synapse-sdk/src/index.ts'
 import * as ERC20 from '../packages/synapse-core/src/erc20/index.ts'
 import * as Pay from '../packages/synapse-core/src/pay/index.ts'
 import * as SP from '../packages/synapse-core/src/sp/index.ts'
+import { getPdpDataSet } from '@filoz/synapse-core/warm-storage'
 import { toChain, validateDevnetInfo } from '../packages/synapse-core/src/devnet/index.ts'
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -18,18 +19,15 @@ function assert(condition, message) {
   }
 }
 
-async function waitForDataSet(synapse, dataSetId) {
-  let lastCount = 0
+async function waitForDataSet(client, dataSetId) {
   for (let attempt = 1; attempt <= 15; attempt++) {
-    const dataSets = await synapse.storage.findDataSets()
-    lastCount = dataSets.length
-    const dataSet = dataSets.find((item) => item.dataSetId === dataSetId || item.pdpVerifierDataSetId === dataSetId)
+    const dataSet = await getPdpDataSet(client, { dataSetId })
     if (dataSet != null) {
       return dataSet
     }
     await sleep(2000)
   }
-  throw new Error(`Created data set ${dataSetId} was not returned by findDataSets; last count=${lastCount}`)
+  throw new Error(`Created data set ${dataSetId} was not returned by getPdpDataSet`)
 }
 
 async function waitForTransactionReceipt(client, hash, label) {
@@ -177,9 +175,9 @@ async function main() {
   assert(confirmed.dataSetId > 0n, `Expected positive dataSetId, got ${confirmed.dataSetId}`)
   console.log(`createDataSet confirmed: dataSetId=${confirmed.dataSetId}`)
 
-  const dataSet = await waitForDataSet(synapse, confirmed.dataSetId)
-  assert(dataSet.isLive === true, `Data set ${confirmed.dataSetId} is not live`)
-  assert(dataSet.isManaged === true, `Data set ${confirmed.dataSetId} is not managed by FWSS`)
+  const dataSet = await waitForDataSet(synapse.client, confirmed.dataSetId)
+  assert(dataSet.live === true, `Data set ${confirmed.dataSetId} is not live`)
+  assert(dataSet.managed === true, `Data set ${confirmed.dataSetId} is not managed by FWSS`)
   assert(dataSet.providerId === provider.id, `Data set providerId ${dataSet.providerId} != ${provider.id}`)
   assert(
     dataSet.payer.toLowerCase() === account.address.toLowerCase(),
