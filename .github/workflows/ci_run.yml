@@ -69,7 +69,7 @@ jobs:
 
     # Setup Rust toolchain and restore cached dependencies
     - name: "EXEC: {Setup Rust toolchain}, independent"
-      uses: actions-rust-lang/setup-rust-toolchain@v1.16.1
+      uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
 
     # CACHE-RUST: Rust dependencies and build artifacts
     # These are keyed on the Cargo.lock file to ensure cache validity
@@ -124,7 +124,7 @@ jobs:
 
     # Dependency profile resolution queries npm release metadata.
     - name: "EXEC: {Setup Node.js}, independent"
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v7
       with:
         node-version: 'lts/*'
 
