@@ -11,6 +11,7 @@ import os
 import re
 import shlex
 import subprocess
+import tempfile
 from pathlib import Path
 
 MANIFEST_SCHEMA_VERSION = 2
@@ -245,6 +246,27 @@ def npm_metadata(package: str, version: str, runner=run_command) -> dict:
     return {"version": resolved_version, "gitHead": git_head}
 
 
+def read_gitlink(repository: str, commit: str, path: str, runner=run_command) -> str:
+    with tempfile.TemporaryDirectory(prefix="foc-devnet-ci-deps-") as directory:
+        repo_dir = Path(directory) / "repo"
+        runner(["git", "-C", directory, "init", "repo"])
+        runner(["git", "-C", str(repo_dir), "remote", "add", "origin", repository])
+        runner(["git", "-C", str(repo_dir), "fetch", "--depth=1", "origin", commit])
+        output = runner(["git", "-C", str(repo_dir), "ls-tree", "FETCH_HEAD", path])
+
+    fields = output.split()
+    if len(fields) < 4 or fields[0] != "160000" or fields[1] != "commit":
+        raise ResolutionError(
+            f"{path} in {repository}@{commit} is not a git submodule gitlink"
+        )
+    gitlink = fields[2]
+    if not COMMIT_RE.fullmatch(gitlink):
+        raise ResolutionError(
+            f"{path} in {repository}@{commit} has invalid gitlink SHA {gitlink!r}"
+        )
+    return gitlink
+
+
 def validate_overrides(name: str, strategy: str, overrides) -> dict:
     if overrides is None:
         return {}
@@ -310,6 +332,31 @@ def resolve_component(
         branch = selection["branch"]
         commit = resolve_ref(repository, f"refs/heads/{branch}", runner)
         resolved.update(source="git", ref_type="branch", ref=branch, commit=commit)
+    elif strategy == "git_submodule":
+        parent_repository = selection["repository"]
+        tag = selection["tag"]
+        if any(char in tag for char in "*?["):
+            raise ResolutionError(f"{name} git_submodule tag must be exact")
+        path = selection["path"]
+        if not isinstance(path, str) or not path:
+            raise ResolutionError(f"{name} git_submodule path must be a string")
+        if path.startswith("/") or ".." in Path(path).parts:
+            raise ResolutionError(f"{name} git_submodule path must be relative")
+        parent_commit = resolve_tag(parent_repository, tag, runner)
+        commit = read_gitlink(parent_repository, parent_commit, path, runner)
+        resolved.update(
+            source="git_submodule",
+            ref_type="commit",
+            ref=commit,
+            commit=commit,
+            submodule_from={
+                "repository": parent_repository,
+                "ref_type": "tag",
+                "ref": tag,
+                "commit": parent_commit,
+                "path": path,
+            },
+        )
     elif strategy == "npm_version":
         requested = selection["version"]
         data = npm_metadata(component["npm_package"], requested, runner)
@@ -376,7 +423,7 @@ def resolve(args) -> None:
     manifest = load_manifest(args.manifest)
     component_profiles = component_profile_map(manifest, args.profile)
     components = {
-        name: resolve_component(name, component, component_profiles[name])
+        name: resolve_component(name, component, component_profiles[name], run_command)
         for name, component in manifest["components"].items()
     }
     metadata = {

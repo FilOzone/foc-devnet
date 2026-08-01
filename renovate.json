@@ -21,6 +21,17 @@
         "/^ci/dependency-profiles\\.json$/"
       ],
       "matchStrings": [
+        "\"strategy\":\\s*\"git_submodule\",\\s*\"repository\":\\s*\"https://github\\.com/(?<depName>[^\"]+?)(?:\\.git)?\",\\s*\"tag\":\\s*\"(?<currentValue>v[0-9][^\"]*)\""
+      ],
+      "datasourceTemplate": "github-tags",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^ci/dependency-profiles\\.json$/"
+      ],
+      "matchStrings": [
         "\"tag\":\\s*\"synapse-sdk-v(?<currentValue>[0-9][^\"]*)\""
       ],
       "depNameTemplate": "FilOzone/synapse-sdk",

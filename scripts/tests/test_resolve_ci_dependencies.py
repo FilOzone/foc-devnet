@@ -104,6 +104,47 @@ class ResolverTests(unittest.TestCase):
                 resolver.resolve(args)
             return json.loads(output_path.read_text())
 
+    def resolve_manifest_with_github_output(self, manifest, profile):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            manifest_path = directory / "manifest.json"
+            output_path = directory / "resolved.json"
+            github_output_path = directory / "github-output"
+            manifest_path.write_text(json.dumps(manifest))
+            args = type(
+                "Args",
+                (),
+                {
+                    "profile": profile,
+                    "manifest": manifest_path,
+                    "output": output_path,
+                    "github_output": str(github_output_path),
+                    "github_env": None,
+                },
+            )
+            with redirect_stdout(StringIO()):
+                resolver.resolve(args)
+            return (
+                json.loads(output_path.read_text()),
+                github_output_path.read_text(),
+            )
+
+    def pdp_git_submodule_component(self):
+        return {
+            "repository": "https://example.test/pdp.git",
+            "default": {"strategy": "config_default"},
+            "stability": {
+                "strategy": "git_submodule",
+                "repository": "https://example.test/filecoin-services.git",
+                "tag": "v1.3.0",
+                "path": "service_contracts/lib/pdp",
+            },
+            "frontier": {
+                "strategy": "git_commit",
+                "commit": "6" * 40,
+            },
+        }
+
     def test_latest_non_prerelease_tag_excludes_prereleases_and_annotated_refs(self):
         output = "\n".join(
             [
@@ -230,6 +271,113 @@ class ResolverTests(unittest.TestCase):
         self.assertEqual(components["pdp"]["commit"], "6" * 40)
         self.assertEqual(components["synapse-sdk"]["selection_profile"], "stability")
         self.assertEqual(components["filecoin-pin"]["selection_profile"], "stability")
+
+    @patch.object(resolver, "run_command")
+    def test_filecoin_services_mixed_profile_emits_pdp_git_submodule(self, run_command):
+        parent_commit = "8" * 40
+        pdp_commit = "7" * 40
+        manifest = self.manifest()
+        manifest["components"]["pdp"] = self.pdp_git_submodule_component()
+        run_command.side_effect = FakeRunner(
+            [
+                (
+                    (
+                        "git",
+                        "ls-remote",
+                        "https://example.test/filecoin-services.git",
+                        "refs/tags/v1.3.0*",
+                    ),
+                    f"{parent_commit} refs/tags/v1.3.0",
+                ),
+                (
+                    lambda command: command[:3] == ["git", "-C", command[2]]
+                    and command[3:] == ["init", "repo"],
+                    "",
+                ),
+                (
+                    lambda command: command[:5]
+                    == ["git", "-C", command[2], "remote", "add"],
+                    "",
+                ),
+                (
+                    lambda command: command[:4] == ["git", "-C", command[2], "fetch"],
+                    "",
+                ),
+                (
+                    lambda command: command[:4] == ["git", "-C", command[2], "ls-tree"],
+                    f"160000 commit {pdp_commit}\tservice_contracts/lib/pdp",
+                ),
+            ]
+        )
+
+        metadata, github_output = self.resolve_manifest_with_github_output(
+            manifest, "stability-frontier-filecoin-services"
+        )
+        components = metadata["components"]
+
+        self.assertEqual(
+            components["filecoin-services"]["selection_profile"], "frontier"
+        )
+        self.assertEqual(components["pdp"]["source"], "git_submodule")
+        self.assertEqual(components["pdp"]["commit"], pdp_commit)
+        self.assertEqual(
+            components["pdp"]["submodule_from"],
+            {
+                "repository": "https://example.test/filecoin-services.git",
+                "ref_type": "tag",
+                "ref": "v1.3.0",
+                "commit": parent_commit,
+                "path": "service_contracts/lib/pdp",
+            },
+        )
+        self.assertIn(
+            "--filecoin-services gitcommit:https://example.test/project.git:"
+            + "f" * 40,
+            github_output,
+        )
+        self.assertIn(
+            "--pdp gitcommit:https://example.test/pdp.git:" + pdp_commit,
+            github_output,
+        )
+
+    @patch.object(resolver, "run_command")
+    def test_git_submodule_rejects_missing_gitlink(self, run_command):
+        parent_commit = "8" * 40
+        component = self.pdp_git_submodule_component()
+        run_command.side_effect = FakeRunner(
+            [
+                (
+                    (
+                        "git",
+                        "ls-remote",
+                        "https://example.test/filecoin-services.git",
+                        "refs/tags/v1.3.0*",
+                    ),
+                    f"{parent_commit} refs/tags/v1.3.0",
+                ),
+                (
+                    lambda command: command[:3] == ["git", "-C", command[2]]
+                    and command[3:] == ["init", "repo"],
+                    "",
+                ),
+                (
+                    lambda command: command[:5]
+                    == ["git", "-C", command[2], "remote", "add"],
+                    "",
+                ),
+                (
+                    lambda command: command[:4] == ["git", "-C", command[2], "fetch"],
+                    "",
+                ),
+                (
+                    lambda command: command[:4] == ["git", "-C", command[2], "ls-tree"],
+                    "100644 blob abcdef\tservice_contracts/lib/pdp",
+                ),
+            ]
+        )
+
+        with self.assertRaisesRegex(resolver.ResolutionError, "not a git submodule"):
+            resolver.resolve_component("pdp", component, "stability", run_command)
 
     def test_absent_mixed_profile_is_rejected(self):
         profiles = {

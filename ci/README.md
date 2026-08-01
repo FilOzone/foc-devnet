@@ -120,6 +120,25 @@ By default, pattern selections exclude prerelease tags such as `-rc`, `-alpha`,
 }
 ```
 
+### `git_submodule`
+
+Resolve a git submodule gitlink from an exact tag in another repository.
+
+```json
+{
+  "strategy": "git_submodule",
+  "repository": "https://github.com/FilOzone/filecoin-services.git",
+  "tag": "v1.3.0",
+  "path": "service_contracts/lib/pdp"
+}
+```
+
+The resolver first resolves `repository` and `tag` to an immutable parent
+commit, then reads `path` from that tree and records the submodule gitlink SHA as
+the selected component commit. PDP uses this to pin the same bundled PDP gitlink
+as the filecoin-services tag in Rust `Config::default()`, even in mixed profiles
+that override filecoin-services itself.
+
 ### `npm_version`
 
 Resolve an npm version, range, or dist-tag to a concrete package version.
