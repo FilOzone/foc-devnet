@@ -23,10 +23,13 @@ from scenarios.report import TestResult, write_report
 
 # ── Scenario execution order ─────────────────────────────────
 # Each entry is (test_name, timeout_seconds)
+CREATE_DATASET_SMOKE_TIMEOUT_SECS = 1800
+
 ORDER = [
     ("test_containers", 5),
     ("test_basic_balances", 10),
-    ("test_create_dataset_smoke", 300),
+    # Allows setup plus five 280s Node attempts and retry delays.
+    ("test_create_dataset_smoke", CREATE_DATASET_SMOKE_TIMEOUT_SECS),
     ("test_storage_e2e", 200),
     ("test_multi_copy_upload", 600),
     ("test_caching_subsystem", 200),
