@@ -14,7 +14,7 @@ from scenarios.synapse import clone_and_build, run_node_script
 
 SMOKE_TIMEOUT_SECS = 280
 SMOKE_USER_INDEX = "1"  # USER_2; USER_1 is used by existing storage scenarios.
-SMOKE_SCRIPT_SOURCE = Path(__file__).with_name("create-dataset-smoke.mjs")
+SMOKE_SCRIPT_SOURCE = Path(__file__).with_name("create-dataset-smoke.ts")
 
 
 def run():

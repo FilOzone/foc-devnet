@@ -11,15 +11,18 @@ import * as SP from '../packages/synapse-core/src/sp/index.ts'
 import { getPdpDataSet } from '@filoz/synapse-core/warm-storage'
 import { toChain, validateDevnetInfo } from '../packages/synapse-core/src/devnet/index.ts'
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+type SmokeSynapse = ReturnType<typeof Synapse.create>
+type StorageContext = Awaited<ReturnType<SmokeSynapse['storage']['createContext']>>
 
-function assert(condition, message) {
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message)
   }
 }
 
-async function waitForDataSet(client, dataSetId) {
+async function waitForDataSet(client: SmokeSynapse['client'], dataSetId: bigint) {
   for (let attempt = 1; attempt <= 15; attempt++) {
     const dataSet = await getPdpDataSet(client, { dataSetId })
     if (dataSet != null) {
@@ -30,8 +33,8 @@ async function waitForDataSet(client, dataSetId) {
   throw new Error(`Created data set ${dataSetId} was not returned by getPdpDataSet`)
 }
 
-async function waitForTransactionReceipt(client, hash, label) {
-  let lastError = null
+async function waitForTransactionReceipt(client: SmokeSynapse['client'], hash: `0x${string}`, label: string) {
+  let lastError: unknown = null
   for (let attempt = 1; attempt <= 90; attempt++) {
     try {
       const receipt = await client.request({
@@ -48,11 +51,11 @@ async function waitForTransactionReceipt(client, hash, label) {
     await sleep(1000)
   }
 
-  const suffix = lastError == null ? '' : `; last error: ${lastError.message}`
+  const suffix = lastError instanceof Error ? `; last error: ${lastError.message}` : ''
   throw new Error(`${label} transaction ${hash} was not confirmed${suffix}`)
 }
 
-async function prepareWithPlainErc20(synapse, context) {
+async function prepareWithPlainErc20(synapse: SmokeSynapse, context: StorageContext): Promise<void> {
   const { costs, transaction } = await synapse.storage.prepare({
     context,
     dataSize: 1n,
