@@ -17,7 +17,7 @@ on:
         required: true
         type: string
       profile:
-        description: 'Dependency profile declared in ci/dependency-profiles.json'
+        description: 'Dependency profile declared in dependencies.toml'
         required: true
         type: string
       enable_reporting:
@@ -128,11 +128,11 @@ jobs:
       with:
         node-version: 'lts/*'
 
-    - name: "CHECK: {Resolve dependency profile}"
+    - name: "CHECK: {Resolve dependencies}"
       id: dependencies
       run: |
-        METADATA="$RUNNER_TEMP/ci-dependencies.json"
-        python3 scripts/resolve-ci-dependencies.py resolve \
+        METADATA="$RUNNER_TEMP/dependencies.json"
+        python3 scripts/resolve-dependencies.py resolve \
           --profile '${{ inputs.profile }}' \
           --output "$METADATA" \
           --github-output "$GITHUB_OUTPUT" \
@@ -213,7 +213,7 @@ jobs:
     - name: "CHECK: {Verify dependency checkouts}"
       id: verified-dependencies
       run: |
-        python3 scripts/resolve-ci-dependencies.py verify \
+        python3 scripts/resolve-dependencies.py verify \
           --metadata "$CI_DEPENDENCY_METADATA" \
           --github-output "$GITHUB_OUTPUT"
 

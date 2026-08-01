@@ -1,0 +1,101 @@
+schema_version = 2
+
+[profiles.default]
+base = "default"
+
+[profiles.stability]
+base = "stability"
+
+[profiles.frontier]
+base = "frontier"
+
+[profiles.stability-frontier-lotus]
+base = "stability"
+
+[profiles.stability-frontier-lotus.components]
+lotus = "frontier"
+
+[profiles.stability-frontier-curio]
+base = "stability"
+
+[profiles.stability-frontier-curio.components]
+curio = "frontier"
+
+[profiles.stability-frontier-filecoin-services]
+base = "stability"
+
+[profiles.stability-frontier-filecoin-services.components]
+filecoin-services = "frontier"
+
+[profiles.stability-frontier-pdp]
+base = "stability"
+
+[profiles.stability-frontier-pdp.components]
+pdp = "frontier"
+
+[dependencies.lotus]
+repository = "https://github.com/filecoin-project/lotus.git"
+
+# renovate: datasource=github-tags depName=filecoin-project/lotus versioning=semver
+default = { strategy = "git_tag", tag = "v1.36.1" }
+stability = { strategy = "git_tag", tag = "v*" }
+frontier = { strategy = "git_branch", branch = "master" }
+
+[dependencies.curio]
+repository = "https://github.com/filecoin-project/curio.git"
+
+# renovate: datasource=github-tags depName=filecoin-project/curio versioning=semver
+default = { strategy = "git_tag", tag = "v1.28.2" }
+stability = { strategy = "git_tag", tag = "v*" }
+frontier = { strategy = "git_branch", branch = "main" }
+
+[dependencies.filecoin-services]
+repository = "https://github.com/FilOzone/filecoin-services.git"
+
+# renovate: datasource=github-tags depName=FilOzone/filecoin-services versioning=semver
+default = { strategy = "git_tag", tag = "v1.3.0" }
+stability = { strategy = "git_tag", tag = "v*" }
+frontier = { strategy = "git_branch", branch = "main" }
+
+[dependencies.pdp]
+repository = "https://github.com/FilOzone/pdp.git"
+
+[dependencies.pdp.default]
+strategy = "bundled"
+bundle = "filecoin-services@default"
+path = "service_contracts/lib/pdp"
+
+[dependencies.pdp.stability]
+strategy = "bundled"
+bundle = "filecoin-services@stability"
+path = "service_contracts/lib/pdp"
+
+[dependencies.pdp.frontier]
+strategy = "git_branch"
+branch = "main"
+
+[dependencies.multicall3]
+repository = "https://github.com/mds1/multicall3.git"
+
+# renovate: datasource=github-tags depName=mds1/multicall3 versioning=semver
+default = { strategy = "git_tag", tag = "v3.1.0" }
+stability = { strategy = "git_tag", tag = "v3.1.0" }
+frontier = { strategy = "git_tag", tag = "v3.1.0" }
+
+[dependencies.synapse-sdk]
+repository = "https://github.com/FilOzone/synapse-sdk.git"
+npm_package = "@filoz/synapse-sdk"
+
+# renovate: datasource=github-tags depName=FilOzone/synapse-sdk extractVersion=^synapse-sdk-v(?<version>.+)$ versioning=semver
+default = { strategy = "git_tag", tag = "synapse-sdk-v1.1.0" }
+stability = { strategy = "git_tag", tag = "synapse-sdk-v*" }
+frontier = { strategy = "git_branch", branch = "master" }
+
+[dependencies.filecoin-pin]
+repository = "https://github.com/filecoin-project/filecoin-pin.git"
+npm_package = "filecoin-pin"
+
+# renovate: datasource=npm depName=filecoin-pin versioning=npm
+default = { strategy = "npm_version", version = "1.2.0" }
+stability = { strategy = "npm_version", version = "latest" }
+frontier = { strategy = "git_branch", branch = "master" }

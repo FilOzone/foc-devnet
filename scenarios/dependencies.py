@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Access resolved CI dependency metadata from scenario tests."""
+"""Access resolved dependency metadata from scenario tests."""
 
 from __future__ import annotations
 
 import json
 import os
+import tomllib
 from pathlib import Path
 
 
@@ -27,11 +28,11 @@ def component(name: str) -> dict:
     if isinstance(value, dict):
         return value
 
-    manifest_path = Path(__file__).parents[1] / "ci" / "dependency-profiles.json"
-    manifest = json.loads(manifest_path.read_text())
-    definition = manifest["components"].get(name)
+    manifest_path = Path(__file__).parents[1] / "dependencies.toml"
+    manifest = tomllib.loads(manifest_path.read_text())
+    definition = manifest["dependencies"].get(name)
     if not definition:
-        raise RuntimeError(f"Dependency manifest has no {name!r} component")
+        raise RuntimeError(f"Dependency manifest has no {name!r} dependency")
     selection = definition["default"]
     fallback = {
         "name": name,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve CI dependency profiles to immutable versions and verify checkouts."""
+"""Resolve dependency profiles to immutable versions and verify checkouts."""
 
 from __future__ import annotations
 
@@ -7,19 +7,24 @@ import argparse
 import fnmatch
 import hashlib
 import json
-import os
 import re
 import shlex
 import subprocess
+import tempfile
+import tomllib
 from pathlib import Path
 
 MANIFEST_SCHEMA_VERSION = 2
+PDP_DEFAULT_BUNDLE_PATH = "service_contracts/lib/pdp"
 INIT_COMPONENT_FLAGS = {
     "lotus": "--lotus",
     "curio": "--curio",
     "filecoin-services": "--filecoin-services",
     "pdp": "--pdp",
 }
+RUNTIME_COMPONENTS = set(INIT_COMPONENT_FLAGS) | {"multicall3"}
+TEST_COMPONENTS = {"synapse-sdk", "filecoin-pin"}
+REQUIRED_COMPONENTS = RUNTIME_COMPONENTS | TEST_COMPONENTS
 VERSION_RE = re.compile(r"^\d+(?:\.\d+)*(?:[-+][0-9A-Za-z.-]+)?$")
 STABLE_VERSION_RE = re.compile(r"^\d+(?:\.\d+)*$")
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -39,8 +44,8 @@ def run_command(command: list[str]) -> str:
 
 def load_manifest(path: Path) -> dict:
     try:
-        manifest = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError) as error:
+        manifest = tomllib.loads(path.read_text())
+    except (OSError, tomllib.TOMLDecodeError) as error:
         raise ResolutionError(
             f"Cannot load dependency manifest {path}: {error}"
         ) from error
@@ -49,22 +54,65 @@ def load_manifest(path: Path) -> dict:
         raise ResolutionError(
             f"Dependency manifest schema_version must be {MANIFEST_SCHEMA_VERSION}"
         )
-    components = manifest.get("components")
-    if not isinstance(components, dict):
-        raise ResolutionError("Dependency manifest must contain a components object")
+    dependencies = manifest.get("dependencies")
+    if not isinstance(dependencies, dict):
+        raise ResolutionError("Dependency manifest must contain a dependencies object")
     profiles = manifest.get("profiles")
     if not isinstance(profiles, dict):
         raise ResolutionError("Dependency manifest must contain a profiles object")
 
-    required = set(INIT_COMPONENT_FLAGS) | {"synapse-sdk", "filecoin-pin"}
-    missing = sorted(required - set(components))
+    missing = sorted(REQUIRED_COMPONENTS - set(dependencies))
     if missing:
-        raise ResolutionError(f"Dependency manifest is missing: {', '.join(missing)}")
-    validate_profiles(profiles, components)
+        raise ResolutionError(
+            "Dependency manifest is missing dependencies: " + ", ".join(missing)
+        )
+    validate_profiles(profiles, dependencies)
+    validate_bundled_selections(dependencies)
     return manifest
 
 
-def validate_profiles(profiles: dict, components: dict) -> None:
+def parse_bundle_ref(bundle: str) -> tuple[str, str]:
+    if not isinstance(bundle, str) or not bundle:
+        raise ResolutionError("bundled strategy requires a non-empty bundle")
+    dependency, separator, selection = bundle.partition("@")
+    if not separator or not dependency or not selection or "@" in selection:
+        raise ResolutionError(
+            "bundled strategy bundle must use '<dependency>@<selection>'"
+        )
+    return dependency, selection
+
+
+def validate_bundled_selections(components: dict) -> None:
+    for component_name, component in components.items():
+        if not isinstance(component, dict):
+            continue
+        for selection_name, selection in component.items():
+            if selection_name in {"repository", "npm_package"}:
+                continue
+            if not isinstance(selection, dict):
+                continue
+            if selection.get("strategy") != "bundled":
+                continue
+            dependency, bundled_selection = parse_bundle_ref(selection.get("bundle"))
+            bundled_component = components.get(dependency)
+            if not isinstance(bundled_component, dict):
+                raise ResolutionError(
+                    f"{component_name} bundled selection references unknown "
+                    f"dependency {dependency!r}"
+                )
+            if bundled_selection not in bundled_component:
+                raise ResolutionError(
+                    f"{component_name} bundled selection references unknown "
+                    f"{dependency} selection {bundled_selection!r}"
+                )
+            path = selection.get("path", PDP_DEFAULT_BUNDLE_PATH)
+            if not isinstance(path, str) or not path:
+                raise ResolutionError("bundled strategy path must be a string")
+            if path.startswith("/") or ".." in Path(path).parts:
+                raise ResolutionError("bundled strategy path must be relative")
+
+
+def validate_profiles(profiles: dict, dependencies: dict) -> None:
     for profile_name, profile in profiles.items():
         if not isinstance(profile_name, str) or not profile_name:
             raise ResolutionError("Profile names must be non-empty strings")
@@ -81,14 +129,14 @@ def validate_profiles(profiles: dict, components: dict) -> None:
                 f"Profile {profile_name!r} components must be an object"
             )
 
-        unknown_components = sorted(set(component_overrides) - set(components))
+        unknown_components = sorted(set(component_overrides) - set(dependencies))
         if unknown_components:
             raise ResolutionError(
-                f"Profile {profile_name!r} references unknown components: "
+                f"Profile {profile_name!r} references unknown dependencies: "
                 f"{', '.join(unknown_components)}"
             )
 
-        for component_name, component in components.items():
+        for component_name, component in dependencies.items():
             selection_profile = component_overrides.get(component_name, base)
             if not isinstance(selection_profile, str) or not selection_profile:
                 raise ResolutionError(
@@ -98,7 +146,7 @@ def validate_profiles(profiles: dict, components: dict) -> None:
             if selection_profile not in component:
                 raise ResolutionError(
                     f"Profile {profile_name!r} selects {selection_profile!r} for "
-                    f"{component_name}, but that component has no such selection"
+                    f"{component_name}, but that dependency has no such selection"
                 )
 
 
@@ -112,7 +160,7 @@ def component_profile_map(manifest: dict, profile_name: str) -> dict[str, str]:
     component_overrides = profile.get("components", {})
     return {
         component_name: component_overrides.get(component_name, base)
-        for component_name in manifest["components"]
+        for component_name in manifest["dependencies"]
     }
 
 
@@ -272,7 +320,11 @@ def validate_overrides(name: str, strategy: str, overrides) -> dict:
 
 
 def resolve_component(
-    name: str, component: dict, profile: str, runner=run_command
+    name: str,
+    component: dict,
+    profile: str,
+    manifest: dict | None = None,
+    runner=run_command,
 ) -> dict:
     try:
         selection = component[profile]
@@ -288,9 +340,7 @@ def resolve_component(
         "strategy": strategy,
     }
 
-    if strategy == "config_default":
-        resolved["source"] = "config_default"
-    elif strategy == "git_commit":
+    if strategy == "git_commit":
         commit = selection["commit"]
         if not COMMIT_RE.fullmatch(commit):
             raise ResolutionError(f"{name} has invalid commit SHA {commit!r}")
@@ -319,6 +369,45 @@ def resolve_component(
             version=data["version"],
             commit=data.get("gitHead", ""),
         )
+    elif strategy == "bundled":
+        if manifest is None:
+            raise ResolutionError("bundled strategy requires the full manifest")
+        dependency, bundled_selection = parse_bundle_ref(selection["bundle"])
+        bundle_path = selection.get("path", PDP_DEFAULT_BUNDLE_PATH)
+        dependencies = manifest["dependencies"]
+        if dependency not in dependencies:
+            raise ResolutionError(
+                f"{name} bundled selection references unknown dependency "
+                f"{dependency!r}"
+            )
+        bundle_source = resolve_component(
+            dependency,
+            dependencies[dependency],
+            bundled_selection,
+            manifest,
+            runner,
+        )
+        bundled_commit = read_gitlink(
+            bundle_source["repository"],
+            bundle_source["commit"],
+            bundle_path,
+            runner,
+        )
+        resolved.update(
+            source="bundled",
+            ref_type="commit",
+            ref=bundled_commit,
+            commit=bundled_commit,
+            bundled_from={
+                "dependency": dependency,
+                "selection_profile": bundled_selection,
+                "repository": bundle_source["repository"],
+                "ref_type": bundle_source["ref_type"],
+                "ref": bundle_source["ref"],
+                "commit": bundle_source["commit"],
+                "path": bundle_path,
+            },
+        )
     else:
         raise ResolutionError(f"Unsupported strategy {strategy!r} for {name}")
     overrides = selection.get("overrides")
@@ -327,11 +416,34 @@ def resolve_component(
     return resolved
 
 
+def read_gitlink(repository: str, commit: str, path: str, runner=run_command) -> str:
+    with tempfile.TemporaryDirectory(prefix="foc-devnet-ci-deps-") as directory:
+        repo_dir = Path(directory) / "repo"
+        runner(["git", "-C", directory, "init", "repo"])
+        runner(["git", "-C", str(repo_dir), "remote", "add", "origin", repository])
+        runner(["git", "-C", str(repo_dir), "fetch", "--depth=1", "origin", commit])
+        output = runner(["git", "-C", str(repo_dir), "ls-tree", "FETCH_HEAD", path])
+
+    fields = output.split()
+    if len(fields) < 4 or fields[0] != "160000" or fields[1] != "commit":
+        raise ResolutionError(
+            f"{path} in {repository}@{commit} is not a git submodule gitlink"
+        )
+    gitlink = fields[2]
+    if not COMMIT_RE.fullmatch(gitlink):
+        raise ResolutionError(
+            f"{path} in {repository}@{commit} has invalid gitlink SHA {gitlink!r}"
+        )
+    return gitlink
+
+
 def build_init_args(components: dict) -> list[str]:
     args = []
     for name, flag in INIT_COMPONENT_FLAGS.items():
         component = components[name]
-        if component["source"] == "config_default":
+        if component_uses_active_bundle(components, name):
+            continue
+        if component["selection_profile"] == "default":
             continue
         args.extend(
             [
@@ -340,6 +452,19 @@ def build_init_args(components: dict) -> list[str]:
             ]
         )
     return args
+
+
+def component_uses_active_bundle(components: dict, name: str) -> bool:
+    component = components[name]
+    if component["source"] != "bundled":
+        return False
+    bundled_from = component["bundled_from"]
+    dependency = bundled_from["dependency"]
+    if dependency not in components:
+        return False
+    return (
+        components[dependency]["selection_profile"] == bundled_from["selection_profile"]
+    )
 
 
 def cache_hash(components: dict) -> str:
@@ -375,10 +500,11 @@ def scenario_environment(metadata_path: Path, components: dict) -> dict:
 def resolve(args) -> None:
     manifest = load_manifest(args.manifest)
     component_profiles = component_profile_map(manifest, args.profile)
-    components = {
-        name: resolve_component(name, component, component_profiles[name])
-        for name, component in manifest["components"].items()
-    }
+    components = {}
+    for name, component in manifest["dependencies"].items():
+        components[name] = resolve_component(
+            name, component, component_profiles[name], manifest, run_command
+        )
     metadata = {
         "schema_version": 1,
         "profile": args.profile,
@@ -397,7 +523,7 @@ def verify(args) -> None:
     metadata = json.loads(args.metadata.read_text())
     components = metadata["components"]
     for name in INIT_COMPONENT_FLAGS:
-        if name == "pdp" and components[name]["source"] == "config_default":
+        if component_uses_active_bundle(components, name):
             continue
         repository_path = args.code_dir / name
         actual = run_command(["git", "-C", str(repository_path), "rev-parse", "HEAD"])
@@ -423,7 +549,7 @@ def parser() -> argparse.ArgumentParser:
     resolve_parser = subparsers.add_parser("resolve")
     resolve_parser.add_argument("--profile", required=True)
     resolve_parser.add_argument(
-        "--manifest", type=Path, default=Path("ci/dependency-profiles.json")
+        "--manifest", type=Path, default=Path("dependencies.toml")
     )
     resolve_parser.add_argument("--output", type=Path, required=True)
     resolve_parser.add_argument("--github-output")

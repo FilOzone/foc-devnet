@@ -5,6 +5,9 @@
 //! port allocations, and executable locations for various components.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+const DEPENDENCIES_TOML: &str = include_str!("../dependencies.toml");
 
 /// Represents the location of an executable or source code for a component.
 ///
@@ -281,31 +284,121 @@ impl Default for Config {
     /// The defaults should always use `GitCommit` or `GitTag` locations to ensure
     /// reproducibility.
     fn default() -> Self {
-        Self {
+        Self::default_from_dependency_manifest(DEPENDENCIES_TOML)
+            .expect("embedded dependencies.toml must define valid defaults")
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct DependencyManifest {
+    schema_version: u8,
+    dependencies: HashMap<String, DependencyComponent>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DependencyComponent {
+    repository: String,
+    default: DependencySelection,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "strategy", rename_all = "snake_case")]
+enum DependencySelection {
+    GitCommit { commit: String },
+    GitTag { tag: String },
+    GitBranch { branch: String },
+    Bundled { bundle: String, path: String },
+    NpmVersion { version: String },
+}
+
+impl Config {
+    fn default_from_dependency_manifest(manifest_toml: &str) -> Result<Self, String> {
+        let manifest: DependencyManifest = toml::from_str(manifest_toml)
+            .map_err(|error| format!("Failed to parse dependency manifest: {}", error))?;
+        if manifest.schema_version != 2 {
+            return Err(format!(
+                "Dependency manifest schema_version must be 2, found {}",
+                manifest.schema_version
+            ));
+        }
+
+        Ok(Self {
             port_range_start: 5700,
             port_range_count: 100,
-            lotus: Location::GitTag {
-                url: "https://github.com/filecoin-project/lotus.git".to_string(),
-                tag: "v1.36.1".to_string(),
-            },
-            curio: Location::GitTag {
-                url: "https://github.com/filecoin-project/curio.git".to_string(),
-                tag: "v1.28.2".to_string(),
-            },
-            filecoin_services: Location::GitTag {
-                url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
-                tag: "v1.3.0".to_string(),
-            },
-            pdp: None,
-            multicall3: Location::GitTag {
-                url: "https://github.com/mds1/multicall3.git".to_string(),
-                tag: "v3.1.0".to_string(),
-            },
+            lotus: manifest.default_location("lotus")?,
+            curio: manifest.default_location("curio")?,
+            filecoin_services: manifest.default_location("filecoin-services")?,
+            pdp: manifest.default_optional_pdp_location()?,
+            multicall3: manifest.default_location("multicall3")?,
             approved_pdp_sp_count: 2,
             endorsed_pdp_sp_count: 1,
             active_pdp_sp_count: 2,
+        })
+    }
+}
+
+impl DependencyManifest {
+    fn component(&self, name: &str) -> Result<&DependencyComponent, String> {
+        self.dependencies
+            .get(name)
+            .ok_or_else(|| format!("Dependency manifest missing {name} dependency"))
+    }
+
+    fn default_location(&self, name: &str) -> Result<Location, String> {
+        let component = self.component(name)?;
+        component.default.to_location(name, &component.repository)
+    }
+
+    fn default_optional_pdp_location(&self) -> Result<Option<Location>, String> {
+        let component = self.component("pdp")?;
+        match &component.default {
+            DependencySelection::Bundled { bundle, path } => {
+                parse_bundle_ref(bundle)?;
+                if path.is_empty() {
+                    return Err("pdp default bundled path must not be empty".into());
+                }
+                Ok(None)
+            }
+            selection => selection
+                .to_location("pdp", &component.repository)
+                .map(Some),
         }
     }
+}
+
+impl DependencySelection {
+    fn to_location(&self, name: &str, repository: &str) -> Result<Location, String> {
+        match self {
+            DependencySelection::GitCommit { commit } => Ok(Location::GitCommit {
+                url: repository.to_string(),
+                commit: commit.clone(),
+            }),
+            DependencySelection::GitTag { tag } => Ok(Location::GitTag {
+                url: repository.to_string(),
+                tag: tag.clone(),
+            }),
+            DependencySelection::GitBranch { branch } => Ok(Location::GitBranch {
+                url: repository.to_string(),
+                branch: branch.clone(),
+            }),
+            DependencySelection::Bundled { .. } => Err(format!(
+                "{name} default cannot use bundled as a standalone location"
+            )),
+            DependencySelection::NpmVersion { version } => Err(format!(
+                "{name} default npm_version {version} cannot be used as a foc-devnet location"
+            )),
+        }
+    }
+}
+
+fn parse_bundle_ref(bundle: &str) -> Result<(&str, &str), String> {
+    let (dependency, selection) = bundle
+        .split_once('@')
+        .ok_or_else(|| "bundled dependency must use '<dependency>@<selection>'".to_string())?;
+    if dependency.is_empty() || selection.is_empty() || selection.contains('@') {
+        return Err("bundled dependency must use '<dependency>@<selection>'".into());
+    }
+    Ok((dependency, selection))
 }
 
 impl Config {
@@ -493,5 +586,145 @@ mod tests {
 
         assert!(serialized.contains("pdp"));
         assert!(serialized.contains("https://github.com/FilOzone/pdp.git"));
+    }
+
+    #[test]
+    fn default_config_reads_dependency_locations_from_manifest() {
+        let config = Config::default();
+
+        assert!(matches!(
+            config.lotus,
+            Location::GitTag { ref tag, .. } if tag == "v1.36.1"
+        ));
+        assert!(matches!(
+            config.curio,
+            Location::GitTag { ref tag, .. } if tag == "v1.28.2"
+        ));
+        assert!(matches!(
+            config.filecoin_services,
+            Location::GitTag { ref tag, .. } if tag == "v1.3.0"
+        ));
+        assert!(matches!(
+            config.multicall3,
+            Location::GitTag { ref tag, .. } if tag == "v3.1.0"
+        ));
+        assert!(config.pdp.is_none());
+    }
+
+    #[test]
+    fn manifest_parser_rejects_wrong_schema_version() {
+        let manifest = manifest_fixture(
+            1,
+            r#"
+[dependencies.pdp]
+repository = "https://example.test/pdp.git"
+
+[dependencies.pdp.default]
+strategy = "bundled"
+bundle = "filecoin-services@default"
+path = "service_contracts/lib/pdp"
+"#,
+        );
+
+        let error = Config::default_from_dependency_manifest(&manifest).unwrap_err();
+
+        assert!(error.contains("schema_version must be 2"));
+    }
+
+    #[test]
+    fn manifest_parser_rejects_missing_dependency_component() {
+        let manifest = r#"
+schema_version = 2
+
+[dependencies.lotus]
+repository = "https://example.test/lotus.git"
+
+[dependencies.lotus.default]
+strategy = "git_tag"
+tag = "v1"
+
+[dependencies.curio]
+repository = "https://example.test/curio.git"
+
+[dependencies.curio.default]
+strategy = "git_tag"
+tag = "v1"
+
+[dependencies.filecoin-services]
+repository = "https://example.test/services.git"
+
+[dependencies.filecoin-services.default]
+strategy = "git_tag"
+tag = "v1"
+
+[dependencies.pdp]
+repository = "https://example.test/pdp.git"
+
+[dependencies.pdp.default]
+strategy = "bundled"
+bundle = "filecoin-services@default"
+path = "service_contracts/lib/pdp"
+"#;
+
+        let error = Config::default_from_dependency_manifest(manifest).unwrap_err();
+
+        assert!(error.contains("missing multicall3 dependency"));
+    }
+
+    #[test]
+    fn manifest_parser_rejects_invalid_bundled_default() {
+        let manifest = manifest_fixture(
+            2,
+            r#"
+[dependencies.pdp]
+repository = "https://example.test/pdp.git"
+
+[dependencies.pdp.default]
+strategy = "bundled"
+bundle = "filecoin-services"
+path = "service_contracts/lib/pdp"
+"#,
+        );
+
+        let error = Config::default_from_dependency_manifest(&manifest).unwrap_err();
+
+        assert!(error.contains("<dependency>@<selection>"));
+    }
+
+    fn manifest_fixture(schema_version: u8, pdp_component: &str) -> String {
+        format!(
+            r#"
+schema_version = {schema_version}
+
+[dependencies.lotus]
+repository = "https://example.test/lotus.git"
+
+[dependencies.lotus.default]
+strategy = "git_tag"
+tag = "v1"
+
+[dependencies.curio]
+repository = "https://example.test/curio.git"
+
+[dependencies.curio.default]
+strategy = "git_tag"
+tag = "v1"
+
+[dependencies.filecoin-services]
+repository = "https://example.test/services.git"
+
+[dependencies.filecoin-services.default]
+strategy = "git_tag"
+tag = "v1"
+
+[dependencies.multicall3]
+repository = "https://example.test/multicall3.git"
+
+[dependencies.multicall3.default]
+strategy = "git_tag"
+tag = "v1"
+{pdp_component}
+"#
+        )
     }
 }

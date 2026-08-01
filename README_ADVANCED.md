@@ -284,7 +284,10 @@ branch = "main"
 
 ### How Defaults Work
 
-Defaults are defined in code (see [`src/config.rs`](src/config.rs) `Config::default()`) and written to `config.toml` during `init`. This means:
+Operational defaults are defined in code (see [`src/config.rs`](src/config.rs)
+`Config::default()`), while dependency locations come from
+[`dependencies.toml`](dependencies.toml). They are written to
+`config.toml` during `init`. This means:
 
 - **First-time setup:** Running `foc-devnet init` creates `config.toml` with current defaults from code
 - **Updating defaults:** When a new version of `foc-devnet` includes updated defaults (e.g., newer Lotus version), run `foc-devnet clean --all` then `foc-devnet init` to regenerate `config.toml` with the new defaults
@@ -820,7 +823,9 @@ port_range_count = 100
 - **[multicall3](https://github.com/mds1/multicall3)** - Multicall3 contract
 ### Dependent Version Strategy
 
-Default versions for these repositories are defined in code (see [`src/config.rs`](src/config.rs) `Config::default()`).
+Default versions for these repositories are defined in
+[`dependencies.toml`](dependencies.toml) and consumed by
+`Config::default()`.
 
 **Version specification methods:**
 - **Latest tag** (`latesttag`, `latesttag:<selector>`, `latesttag:<url>:<selector>`): Resolved once at `init` time via `git ls-remote` and pinned as a concrete `GitTag` in `config.toml`. Use a glob selector to scope which tags are considered, e.g. `latesttag:v*` or `latesttag:pdp/v*`. Bare `latesttag` matches all tags.
@@ -1330,15 +1335,17 @@ Reports are written to `~/.foc-devnet/state/latest/scenario_report.md`.
 
 Scenarios run automatically in CI after the devnet starts. On nightly runs (or manual dispatch with `reporting` enabled), failures automatically create a GitHub issue with a full report.
 
-CI resolves compatibility-sensitive dependencies from `ci/dependency-profiles.json`.
+CI resolves compatibility-sensitive dependencies from `dependencies.toml`.
 Pull requests use the pinned `default` profile, while nightly `stability` runs use
 the latest final releases and nightly `frontier` runs pin current development
 branch heads to immutable commits. Nightly CI also runs manifest-declared mixed
 profiles such as `stability-frontier-curio`, where all dependencies come from
 `stability` except the named component, which comes from `frontier`. In
 `stability`, PDP comes from the stable filecoin-services checkout's bundled
-submodule; in `frontier`, PDP is pinned as an independent repo. The resolved
+submodule; in `frontier`, PDP is pinned as an independent repo. Mixed profiles
+that override filecoin-services pin PDP to the configured bundled PDP commit so
+the run does not unintentionally test two moving contract sources. The resolved
 metadata path is exposed to scenarios as `CI_DEPENDENCY_METADATA`; Synapse SDK
-and filecoin-pin also receive their exact source, version/ref, and commit
-through `SYNAPSE_SDK_*` and `FILECOIN_PIN_*` environment variables. PDP receives
+and filecoin-pin receive their exact source, version/ref, and commit through
+`SYNAPSE_SDK_*` and `FILECOIN_PIN_*` environment variables. PDP receives
 `PDP_SOURCE`, `PDP_REF`, and `PDP_COMMIT` when dependency profiles are resolved.

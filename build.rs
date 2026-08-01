@@ -60,7 +60,8 @@ fn main() {
     println!("cargo:rerun-if-changed=.git/HEAD");
     println!("cargo:rerun-if-changed=.git/refs/heads/");
 
-    // Re-run if MockUSDFC contract files change
+    // Re-run if embedded defaults or MockUSDFC contract files change
+    println!("cargo:rerun-if-changed=dependencies.toml");
     println!("cargo:rerun-if-changed=contracts/MockUSDFC/src/MockUSDFC.sol");
     println!("cargo:rerun-if-changed=contracts/MockUSDFC/script/Deploy.s.sol");
     println!("cargo:rerun-if-changed=contracts/MockUSDFC/script/Verify.s.sol");

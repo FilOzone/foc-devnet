@@ -7,10 +7,10 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^src/config\\.rs$/"
+        "/^dependencies\\.toml$/"
       ],
       "matchStrings": [
-        "url:\\s*\"https://github\\.com/(?<depName>[^\"]+?)(?:\\.git)?\"\\.to_string\\(\\),\\s*tag:\\s*\"(?<currentValue>v[0-9][^\"]*)\""
+        "# renovate: datasource=github-tags depName=(?<depName>\\S+) versioning=semver\\s+default\\s*=\\s*\\{[^\\n]*tag\\s*=\\s*\"(?<currentValue>v[0-9][^\"]*)\""
       ],
       "datasourceTemplate": "github-tags",
       "versioningTemplate": "semver"
@@ -18,10 +18,10 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^ci/dependency-profiles\\.json$/"
+        "/^dependencies\\.toml$/"
       ],
       "matchStrings": [
-        "\"tag\":\\s*\"synapse-sdk-v(?<currentValue>[0-9][^\"]*)\""
+        "# renovate: datasource=github-tags depName=FilOzone/synapse-sdk extractVersion=\\^synapse-sdk-v\\(\\?<version>\\.\\+\\)\\$ versioning=semver\\s+default\\s*=\\s*\\{[^\\n]*tag\\s*=\\s*\"(?<currentValue>synapse-sdk-v[^\"]*)\""
       ],
       "depNameTemplate": "FilOzone/synapse-sdk",
       "datasourceTemplate": "github-tags",
@@ -31,10 +31,10 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^ci/dependency-profiles\\.json$/"
+        "/^dependencies\\.toml$/"
       ],
       "matchStrings": [
-        "\"strategy\":\\s*\"npm_version\",\\s*\"version\":\\s*\"(?<currentValue>[0-9][^\"]*)\""
+        "# renovate: datasource=npm depName=filecoin-pin versioning=npm\\s+default\\s*=\\s*\\{[^\\n]*version\\s*=\\s*\"(?<currentValue>[0-9][^\"]*)\""
       ],
       "depNameTemplate": "filecoin-pin",
       "datasourceTemplate": "npm",
