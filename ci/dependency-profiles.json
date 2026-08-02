@@ -86,7 +86,7 @@
       "stability": {
         "strategy": "git_submodule",
         "repository": "https://github.com/FilOzone/filecoin-services.git",
-        "tag": "v1.3.0",
+        "tag": "v*",
         "path": "service_contracts/lib/pdp"
       },
       "frontier": {

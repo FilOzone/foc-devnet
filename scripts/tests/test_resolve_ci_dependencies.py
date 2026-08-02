@@ -136,7 +136,7 @@ class ResolverTests(unittest.TestCase):
             "stability": {
                 "strategy": "git_submodule",
                 "repository": "https://example.test/filecoin-services.git",
-                "tag": "v1.3.0",
+                "tag": "v*",
                 "path": "service_contracts/lib/pdp",
             },
             "frontier": {
@@ -284,8 +284,9 @@ class ResolverTests(unittest.TestCase):
                     (
                         "git",
                         "ls-remote",
+                        "--tags",
                         "https://example.test/filecoin-services.git",
-                        "refs/tags/v1.3.0*",
+                        "v*",
                     ),
                     f"{parent_commit} refs/tags/v1.3.0",
                 ),
@@ -350,8 +351,9 @@ class ResolverTests(unittest.TestCase):
                     (
                         "git",
                         "ls-remote",
+                        "--tags",
                         "https://example.test/filecoin-services.git",
-                        "refs/tags/v1.3.0*",
+                        "v*",
                     ),
                     f"{parent_commit} refs/tags/v1.3.0",
                 ),

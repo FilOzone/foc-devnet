@@ -335,14 +335,19 @@ def resolve_component(
     elif strategy == "git_submodule":
         parent_repository = selection["repository"]
         tag = selection["tag"]
-        if any(char in tag for char in "*?["):
-            raise ResolutionError(f"{name} git_submodule tag must be exact")
         path = selection["path"]
         if not isinstance(path, str) or not path:
             raise ResolutionError(f"{name} git_submodule path must be a string")
         if path.startswith("/") or ".." in Path(path).parts:
             raise ResolutionError(f"{name} git_submodule path must be relative")
-        parent_commit = resolve_tag(parent_repository, tag, runner)
+        if any(char in tag for char in "*?["):
+            include_prereleases = selection.get("include_prereleases", False)
+            if not isinstance(include_prereleases, bool):
+                raise ResolutionError(f"{name} include_prereleases must be a boolean")
+            output = runner(["git", "ls-remote", "--tags", parent_repository, tag])
+            tag, parent_commit = select_latest_tag(output, tag, include_prereleases)
+        else:
+            parent_commit = resolve_tag(parent_repository, tag, runner)
         commit = read_gitlink(parent_repository, parent_commit, path, runner)
         resolved.update(
             source="git_submodule",

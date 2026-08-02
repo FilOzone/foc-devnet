@@ -1336,10 +1336,10 @@ the latest final releases and nightly `frontier` runs pin current development
 branch heads to immutable commits. Nightly CI also runs manifest-declared mixed
 profiles such as `stability-frontier-curio`, where all dependencies come from
 `stability` except the named component, which comes from `frontier`. In
-`stability`, PDP is pinned to the git submodule bundled with the filecoin-services
-tag used by Rust `Config::default()`; in `frontier`, PDP is pinned as an
-independent repo. Mixed profiles that override filecoin-services keep that PDP
-pin instead of implicitly taking the overridden filecoin-services submodule. The resolved
+`stability`, PDP is pinned to the git submodule bundled with the selected
+filecoin-services stability tag; in `frontier`, PDP is pinned as an independent
+repo. Mixed profiles that override filecoin-services keep that PDP pin instead
+of implicitly taking the overridden filecoin-services submodule. The resolved
 metadata path is exposed to scenarios as `CI_DEPENDENCY_METADATA`; Synapse SDK
 and filecoin-pin also receive their exact source, version/ref, and commit
 through `SYNAPSE_SDK_*` and `FILECOIN_PIN_*` environment variables. PDP receives
