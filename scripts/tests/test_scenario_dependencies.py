@@ -1,10 +1,11 @@
 import tempfile
 import unittest
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
 from scenarios.dependencies import format_markdown_table
-from scenarios.synapse import clone_and_build
+from scenarios.synapse import clone_and_build, run_node_script
 from scenarios.test_multi_copy_upload import setup_filecoin_pin
 
 
@@ -76,6 +77,56 @@ class ScenarioDependencyTests(unittest.TestCase):
         commands = [call.args[0] for call in run_cmd.call_args_list]
         self.assertNotIn(["pnpm", "pkg", "set"], [command[:3] for command in commands])
         self.assertIn('  "nanoid": "3.3.13"', workspace_text)
+
+    @patch("scenarios.synapse.ok")
+    @patch("scenarios.synapse.info")
+    @patch("scenarios.synapse.subprocess.run")
+    def test_run_node_script_uses_sdk_cwd_and_env(self, run, _info, ok):
+        run.return_value = subprocess.CompletedProcess(
+            ["node", "smoke.mjs"], 0, stdout="done\n", stderr=""
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            sdk_dir = Path(directory)
+            script = sdk_dir / "smoke.mjs"
+            run_node_script(
+                sdk_dir,
+                script,
+                "run smoke",
+                args=["random_file"],
+                env={"DEVNET_USER_INDEX": "1"},
+                timeout=30,
+            )
+
+        kwargs = run.call_args.kwargs
+        self.assertEqual(run.call_args.args[0], ["node", "smoke.mjs", "random_file"])
+        self.assertEqual(kwargs["cwd"], str(sdk_dir))
+        self.assertEqual(kwargs["env"]["DEVNET_USER_INDEX"], "1")
+        self.assertEqual(kwargs["timeout"], 30)
+        ok.assert_called_once_with("run smoke")
+
+    @patch("scenarios.synapse.time.sleep")
+    @patch("scenarios.synapse.ok")
+    @patch("scenarios.synapse.info")
+    @patch("scenarios.synapse.subprocess.run")
+    def test_run_node_script_retries_state_fork_error(self, run, _info, ok, sleep):
+        run.side_effect = [
+            subprocess.CompletedProcess(
+                ["node", "smoke.mjs"],
+                1,
+                stdout="",
+                stderr="refusing explicit call due to state fork at epoch 42",
+            ),
+            subprocess.CompletedProcess(
+                ["node", "smoke.mjs"], 0, stdout="done\n", stderr=""
+            ),
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            run_node_script(Path(directory), Path("smoke.mjs"), "run smoke")
+
+        self.assertEqual(run.call_count, 2)
+        sleep.assert_called_once_with(5)
+        ok.assert_called_once_with("run smoke")
 
     @patch("scenarios.test_multi_copy_upload.run_cmd", return_value=True)
     @patch(
