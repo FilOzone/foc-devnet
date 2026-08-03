@@ -20,6 +20,11 @@ on:
         description: 'Dependency profile declared in ci/dependency-profiles.json'
         required: true
         type: string
+      filecoin_services_commit:
+        description: 'Optional exact filecoin-services commit for release-candidate validation'
+        required: false
+        type: string
+        default: ''
       enable_reporting:
         description: 'When true, file a GitHub issue with the scenario report'
         required: false
@@ -130,13 +135,20 @@ jobs:
 
     - name: "CHECK: {Resolve dependency profile}"
       id: dependencies
+      env:
+        FILECOIN_SERVICES_COMMIT: ${{ inputs.filecoin_services_commit }}
       run: |
         METADATA="$RUNNER_TEMP/ci-dependencies.json"
+        CANDIDATE_ARGS=()
+        if [[ -n "$FILECOIN_SERVICES_COMMIT" ]]; then
+          CANDIDATE_ARGS+=(--filecoin-services-commit "$FILECOIN_SERVICES_COMMIT")
+        fi
         python3 scripts/resolve-ci-dependencies.py resolve \
           --profile '${{ inputs.profile }}' \
           --output "$METADATA" \
           --github-output "$GITHUB_OUTPUT" \
-          --github-env "$GITHUB_ENV"
+          --github-env "$GITHUB_ENV" \
+          "${CANDIDATE_ARGS[@]}"
 
     # Docker images do not contain Lotus/Curio binaries, so their cache identity
     # depends only on the Docker build inputs.

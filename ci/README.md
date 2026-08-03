@@ -42,6 +42,20 @@ component resolves from `stability`. A profile is valid only if it is explicitly
 declared in `profiles`; for example, `stability-frontier-filecoin-pin` does not
 exist unless added there.
 
+### Exact filecoin-services release candidates
+
+Before tagging a filecoin-services release, manually dispatch `CI (Nightly)`
+with `filecoin_services_commit` set to the full 40-character lowercase commit
+SHA. When this input is set, the workflow runs only the
+`stability-frontier-filecoin-services` profile and replaces that profile's
+filecoin-services branch selection with the requested immutable commit. All
+other selections remain on `stability`, including the independently resolved
+PDP gitlink.
+
+Run this validation before creating the new filecoin-services tag. The stable
+PDP selection is derived from the latest stable filecoin-services tag, so
+tagging first would change the compatibility baseline being tested.
+
 ## Component Fields
 
 Top-level component fields:

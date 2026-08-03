@@ -83,7 +83,7 @@ class ResolverTests(unittest.TestCase):
             },
         }
 
-    def resolve_manifest(self, manifest, profile):
+    def resolve_manifest(self, manifest, profile, filecoin_services_commit=None):
         with tempfile.TemporaryDirectory() as directory:
             directory = Path(directory)
             manifest_path = directory / "manifest.json"
@@ -98,13 +98,16 @@ class ResolverTests(unittest.TestCase):
                     "output": output_path,
                     "github_output": None,
                     "github_env": None,
+                    "filecoin_services_commit": filecoin_services_commit,
                 },
             )
             with redirect_stdout(StringIO()):
                 resolver.resolve(args)
             return json.loads(output_path.read_text())
 
-    def resolve_manifest_with_github_output(self, manifest, profile):
+    def resolve_manifest_with_github_output(
+        self, manifest, profile, filecoin_services_commit=None
+    ):
         with tempfile.TemporaryDirectory() as directory:
             directory = Path(directory)
             manifest_path = directory / "manifest.json"
@@ -120,6 +123,7 @@ class ResolverTests(unittest.TestCase):
                     "output": output_path,
                     "github_output": str(github_output_path),
                     "github_env": None,
+                    "filecoin_services_commit": filecoin_services_commit,
                 },
             )
             with redirect_stdout(StringIO()):
@@ -271,6 +275,61 @@ class ResolverTests(unittest.TestCase):
         self.assertEqual(components["pdp"]["commit"], "6" * 40)
         self.assertEqual(components["synapse-sdk"]["selection_profile"], "stability")
         self.assertEqual(components["filecoin-pin"]["selection_profile"], "stability")
+
+    def test_filecoin_services_release_candidate_uses_exact_commit(self):
+        candidate = "9" * 40
+        manifest = self.manifest()
+        manifest["components"]["filecoin-services"]["frontier"] = {
+            "strategy": "git_branch",
+            "branch": "main",
+        }
+
+        metadata, github_output = self.resolve_manifest_with_github_output(
+            manifest,
+            "stability-frontier-filecoin-services",
+            filecoin_services_commit=candidate,
+        )
+        components = metadata["components"]
+
+        self.assertEqual(components["filecoin-services"]["strategy"], "git_commit")
+        self.assertEqual(components["filecoin-services"]["commit"], candidate)
+        self.assertEqual(
+            components["filecoin-services"]["override"],
+            {
+                "configured_strategy": "git_branch",
+                "requested_commit": candidate,
+            },
+        )
+        self.assertEqual(components["pdp"]["selection_profile"], "stability")
+        self.assertEqual(components["pdp"]["commit"], "5" * 40)
+        self.assertIn(
+            "--filecoin-services gitcommit:https://example.test/project.git:"
+            + candidate,
+            github_output,
+        )
+
+    def test_filecoin_services_release_candidate_rejects_invalid_commit(self):
+        for candidate in ("main", "a" * 39, "A" * 40, "a" * 40 + ";echo"):
+            with self.subTest(candidate=candidate):
+                with self.assertRaisesRegex(
+                    resolver.ResolutionError, "invalid commit SHA"
+                ):
+                    self.resolve_manifest(
+                        self.manifest(),
+                        "stability-frontier-filecoin-services",
+                        filecoin_services_commit=candidate,
+                    )
+
+    def test_filecoin_services_release_candidate_requires_mixed_profile(self):
+        with self.assertRaisesRegex(
+            resolver.ResolutionError,
+            "requires profile 'stability-frontier-filecoin-services'",
+        ):
+            self.resolve_manifest(
+                self.manifest(),
+                "frontier",
+                filecoin_services_commit="9" * 40,
+            )
 
     @patch.object(resolver, "run_command")
     def test_filecoin_services_mixed_profile_emits_pdp_git_submodule(self, run_command):

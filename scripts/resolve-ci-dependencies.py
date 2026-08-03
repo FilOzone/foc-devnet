@@ -294,7 +294,11 @@ def validate_overrides(name: str, strategy: str, overrides) -> dict:
 
 
 def resolve_component(
-    name: str, component: dict, profile: str, runner=run_command
+    name: str,
+    component: dict,
+    profile: str,
+    runner=run_command,
+    commit_override: str | None = None,
 ) -> dict:
     try:
         selection = component[profile]
@@ -302,6 +306,17 @@ def resolve_component(
         repository = component["repository"]
     except KeyError as error:
         raise ResolutionError(f"{name} is missing required field {error}") from error
+
+    configured_strategy = strategy
+    if commit_override is not None:
+        if name != "filecoin-services":
+            raise ResolutionError(f"Commit overrides are not supported for {name}")
+        if not COMMIT_RE.fullmatch(commit_override):
+            raise ResolutionError(
+                "filecoin-services override has invalid commit SHA "
+                f"{commit_override!r}"
+            )
+        strategy = "git_commit"
 
     resolved = {
         "name": name,
@@ -313,7 +328,7 @@ def resolve_component(
     if strategy == "config_default":
         resolved["source"] = "config_default"
     elif strategy == "git_commit":
-        commit = selection["commit"]
+        commit = commit_override if commit_override is not None else selection["commit"]
         if not COMMIT_RE.fullmatch(commit):
             raise ResolutionError(f"{name} has invalid commit SHA {commit!r}")
         resolved.update(source="git", ref_type="commit", ref=commit, commit=commit)
@@ -376,6 +391,11 @@ def resolve_component(
     overrides = selection.get("overrides")
     if overrides is not None:
         resolved["overrides"] = validate_overrides(name, strategy, overrides)
+    if commit_override is not None:
+        resolved["override"] = {
+            "configured_strategy": configured_strategy,
+            "requested_commit": commit_override,
+        }
     return resolved
 
 
@@ -426,9 +446,29 @@ def scenario_environment(metadata_path: Path, components: dict) -> dict:
 
 def resolve(args) -> None:
     manifest = load_manifest(args.manifest)
+    filecoin_services_commit = getattr(args, "filecoin_services_commit", None) or None
+    if filecoin_services_commit is not None:
+        if not COMMIT_RE.fullmatch(filecoin_services_commit):
+            raise ResolutionError(
+                "filecoin-services override has invalid commit SHA "
+                f"{filecoin_services_commit!r}"
+            )
+        if args.profile != "stability-frontier-filecoin-services":
+            raise ResolutionError(
+                "--filecoin-services-commit requires profile "
+                "'stability-frontier-filecoin-services'"
+            )
     component_profiles = component_profile_map(manifest, args.profile)
     components = {
-        name: resolve_component(name, component, component_profiles[name], run_command)
+        name: resolve_component(
+            name,
+            component,
+            component_profiles[name],
+            run_command,
+            commit_override=(
+                filecoin_services_commit if name == "filecoin-services" else None
+            ),
+        )
         for name, component in manifest["components"].items()
     }
     metadata = {
@@ -480,6 +520,7 @@ def parser() -> argparse.ArgumentParser:
     resolve_parser.add_argument("--output", type=Path, required=True)
     resolve_parser.add_argument("--github-output")
     resolve_parser.add_argument("--github-env")
+    resolve_parser.add_argument("--filecoin-services-commit")
     resolve_parser.set_defaults(handler=resolve)
 
     verify_parser = subparsers.add_parser("verify")
