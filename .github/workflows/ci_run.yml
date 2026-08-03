@@ -2,7 +2,7 @@
 # Reusable workflow: a single foc-devnet CI run.
 #
 # Called by ci_pull_request.yml (default config, no reporting) and
-# ci_nightly.yml (stability / frontier matrix, issue reporting enabled).
+# ci_nightly.yml (manifest-declared nightly profiles, issue reporting enabled).
 #
 # The dependency profile controls the versions of compatibility-sensitive
 # server and client components used by the run.
@@ -13,11 +13,11 @@ on:
   workflow_call:
     inputs:
       name:
-        description: 'Human-readable run name (e.g. default, stability, frontier)'
+        description: 'Human-readable run name (e.g. default, stability, frontier, stability-frontier-curio)'
         required: true
         type: string
       profile:
-        description: 'Dependency profile: default, stability, or frontier'
+        description: 'Dependency profile declared in ci/dependency-profiles.json'
         required: true
         type: string
       enable_reporting:

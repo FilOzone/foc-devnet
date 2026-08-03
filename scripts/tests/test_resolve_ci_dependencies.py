@@ -2,6 +2,8 @@ import importlib.util
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
@@ -29,6 +31,120 @@ class FakeRunner:
 
 
 class ResolverTests(unittest.TestCase):
+    def manifest(self, profiles=None, components=None):
+        if components is None:
+            components = {
+                "lotus": self.component("a", "b"),
+                "curio": self.component("c", "d"),
+                "filecoin-services": self.component("e", "f"),
+                "pdp": self.component("5", "6"),
+                "synapse-sdk": self.component("1", "2"),
+                "filecoin-pin": self.component("3", "4"),
+            }
+        if profiles is None:
+            profiles = {
+                "default": {"base": "default"},
+                "stability": {"base": "stability"},
+                "frontier": {"base": "frontier"},
+                "stability-frontier-lotus": {
+                    "base": "stability",
+                    "components": {"lotus": "frontier"},
+                },
+                "stability-frontier-curio": {
+                    "base": "stability",
+                    "components": {"curio": "frontier"},
+                },
+                "stability-frontier-filecoin-services": {
+                    "base": "stability",
+                    "components": {"filecoin-services": "frontier"},
+                },
+                "stability-frontier-pdp": {
+                    "base": "stability",
+                    "components": {"pdp": "frontier"},
+                },
+            }
+        return {
+            "schema_version": 2,
+            "profiles": profiles,
+            "components": components,
+        }
+
+    def component(self, stability_prefix, frontier_prefix):
+        return {
+            "repository": "https://example.test/project.git",
+            "default": {"strategy": "config_default"},
+            "stability": {
+                "strategy": "git_commit",
+                "commit": stability_prefix * 40,
+            },
+            "frontier": {
+                "strategy": "git_commit",
+                "commit": frontier_prefix * 40,
+            },
+        }
+
+    def resolve_manifest(self, manifest, profile):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            manifest_path = directory / "manifest.json"
+            output_path = directory / "resolved.json"
+            manifest_path.write_text(json.dumps(manifest))
+            args = type(
+                "Args",
+                (),
+                {
+                    "profile": profile,
+                    "manifest": manifest_path,
+                    "output": output_path,
+                    "github_output": None,
+                    "github_env": None,
+                },
+            )
+            with redirect_stdout(StringIO()):
+                resolver.resolve(args)
+            return json.loads(output_path.read_text())
+
+    def resolve_manifest_with_github_output(self, manifest, profile):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            manifest_path = directory / "manifest.json"
+            output_path = directory / "resolved.json"
+            github_output_path = directory / "github-output"
+            manifest_path.write_text(json.dumps(manifest))
+            args = type(
+                "Args",
+                (),
+                {
+                    "profile": profile,
+                    "manifest": manifest_path,
+                    "output": output_path,
+                    "github_output": str(github_output_path),
+                    "github_env": None,
+                },
+            )
+            with redirect_stdout(StringIO()):
+                resolver.resolve(args)
+            return (
+                json.loads(output_path.read_text()),
+                github_output_path.read_text(),
+            )
+
+    def pdp_git_submodule_component(self):
+        return {
+            "repository": "https://example.test/pdp.git",
+            "default": {"strategy": "config_default"},
+            "stability": {
+                "strategy": "git_submodule",
+                "repository": "https://example.test/filecoin-services.git",
+                "tag": "v*",
+                "path": "service_contracts/lib/pdp",
+            },
+            "frontier": {
+                "strategy": "git_commit",
+                "commit": "6" * 40,
+            },
+        }
+
     def test_latest_non_prerelease_tag_excludes_prereleases_and_annotated_refs(self):
         output = "\n".join(
             [
@@ -90,26 +206,225 @@ class ResolverTests(unittest.TestCase):
         self.assertEqual(resolved["commit"], "bbb")
 
     def test_unknown_profile_fails(self):
+        manifest = self.manifest()
         with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            manifest_path = directory / "manifest.json"
+            output_path = directory / "resolved.json"
+            manifest_path.write_text(json.dumps(manifest))
             args = type(
                 "Args",
                 (),
                 {
                     "profile": "unknown",
-                    "manifest": Path(directory) / "manifest.json",
-                    "output": Path(directory) / "resolved.json",
+                    "manifest": manifest_path,
+                    "output": output_path,
                     "github_output": None,
                     "github_env": None,
                 },
             )
-            with self.assertRaises(resolver.ResolutionError):
+            with self.assertRaisesRegex(resolver.ResolutionError, "Unknown profile"):
                 resolver.resolve(args)
 
     def test_manifest_missing_component_fails(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "manifest.json"
-            path.write_text(json.dumps({"schema_version": 1, "components": {}}))
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "profiles": {"default": {"base": "default"}},
+                        "components": {},
+                    }
+                )
+            )
             with self.assertRaisesRegex(resolver.ResolutionError, "missing"):
+                resolver.load_manifest(path)
+
+    def test_mixed_profile_resolves_only_selected_component_from_frontier(self):
+        metadata = self.resolve_manifest(self.manifest(), "stability-frontier-curio")
+        components = metadata["components"]
+
+        self.assertEqual(metadata["profile"], "stability-frontier-curio")
+        self.assertEqual(components["lotus"]["selection_profile"], "stability")
+        self.assertEqual(components["lotus"]["commit"], "a" * 40)
+        self.assertEqual(components["curio"]["selection_profile"], "frontier")
+        self.assertEqual(components["curio"]["commit"], "d" * 40)
+        self.assertEqual(
+            components["filecoin-services"]["selection_profile"], "stability"
+        )
+        self.assertEqual(components["pdp"]["selection_profile"], "stability")
+        self.assertEqual(components["synapse-sdk"]["selection_profile"], "stability")
+        self.assertEqual(components["filecoin-pin"]["selection_profile"], "stability")
+
+    def test_pdp_mixed_profile_resolves_only_pdp_from_frontier(self):
+        metadata = self.resolve_manifest(self.manifest(), "stability-frontier-pdp")
+        components = metadata["components"]
+
+        self.assertEqual(metadata["profile"], "stability-frontier-pdp")
+        self.assertEqual(components["lotus"]["selection_profile"], "stability")
+        self.assertEqual(components["curio"]["selection_profile"], "stability")
+        self.assertEqual(
+            components["filecoin-services"]["selection_profile"], "stability"
+        )
+        self.assertEqual(components["pdp"]["selection_profile"], "frontier")
+        self.assertEqual(components["pdp"]["commit"], "6" * 40)
+        self.assertEqual(components["synapse-sdk"]["selection_profile"], "stability")
+        self.assertEqual(components["filecoin-pin"]["selection_profile"], "stability")
+
+    @patch.object(resolver, "run_command")
+    def test_filecoin_services_mixed_profile_emits_pdp_git_submodule(self, run_command):
+        parent_commit = "8" * 40
+        pdp_commit = "7" * 40
+        manifest = self.manifest()
+        manifest["components"]["pdp"] = self.pdp_git_submodule_component()
+        run_command.side_effect = FakeRunner(
+            [
+                (
+                    (
+                        "git",
+                        "ls-remote",
+                        "--tags",
+                        "https://example.test/filecoin-services.git",
+                        "v*",
+                    ),
+                    f"{parent_commit} refs/tags/v1.3.0",
+                ),
+                (
+                    lambda command: command[:3] == ["git", "-C", command[2]]
+                    and command[3:] == ["init", "repo"],
+                    "",
+                ),
+                (
+                    lambda command: command[:5]
+                    == ["git", "-C", command[2], "remote", "add"],
+                    "",
+                ),
+                (
+                    lambda command: command[:4] == ["git", "-C", command[2], "fetch"],
+                    "",
+                ),
+                (
+                    lambda command: command[:4] == ["git", "-C", command[2], "ls-tree"],
+                    f"160000 commit {pdp_commit}\tservice_contracts/lib/pdp",
+                ),
+            ]
+        )
+
+        metadata, github_output = self.resolve_manifest_with_github_output(
+            manifest, "stability-frontier-filecoin-services"
+        )
+        components = metadata["components"]
+
+        self.assertEqual(
+            components["filecoin-services"]["selection_profile"], "frontier"
+        )
+        self.assertEqual(components["pdp"]["source"], "git_submodule")
+        self.assertEqual(components["pdp"]["commit"], pdp_commit)
+        self.assertEqual(
+            components["pdp"]["submodule_from"],
+            {
+                "repository": "https://example.test/filecoin-services.git",
+                "ref_type": "tag",
+                "ref": "v1.3.0",
+                "commit": parent_commit,
+                "path": "service_contracts/lib/pdp",
+            },
+        )
+        self.assertIn(
+            "--filecoin-services gitcommit:https://example.test/project.git:"
+            + "f" * 40,
+            github_output,
+        )
+        self.assertIn(
+            "--pdp gitcommit:https://example.test/pdp.git:" + pdp_commit,
+            github_output,
+        )
+
+    @patch.object(resolver, "run_command")
+    def test_git_submodule_rejects_missing_gitlink(self, run_command):
+        parent_commit = "8" * 40
+        component = self.pdp_git_submodule_component()
+        run_command.side_effect = FakeRunner(
+            [
+                (
+                    (
+                        "git",
+                        "ls-remote",
+                        "--tags",
+                        "https://example.test/filecoin-services.git",
+                        "v*",
+                    ),
+                    f"{parent_commit} refs/tags/v1.3.0",
+                ),
+                (
+                    lambda command: command[:3] == ["git", "-C", command[2]]
+                    and command[3:] == ["init", "repo"],
+                    "",
+                ),
+                (
+                    lambda command: command[:5]
+                    == ["git", "-C", command[2], "remote", "add"],
+                    "",
+                ),
+                (
+                    lambda command: command[:4] == ["git", "-C", command[2], "fetch"],
+                    "",
+                ),
+                (
+                    lambda command: command[:4] == ["git", "-C", command[2], "ls-tree"],
+                    "100644 blob abcdef\tservice_contracts/lib/pdp",
+                ),
+            ]
+        )
+
+        with self.assertRaisesRegex(resolver.ResolutionError, "not a git submodule"):
+            resolver.resolve_component("pdp", component, "stability", run_command)
+
+    def test_absent_mixed_profile_is_rejected(self):
+        profiles = {
+            "default": {"base": "default"},
+            "stability": {"base": "stability"},
+            "frontier": {"base": "frontier"},
+            "stability-frontier-curio": {
+                "base": "stability",
+                "components": {"curio": "frontier"},
+            },
+        }
+        manifest = self.manifest(profiles=profiles)
+        with self.assertRaisesRegex(resolver.ResolutionError, "Unknown profile"):
+            self.resolve_manifest(manifest, "stability-frontier-filecoin-pin")
+
+    def test_manifest_profile_rejects_unknown_component_override(self):
+        manifest = self.manifest(
+            profiles={
+                "default": {"base": "default"},
+                "bad": {
+                    "base": "stability",
+                    "components": {"missing": "frontier"},
+                },
+            }
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.json"
+            path.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(resolver.ResolutionError, "unknown components"):
+                resolver.load_manifest(path)
+
+    def test_manifest_profile_rejects_missing_component_selection(self):
+        manifest = self.manifest(
+            profiles={
+                "default": {"base": "default"},
+                "bad": {
+                    "base": "stability",
+                    "components": {"lotus": "not-a-selection"},
+                },
+            }
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.json"
+            path.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(resolver.ResolutionError, "no such selection"):
                 resolver.load_manifest(path)
 
     def test_npm_version_resolves_dist_tag_to_npm_version(self):

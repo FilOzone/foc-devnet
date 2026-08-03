@@ -5,13 +5,42 @@ Its resolver is located in `scripts/resolve-ci-dependencies.py`.
 
 ## Profiles
 
-The manifest currently supports three profiles:
+The manifest declares valid profiles in its top-level `profiles` object:
 
 - `default`: used by PR CI, a known-working set of client versions.
 - `stability`: used by nightly CI to test stable releases.
 - `frontier`: used by nightly CI to test branch heads.
+- `stability-frontier-lotus`: used by nightly CI to test stable releases
+  except Lotus, which is resolved from `frontier`.
+- `stability-frontier-curio`: used by nightly CI to test stable releases
+  except Curio, which is resolved from `frontier`.
+- `stability-frontier-filecoin-services`: used by nightly CI to test stable
+  releases except filecoin-services, which is resolved from `frontier`.
+- `stability-frontier-pdp`: used by nightly CI to test stable releases except
+  PDP, which is resolved from `frontier`.
 
-Each component must define a selection for each profile.
+Each component must define a selection for every component profile referenced by
+the top-level profile definitions. Today those component selections are
+`default`, `stability`, and `frontier`.
+
+Top-level profile definitions have a `base` component profile and can override
+specific components:
+
+```json
+{
+  "stability-frontier-curio": {
+    "base": "stability",
+    "components": {
+      "curio": "frontier"
+    }
+  }
+}
+```
+
+In that example, Curio resolves from its `frontier` selection while every other
+component resolves from `stability`. A profile is valid only if it is explicitly
+declared in `profiles`; for example, `stability-frontier-filecoin-pin` does not
+exist unless added there.
 
 ## Component Fields
 
@@ -20,7 +49,7 @@ Top-level component fields:
 - `repository`: Git repository URL.
 - `npm_package`: npm package name, for components that are resolved through npm
   metadata.
-- `default`, `stability`, `frontier`: profile selections.
+- `default`, `stability`, `frontier`: component profile selections.
 
 Profile selections always have a `strategy`. Some strategies require additional
 fields.
@@ -90,6 +119,25 @@ By default, pattern selections exclude prerelease tags such as `-rc`, `-alpha`,
   "include_prereleases": true
 }
 ```
+
+### `git_submodule`
+
+Resolve a git submodule gitlink from a tag or tag pattern in another repository.
+
+```json
+{
+  "strategy": "git_submodule",
+  "repository": "https://github.com/FilOzone/filecoin-services.git",
+  "tag": "v*",
+  "path": "service_contracts/lib/pdp"
+}
+```
+
+The resolver first resolves `repository` and `tag` with the same rules as
+`git_tag`, then reads `path` from that tree and records the submodule gitlink SHA
+as the selected component commit. PDP uses this to pin the same bundled PDP
+gitlink as the selected filecoin-services stability tag, even in mixed profiles
+that override filecoin-services itself.
 
 ### `npm_version`
 

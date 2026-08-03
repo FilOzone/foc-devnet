@@ -11,9 +11,10 @@ import os
 import re
 import shlex
 import subprocess
+import tempfile
 from pathlib import Path
 
-PROFILES = {"default", "stability", "frontier"}
+MANIFEST_SCHEMA_VERSION = 2
 INIT_COMPONENT_FLAGS = {
     "lotus": "--lotus",
     "curio": "--curio",
@@ -45,17 +46,75 @@ def load_manifest(path: Path) -> dict:
             f"Cannot load dependency manifest {path}: {error}"
         ) from error
 
-    if manifest.get("schema_version") != 1:
-        raise ResolutionError("Dependency manifest schema_version must be 1")
+    if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
+        raise ResolutionError(
+            f"Dependency manifest schema_version must be {MANIFEST_SCHEMA_VERSION}"
+        )
     components = manifest.get("components")
     if not isinstance(components, dict):
         raise ResolutionError("Dependency manifest must contain a components object")
+    profiles = manifest.get("profiles")
+    if not isinstance(profiles, dict):
+        raise ResolutionError("Dependency manifest must contain a profiles object")
 
     required = set(INIT_COMPONENT_FLAGS) | {"synapse-sdk", "filecoin-pin"}
     missing = sorted(required - set(components))
     if missing:
         raise ResolutionError(f"Dependency manifest is missing: {', '.join(missing)}")
+    validate_profiles(profiles, components)
     return manifest
+
+
+def validate_profiles(profiles: dict, components: dict) -> None:
+    for profile_name, profile in profiles.items():
+        if not isinstance(profile_name, str) or not profile_name:
+            raise ResolutionError("Profile names must be non-empty strings")
+        if not isinstance(profile, dict):
+            raise ResolutionError(f"Profile {profile_name!r} must be an object")
+
+        base = profile.get("base")
+        if not isinstance(base, str) or not base:
+            raise ResolutionError(f"Profile {profile_name!r} base must be a string")
+
+        component_overrides = profile.get("components", {})
+        if not isinstance(component_overrides, dict):
+            raise ResolutionError(
+                f"Profile {profile_name!r} components must be an object"
+            )
+
+        unknown_components = sorted(set(component_overrides) - set(components))
+        if unknown_components:
+            raise ResolutionError(
+                f"Profile {profile_name!r} references unknown components: "
+                f"{', '.join(unknown_components)}"
+            )
+
+        for component_name, component in components.items():
+            selection_profile = component_overrides.get(component_name, base)
+            if not isinstance(selection_profile, str) or not selection_profile:
+                raise ResolutionError(
+                    f"Profile {profile_name!r} selection for {component_name!r} "
+                    "must be a string"
+                )
+            if selection_profile not in component:
+                raise ResolutionError(
+                    f"Profile {profile_name!r} selects {selection_profile!r} for "
+                    f"{component_name}, but that component has no such selection"
+                )
+
+
+def component_profile_map(manifest: dict, profile_name: str) -> dict[str, str]:
+    profiles = manifest["profiles"]
+    if profile_name not in profiles:
+        raise ResolutionError(f"Unknown profile {profile_name!r}")
+
+    profile = profiles[profile_name]
+    base = profile["base"]
+    component_overrides = profile.get("components", {})
+    return {
+        component_name: component_overrides.get(component_name, base)
+        for component_name in manifest["components"]
+    }
 
 
 def parse_ls_remote(output: str) -> list[tuple[str, str]]:
@@ -187,6 +246,27 @@ def npm_metadata(package: str, version: str, runner=run_command) -> dict:
     return {"version": resolved_version, "gitHead": git_head}
 
 
+def read_gitlink(repository: str, commit: str, path: str, runner=run_command) -> str:
+    with tempfile.TemporaryDirectory(prefix="foc-devnet-ci-deps-") as directory:
+        repo_dir = Path(directory) / "repo"
+        runner(["git", "-C", directory, "init", "repo"])
+        runner(["git", "-C", str(repo_dir), "remote", "add", "origin", repository])
+        runner(["git", "-C", str(repo_dir), "fetch", "--depth=1", "origin", commit])
+        output = runner(["git", "-C", str(repo_dir), "ls-tree", "FETCH_HEAD", path])
+
+    fields = output.split()
+    if len(fields) < 4 or fields[0] != "160000" or fields[1] != "commit":
+        raise ResolutionError(
+            f"{path} in {repository}@{commit} is not a git submodule gitlink"
+        )
+    gitlink = fields[2]
+    if not COMMIT_RE.fullmatch(gitlink):
+        raise ResolutionError(
+            f"{path} in {repository}@{commit} has invalid gitlink SHA {gitlink!r}"
+        )
+    return gitlink
+
+
 def validate_overrides(name: str, strategy: str, overrides) -> dict:
     if overrides is None:
         return {}
@@ -226,6 +306,7 @@ def resolve_component(
     resolved = {
         "name": name,
         "repository": repository,
+        "selection_profile": profile,
         "strategy": strategy,
     }
 
@@ -251,6 +332,36 @@ def resolve_component(
         branch = selection["branch"]
         commit = resolve_ref(repository, f"refs/heads/{branch}", runner)
         resolved.update(source="git", ref_type="branch", ref=branch, commit=commit)
+    elif strategy == "git_submodule":
+        parent_repository = selection["repository"]
+        tag = selection["tag"]
+        path = selection["path"]
+        if not isinstance(path, str) or not path:
+            raise ResolutionError(f"{name} git_submodule path must be a string")
+        if path.startswith("/") or ".." in Path(path).parts:
+            raise ResolutionError(f"{name} git_submodule path must be relative")
+        if any(char in tag for char in "*?["):
+            include_prereleases = selection.get("include_prereleases", False)
+            if not isinstance(include_prereleases, bool):
+                raise ResolutionError(f"{name} include_prereleases must be a boolean")
+            output = runner(["git", "ls-remote", "--tags", parent_repository, tag])
+            tag, parent_commit = select_latest_tag(output, tag, include_prereleases)
+        else:
+            parent_commit = resolve_tag(parent_repository, tag, runner)
+        commit = read_gitlink(parent_repository, parent_commit, path, runner)
+        resolved.update(
+            source="git_submodule",
+            ref_type="commit",
+            ref=commit,
+            commit=commit,
+            submodule_from={
+                "repository": parent_repository,
+                "ref_type": "tag",
+                "ref": tag,
+                "commit": parent_commit,
+                "path": path,
+            },
+        )
     elif strategy == "npm_version":
         requested = selection["version"]
         data = npm_metadata(component["npm_package"], requested, runner)
@@ -314,11 +425,10 @@ def scenario_environment(metadata_path: Path, components: dict) -> dict:
 
 
 def resolve(args) -> None:
-    if args.profile not in PROFILES:
-        raise ResolutionError(f"Unknown profile {args.profile!r}")
     manifest = load_manifest(args.manifest)
+    component_profiles = component_profile_map(manifest, args.profile)
     components = {
-        name: resolve_component(name, component, args.profile)
+        name: resolve_component(name, component, component_profiles[name], run_command)
         for name, component in manifest["components"].items()
     }
     metadata = {

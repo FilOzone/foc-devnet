@@ -1,9 +1,10 @@
 ---
 # Runs on a nightly schedule (and optionally via manual dispatch).
 #
-# Executes the full CI matrix: stability (latest tags) and frontier
-# (latest branches). Both runs file GitHub issues with their results
-# unless manually suppressed via workflow_dispatch inputs.
+# Executes the full CI matrix: stability (latest tags), frontier
+# (latest branches), and manifest-declared mixed profiles. Runs file GitHub
+# issues with their results unless manually suppressed via workflow_dispatch
+# inputs.
 
 name: CI (Nightly)
 
@@ -35,6 +36,18 @@ jobs:
           - name: frontier
             issue_label: scenarios-run-frontier
             issue_title: "FOC Devnet scenarios run report (frontier)"
+          - name: stability-frontier-lotus
+            issue_label: scenarios-run-stability-frontier-lotus
+            issue_title: "FOC Devnet scenarios run report (stability-frontier-lotus)"
+          - name: stability-frontier-curio
+            issue_label: scenarios-run-stability-frontier-curio
+            issue_title: "FOC Devnet scenarios run report (stability-frontier-curio)"
+          - name: stability-frontier-filecoin-services
+            issue_label: scenarios-run-stability-frontier-filecoin-services
+            issue_title: "FOC Devnet scenarios run report (stability-frontier-filecoin-services)"
+          - name: stability-frontier-pdp
+            issue_label: scenarios-run-stability-frontier-pdp
+            issue_title: "FOC Devnet scenarios run report (stability-frontier-pdp)"
     uses: ./.github/workflows/ci_run.yml
     with:
       name: ${{ matrix.name }}
