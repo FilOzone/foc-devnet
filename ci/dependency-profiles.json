@@ -61,7 +61,7 @@
       "npm_package": "@filoz/synapse-sdk",
       "default": {
         "strategy": "git_tag",
-        "tag": "synapse-sdk-v1.1.0"
+        "tag": "synapse-sdk-v1.1.1"
       },
       "stability": {
         "strategy": "git_tag",
