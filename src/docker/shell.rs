@@ -101,16 +101,18 @@ pub fn docker_run_host_network(image: &str, args: &[&str]) -> Result<Output, Box
     docker_command(&full_args)
 }
 
-/// Note: Does not use --rm flag to allow log inspection after container exits.
-pub fn docker_run_with_volumes(
+/// Run a Docker container with prepared `--mount` specifications.
+///
+/// Note: Does not use `--rm` to allow log inspection after container exits.
+pub fn docker_run_with_mounts(
     image: &str,
-    volumes: &[&str],
+    mounts: &[&str],
     args: &[&str],
 ) -> Result<Output, Box<dyn Error>> {
     let mut full_args = vec!["run"];
-    for volume in volumes {
-        full_args.push("-v");
-        full_args.push(volume);
+    for mount in mounts {
+        full_args.push("--mount");
+        full_args.push(mount);
     }
     full_args.extend_from_slice(args);
     full_args.push(image);

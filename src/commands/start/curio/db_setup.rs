@@ -12,6 +12,7 @@ use crate::commands::start::lotus_utils::{build_fullnode_api_info, read_lotus_to
 use crate::constants::{
     DB_NAME, DB_PASSWORD, DB_USER, POSTGRES_CONTAINER_PORT, SCYLLA_CQL_CONTAINER_PORT,
 };
+use crate::docker::bind_mount;
 use crate::docker::command_logger::run_and_log_command;
 use crate::docker::containers::{
     lotus_container_name, postgres_container_name, scylla_container_name,
@@ -172,11 +173,11 @@ fn create_base_cluster(
 
     // Get binary directory for volume mount
     let bin_dir = foc_devnet_bin();
-    let bin_mount = format!("{}:/usr/local/bin/lotus-bins", bin_dir.display());
+    let bin_mount = bind_mount(&bin_dir, "/usr/local/bin/lotus-bins")?;
 
     // Get lotus-data directory for volume mount (needed for token and LOTUS_PATH)
     let lotus_data_dir = foc_devnet_docker_volumes().join("lotus-data");
-    let lotus_data_mount = format!("{}:/lotus-data", lotus_data_dir.display());
+    let lotus_data_mount = bind_mount(&lotus_data_dir, "/lotus-data")?;
 
     // Create a unique container name for this operation
     let container_name = format!("foc-{}-curio-db-setup-{}", run_id, sp_index);
@@ -189,9 +190,9 @@ fn create_base_cluster(
         &container_name,
         "--network",
         &pdp_network,
-        "-v",
+        "--mount",
         &bin_mount,
-        "-v",
+        "--mount",
         &lotus_data_mount,
     ];
 
@@ -282,11 +283,11 @@ fn create_pdp_layer(context: &SetupContext, sp_index: usize) -> Result<(), Box<d
 
     // Get binary directory for volume mount
     let bin_dir = foc_devnet_bin();
-    let bin_mount = format!("{}:/usr/local/bin/lotus-bins", bin_dir.display());
+    let bin_mount = bind_mount(&bin_dir, "/usr/local/bin/lotus-bins")?;
 
     // Get lotus-data directory for volume mount (needed for token and LOTUS_PATH)
     let lotus_data_dir = foc_devnet_docker_volumes().join("lotus-data");
-    let lotus_data_mount = format!("{}:/lotus-data", lotus_data_dir.display());
+    let lotus_data_mount = bind_mount(&lotus_data_dir, "/lotus-data")?;
 
     // Generate PDP layer config with sp_index
     let pdp_config = PDP_LAYER_CONFIG_TEMPLATE.replace("{sp_index}", &sp_index.to_string());
@@ -302,9 +303,9 @@ fn create_pdp_layer(context: &SetupContext, sp_index: usize) -> Result<(), Box<d
         &container_name,
         "--network",
         &pdp_network,
-        "-v",
+        "--mount",
         &bin_mount,
-        "-v",
+        "--mount",
         &lotus_data_mount,
     ];
 

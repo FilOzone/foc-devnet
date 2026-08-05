@@ -3,6 +3,7 @@
 //! This module handles the verification of deployed MockUSDFC contracts.
 
 use crate::commands::start::step::SetupContext;
+use crate::docker::bind_mount;
 use crate::docker::command_logger::run_and_log_command;
 use crate::utils::retry::{retry_with_fixed_delay, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS};
 use std::error::Error;
@@ -28,6 +29,7 @@ pub fn verify_mock_usdfc(
     std::thread::sleep(std::time::Duration::from_secs(
         TRANSACTION_CONFIRMATION_WAIT_SECS,
     ));
+    let contract_mount = bind_mount(contract_dir, "/workspace")?;
 
     // Retry verification with fixed delay
     let verification_result = retry_with_fixed_delay(
@@ -54,8 +56,8 @@ pub fn verify_mock_usdfc(
                     "foc-user",
                     "--network",
                     "host",
-                    "-v",
-                    &format!("{}:/workspace", contract_dir.display()),
+                    "--mount",
+                    &contract_mount,
                     crate::constants::BUILDER_DOCKER_IMAGE,
                     "bash",
                     "-c",

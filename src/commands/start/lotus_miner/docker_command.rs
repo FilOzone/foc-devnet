@@ -10,9 +10,10 @@ use crate::commands::start::lotus_utils::{build_fullnode_api_info, read_lotus_to
 use crate::commands::start::step::SetupContext;
 use crate::docker::containers::{lotus_container_name, lotus_miner_container_name};
 use crate::docker::network::lotus_network_name;
+use crate::docker::push_bind_mount;
 use crate::paths::{
-    foc_devnet_bin, foc_devnet_docker_volumes_cache, foc_devnet_genesis_sectors_lotus_miner,
-    foc_devnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
+    foc_devnet_bin, foc_devnet_genesis_sectors_lotus_miner, foc_devnet_proof_parameters,
+    CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
 };
 
 /// Build the Docker run command for Lotus-Miner
@@ -37,8 +38,6 @@ pub fn build_miner_docker_command(
     // Get paths
     let bin_dir = foc_devnet_bin();
     let sectors_dir = foc_devnet_genesis_sectors_lotus_miner(run_id);
-    let builder_volumes_dir =
-        foc_devnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
     let params_dir = foc_devnet_proof_parameters();
 
     // Get allocated miner API port from context
@@ -66,30 +65,25 @@ pub fn build_miner_docker_command(
         format!("{}:2345", miner_api_port), // host:container
     ]);
 
-    // Add volume mounts (paths updated for foc-user)
+    // Add validated bind mounts (paths updated for foc-user)
     let miner_data_dir = volumes_dir.join("lotus-miner-data");
-    let volume_mounts = vec![
-        format!("{}:/usr/local/bin/lotus-bins", bin_dir.display()),
-        format!(
-            "{}:/home/foc-user/.lotus-miner-local-net",
-            miner_data_dir.display()
-        ),
-        format!(
-            "{}:/home/foc-user/.lotus-local-net",
-            lotus_data_dir.display()
-        ),
-        format!("{}:/sectors", sectors_dir.display()),
-        format!(
-            "{}:{}",
-            params_dir.display(),
-            CONTAINER_FILECOIN_PROOF_PARAMS_PATH
-        ),
-        format!("{}:/cargo", builder_volumes_dir.join("cargo").display()),
-    ];
-
-    for mount in &volume_mounts {
-        docker_args.extend_from_slice(&["-v".to_string(), mount.clone()]);
-    }
+    push_bind_mount(&mut docker_args, &bin_dir, "/usr/local/bin/lotus-bins")?;
+    push_bind_mount(
+        &mut docker_args,
+        &miner_data_dir,
+        "/home/foc-user/.lotus-miner-local-net",
+    )?;
+    push_bind_mount(
+        &mut docker_args,
+        &lotus_data_dir,
+        "/home/foc-user/.lotus-local-net",
+    )?;
+    push_bind_mount(&mut docker_args, &sectors_dir, "/sectors")?;
+    push_bind_mount(
+        &mut docker_args,
+        &params_dir,
+        CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
+    )?;
 
     // Add FULLNODE_API_INFO with token read from host
     docker_args.extend_from_slice(&[

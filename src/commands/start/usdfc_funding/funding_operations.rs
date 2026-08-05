@@ -3,11 +3,13 @@
 //! This module provides utilities for transferring MockUSDFC tokens between addresses.
 
 use crate::commands::start::step::SetupContext;
+use crate::docker::bind_mount;
 use crate::docker::command_logger::run_and_log_command;
 use crate::utils::retry::{retry_with_fixed_delay, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS};
 use ethers_core::types::U256;
 use hex;
 use std::error::Error;
+use std::path::Path;
 use tracing::info;
 
 /// Parameters for MockUSDFC transfer operations
@@ -55,6 +57,7 @@ pub fn transfer_mock_usdfc(
         context.run_id(),
         params.description.replace(" ", "-").replace("→", "to")
     );
+    let workspace_mount = bind_mount(Path::new("/tmp"), "/workspace")?;
     let output = run_and_log_command(
         "docker",
         &[
@@ -63,8 +66,8 @@ pub fn transfer_mock_usdfc(
             &container_name,
             "--network",
             "host", // Use host network to access localhost:1234
-            "-v",
-            "/tmp:/workspace",
+            "--mount",
+            &workspace_mount,
             crate::constants::BUILDER_DOCKER_IMAGE,
             "bash",
             "-c",
@@ -99,6 +102,8 @@ pub fn check_mock_usdfc_balance(
                 context.run_id(),
                 &eth_address[..8]
             );
+            let contract_dir = crate::paths::project_root()?.join("contracts/MockUSDFC");
+            let workspace_mount = bind_mount(&contract_dir, "/workspace")?;
             let output = run_and_log_command(
                 "docker",
                 &[
@@ -108,13 +113,8 @@ pub fn check_mock_usdfc_balance(
                     &container_name,
                     "--network",
                     "host",
-                    "-v",
-                    &format!(
-                        "{}:/workspace",
-                        crate::paths::project_root()?
-                            .join("contracts/MockUSDFC")
-                            .display()
-                    ),
+                    "--mount",
+                    &workspace_mount,
                     crate::constants::BUILDER_DOCKER_IMAGE,
                     "bash",
                     "-c",

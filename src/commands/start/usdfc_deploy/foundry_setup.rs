@@ -4,6 +4,7 @@
 //! for deploying the MockUSDFC contract.
 
 use crate::commands::start::step::SetupContext;
+use crate::docker::bind_mount;
 use crate::docker::command_logger::run_and_log_command;
 use crate::embedded_assets;
 use crate::paths::foc_devnet_run_dir;
@@ -48,6 +49,7 @@ pub fn setup_foundry_project(
     contract_dir: &Path,
     run_id: &str,
 ) -> Result<(), Box<dyn Error>> {
+    let contract_mount = bind_mount(contract_dir, "/workspace")?;
     let openzeppelin_path = contract_dir.join("lib/openzeppelin-contracts");
 
     if !openzeppelin_path.exists() {
@@ -67,8 +69,8 @@ pub fn setup_foundry_project(
                     &container_name,
                     "-u",
                     "foc-user",
-                    "-v",
-                    &format!("{}:/workspace", contract_dir.display()),
+                    "--mount",
+                    &contract_mount,
                     crate::constants::BUILDER_DOCKER_IMAGE,
                     "bash",
                     "-c",
@@ -98,8 +100,8 @@ pub fn setup_foundry_project(
                 &container_name,
                 "-u",
                 "foc-user",
-                "-v",
-                &format!("{}:/workspace", contract_dir.display()),
+                "--mount",
+                &contract_mount,
                 crate::constants::BUILDER_DOCKER_IMAGE,
                 "bash",
                 "-c",
@@ -134,8 +136,8 @@ pub fn setup_foundry_project(
             &container_name,
             "-u",
             "foc-user",
-            "-v",
-            &format!("{}:/workspace", contract_dir.display()),
+            "--mount",
+            &contract_mount,
             crate::constants::BUILDER_DOCKER_IMAGE,
             "bash",
             "-c",

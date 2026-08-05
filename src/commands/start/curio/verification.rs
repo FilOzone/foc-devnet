@@ -7,6 +7,7 @@
 
 use super::super::step::SetupContext;
 use super::constants::TEST_FILE_SIZE_BYTES;
+use crate::docker::bind_mount;
 use rand::Rng;
 use std::error::Error;
 use std::fs;
@@ -124,16 +125,18 @@ fn upload_test_file(
 
     // Mount bin directory where pdptool is located
     let bin_dir = crate::paths::foc_devnet_bin();
+    let file_mount = bind_mount(file_dir, "/tmp/test-data")?;
+    let bin_mount = bind_mount(&bin_dir, "/usr/local/bin/lotus-bins")?;
 
     let args = [
         "run",
         "--rm",
         "--network",
         "host",
-        "-v",
-        &format!("{}:/tmp/test-data", file_dir.display()),
-        "-v",
-        &format!("{}:/usr/local/bin/lotus-bins", bin_dir.display()),
+        "--mount",
+        &file_mount,
+        "--mount",
+        &bin_mount,
         crate::constants::BUILDER_DOCKER_IMAGE,
         "/usr/local/bin/lotus-bins/pdptool",
         "upload-piece",

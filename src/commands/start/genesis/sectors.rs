@@ -2,10 +2,10 @@
 //!
 //! This module handles pre-sealing sectors required for the genesis miners.
 
+use crate::docker::push_bind_mount;
 use crate::paths::{
-    foc_devnet_bin, foc_devnet_docker_volumes_cache, foc_devnet_genesis,
-    foc_devnet_genesis_sectors, foc_devnet_genesis_sectors_lotus_miner,
-    foc_devnet_genesis_sectors_pdp_sp,
+    foc_devnet_bin, foc_devnet_genesis, foc_devnet_genesis_sectors,
+    foc_devnet_genesis_sectors_lotus_miner, foc_devnet_genesis_sectors_pdp_sp,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -108,8 +108,6 @@ fn preseal_miner_sectors(
 
     // Run lotus-seed pre-seal in builder container
     let bin_dir = foc_devnet_bin();
-    let builder_volumes_dir =
-        foc_devnet_docker_volumes_cache().join(crate::constants::BUILDER_CONTAINER);
 
     // Build docker args with network environment variables
     let mut docker_args = vec![
@@ -120,17 +118,14 @@ fn preseal_miner_sectors(
         format!("foc-{}-genesis-preseal-{}", run_id, miner_id),
     ];
 
-    // Add volume mounts and command
-    docker_args.extend(vec![
-        "-v".to_string(),
-        format!("{}:/opt/bin", bin_dir.display()),
-        "-v".to_string(),
-        format!(
-            "{}:/home/foc-user/.cargo",
-            builder_volumes_dir.join("cargo").display()
-        ),
-        "-v".to_string(),
-        format!("{}:/home/foc-user/.genesis-sectors", miner_dir.display()),
+    // Add validated bind mounts and command
+    push_bind_mount(&mut docker_args, &bin_dir, "/opt/bin")?;
+    push_bind_mount(
+        &mut docker_args,
+        miner_dir,
+        "/home/foc-user/.genesis-sectors",
+    )?;
+    docker_args.extend([
         crate::constants::BUILDER_DOCKER_IMAGE.to_string(),
         "/bin/bash".to_string(),
         "-c".to_string(),
