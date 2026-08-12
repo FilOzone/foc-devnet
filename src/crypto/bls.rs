@@ -92,7 +92,8 @@ pub fn compute_bls_address(public_key: &PublicKey) -> Result<String, Box<dyn std
     // NOTE: The network byte is NOT included in the checksum calculation
     let mut checksum_input = vec![protocol];
     checksum_input.extend_from_slice(&pubkey_bytes);
-    let checksum = blake2::Blake2b::<blake2::digest::consts::U4>::digest(&checksum_input);
+    let checksum =
+        <blake2::Blake2b<blake2::digest::consts::U4> as blake2::Digest>::digest(&checksum_input);
     let checksum_bytes = checksum.as_slice(); // 4 bytes
 
     // Step 4: Prepare data for base32 encoding

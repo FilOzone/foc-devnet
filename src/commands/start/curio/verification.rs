@@ -8,7 +8,7 @@
 use super::super::step::SetupContext;
 use super::constants::TEST_FILE_SIZE_BYTES;
 use crate::docker::bind_mount;
-use rand::Rng;
+use rand::RngExt;
 use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
