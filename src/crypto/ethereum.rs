@@ -72,7 +72,7 @@ pub fn compute_native_address(
     let mut binary = vec![4u8];
     binary.extend(leb);
     binary.extend(eth_bytes.clone());
-    let checksum = blake2::Blake2b::<blake2::digest::consts::U4>::digest(&binary); // 32-bit checksum
+    let checksum = <blake2::Blake2b<blake2::digest::consts::U4> as blake2::Digest>::digest(&binary); // 32-bit checksum
     let mut sub_address = eth_bytes;
     sub_address.extend(checksum);
     let base32 =
