@@ -1,7 +1,7 @@
 # CI Dependency Profiles
 
-`dependency-profiles.json` is the central manifest for CI dependency selection.
-Its resolver is located in `scripts/resolve-ci-dependencies.py`.
+`dependencies.toml` is the central manifest for runtime defaults and CI
+dependency selection. Its resolver is located in `scripts/resolve-dependencies.py`.
 
 ## Profiles
 
@@ -19,22 +19,18 @@ The manifest declares valid profiles in its top-level `profiles` object:
 - `stability-frontier-pdp`: used by nightly CI to test stable releases except
   PDP, which is resolved from `frontier`.
 
-Each component must define a selection for every component profile referenced by
-the top-level profile definitions. Today those component selections are
-`default`, `stability`, and `frontier`.
+Components can define `default`, `stability`, and `frontier` selections. When a
+profile selects a component profile that the component does not define, the
+resolver uses that component's `default` selection unless the profile explicitly
+overrides that component.
 
 Top-level profile definitions have a `base` component profile and can override
 specific components:
 
-```json
-{
-  "stability-frontier-curio": {
-    "base": "stability",
-    "components": {
-      "curio": "frontier"
-    }
-  }
-}
+```toml
+[profiles.stability-frontier-curio]
+base = "stability"
+curio = "frontier"
 ```
 
 In that example, Curio resolves from its `frontier` selection while every other
@@ -46,45 +42,38 @@ exist unless added there.
 
 Top-level component fields:
 
-- `repository`: Git repository URL.
+- `git`: Git repository URL.
 - `npm_package`: npm package name, for components that are resolved through npm
   metadata.
 - `default`, `stability`, `frontier`: component profile selections.
 
-Profile selections always have a `strategy`. Some strategies require additional
-fields.
+Profile selections are inline TOML tables. The resolver infers the strategy from
+the keys present in each selection.
 
-### `config_default`
+### `bundled`
 
-Use the compiled `Config::default()` value and pass no runtime override to
-`foc-devnet init`.
+Use the component bundled by another dependency and pass no runtime override to
+`foc-devnet init`. PDP uses this in the `default` profile so the runtime default
+continues to use filecoin-services' bundled submodule.
 
-```json
-{
-  "strategy": "config_default"
-}
+```toml
+default = { bundled = true }
 ```
 
 ### `git_commit`
 
 Use an exact Git commit SHA.
 
-```json
-{
-  "strategy": "git_commit",
-  "commit": "fadc836e65804311aca3bd2276861acabe42313f"
-}
+```toml
+default = { commit = "fadc836e65804311aca3bd2276861acabe42313f" }
 ```
 
 ### `git_branch`
 
 Resolve a branch head to an immutable commit SHA before the run starts.
 
-```json
-{
-  "strategy": "git_branch",
-  "branch": "master"
-}
+```toml
+frontier = { branch = "master" }
 ```
 
 The resolved metadata records both the branch name and the exact commit.
@@ -93,70 +82,49 @@ The resolved metadata records both the branch name and the exact commit.
 
 Resolve a Git tag to an immutable commit SHA. `tag` can be an exact tag:
 
-```json
-{
-  "strategy": "git_tag",
-  "tag": "v1.2.3"
-}
+```toml
+default = { tag = "v1.2.3" }
 ```
 
 `tag` can also be a pattern. Pattern selections choose the latest matching tag:
 
-```json
-{
-  "strategy": "git_tag",
-  "tag": "v*"
-}
+```toml
+stability = { tag_pattern = "v*" }
 ```
 
 By default, pattern selections exclude prerelease tags such as `-rc`, `-alpha`,
 `-beta`, and development tags. Set `include_prereleases` to include them:
 
-```json
-{
-  "strategy": "git_tag",
-  "tag": "v*",
-  "include_prereleases": true
-}
+```toml
+stability = { tag_pattern = "v*", include_prereleases = true }
 ```
 
 ### `git_submodule`
 
 Resolve a git submodule gitlink from a tag or tag pattern in another repository.
 
-```json
-{
-  "strategy": "git_submodule",
-  "repository": "https://github.com/FilOzone/filecoin-services.git",
-  "tag": "v*",
-  "path": "service_contracts/lib/pdp"
-}
+```toml
+stability = { submodule_git = "https://github.com/FilOzone/filecoin-services.git", tag_pattern = "v*", path = "service_contracts/lib/pdp" }
 ```
 
-The resolver first resolves `repository` and `tag` with the same rules as
-`git_tag`, then reads `path` from that tree and records the submodule gitlink SHA
-as the selected component commit. PDP uses this to pin the same bundled PDP
-gitlink as the selected filecoin-services stability tag, even in mixed profiles
-that override filecoin-services itself.
+The resolver first resolves `submodule_git` and `tag_pattern` with the same
+rules as `git_tag`, then reads `path` from that tree and records the submodule
+gitlink SHA as the selected component commit. PDP uses this to pin the same
+bundled PDP gitlink as the selected filecoin-services stability tag, even in
+mixed profiles that override filecoin-services itself.
 
-### `npm_version`
+### `npm`
 
 Resolve an npm version, range, or dist-tag to a concrete package version.
 
-```json
-{
-  "strategy": "npm_version",
-  "version": "1.0.1"
-}
+```toml
+default = { npm = "1.0.1" }
 ```
 
-The `version` field can also be an npm dist-tag:
+The `npm` field can also be an npm dist-tag:
 
-```json
-{
-  "strategy": "npm_version",
-  "version": "latest"
-}
+```toml
+stability = { npm = "latest" }
 ```
 
 The resolver records the concrete package version selected at resolution time
@@ -168,17 +136,8 @@ Some profile selections can include an optional `overrides` object. Each entry
 maps a package name to a `version` and a `reason` explaining why the override
 exists:
 
-```json
-{
-  "strategy": "git_tag",
-  "tag": "synapse-sdk-v1.0.1",
-  "overrides": {
-    "nanoid": {
-      "version": "3.3.13",
-      "reason": "nanoid 5.x is ESM-only and breaks the CJS build"
-    }
-  }
-}
+```toml
+default = { tag = "synapse-sdk-v1.0.1", overrides = { nanoid = { version = "3.3.13", reason = "nanoid 5.x is ESM-only and breaks the CJS build" } } }
 ```
 
 Overrides are explicit profile policy. Both `version` and `reason` are required
@@ -189,7 +148,7 @@ override is applied. The resolver does not infer overrides from package metadata
 Overrides are currently allowed only for:
 
 - `synapse-sdk`, because scenario setup controls its pnpm install.
-- `filecoin-pin` selections using `npm_version`, because those install into a
+- `filecoin-pin` selections using `npm`, because those install into a
   temporary npm project controlled by the scenario.
 
 Current consumers:
@@ -201,7 +160,7 @@ Current consumers:
 
 ## Current Boundary
 
-`resolve-ci-dependencies.py` resolves metadata. It does **not** install
+`resolve-dependencies.py` resolves metadata. It does **not** install
 components.
 
 Installation currently lives in three places (which consume the resolved

@@ -5,12 +5,14 @@
 //! port allocations, and executable locations for various components.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::OnceLock;
 
 /// Represents the location of an executable or source code for a component.
 ///
 /// This enum allows specifying how to obtain and run different Filecoin-related
 /// executables (lotus, lotus-miner, curio) in various deployment scenarios.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Location {
     /// Use a local directory containing source code that needs to be built.
     ///
@@ -36,6 +38,79 @@ pub enum Location {
     /// The `url` field is the Git repository URL, and `branch` is the specific
     /// branch (e.g., "main", "develop") to check out.
     GitBranch { url: String, branch: String },
+}
+
+static DEPENDENCY_MANIFEST: OnceLock<DependencyManifest> = OnceLock::new();
+
+#[derive(Debug, Deserialize)]
+struct DependencyManifest {
+    schema_version: u32,
+    dependencies: HashMap<String, DependencyDefinition>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DependencyDefinition {
+    git: String,
+    default: DependencySelection,
+}
+
+#[derive(Debug, Deserialize)]
+struct DependencySelection {
+    tag: Option<String>,
+    commit: Option<String>,
+    branch: Option<String>,
+    bundled: Option<bool>,
+}
+
+fn dependency_manifest() -> &'static DependencyManifest {
+    DEPENDENCY_MANIFEST.get_or_init(|| {
+        let manifest: DependencyManifest = toml::from_str(include_str!("../dependencies.toml"))
+            .expect("embedded dependencies.toml must be valid");
+        assert_eq!(
+            manifest.schema_version, 1,
+            "embedded dependencies.toml schema_version must be 1"
+        );
+        manifest
+    })
+}
+
+fn dependency_definition(name: &str) -> &'static DependencyDefinition {
+    dependency_manifest()
+        .dependencies
+        .get(name)
+        .unwrap_or_else(|| panic!("embedded dependencies.toml is missing {name}"))
+}
+
+fn default_dependency_location(name: &str) -> Option<Location> {
+    let definition = dependency_definition(name);
+    let selection = &definition.default;
+
+    if selection.bundled == Some(true) {
+        return None;
+    }
+    if let Some(tag) = &selection.tag {
+        return Some(Location::GitTag {
+            url: definition.git.clone(),
+            tag: tag.clone(),
+        });
+    }
+    if let Some(commit) = &selection.commit {
+        return Some(Location::GitCommit {
+            url: definition.git.clone(),
+            commit: commit.clone(),
+        });
+    }
+    if let Some(branch) = &selection.branch {
+        return Some(Location::GitBranch {
+            url: definition.git.clone(),
+            branch: branch.clone(),
+        });
+    }
+    panic!("embedded dependencies.toml default for {name} must be a git location or bundled")
+}
+
+pub fn default_dependency_repository(name: &str) -> String {
+    dependency_definition(name).git.clone()
 }
 
 impl Location {
@@ -284,23 +359,15 @@ impl Default for Config {
         Self {
             port_range_start: 5700,
             port_range_count: 100,
-            lotus: Location::GitTag {
-                url: "https://github.com/filecoin-project/lotus.git".to_string(),
-                tag: "v1.36.2".to_string(),
-            },
-            curio: Location::GitTag {
-                url: "https://github.com/filecoin-project/curio.git".to_string(),
-                tag: "v1.28.3".to_string(),
-            },
-            filecoin_services: Location::GitTag {
-                url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
-                tag: "v1.3.0".to_string(),
-            },
-            pdp: None,
-            multicall3: Location::GitTag {
-                url: "https://github.com/mds1/multicall3.git".to_string(),
-                tag: "v3.1.0".to_string(),
-            },
+            lotus: default_dependency_location("lotus")
+                .expect("lotus default dependency must not be bundled"),
+            curio: default_dependency_location("curio")
+                .expect("curio default dependency must not be bundled"),
+            filecoin_services: default_dependency_location("filecoin-services")
+                .expect("filecoin-services default dependency must not be bundled"),
+            pdp: default_dependency_location("pdp"),
+            multicall3: default_dependency_location("multicall3")
+                .expect("multicall3 default dependency must not be bundled"),
             approved_pdp_sp_count: 2,
             endorsed_pdp_sp_count: 1,
             active_pdp_sp_count: 2,
@@ -343,7 +410,7 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
-    use super::{Config, Location};
+    use super::{default_dependency_repository, Config, Location};
 
     const DEFAULT_URL: &str = "https://github.com/default/repo.git";
 
@@ -477,6 +544,40 @@ mod tests {
         assert!(!serialized.contains("pdp ="));
         let parsed: Config = toml::from_str(&serialized).unwrap();
         assert!(parsed.pdp.is_none());
+    }
+
+    #[test]
+    fn default_config_uses_manifest_dependency_defaults() {
+        let config = Config::default();
+
+        assert_eq!(
+            config.lotus,
+            Location::GitTag {
+                url: default_dependency_repository("lotus"),
+                tag: "v1.36.2".to_string(),
+            }
+        );
+        assert_eq!(
+            config.curio,
+            Location::GitTag {
+                url: default_dependency_repository("curio"),
+                tag: "v1.28.3".to_string(),
+            }
+        );
+        assert_eq!(
+            config.filecoin_services,
+            Location::GitTag {
+                url: default_dependency_repository("filecoin-services"),
+                tag: "v1.3.0".to_string(),
+            }
+        );
+        assert_eq!(
+            config.multicall3,
+            Location::GitTag {
+                url: default_dependency_repository("multicall3"),
+                tag: "v3.1.0".to_string(),
+            }
+        );
     }
 
     #[test]

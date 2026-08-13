@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve CI dependency profiles to immutable versions and verify checkouts."""
+"""Resolve dependency profiles to immutable versions and verify checkouts."""
 
 from __future__ import annotations
 
@@ -12,9 +12,10 @@ import re
 import shlex
 import subprocess
 import tempfile
+import tomllib
 from pathlib import Path
 
-MANIFEST_SCHEMA_VERSION = 2
+MANIFEST_SCHEMA_VERSION = 1
 INIT_COMPONENT_FLAGS = {
     "lotus": "--lotus",
     "curio": "--curio",
@@ -40,29 +41,119 @@ def run_command(command: list[str]) -> str:
 
 def load_manifest(path: Path) -> dict:
     try:
-        manifest = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError) as error:
+        raw_manifest = tomllib.loads(path.read_text())
+    except (OSError, tomllib.TOMLDecodeError) as error:
         raise ResolutionError(
             f"Cannot load dependency manifest {path}: {error}"
         ) from error
 
-    if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
+    if raw_manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
         raise ResolutionError(
             f"Dependency manifest schema_version must be {MANIFEST_SCHEMA_VERSION}"
         )
-    components = manifest.get("components")
-    if not isinstance(components, dict):
-        raise ResolutionError("Dependency manifest must contain a components object")
-    profiles = manifest.get("profiles")
-    if not isinstance(profiles, dict):
-        raise ResolutionError("Dependency manifest must contain a profiles object")
+    dependencies = raw_manifest.get("dependencies")
+    if not isinstance(dependencies, dict):
+        raise ResolutionError("Dependency manifest must contain a dependencies table")
+    dev_dependencies = raw_manifest.get("dev-dependencies", {})
+    if not isinstance(dev_dependencies, dict):
+        raise ResolutionError("Dependency manifest dev-dependencies must be a table")
 
-    required = set(INIT_COMPONENT_FLAGS) | {"synapse-sdk", "filecoin-pin"}
+    components = normalize_components({**dependencies, **dev_dependencies})
+    profiles = normalize_profiles(raw_manifest.get("profiles"))
+
+    required = set(INIT_COMPONENT_FLAGS) | {
+        "multicall3",
+        "synapse-sdk",
+        "filecoin-pin",
+    }
     missing = sorted(required - set(components))
     if missing:
         raise ResolutionError(f"Dependency manifest is missing: {', '.join(missing)}")
     validate_profiles(profiles, components)
-    return manifest
+    return {
+        "schema_version": MANIFEST_SCHEMA_VERSION,
+        "profiles": profiles,
+        "components": components,
+    }
+
+
+def normalize_components(raw_components: dict) -> dict:
+    components = {}
+    for name, raw_component in raw_components.items():
+        if not isinstance(raw_component, dict):
+            raise ResolutionError(f"Dependency {name!r} must be a table")
+        repository = raw_component.get("git")
+        if not isinstance(repository, str) or not repository:
+            raise ResolutionError(f"Dependency {name!r} git must be a string")
+        component = {"repository": repository}
+        npm_package = raw_component.get("npm_package")
+        if npm_package is not None:
+            if not isinstance(npm_package, str) or not npm_package:
+                raise ResolutionError(
+                    f"Dependency {name!r} npm_package must be a string"
+                )
+            component["npm_package"] = npm_package
+        for selection_name, selection in raw_component.items():
+            if selection_name in {"git", "npm_package"}:
+                continue
+            component[selection_name] = normalize_selection(name, selection)
+        components[name] = component
+    return components
+
+
+def normalize_selection(component_name: str, selection) -> dict:
+    if not isinstance(selection, dict):
+        raise ResolutionError(
+            f"{component_name} selection must be an inline table or table"
+        )
+    normalized = {key: value for key, value in selection.items() if key == "overrides"}
+    if selection.get("bundled") is True:
+        normalized["strategy"] = "bundled"
+    elif "commit" in selection:
+        normalized.update(strategy="git_commit", commit=selection["commit"])
+    elif "branch" in selection:
+        normalized.update(strategy="git_branch", branch=selection["branch"])
+    elif "submodule_git" in selection:
+        tag = selection.get("tag_pattern") or selection.get("tag")
+        if not tag:
+            raise ResolutionError(
+                f"{component_name} submodule selection must define tag or tag_pattern"
+            )
+        normalized.update(
+            strategy="git_submodule",
+            repository=selection["submodule_git"],
+            tag=tag,
+            path=selection.get("path"),
+        )
+    elif "tag" in selection:
+        normalized.update(strategy="git_tag", tag=selection["tag"])
+    elif "tag_pattern" in selection:
+        normalized.update(strategy="git_tag", tag=selection["tag_pattern"])
+    elif "npm" in selection:
+        normalized.update(strategy="npm_version", version=selection["npm"])
+    else:
+        raise ResolutionError(
+            f"{component_name} selection must define one of tag, tag_pattern, "
+            "branch, commit, npm, submodule_git, or bundled"
+        )
+    if "include_prereleases" in selection:
+        normalized["include_prereleases"] = selection["include_prereleases"]
+    return normalized
+
+
+def normalize_profiles(raw_profiles) -> dict:
+    if not isinstance(raw_profiles, dict):
+        raise ResolutionError("Dependency manifest must contain a profiles table")
+    profiles = {}
+    for profile_name, raw_profile in raw_profiles.items():
+        if not isinstance(raw_profile, dict):
+            raise ResolutionError(f"Profile {profile_name!r} must be a table")
+        profile = {"base": raw_profile.get("base")}
+        overrides = {key: value for key, value in raw_profile.items() if key != "base"}
+        if overrides:
+            profile["components"] = overrides
+        profiles[profile_name] = profile
+    return profiles
 
 
 def validate_profiles(profiles: dict, components: dict) -> None:
@@ -97,6 +188,11 @@ def validate_profiles(profiles: dict, components: dict) -> None:
                     "must be a string"
                 )
             if selection_profile not in component:
+                if (
+                    component_overrides.get(component_name) is None
+                    and "default" in component
+                ):
+                    continue
                 raise ResolutionError(
                     f"Profile {profile_name!r} selects {selection_profile!r} for "
                     f"{component_name}, but that component has no such selection"
@@ -111,10 +207,16 @@ def component_profile_map(manifest: dict, profile_name: str) -> dict[str, str]:
     profile = profiles[profile_name]
     base = profile["base"]
     component_overrides = profile.get("components", {})
-    return {
-        component_name: component_overrides.get(component_name, base)
-        for component_name in manifest["components"]
-    }
+    component_profiles = {}
+    for component_name, component in manifest["components"].items():
+        selection_profile = component_overrides.get(component_name, base)
+        if (
+            selection_profile not in component
+            and component_name not in component_overrides
+        ):
+            selection_profile = "default"
+        component_profiles[component_name] = selection_profile
+    return component_profiles
 
 
 def parse_ls_remote(output: str) -> list[tuple[str, str]]:
@@ -310,8 +412,8 @@ def resolve_component(
         "strategy": strategy,
     }
 
-    if strategy == "config_default":
-        resolved["source"] = "config_default"
+    if strategy == "bundled":
+        resolved["source"] = "bundled"
     elif strategy == "git_commit":
         commit = selection["commit"]
         if not COMMIT_RE.fullmatch(commit):
@@ -383,7 +485,7 @@ def build_init_args(components: dict) -> list[str]:
     args = []
     for name, flag in INIT_COMPONENT_FLAGS.items():
         component = components[name]
-        if component["source"] == "config_default":
+        if component["source"] == "bundled":
             continue
         args.extend(
             [
@@ -449,7 +551,7 @@ def verify(args) -> None:
     metadata = json.loads(args.metadata.read_text())
     components = metadata["components"]
     for name in INIT_COMPONENT_FLAGS:
-        if name == "pdp" and components[name]["source"] == "config_default":
+        if name == "pdp" and components[name]["source"] == "bundled":
             continue
         repository_path = args.code_dir / name
         actual = run_command(["git", "-C", str(repository_path), "rev-parse", "HEAD"])
@@ -475,7 +577,7 @@ def parser() -> argparse.ArgumentParser:
     resolve_parser = subparsers.add_parser("resolve")
     resolve_parser.add_argument("--profile", required=True)
     resolve_parser.add_argument(
-        "--manifest", type=Path, default=Path("ci/dependency-profiles.json")
+        "--manifest", type=Path, default=Path("dependencies.toml")
     )
     resolve_parser.add_argument("--output", type=Path, required=True)
     resolve_parser.add_argument("--github-output")
@@ -496,7 +598,12 @@ def main() -> None:
     args = parser().parse_args()
     try:
         args.handler(args)
-    except (ResolutionError, KeyError, json.JSONDecodeError) as error:
+    except (
+        ResolutionError,
+        KeyError,
+        json.JSONDecodeError,
+        tomllib.TOMLDecodeError,
+    ) as error:
         raise SystemExit(f"dependency resolution failed: {error}") from error
 
 

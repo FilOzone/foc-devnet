@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import tomllib
 from pathlib import Path
 
 
@@ -27,37 +28,42 @@ def component(name: str) -> dict:
     if isinstance(value, dict):
         return value
 
-    manifest_path = Path(__file__).parents[1] / "ci" / "dependency-profiles.json"
-    manifest = json.loads(manifest_path.read_text())
-    definition = manifest["components"].get(name)
+    manifest_path = Path(__file__).parents[1] / "dependencies.toml"
+    manifest = tomllib.loads(manifest_path.read_text())
+    all_dependencies = {
+        **manifest.get("dependencies", {}),
+        **manifest.get("dev-dependencies", {}),
+    }
+    definition = all_dependencies.get(name)
     if not definition:
         raise RuntimeError(f"Dependency manifest has no {name!r} component")
     selection = definition["default"]
     fallback = {
         "name": name,
-        "repository": definition["repository"],
-        "strategy": selection["strategy"],
+        "repository": definition["git"],
     }
-    if "overrides" in selection:
-        fallback["overrides"] = selection["overrides"]
-    if selection["strategy"] == "git_commit":
+    if selection.get("bundled") is True:
+        fallback.update(source="bundled")
+    elif "commit" in selection:
         fallback.update(
             source="git",
             ref=selection["commit"],
             commit=selection["commit"],
         )
-    elif selection["strategy"] == "git_tag":
+    elif "tag" in selection:
         fallback.update(source="git", ref=selection["tag"])
-    elif selection["strategy"] == "npm_version":
+    elif "npm" in selection:
         fallback.update(
             source="npm",
-            package=definition["npm_package"],
-            version=selection["version"],
+            package=definition.get("npm_package", name),
+            version=selection["npm"],
         )
     else:
         raise RuntimeError(
-            f"Local scenario fallback does not support {selection['strategy']!r}"
+            f"Local scenario fallback does not support {name!r} default selection"
         )
+    if "overrides" in selection:
+        fallback["overrides"] = selection["overrides"]
     return fallback
 
 
