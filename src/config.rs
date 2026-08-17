@@ -294,7 +294,7 @@ impl Default for Config {
             },
             filecoin_services: Location::GitTag {
                 url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
-                tag: "v1.3.0".to_string(),
+                tag: "v1.3.1".to_string(),
             },
             pdp: None,
             multicall3: Location::GitTag {
