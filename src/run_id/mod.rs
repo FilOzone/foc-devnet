@@ -26,28 +26,35 @@ pub const NOUNS: &[&str] = &[
     "Lulu", "Bear", "Fig", "Boo",
 ];
 
-/// Generate a unique run ID for this execution.
+/// Generate and atomically reserve a unique run ID for this execution.
 ///
-/// Returns a string like "20251215T2206_ZanyPip" where:
-/// - 20251215 is the date (YYYYMMDD, condensed ISO8601 format)
-/// - T is the date/time separator (ISO8601)
-/// - 2206 is the time (HHMM, 24-hour format, no colons for Docker compatibility)
-/// - ZanyPip is the random name (adjective + noun)
-///
-/// Uses condensed ISO8601 format (no dashes or colons) for Docker network name compatibility.
-pub fn generate_run_id() -> String {
-    let now = Local::now();
-    let datetime = now.format("%Y%m%dT%H%M");
+/// The ID uses condensed ISO8601 plus a readable random name. Its run
+/// directory is created atomically, so concurrent processes cannot claim the
+/// same ID.
+pub fn generate_run_id() -> Result<String, Box<dyn std::error::Error>> {
+    reserve_run_id_in(&crate::paths::foc_devnet_runs())
+}
 
-    // Implement our own random name generator to control format
-    let random_name = {
-        let rng = &mut rand::rng();
-        let adjective = ADJECTIVES.choose(rng).unwrap();
-        let noun = NOUNS.choose(rng).unwrap();
-        format!("{}{}", adjective, noun)
-    };
+/// Generate a readable candidate ID without reserving it.
+fn generate_candidate() -> String {
+    let datetime = Local::now().format("%Y%m%dT%H%M");
+    let rng = &mut rand::rng();
+    let adjective = ADJECTIVES.choose(rng).unwrap();
+    let noun = NOUNS.choose(rng).unwrap();
+    format!("{}_{}{}", datetime, adjective, noun)
+}
 
-    format!("{}_{}", datetime, random_name)
+/// Reserve an unused run ID under the supplied runs directory.
+fn reserve_run_id_in(runs_dir: &std::path::Path) -> Result<String, Box<dyn std::error::Error>> {
+    std::fs::create_dir_all(runs_dir)?;
+    loop {
+        let run_id = generate_candidate();
+        match std::fs::create_dir(runs_dir.join(&run_id)) {
+            Ok(()) => return Ok(run_id),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error.into()),
+        }
+    }
 }
 
 /// Create a symlink to the latest run directory.
@@ -110,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_run_id_format() {
-        let run_id = generate_run_id();
+        let run_id = generate_candidate();
 
         // Should match pattern: YYYYMMDDTHHMM_RandomName (condensed ISO8601, no dashes/colons)
         let pattern = Regex::new(r"^\d{8}T\d{4}_.+$").unwrap();
@@ -122,14 +129,14 @@ mod tests {
     }
 
     #[test]
-    fn test_run_ids_are_different() {
-        // Generate multiple IDs in quick succession
-        // They should be different due to random names (time might be same)
-        let id1 = generate_run_id();
-        let id2 = generate_run_id();
+    fn test_reserved_run_ids_are_different() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let id1 = reserve_run_id_in(temp_dir.path()).unwrap();
+        let id2 = reserve_run_id_in(temp_dir.path()).unwrap();
 
-        // At least the random name part should differ
-        assert_ne!(id1, id2, "Run IDs should be different");
+        assert_ne!(id1, id2, "Reserved run IDs should be different");
+        assert!(temp_dir.path().join(id1).is_dir());
+        assert!(temp_dir.path().join(id2).is_dir());
     }
 
     #[test]
@@ -140,7 +147,6 @@ mod tests {
         use tempfile::TempDir;
 
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let _run_id = generate_run_id();
 
         // Mock the paths by using temp directory structure
         let runs_dir = temp_dir.path().join("run");
