@@ -80,7 +80,9 @@ def clone_and_build(tmp_dir: Path) -> Path | None:
         return None
     # Persist the workaround because the build can launch a nested pnpm install.
     workspace = sdk_dir / "pnpm-workspace.yaml"
-    policy = workspace.read_text().replace("trustPolicy: no-downgrade", "trustPolicy: off")
+    policy = workspace.read_text().replace(
+        "trustPolicy: no-downgrade", "trustPolicy: off"
+    )
     workspace.write_text(policy)
     # Install/build only what the e2e example needs, skipping the unrelated
     # playground, docs and react workspaces.
