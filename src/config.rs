@@ -278,8 +278,7 @@ impl Default for Config {
     /// node type and assumes pre-built executables are available in standard
     /// system locations (/usr/local/bin/).
     ///
-    /// The defaults should always use `GitCommit` or `GitTag` locations to ensure
-    /// reproducibility.
+    /// Defaults select the upstream revisions used by a new devnet.
     fn default() -> Self {
         Self {
             port_range_start: 5700,
@@ -288,15 +287,18 @@ impl Default for Config {
                 url: "https://github.com/filecoin-project/lotus.git".to_string(),
                 tag: "v1.36.2".to_string(),
             },
-            curio: Location::GitTag {
+            curio: Location::GitCommit {
                 url: "https://github.com/filecoin-project/curio.git".to_string(),
-                tag: "v1.28.4".to_string(),
+                commit: "3f3d9633c09bf1e8343e722f3c16daa4de7cce98".to_string(),
             },
-            filecoin_services: Location::GitTag {
+            filecoin_services: Location::GitCommit {
                 url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
-                tag: "v1.3.1".to_string(),
+                commit: "bb0c731de65aa1031abbd8f317bc56deeeb4514d".to_string(),
             },
-            pdp: None,
+            pdp: Some(Location::GitCommit {
+                url: "https://github.com/FilOzone/pdp.git".to_string(),
+                commit: "cc3f5eaffee7df80471b671a4e35a42b000685b8".to_string(),
+            }),
             multicall3: Location::GitTag {
                 url: "https://github.com/mds1/multicall3.git".to_string(),
                 tag: "v3.1.0".to_string(),
@@ -470,13 +472,23 @@ mod tests {
     }
 
     #[test]
-    fn default_config_omits_optional_pdp_and_parses_without_it() {
-        let serialized = toml::to_string(&Config::default()).unwrap();
-
-        assert!(!serialized.contains("[pdp"));
-        assert!(!serialized.contains("pdp ="));
-        let parsed: Config = toml::from_str(&serialized).unwrap();
-        assert!(parsed.pdp.is_none());
+    fn default_config_uses_requested_source_revisions() {
+        let config = Config::default();
+        assert!(matches!(
+            config.curio,
+            Location::GitCommit { ref commit, .. }
+                if commit == "3f3d9633c09bf1e8343e722f3c16daa4de7cce98"
+        ));
+        assert!(matches!(
+            config.filecoin_services,
+            Location::GitCommit { ref commit, .. }
+                if commit == "bb0c731de65aa1031abbd8f317bc56deeeb4514d"
+        ));
+        assert!(matches!(
+            config.pdp,
+            Some(Location::GitCommit { ref commit, .. })
+                if commit == "cc3f5eaffee7df80471b671a4e35a42b000685b8"
+        ));
     }
 
     #[test]

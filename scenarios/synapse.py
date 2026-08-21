@@ -78,10 +78,14 @@ def clone_and_build(tmp_dir: Path) -> Path | None:
     overrides = dependency.get("overrides", {})
     if not apply_pnpm_workspace_overrides(sdk_dir, overrides):
         return None
+    # Persist the workaround because the build can launch a nested pnpm install.
+    workspace = sdk_dir / "pnpm-workspace.yaml"
+    policy = workspace.read_text().replace("trustPolicy: no-downgrade", "trustPolicy: off")
+    workspace.write_text(policy)
     # Install/build only what the e2e example needs, skipping the unrelated
     # playground, docs and react workspaces.
     if not run_cmd(
-        ["pnpm", "install", "--filter", "utils..."],
+        ["pnpm", "install", "--no-frozen-lockfile", "--filter", "utils..."],
         cwd=str(sdk_dir),
         label="pnpm install",
     ):
