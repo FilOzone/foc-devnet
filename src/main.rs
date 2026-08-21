@@ -14,7 +14,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     // Generate a run ID for this execution and initialize logging
-    let run_id = generate_run_id();
+    let run_id = generate_run_id()?;
     init_logging(&run_id)?;
 
     // Check for poison file and attempt recovery
