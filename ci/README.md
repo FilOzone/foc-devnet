@@ -162,6 +162,10 @@ The `version` field can also be an npm dist-tag:
 The resolver records the concrete package version selected at resolution time
 and npm `gitHead` when available.
 
+For `synapse-sdk`, npm resolution also records exact compatible versions of
+`@filoz/synapse-core` and the `viem` peer dependency. The scenario installs that
+set into a temporary consumer project.
+
 ## Overrides
 
 Some profile selections can include an optional `overrides` object. Each entry
@@ -170,8 +174,8 @@ exists:
 
 ```json
 {
-  "strategy": "git_tag",
-  "tag": "synapse-sdk-v1.0.1",
+  "strategy": "npm_version",
+  "version": "1.1.1",
   "overrides": {
     "nanoid": {
       "version": "3.3.13",
@@ -186,18 +190,12 @@ non-empty strings; the resolver rejects any override missing either field, so an
 override cannot be added without documenting why. The reason is logged when the
 override is applied. The resolver does not infer overrides from package metadata.
 
-Overrides are currently allowed only for:
+Overrides are currently allowed only for npm-installed `synapse-sdk` and
+`filecoin-pin` selections. They are written to the temporary consumer
+`package.json`; source profiles use the checkout's committed lockfile.
 
-- `synapse-sdk`, because scenario setup controls its pnpm install.
-- `filecoin-pin` selections using `npm_version`, because those install into a
-  temporary npm project controlled by the scenario.
-
-Current consumers:
-
-- `synapse-sdk` writes overrides to the root `pnpm-workspace.yaml` before
-  running `pnpm install`.
-- npm-installed `filecoin-pin` writes overrides to the temporary npm
-  `package.json` used by the scenario.
+Current consumers write npm overrides to the temporary `package.json` used by
+their scenario.
 
 ## Current Boundary
 
@@ -208,7 +206,7 @@ Installation currently lives in three places (which consume the resolved
 metadata):
 
 - `foc-devnet init`: Lotus, Curio, filecoin-services, and optionally PDP.
-- `scenarios/synapse.py`: Synapse SDK scenario dependency.
+- `scenarios/synapse_runtime.py`: published or source Synapse scenario runtime.
 - `scenarios/test_multi_copy_upload.py`: filecoin-pin scenario dependency.
 
 This split is intentional, but it is not necessarily the final shape. Resolution

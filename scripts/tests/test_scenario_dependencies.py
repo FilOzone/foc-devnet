@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 import subprocess
@@ -5,7 +6,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from scenarios.dependencies import format_markdown_table
-from scenarios.synapse import clone_and_build, run_node_script
+from scenarios.synapse_runtime import (
+    SynapseRuntime,
+    prepare_synapse_runtime,
+    run_node_script,
+)
 from scenarios.test_multi_copy_upload import setup_filecoin_pin
 
 
@@ -43,54 +48,183 @@ class ScenarioDependencyTests(unittest.TestCase):
         ):
             self.assertIn(expected, table)
 
-    @patch("scenarios.synapse.sh", return_value="deadbeef")
-    @patch("scenarios.synapse.run_cmd", return_value=True)
+    @patch("scenarios.synapse_runtime._copy_scenarios")
+    @patch("scenarios.synapse_runtime.run_cmd", return_value=True)
     @patch(
-        "scenarios.synapse.component",
+        "scenarios.synapse_runtime.component",
         return_value={
-            "repository": "https://example.test/synapse.git",
-            "ref": "sdk-v1.0.0",
-            "commit": "deadbeef",
+            "source": "npm",
+            "package": "@filoz/synapse-sdk",
+            "version": "1.1.1",
+            "runtime_dependencies": {
+                "@filoz/synapse-core": "1.1.1",
+                "viem": "2.52.0",
+            },
             "overrides": {"nanoid": {"version": "3.3.13", "reason": "test"}},
         },
     )
-    def test_synapse_checkout_uses_resolved_commit(self, _component, run_cmd, _sh):
-        def fake_run_cmd(command, **_kwargs):
-            if command[:2] == ["git", "clone"]:
-                sdk_dir = Path(command[3])
-                sdk_dir.mkdir(parents=True)
-                (sdk_dir / "pnpm-workspace.yaml").write_text(
-                    "packages:\n  - packages/*\n"
-                )
-            return True
-
-        run_cmd.side_effect = fake_run_cmd
+    def test_npm_runtime_installs_exact_consumer_manifest(
+        self, _component, run_cmd, _copy_scenarios
+    ):
         with tempfile.TemporaryDirectory() as directory:
-            clone_and_build(Path(directory))
-            workspace = Path(directory) / "synapse-sdk" / "pnpm-workspace.yaml"
-            workspace_text = workspace.read_text()
-        checkout = run_cmd.call_args_list[1]
+            runtime = prepare_synapse_runtime(Path(directory))
+            manifest = json.loads((Path(directory) / "package.json").read_text())
+
+        self.assertEqual(runtime.source, "npm")
         self.assertEqual(
-            checkout.args[0],
-            ["git", "checkout", "--detach", "deadbeef"],
+            manifest["dependencies"],
+            {
+                "@filoz/synapse-sdk": "1.1.1",
+                "@filoz/synapse-core": "1.1.1",
+                "viem": "2.52.0",
+            },
+        )
+        self.assertEqual(manifest["overrides"], {"nanoid": "3.3.13"})
+        self.assertEqual(
+            run_cmd.call_args.args[0],
+            [
+                "npm",
+                "install",
+                "--omit=dev",
+                "--ignore-scripts",
+                "--package-lock=false",
+            ],
+        )
+
+    @patch("scenarios.synapse_runtime._copy_scenarios")
+    @patch("scenarios.synapse_runtime.run_cmd", return_value=True)
+    @patch(
+        "scenarios.synapse_runtime._npm_view",
+        side_effect=[
+            {
+                "dependencies": {"@filoz/synapse-core": "^1.1.1"},
+                "peerDependencies": {"viem": "2.x"},
+            },
+            "1.1.1",
+            ["2.0.0", "2.52.0"],
+        ],
+    )
+    @patch(
+        "scenarios.synapse_runtime.component",
+        return_value={
+            "source": "npm",
+            "package": "@filoz/synapse-sdk",
+            "version": "1.1.1",
+        },
+    )
+    def test_npm_runtime_resolves_fallback_consumer_dependencies(
+        self, _component, npm_view, run_cmd, _copy_scenarios
+    ):
+        with tempfile.TemporaryDirectory() as directory:
+            prepare_synapse_runtime(Path(directory))
+            manifest = json.loads((Path(directory) / "package.json").read_text())
+
+        self.assertEqual(
+            manifest["dependencies"],
+            {
+                "@filoz/synapse-sdk": "1.1.1",
+                "@filoz/synapse-core": "1.1.1",
+                "viem": "2.52.0",
+            },
+        )
+        self.assertEqual(
+            npm_view.call_args_list[0].args,
+            (
+                "@filoz/synapse-sdk",
+                "1.1.1",
+                "dependencies",
+                "peerDependencies",
+            ),
+        )
+
+    @patch.dict("os.environ", {"SYNAPSE_SDK_SOURCE_DIR": ""}, clear=False)
+    @patch("scenarios.synapse_runtime._copy_scenarios")
+    @patch("scenarios.synapse_runtime._source_commit", return_value="deadbeef")
+    @patch("scenarios.synapse_runtime.run_cmd", return_value=True)
+    @patch(
+        "scenarios.synapse_runtime.component",
+        return_value={
+            "source": "git",
+            "repository": "https://example.test/synapse.git",
+            "commit": "deadbeef",
+        },
+    )
+    def test_source_runtime_checks_out_and_installs_production_closure(
+        self, _component, run_cmd, _source_commit, _copy_scenarios
+    ):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "synapse-sdk"
+            source.mkdir()
+            (source / "packages" / "synapse-sdk" / "node_modules").mkdir(parents=True)
+            (source / "package.json").write_text('{"packageManager":"pnpm@11.5.3"}')
+            runtime = prepare_synapse_runtime(Path(directory))
+            self.assertEqual(
+                (runtime.work_dir / "node_modules").resolve(),
+                source / "packages" / "synapse-sdk" / "node_modules",
+            )
+
+        commands = [call.args[0] for call in run_cmd.call_args_list]
+        self.assertIn(["git", "checkout", "--detach", "deadbeef"], commands)
+        self.assertIn(
+            [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                "--prod",
+                "--ignore-scripts",
+                "--filter",
+                "@filoz/synapse-sdk...",
+            ],
+            commands,
+        )
+
+    @patch("scenarios.synapse_runtime._copy_scenarios")
+    @patch("scenarios.synapse_runtime._source_commit", return_value="localcommit")
+    @patch("scenarios.synapse_runtime.run_cmd", return_value=True)
+    @patch(
+        "scenarios.synapse_runtime.component",
+        return_value={
+            "source": "npm",
+            "package": "@filoz/synapse-sdk",
+            "version": "1.1.1",
+        },
+    )
+    def test_local_source_runtime_uses_declared_pnpm(
+        self, _component, run_cmd, _source_commit, _copy_scenarios
+    ):
+        with tempfile.TemporaryDirectory() as directory:
+            work_dir = Path(directory) / "runtime"
+            source_dir = Path(directory) / "synapse-source"
+            source_dir.mkdir()
+            source_node_modules = (
+                source_dir / "packages" / "synapse-sdk" / "node_modules"
+            )
+            (source_node_modules / "viem").mkdir(parents=True)
+            (source_node_modules / "@filoz" / "synapse-core").mkdir(parents=True)
+            (source_dir / "package.json").write_text('{"packageManager":"pnpm@11.5.3"}')
+            with patch.dict("os.environ", {"SYNAPSE_SDK_SOURCE_DIR": str(source_dir)}):
+                runtime = prepare_synapse_runtime(work_dir)
+
+        self.assertEqual(
+            runtime.provenance, f"local:{source_dir}@localcommit (pnpm@11.5.3)"
         )
         commands = [call.args[0] for call in run_cmd.call_args_list]
-        self.assertNotIn(["pnpm", "pkg", "set"], [command[:3] for command in commands])
-        self.assertIn('  "nanoid": "3.3.13"', workspace_text)
+        self.assertFalse(any(command[:2] == ["git", "clone"] for command in commands))
+        self.assertFalse(any(command[0] == "pnpm" for command in commands))
 
-    @patch("scenarios.synapse.ok")
-    @patch("scenarios.synapse.info")
-    @patch("scenarios.synapse.subprocess.run")
-    def test_run_node_script_uses_sdk_cwd_and_env(self, run, _info, ok):
+    @patch("scenarios.synapse_runtime.ok")
+    @patch("scenarios.synapse_runtime.info")
+    @patch("scenarios.synapse_runtime.subprocess.run")
+    def test_run_node_script_uses_consumer_cwd_and_env(self, run, _info, ok):
         run.return_value = subprocess.CompletedProcess(
-            ["node", "smoke.mjs"], 0, stdout="done\n", stderr=""
+            ["node", "smoke.ts"], 0, stdout="done\n", stderr=""
         )
         with tempfile.TemporaryDirectory() as directory:
-            sdk_dir = Path(directory)
-            script = sdk_dir / "smoke.mjs"
+            work_dir = Path(directory)
+            (work_dir / "smoke.ts").touch()
             run_node_script(
-                sdk_dir,
-                script,
+                SynapseRuntime(work_dir, "npm", "npm:@filoz/synapse-sdk@1.1.1"),
+                "smoke.ts",
                 "run smoke",
                 args=["random_file"],
                 env={"DEVNET_USER_INDEX": "1"},
@@ -98,31 +232,71 @@ class ScenarioDependencyTests(unittest.TestCase):
             )
 
         kwargs = run.call_args.kwargs
-        self.assertEqual(run.call_args.args[0], ["node", "smoke.mjs", "random_file"])
-        self.assertEqual(kwargs["cwd"], str(sdk_dir))
+        self.assertEqual(
+            run.call_args.args[0], ["node", str(work_dir / "smoke.ts"), "random_file"]
+        )
+        self.assertEqual(kwargs["cwd"], str(work_dir))
         self.assertEqual(kwargs["env"]["DEVNET_USER_INDEX"], "1")
         self.assertEqual(kwargs["timeout"], 30)
         ok.assert_called_once_with("run smoke")
 
-    @patch("scenarios.synapse.time.sleep")
-    @patch("scenarios.synapse.ok")
-    @patch("scenarios.synapse.info")
-    @patch("scenarios.synapse.subprocess.run")
+    @patch("scenarios.synapse_runtime.ok")
+    @patch("scenarios.synapse_runtime.info")
+    @patch("scenarios.synapse_runtime.subprocess.run")
+    def test_run_node_script_uses_source_runtime_hook(self, run, _info, _ok):
+        run.return_value = subprocess.CompletedProcess(
+            ["node"], 0, stdout="", stderr=""
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            work_dir = Path(directory)
+            source_dir = work_dir / "synapse-sdk"
+            source_dir.mkdir()
+            (work_dir / "source-runtime.mjs").touch()
+            (work_dir / "system-e2e.ts").touch()
+            run_node_script(
+                SynapseRuntime(work_dir, "source", "git:example@deadbeef", source_dir),
+                "system-e2e.ts",
+                "run system e2e",
+            )
+
+        self.assertEqual(
+            run.call_args.args[0],
+            [
+                "node",
+                "--import",
+                str(work_dir / "source-runtime.mjs"),
+                str(work_dir / "system-e2e.ts"),
+            ],
+        )
+        self.assertEqual(
+            run.call_args.kwargs["env"]["SYNAPSE_SDK_SOURCE_DIR"], str(source_dir)
+        )
+
+    @patch("scenarios.synapse_runtime.time.sleep")
+    @patch("scenarios.synapse_runtime.ok")
+    @patch("scenarios.synapse_runtime.info")
+    @patch("scenarios.synapse_runtime.subprocess.run")
     def test_run_node_script_retries_state_fork_error(self, run, _info, ok, sleep):
         run.side_effect = [
             subprocess.CompletedProcess(
-                ["node", "smoke.mjs"],
+                ["node", "smoke.ts"],
                 1,
                 stdout="",
                 stderr="refusing explicit call due to state fork at epoch 42",
             ),
             subprocess.CompletedProcess(
-                ["node", "smoke.mjs"], 0, stdout="done\n", stderr=""
+                ["node", "smoke.ts"], 0, stdout="done\n", stderr=""
             ),
         ]
 
         with tempfile.TemporaryDirectory() as directory:
-            run_node_script(Path(directory), Path("smoke.mjs"), "run smoke")
+            work_dir = Path(directory)
+            (work_dir / "smoke.ts").touch()
+            run_node_script(
+                SynapseRuntime(work_dir, "npm", "npm:@filoz/synapse-sdk@1.1.1"),
+                "smoke.ts",
+                "run smoke",
+            )
 
         self.assertEqual(run.call_count, 2)
         sleep.assert_called_once_with(5)

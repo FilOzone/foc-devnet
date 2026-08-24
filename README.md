@@ -98,10 +98,18 @@ This will:
 
 ### Step 4: Use the Network
 
-After startup, `USER_1` is fully configured for FOC: USDFC deposited into FilecoinPay and FWSS approved as an operator. You can use it immediately with synapse-sdk:
+After startup, `USER_1` is fully configured for FOC: USDFC deposited into FilecoinPay and FWSS approved as an operator. Use the network immediately with Synapse, filecoin-pin, or other compatible FOC client software:
 
 ```bash
+# From a synapse-sdk checkout
 NETWORK=devnet node utils/example-storage-e2e.js <file>
+
+# With filecoin-pin
+filecoin-pin add <file> --network devnet
+# Equivalent: NETWORK=devnet filecoin-pin add <file>
+
+# Exercise foc-devnet's full Synapse-driven system scenario
+python3 scenarios/test_synapse_e2e.py
 ```
 
 All connection details (contract addresses, user keys, SP endpoints) are exported to `devnet-info.json`:

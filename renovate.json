@@ -21,12 +21,11 @@
         "/^ci/dependency-profiles\\.json$/"
       ],
       "matchStrings": [
-        "\"tag\":\\s*\"synapse-sdk-v(?<currentValue>[0-9][^\"]*)\""
+        "\"synapse-sdk\":\\s*\\{[\\s\\S]{0,500}?\"default\":\\s*\\{\\s*\"strategy\":\\s*\"npm_version\",\\s*\"version\":\\s*\"(?<currentValue>[0-9][^\"]*)\""
       ],
-      "depNameTemplate": "FilOzone/synapse-sdk",
-      "datasourceTemplate": "github-tags",
-      "extractVersionTemplate": "^synapse-sdk-v(?<version>.+)$",
-      "versioningTemplate": "semver"
+      "depNameTemplate": "@filoz/synapse-sdk",
+      "datasourceTemplate": "npm",
+      "versioningTemplate": "npm"
     },
     {
       "customType": "regex",
@@ -34,7 +33,7 @@
         "/^ci/dependency-profiles\\.json$/"
       ],
       "matchStrings": [
-        "\"strategy\":\\s*\"npm_version\",\\s*\"version\":\\s*\"(?<currentValue>[0-9][^\"]*)\""
+        "\"filecoin-pin\":\\s*\\{[\\s\\S]{0,500}?\"default\":\\s*\\{\\s*\"strategy\":\\s*\"npm_version\",\\s*\"version\":\\s*\"(?<currentValue>[0-9][^\"]*)\""
       ],
       "depNameTemplate": "filecoin-pin",
       "datasourceTemplate": "npm",
