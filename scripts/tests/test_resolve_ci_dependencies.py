@@ -427,6 +427,14 @@ class ResolverTests(unittest.TestCase):
             with self.assertRaisesRegex(resolver.ResolutionError, "no such selection"):
                 resolver.load_manifest(path)
 
+    def test_npm_version_uses_latest_value_from_npm_array(self):
+        self.assertEqual(
+            resolver.npm_version(["1.0.0", "1.1.1"], "package", "latest"),
+            "1.1.1",
+        )
+        with self.assertRaisesRegex(resolver.ResolutionError, "no version"):
+            resolver.npm_version([], "package", "latest")
+
     def test_npm_version_resolves_dist_tag_to_npm_version(self):
         component = {
             "repository": "https://example.test/filecoin-pin.git",
@@ -458,6 +466,70 @@ class ResolverTests(unittest.TestCase):
 
         self.assertEqual(resolved["source"], "npm")
         self.assertEqual(resolved["version"], "1.1.1")
+
+    def test_synapse_npm_resolution_includes_exact_runtime_dependencies(self):
+        component = {
+            "repository": "https://example.test/synapse.git",
+            "npm_package": "@filoz/synapse-sdk",
+            "default": {"strategy": "npm_version", "version": "1.1.1"},
+        }
+        runner = FakeRunner(
+            {
+                (
+                    "npm",
+                    "view",
+                    "@filoz/synapse-sdk@1.1.1",
+                    "version",
+                    "--json",
+                ): '"1.1.1"',
+                (
+                    "npm",
+                    "view",
+                    "@filoz/synapse-sdk@1.1.1",
+                    "gitHead",
+                    "--json",
+                ): '""',
+                (
+                    "npm",
+                    "view",
+                    "@filoz/synapse-sdk@1.1.1",
+                    "dependencies",
+                    "peerDependencies",
+                    "--json",
+                ): '{"dependencies":{"@filoz/synapse-core":"^1.1.1"},"peerDependencies":{"viem":"2.x"}}',
+                (
+                    "npm",
+                    "view",
+                    "@filoz/synapse-core@^1.1.1",
+                    "version",
+                    "--json",
+                ): '"1.1.1"',
+                (
+                    "npm",
+                    "view",
+                    "@filoz/synapse-core@1.1.1",
+                    "gitHead",
+                    "--json",
+                ): '""',
+                ("npm", "view", "viem@2.x", "version", "--json"): '["2.0.0", "2.52.0"]',
+                (
+                    "npm",
+                    "view",
+                    "viem@2.52.0",
+                    "gitHead",
+                    "--json",
+                ): '""',
+            }
+        )
+
+        resolved = resolver.resolve_component(
+            "synapse-sdk", component, "default", runner
+        )
+
+        self.assertEqual(
+            resolved["runtime_dependencies"],
+            {"@filoz/synapse-core": "1.1.1", "viem": "2.52.0"},
+        )
 
     def test_profile_overrides_are_copied_to_resolved_component(self):
         component = {

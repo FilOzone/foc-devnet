@@ -4,7 +4,7 @@
 # dependencies so that scenario scripts only run tests, not setup.
 #
 # Installs Foundry (cast, forge) if not already present, and verifies
-# that git, node, and pnpm are available.
+# that git, Node.js 24+, npm, and pnpm are available.
 #
 # Usage:
 #   ./scripts/setup-scenarios-prerequisites.sh
@@ -36,13 +36,18 @@ verify_checksum() {
 # ── 0. Verify basic system tools ────────────────────────────
 info "Checking basic system tools..."
 
-for tool in git node pnpm; do
+for tool in git node npm pnpm; do
   if command -v "$tool" &>/dev/null; then
     pass "$tool is installed ($(command -v "$tool"))"
   else
     fail "$tool is required but not found. Please install it first."
   fi
 done
+
+NODE_MAJOR=$(node -p 'process.versions.node.split(".")[0]')
+if (( NODE_MAJOR < 24 )); then
+  fail "Node.js 24 or newer is required for native TypeScript scenarios."
+fi
 
 # ── 1. Foundry (cast / forge) ───────────────────────────────
 info "Checking Foundry..."

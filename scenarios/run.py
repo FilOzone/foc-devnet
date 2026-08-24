@@ -30,7 +30,7 @@ ORDER = [
     ("test_basic_balances", 10),
     # Allows setup plus five 280s Node attempts and retry delays.
     ("test_create_dataset_smoke", CREATE_DATASET_SMOKE_TIMEOUT_SECS),
-    ("test_storage_e2e", 200),
+    ("test_synapse_e2e", 600),
     ("test_multi_copy_upload", 600),
     ("test_caching_subsystem", 200),
 ]

@@ -233,17 +233,63 @@ def select_latest_tag(
     return tag, commit
 
 
+def npm_version(value, package: str, requested: str) -> str:
+    """Normalize `npm view ... version --json` output.
+
+    npm returns one string for an exact version or dist-tag and an ordered list
+    for a range; the final non-empty list entry is the newest match.
+    """
+    if isinstance(value, str) and value:
+        return value
+    if isinstance(value, list):
+        for version in reversed(value):
+            if isinstance(version, str) and version:
+                return version
+    raise ResolutionError(f"npm returned no version for {package}@{requested}")
+
+
 def npm_metadata(package: str, version: str, runner=run_command) -> dict:
-    resolved_version = json.loads(
-        runner(["npm", "view", f"{package}@{version}", "version", "--json"])
+    resolved_version = npm_version(
+        json.loads(
+            runner(["npm", "view", f"{package}@{version}", "version", "--json"])
+        ),
+        package,
+        version,
     )
-    if not resolved_version:
-        raise ResolutionError(f"npm returned no version for {package}@{version}")
     git_head_output = runner(
         ["npm", "view", f"{package}@{resolved_version}", "gitHead", "--json"]
     )
     git_head = json.loads(git_head_output) if git_head_output else ""
     return {"version": resolved_version, "gitHead": git_head}
+
+
+def npm_runtime_dependencies(
+    package: str, version: str, runner=run_command
+) -> dict[str, str]:
+    metadata = json.loads(
+        runner(
+            [
+                "npm",
+                "view",
+                f"{package}@{version}",
+                "dependencies",
+                "peerDependencies",
+                "--json",
+            ]
+        )
+    )
+    dependencies = metadata.get("dependencies", {})
+    peer_dependencies = metadata.get("peerDependencies", {})
+    core_range = dependencies.get("@filoz/synapse-core")
+    viem_range = peer_dependencies.get("viem") or dependencies.get("viem")
+    if not isinstance(core_range, str) or not isinstance(viem_range, str):
+        raise ResolutionError(
+            f"{package}@{version} must declare @filoz/synapse-core and viem"
+        )
+
+    core = npm_metadata("@filoz/synapse-core", core_range, runner)["version"]
+    viem = npm_metadata("viem", viem_range, runner)["version"]
+    return {"@filoz/synapse-core": core, "viem": viem}
 
 
 def read_gitlink(repository: str, commit: str, path: str, runner=run_command) -> str:
@@ -284,9 +330,7 @@ def validate_overrides(name: str, strategy: str, overrides) -> dict:
                 "string 'version' and 'reason' fields"
             )
 
-    if name == "synapse-sdk":
-        return dict(sorted(overrides.items()))
-    if name == "filecoin-pin" and strategy == "npm_version":
+    if name in {"synapse-sdk", "filecoin-pin"} and strategy == "npm_version":
         return dict(sorted(overrides.items()))
     raise ResolutionError(
         f"{name} overrides are not supported with strategy {strategy!r}"
@@ -371,6 +415,10 @@ def resolve_component(
             version=data["version"],
             commit=data.get("gitHead", ""),
         )
+        if name == "synapse-sdk":
+            resolved["runtime_dependencies"] = npm_runtime_dependencies(
+                component["npm_package"], data["version"], runner
+            )
     else:
         raise ResolutionError(f"Unsupported strategy {strategy!r} for {name}")
     overrides = selection.get("overrides")

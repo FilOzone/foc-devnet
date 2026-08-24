@@ -9,7 +9,7 @@ from scenarios.helpers import CAST, assert_gt, assert_ok, devnet_info, sh
 
 
 def run():
-    assert_ok(f"test -x {CAST}", "cast is installed")
+    assert_ok(f"command -v {CAST}", "cast is installed")
     d = devnet_info()["info"]
     lotus_rpc = d["lotus"]["host_rpc_url"]
     usdfc_addr = d["contracts"]["mockusdfc_addr"]
