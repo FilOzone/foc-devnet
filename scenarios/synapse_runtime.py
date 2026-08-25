@@ -110,6 +110,32 @@ def _write_manifest(work_dir: Path, dependency: dict) -> None:
     (work_dir / "package.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
 
+def _write_source_manifest(work_dir: Path, source_dir: Path) -> None:
+    dependencies: dict[str, str] = {}
+    for package in ("synapse-sdk", "synapse-core"):
+        package_json = json.loads(
+            (source_dir / "packages" / package / "package.json").read_text()
+        )
+        for name, version in package_json.get("peerDependencies", {}).items():
+            existing = dependencies.get(name)
+            if existing is not None and existing != version:
+                raise RuntimeError(
+                    f"Synapse source packages disagree on {name}: {existing} != {version}"
+                )
+            dependencies[name] = version
+    manifest = {
+        "name": "foc-devnet-synapse-source-e2e",
+        "private": True,
+        "type": "module",
+        "dependencies": dependencies,
+    }
+    (work_dir / "package.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    policy = source_dir / "pnpm-workspace.yaml"
+    if not policy.is_file():
+        raise RuntimeError(f"Synapse source has no pnpm workspace policy: {policy}")
+    shutil.copyfile(policy, work_dir / policy.name)
+
+
 def _copy_scenarios(work_dir: Path) -> None:
     source = _scenario_dir()
     if not source.is_dir():
@@ -124,6 +150,11 @@ def _source_pnpm_version(source_dir: Path) -> str:
     if not isinstance(package_manager, str) or not package_manager.startswith("pnpm@"):
         raise RuntimeError(f"Synapse source has no declared pnpm version: {source_dir}")
     return package_manager.removeprefix("pnpm@")
+
+
+def _has_source_package_closure(source_dir: Path) -> bool:
+    node_modules = source_dir / "packages" / "synapse-sdk" / "node_modules"
+    return (node_modules / "@filoz" / "synapse-core").is_dir()
 
 
 def _source_commit(source_dir: Path) -> str:
@@ -197,34 +228,41 @@ def prepare_synapse_runtime(work_dir: Path) -> SynapseRuntime:
 
         pnpm_version = _source_pnpm_version(source_dir)
         source_node_modules = source_dir / "packages" / "synapse-sdk" / "node_modules"
-        has_runtime_closure = (source_node_modules / "viem").is_dir() and (
-            source_node_modules / "@filoz" / "synapse-core"
-        ).is_dir()
-        if not local_source or not has_runtime_closure:
+        has_package_closure = _has_source_package_closure(source_dir)
+        if not local_source or not has_package_closure:
             if not run_cmd(
                 [
                     "pnpm",
                     "install",
-                    "--frozen-lockfile",
+                    "--no-frozen-lockfile",
                     "--prod",
                     "--ignore-scripts",
                     "--filter",
                     "@filoz/synapse-sdk...",
                 ],
                 cwd=str(source_dir),
-                label=f"install Synapse production runtime (pnpm@{pnpm_version})",
+                label=f"install Synapse production dependencies (pnpm@{pnpm_version})",
             ):
-                raise RuntimeError("failed to install Synapse production runtime")
-        if not source_node_modules.is_dir():
+                raise RuntimeError("failed to install Synapse production dependencies")
+        if not _has_source_package_closure(source_dir):
             raise RuntimeError(
-                f"Synapse production install has no SDK node_modules: {source_node_modules}"
+                f"Synapse source install has no package closure: {source_node_modules}"
             )
-        runtime_node_modules = work_dir / "node_modules"
-        if runtime_node_modules.exists() or runtime_node_modules.is_symlink():
-            raise RuntimeError(
-                f"Synapse runtime node_modules already exists: {runtime_node_modules}"
-            )
-        runtime_node_modules.symlink_to(source_node_modules, target_is_directory=True)
+        _write_source_manifest(work_dir, source_dir)
+        if not run_cmd(
+            [
+                "pnpm",
+                "install",
+                "--no-frozen-lockfile",
+                "--prod",
+                "--ignore-scripts",
+            ],
+            cwd=str(work_dir),
+            label="install Synapse peer runtime",
+        ):
+            raise RuntimeError("failed to install Synapse peer runtime")
+        if not (work_dir / "node_modules" / "viem").is_dir():
+            raise RuntimeError("Synapse peer runtime has no viem installation")
         provenance = f"{provenance} (pnpm@{pnpm_version})"
         runtime = SynapseRuntime(work_dir, "source", provenance, source_dir)
     else:
