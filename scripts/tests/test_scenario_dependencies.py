@@ -149,18 +149,32 @@ class ScenarioDependencyTests(unittest.TestCase):
             "commit": "deadbeef",
         },
     )
-    def test_source_runtime_checks_out_and_installs_production_closure(
+    def test_source_runtime_installs_production_and_peer_closures(
         self, _component, run_cmd, _source_commit, _copy_scenarios
     ):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "synapse-sdk"
             source.mkdir()
-            (source / "packages" / "synapse-sdk" / "node_modules").mkdir(parents=True)
+            source_node_modules = source / "packages" / "synapse-sdk" / "node_modules"
+            (source_node_modules / "@filoz" / "synapse-core").mkdir(parents=True)
+            (Path(directory) / "node_modules" / "viem").mkdir(parents=True)
             (source / "package.json").write_text('{"packageManager":"pnpm@11.5.3"}')
+            (source / "pnpm-workspace.yaml").write_text(
+                "minimumReleaseAge: 10080\ntrustPolicy: no-downgrade\n"
+            )
+            for package in ("synapse-sdk", "synapse-core"):
+                package_dir = source / "packages" / package
+                package_dir.mkdir(parents=True, exist_ok=True)
+                (package_dir / "package.json").write_text(
+                    '{"peerDependencies":{"viem":"2.x"}}'
+                )
             runtime = prepare_synapse_runtime(Path(directory))
+            self.assertFalse((runtime.work_dir / "node_modules").is_symlink())
             self.assertEqual(
-                (runtime.work_dir / "node_modules").resolve(),
-                source / "packages" / "synapse-sdk" / "node_modules",
+                json.loads((runtime.work_dir / "package.json").read_text())[
+                    "dependencies"
+                ],
+                {"viem": "2.x"},
             )
 
         commands = [call.args[0] for call in run_cmd.call_args_list]
@@ -169,11 +183,21 @@ class ScenarioDependencyTests(unittest.TestCase):
             [
                 "pnpm",
                 "install",
-                "--frozen-lockfile",
+                "--no-frozen-lockfile",
                 "--prod",
                 "--ignore-scripts",
                 "--filter",
                 "@filoz/synapse-sdk...",
+            ],
+            commands,
+        )
+        self.assertIn(
+            [
+                "pnpm",
+                "install",
+                "--no-frozen-lockfile",
+                "--prod",
+                "--ignore-scripts",
             ],
             commands,
         )
@@ -199,9 +223,18 @@ class ScenarioDependencyTests(unittest.TestCase):
             source_node_modules = (
                 source_dir / "packages" / "synapse-sdk" / "node_modules"
             )
-            (source_node_modules / "viem").mkdir(parents=True)
             (source_node_modules / "@filoz" / "synapse-core").mkdir(parents=True)
+            (work_dir / "node_modules" / "viem").mkdir(parents=True)
             (source_dir / "package.json").write_text('{"packageManager":"pnpm@11.5.3"}')
+            (source_dir / "pnpm-workspace.yaml").write_text(
+                "minimumReleaseAge: 10080\ntrustPolicy: no-downgrade\n"
+            )
+            for package in ("synapse-sdk", "synapse-core"):
+                package_dir = source_dir / "packages" / package
+                package_dir.mkdir(parents=True, exist_ok=True)
+                (package_dir / "package.json").write_text(
+                    '{"peerDependencies":{"viem":"2.x"}}'
+                )
             with patch.dict("os.environ", {"SYNAPSE_SDK_SOURCE_DIR": str(source_dir)}):
                 runtime = prepare_synapse_runtime(work_dir)
 
@@ -210,7 +243,13 @@ class ScenarioDependencyTests(unittest.TestCase):
         )
         commands = [call.args[0] for call in run_cmd.call_args_list]
         self.assertFalse(any(command[:2] == ["git", "clone"] for command in commands))
-        self.assertFalse(any(command[0] == "pnpm" for command in commands))
+        source_commands = [
+            call.args[0]
+            for call in run_cmd.call_args_list
+            if call.kwargs.get("cwd") == str(source_dir)
+        ]
+        self.assertFalse(any(command[0] == "pnpm" for command in source_commands))
+        self.assertTrue(any(command[:2] == ["pnpm", "install"] for command in commands))
 
     @patch("scenarios.synapse_runtime.ok")
     @patch("scenarios.synapse_runtime.info")

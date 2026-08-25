@@ -192,7 +192,7 @@ override is applied. The resolver does not infer overrides from package metadata
 
 Overrides are currently allowed only for npm-installed `synapse-sdk` and
 `filecoin-pin` selections. They are written to the temporary consumer
-`package.json`; source profiles use the checkout's committed lockfile.
+`package.json`.
 
 Current consumers write npm overrides to the temporary `package.json` used by
 their scenario.

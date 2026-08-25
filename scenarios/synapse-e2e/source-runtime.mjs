@@ -1,11 +1,11 @@
 /**
  * Runs foc-devnet scenarios against Synapse TypeScript source on Node 24+.
  *
- * Source profiles install Synapse's production dependency closure, then preload
- * this module with `node --import`. Public `@filoz/synapse-sdk` and
- * `@filoz/synapse-core` imports resolve to their source counterparts instead of
- * the packages' compiled `dist` targets. All other imports use Node's normal
- * resolver.
+ * Source profiles install Synapse's production dependencies and peer runtime,
+ * then preload this module with `node --import`. Public
+ * `@filoz/synapse-sdk` and `@filoz/synapse-core` imports resolve to their source
+ * counterparts instead of the packages' compiled `dist` targets. Peer imports
+ * resolve from the temporary consumer; all other imports use Node's resolver.
  *
  * Mappings come from each package's export map, keeping the scenario on the
  * public API and avoiding a hard-coded list that drifts as exports change.
@@ -16,10 +16,14 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { registerHooks } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const sourceRoot = process.env.SYNAPSE_SDK_SOURCE_DIR
 assert(sourceRoot, 'SYNAPSE_SDK_SOURCE_DIR must name the Synapse checkout when using source-runtime.mjs')
+const runtimePackageUrl = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), 'package.json')).href
+const runtimeDependencies = new Set(
+  Object.keys(JSON.parse(readFileSync(fileURLToPath(runtimePackageUrl), 'utf8')).dependencies ?? {})
+)
 
 // Export entries may be strings or nested condition objects. Prefer the
 // conditions used by this ESM runtime, then inspect package-specific branches.
@@ -62,10 +66,20 @@ const sourceMappings = new Map([
   ...sourceExports('@filoz/synapse-core', 'packages/synapse-core'),
 ])
 
-// Short-circuit exact public package matches; delegate everything else.
+function packageName(specifier) {
+  if (specifier.startsWith('@')) return specifier.split('/', 2).join('/')
+  return specifier.split('/', 1)[0]
+}
+
+// Short-circuit public Synapse exports and resolve peer dependencies from the
+// temporary consumer. Source package dependencies use Node's normal resolver.
 registerHooks({
   resolve(specifier, context, nextResolve) {
     const sourceUrl = sourceMappings.get(specifier)
-    return sourceUrl == null ? nextResolve(specifier, context) : { url: sourceUrl, shortCircuit: true }
+    if (sourceUrl != null) return { url: sourceUrl, shortCircuit: true }
+    if (runtimeDependencies.has(packageName(specifier))) {
+      return nextResolve(specifier, { ...context, parentURL: runtimePackageUrl })
+    }
+    return nextResolve(specifier, context)
   },
 })
