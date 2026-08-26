@@ -24,6 +24,8 @@ INIT_COMPONENT_FLAGS = {
 VERSION_RE = re.compile(r"^\d+(?:\.\d+)*(?:[-+][0-9A-Za-z.-]+)?$")
 STABLE_VERSION_RE = re.compile(r"^\d+(?:\.\d+)*$")
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+PKG_PR_NEW_BASE_URL = "https://pkg.pr.new"
+SYNAPSE_PKG_PR_NEW_REPOSITORY = "FilOzone/synapse-sdk"
 
 
 class ResolutionError(RuntimeError):
@@ -292,6 +294,25 @@ def npm_runtime_dependencies(
     return {"@filoz/synapse-core": core, "viem": viem}
 
 
+def pkg_pr_new_url(package: str, commit: str) -> str:
+    return (
+        f"{PKG_PR_NEW_BASE_URL}/{SYNAPSE_PKG_PR_NEW_REPOSITORY}/"
+        f"{package}@{commit[:7]}"
+    )
+
+
+def synapse_preview_runtime_dependencies(
+    commit: str, runner=run_command
+) -> dict[str, str]:
+    return {
+        "@filoz/synapse-core": pkg_pr_new_url(
+            "@filoz/synapse-core",
+            commit,
+        ),
+        "viem": npm_metadata("viem", "2.x", runner)["version"],
+    }
+
+
 def read_gitlink(repository: str, commit: str, path: str, runner=run_command) -> str:
     with tempfile.TemporaryDirectory(prefix="foc-devnet-ci-deps-") as directory:
         repo_dir = Path(directory) / "repo"
@@ -376,6 +397,21 @@ def resolve_component(
         branch = selection["branch"]
         commit = resolve_ref(repository, f"refs/heads/{branch}", runner)
         resolved.update(source="git", ref_type="branch", ref=branch, commit=commit)
+    elif strategy == "pkg_pr_new":
+        if name != "synapse-sdk":
+            raise ResolutionError("pkg_pr_new is only supported for synapse-sdk")
+        branch = selection["branch"]
+        commit = resolve_ref(repository, f"refs/heads/{branch}", runner)
+        package = component["npm_package"]
+        resolved.update(
+            source="pkg_pr_new",
+            ref_type="branch",
+            ref=branch,
+            commit=commit,
+            package=package,
+            version=pkg_pr_new_url(package, commit),
+            runtime_dependencies=synapse_preview_runtime_dependencies(commit, runner),
+        )
     elif strategy == "git_submodule":
         parent_repository = selection["repository"]
         tag = selection["tag"]

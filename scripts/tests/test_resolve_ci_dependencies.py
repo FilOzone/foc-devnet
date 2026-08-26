@@ -531,6 +531,57 @@ class ResolverTests(unittest.TestCase):
             {"@filoz/synapse-core": "1.1.1", "viem": "2.52.0"},
         )
 
+    def test_synapse_preview_resolves_commit_pinned_packages(self):
+        commit = "a" * 40
+        component = {
+            "repository": "https://example.test/synapse.git",
+            "npm_package": "@filoz/synapse-sdk",
+            "frontier": {"strategy": "pkg_pr_new", "branch": "master"},
+        }
+        runner = FakeRunner(
+            {
+                (
+                    "git",
+                    "ls-remote",
+                    "https://example.test/synapse.git",
+                    "refs/heads/master",
+                ): f"{commit}\trefs/heads/master",
+                ("npm", "view", "viem@2.x", "version", "--json"): '"2.52.0"',
+                (
+                    "npm",
+                    "view",
+                    "viem@2.52.0",
+                    "gitHead",
+                    "--json",
+                ): '""',
+            }
+        )
+
+        resolved = resolver.resolve_component(
+            "synapse-sdk", component, "frontier", runner
+        )
+
+        self.assertEqual(resolved["source"], "pkg_pr_new")
+        self.assertEqual(resolved["ref"], "master")
+        self.assertEqual(resolved["commit"], commit)
+        self.assertEqual(
+            resolved["version"],
+            (
+                "https://pkg.pr.new/FilOzone/synapse-sdk/"
+                f"@filoz/synapse-sdk@{commit[:7]}"
+            ),
+        )
+        self.assertEqual(
+            resolved["runtime_dependencies"],
+            {
+                "@filoz/synapse-core": (
+                    "https://pkg.pr.new/FilOzone/synapse-sdk/"
+                    f"@filoz/synapse-core@{commit[:7]}"
+                ),
+                "viem": "2.52.0",
+            },
+        )
+
     def test_profile_overrides_are_copied_to_resolved_component(self):
         component = {
             "repository": "https://example.test/filecoin-pin.git",

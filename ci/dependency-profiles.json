@@ -106,7 +106,7 @@
         "version": "latest"
       },
       "frontier": {
-        "strategy": "git_branch",
+        "strategy": "pkg_pr_new",
         "branch": "master"
       }
     },
