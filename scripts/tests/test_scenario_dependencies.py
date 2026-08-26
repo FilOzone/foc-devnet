@@ -137,119 +137,57 @@ class ScenarioDependencyTests(unittest.TestCase):
             ),
         )
 
-    @patch.dict("os.environ", {"SYNAPSE_SDK_SOURCE_DIR": ""}, clear=False)
     @patch("scenarios.synapse_runtime._copy_scenarios")
-    @patch("scenarios.synapse_runtime._source_commit", return_value="deadbeef")
     @patch("scenarios.synapse_runtime.run_cmd", return_value=True)
     @patch(
         "scenarios.synapse_runtime.component",
         return_value={
-            "source": "git",
-            "repository": "https://example.test/synapse.git",
-            "commit": "deadbeef",
-        },
-    )
-    def test_source_runtime_installs_production_and_peer_closures(
-        self, _component, run_cmd, _source_commit, _copy_scenarios
-    ):
-        with tempfile.TemporaryDirectory() as directory:
-            source = Path(directory) / "synapse-sdk"
-            source.mkdir()
-            source_node_modules = source / "packages" / "synapse-sdk" / "node_modules"
-            (source_node_modules / "@filoz" / "synapse-core").mkdir(parents=True)
-            (Path(directory) / "node_modules" / "viem").mkdir(parents=True)
-            (source / "package.json").write_text('{"packageManager":"pnpm@11.5.3"}')
-            (source / "pnpm-workspace.yaml").write_text(
-                "minimumReleaseAge: 10080\ntrustPolicy: no-downgrade\n"
-            )
-            for package in ("synapse-sdk", "synapse-core"):
-                package_dir = source / "packages" / package
-                package_dir.mkdir(parents=True, exist_ok=True)
-                (package_dir / "package.json").write_text(
-                    '{"peerDependencies":{"viem":"2.x"}}'
-                )
-            runtime = prepare_synapse_runtime(Path(directory))
-            self.assertFalse((runtime.work_dir / "node_modules").is_symlink())
-            self.assertEqual(
-                json.loads((runtime.work_dir / "package.json").read_text())[
-                    "dependencies"
-                ],
-                {"viem": "2.x"},
-            )
-
-        commands = [call.args[0] for call in run_cmd.call_args_list]
-        self.assertIn(["git", "checkout", "--detach", "deadbeef"], commands)
-        self.assertIn(
-            [
-                "pnpm",
-                "install",
-                "--no-frozen-lockfile",
-                "--prod",
-                "--ignore-scripts",
-                "--filter",
-                "@filoz/synapse-sdk...",
-            ],
-            commands,
-        )
-        self.assertIn(
-            [
-                "pnpm",
-                "install",
-                "--no-frozen-lockfile",
-                "--prod",
-                "--ignore-scripts",
-            ],
-            commands,
-        )
-
-    @patch("scenarios.synapse_runtime._copy_scenarios")
-    @patch("scenarios.synapse_runtime._source_commit", return_value="localcommit")
-    @patch("scenarios.synapse_runtime.run_cmd", return_value=True)
-    @patch(
-        "scenarios.synapse_runtime.component",
-        return_value={
-            "source": "npm",
+            "source": "pkg_pr_new",
             "package": "@filoz/synapse-sdk",
-            "version": "1.1.1",
+            "version": "https://pkg.pr.new/@filoz/synapse-sdk@deadbeef",
+            "commit": "deadbeef",
+            "runtime_dependencies": {
+                "@filoz/synapse-core": (
+                    "https://pkg.pr.new/@filoz/synapse-core@deadbeef"
+                ),
+                "viem": "2.52.0",
+            },
         },
     )
-    def test_local_source_runtime_uses_declared_pnpm(
-        self, _component, run_cmd, _source_commit, _copy_scenarios
+    def test_preview_runtime_installs_immutable_consumer_manifest(
+        self, _component, run_cmd, _copy_scenarios
     ):
         with tempfile.TemporaryDirectory() as directory:
-            work_dir = Path(directory) / "runtime"
-            source_dir = Path(directory) / "synapse-source"
-            source_dir.mkdir()
-            source_node_modules = (
-                source_dir / "packages" / "synapse-sdk" / "node_modules"
-            )
-            (source_node_modules / "@filoz" / "synapse-core").mkdir(parents=True)
-            (work_dir / "node_modules" / "viem").mkdir(parents=True)
-            (source_dir / "package.json").write_text('{"packageManager":"pnpm@11.5.3"}')
-            (source_dir / "pnpm-workspace.yaml").write_text(
-                "minimumReleaseAge: 10080\ntrustPolicy: no-downgrade\n"
-            )
-            for package in ("synapse-sdk", "synapse-core"):
-                package_dir = source_dir / "packages" / package
-                package_dir.mkdir(parents=True, exist_ok=True)
-                (package_dir / "package.json").write_text(
-                    '{"peerDependencies":{"viem":"2.x"}}'
-                )
-            with patch.dict("os.environ", {"SYNAPSE_SDK_SOURCE_DIR": str(source_dir)}):
-                runtime = prepare_synapse_runtime(work_dir)
+            runtime = prepare_synapse_runtime(Path(directory))
+            manifest = json.loads((Path(directory) / "package.json").read_text())
 
+        self.assertEqual(runtime.source, "pkg_pr_new")
         self.assertEqual(
-            runtime.provenance, f"local:{source_dir}@localcommit (pnpm@11.5.3)"
+            runtime.provenance,
+            "pkg_pr_new:@filoz/synapse-sdk@deadbeef",
         )
-        commands = [call.args[0] for call in run_cmd.call_args_list]
-        self.assertFalse(any(command[:2] == ["git", "clone"] for command in commands))
-        source_commands = [
-            call.args[0]
-            for call in run_cmd.call_args_list
-            if call.kwargs.get("cwd") == str(source_dir)
-        ]
-        self.assertFalse(any(command[0] == "pnpm" for command in source_commands))
-        self.assertTrue(any(command[:2] == ["pnpm", "install"] for command in commands))
+        self.assertEqual(
+            manifest["dependencies"],
+            {
+                "@filoz/synapse-sdk": (
+                    "https://pkg.pr.new/@filoz/synapse-sdk@deadbeef"
+                ),
+                "@filoz/synapse-core": (
+                    "https://pkg.pr.new/@filoz/synapse-core@deadbeef"
+                ),
+                "viem": "2.52.0",
+            },
+        )
+        self.assertEqual(
+            run_cmd.call_args.args[0],
+            [
+                "npm",
+                "install",
+                "--omit=dev",
+                "--ignore-scripts",
+                "--package-lock=false",
+            ],
+        )
 
     @patch("scenarios.synapse_runtime.ok")
     @patch("scenarios.synapse_runtime.info")
@@ -278,38 +216,6 @@ class ScenarioDependencyTests(unittest.TestCase):
         self.assertEqual(kwargs["env"]["DEVNET_USER_INDEX"], "1")
         self.assertEqual(kwargs["timeout"], 30)
         ok.assert_called_once_with("run smoke")
-
-    @patch("scenarios.synapse_runtime.ok")
-    @patch("scenarios.synapse_runtime.info")
-    @patch("scenarios.synapse_runtime.subprocess.run")
-    def test_run_node_script_uses_source_runtime_hook(self, run, _info, _ok):
-        run.return_value = subprocess.CompletedProcess(
-            ["node"], 0, stdout="", stderr=""
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            work_dir = Path(directory)
-            source_dir = work_dir / "synapse-sdk"
-            source_dir.mkdir()
-            (work_dir / "source-runtime.mjs").touch()
-            (work_dir / "system-e2e.ts").touch()
-            run_node_script(
-                SynapseRuntime(work_dir, "source", "git:example@deadbeef", source_dir),
-                "system-e2e.ts",
-                "run system e2e",
-            )
-
-        self.assertEqual(
-            run.call_args.args[0],
-            [
-                "node",
-                "--import",
-                str(work_dir / "source-runtime.mjs"),
-                str(work_dir / "system-e2e.ts"),
-            ],
-        )
-        self.assertEqual(
-            run.call_args.kwargs["env"]["SYNAPSE_SDK_SOURCE_DIR"], str(source_dir)
-        )
 
     @patch("scenarios.synapse_runtime.time.sleep")
     @patch("scenarios.synapse_runtime.ok")

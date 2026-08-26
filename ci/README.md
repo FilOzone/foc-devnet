@@ -47,8 +47,8 @@ exist unless added there.
 Top-level component fields:
 
 - `repository`: Git repository URL.
-- `npm_package`: npm package name, for components that are resolved through npm
-  metadata.
+- `npm_package`: npm package name, for components resolved through npm metadata
+  or pkg.pr.new previews.
 - `default`, `stability`, `frontier`: component profile selections.
 
 Profile selections always have a `strategy`. Some strategies require additional
@@ -166,6 +166,23 @@ For `synapse-sdk`, npm resolution also records exact compatible versions of
 `@filoz/synapse-core` and the `viem` peer dependency. The scenario installs that
 set into a temporary consumer project.
 
+### `pkg_pr_new`
+
+Resolve a branch head to an immutable commit, then install the packages built
+for that commit by pkg.pr.new:
+
+```json
+{
+  "strategy": "pkg_pr_new",
+  "branch": "master"
+}
+```
+
+This strategy is used for Synapse frontier runs. The resolver records the exact
+commit and constructs commit-pinned preview URLs for `@filoz/synapse-sdk` and
+`@filoz/synapse-core`. The scenario installs those built packages in the same
+temporary npm consumer used for released versions.
+
 ## Overrides
 
 Some profile selections can include an optional `overrides` object. Each entry
@@ -206,7 +223,7 @@ Installation currently lives in three places (which consume the resolved
 metadata):
 
 - `foc-devnet init`: Lotus, Curio, filecoin-services, and optionally PDP.
-- `scenarios/synapse_runtime.py`: published or source Synapse scenario runtime.
+- `scenarios/synapse_runtime.py`: released or preview Synapse packages.
 - `scenarios/test_multi_copy_upload.py`: filecoin-pin scenario dependency.
 
 This split is intentional, but it is not necessarily the final shape. Resolution
