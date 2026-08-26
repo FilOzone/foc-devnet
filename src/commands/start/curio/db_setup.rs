@@ -227,10 +227,14 @@ fn create_base_cluster(
     docker_args.push(crate::constants::CURIO_LOG_LEVEL);
 
     // `new-cluster` writes this miner's address into the base layer config,
-    // so also import its worker key into the shared Lotus daemon.
+    // so also import its worker key into the shared Lotus daemon. Tolerate
+    // "key already exists" so reruns against an already-set-up cluster
+    // don't fail.
     let bash_cmd = format!(
         "sleep 3 && /usr/local/bin/lotus-bins/curio config new-cluster {miner_id} && \
-         /usr/local/bin/lotus-bins/lotus wallet import /genesis-sectors/pre-seal-{miner_id}.key",
+         out=$(/usr/local/bin/lotus-bins/lotus wallet import /genesis-sectors/pre-seal-{miner_id}.key 2>&1); \
+         echo \"$out\"; \
+         echo \"$out\" | grep -qE 'imported key|key already exists'",
         miner_id = miner_id
     );
     docker_args.extend_from_slice(&[
