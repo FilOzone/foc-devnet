@@ -446,6 +446,11 @@ jobs:
             ./foc-devnet version 2>&1 || echo "version command failed"
             echo '```'
             echo ""
+            echo "## Devnet status"
+            echo '```'
+            ./foc-devnet status 2>&1 || echo "status command failed"
+            echo '```'
+            echo ""
             echo "## Resolved dependencies"
             if [ -f "$CI_DEPENDENCY_METADATA" ]; then
               echo '```json'
