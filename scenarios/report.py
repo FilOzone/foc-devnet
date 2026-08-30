@@ -43,8 +43,7 @@ def get_version_info():
     return "foc-devnet version: not available"
 
 
-_REPORT_TEMPLATE = Template(
-    """
+_REPORT_TEMPLATE = Template("""
 # Scenarios Tests 
 
 | Description | Data                                                                |
@@ -67,8 +66,7 @@ $skipped_optional_tests
 
 ## Tests summary
 $test_summary
-"""
-)
+""")
 
 
 def _build_ci_run_link():
