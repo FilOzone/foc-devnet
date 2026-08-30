@@ -11,13 +11,13 @@ frontier = { branch = "master" }
 
 [dependencies.curio]
 git = "https://github.com/filecoin-project/curio.git"
-default = { tag = "v1.28.3" }
+default = { tag = "v1.28.4" }
 stability = { tag_pattern = "v*" }
 frontier = { branch = "main" }
 
 [dependencies.filecoin-services]
 git = "https://github.com/FilOzone/filecoin-services.git"
-default = { tag = "v1.3.0" }
+default = { tag = "v1.3.1" }
 stability = { tag_pattern = "v*" }
 frontier = { branch = "main" }
 
@@ -34,9 +34,9 @@ default = { tag = "v3.1.0" }
 [dev-dependencies.synapse-sdk]
 git = "https://github.com/FilOzone/synapse-sdk.git"
 npm_package = "@filoz/synapse-sdk"
-default = { tag = "synapse-sdk-v1.1.1" }
-stability = { tag_pattern = "synapse-sdk-v*" }
-frontier = { branch = "master" }
+default = { npm = "1.1.1" }
+stability = { npm = "latest" }
+frontier = { pkg_pr_new = "master" }
 
 [dev-dependencies.filecoin-pin]
 git = "https://github.com/filecoin-project/filecoin-pin.git"

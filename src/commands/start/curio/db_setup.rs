@@ -21,6 +21,7 @@ use crate::docker::core::docker_command;
 use crate::docker::network::{lotus_network_name, pdp_miner_network_name};
 use crate::paths::foc_devnet_bin;
 use crate::paths::foc_devnet_docker_volumes;
+use crate::paths::foc_devnet_genesis_sectors_pdp_sp;
 use std::error::Error;
 use std::thread;
 use std::time::Duration;
@@ -179,6 +180,10 @@ fn create_base_cluster(
     let lotus_data_dir = foc_devnet_docker_volumes().join("lotus-data");
     let lotus_data_mount = bind_mount(&lotus_data_dir, "/lotus-data")?;
 
+    // Needed to import this miner's worker key below
+    let genesis_sectors_dir = foc_devnet_genesis_sectors_pdp_sp(run_id, sp_index);
+    let genesis_sectors_mount = bind_mount(&genesis_sectors_dir, "/genesis-sectors")?;
+
     // Create a unique container name for this operation
     let container_name = format!("foc-{}-curio-db-setup-{}", run_id, sp_index);
 
@@ -194,6 +199,8 @@ fn create_base_cluster(
         &bin_mount,
         "--mount",
         &lotus_data_mount,
+        "--mount",
+        &genesis_sectors_mount,
     ];
 
     // Add environment variables for database connection
@@ -219,10 +226,16 @@ fn create_base_cluster(
     docker_args.push("-e");
     docker_args.push(crate::constants::CURIO_LOG_LEVEL);
 
-    // Add image and command
+    // `new-cluster` writes this miner's address into the base layer config,
+    // so also import its worker key into the shared Lotus daemon. Tolerate
+    // "key already exists" so reruns against an already-set-up cluster
+    // don't fail.
     let bash_cmd = format!(
-        "sleep 3 && /usr/local/bin/lotus-bins/curio config new-cluster {}",
-        miner_id
+        "sleep 3 && /usr/local/bin/lotus-bins/curio config new-cluster {miner_id} && \
+         out=$(/usr/local/bin/lotus-bins/lotus wallet import /genesis-sectors/pre-seal-{miner_id}.key 2>&1); \
+         echo \"$out\"; \
+         echo \"$out\" | grep -qE 'imported key|key already exists'",
+        miner_id = miner_id
     );
     docker_args.extend_from_slice(&[
         crate::constants::CURIO_DOCKER_IMAGE,

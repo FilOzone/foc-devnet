@@ -44,7 +44,7 @@ Top-level component fields:
 
 - `git`: Git repository URL.
 - `npm_package`: npm package name, for components that are resolved through npm
-  metadata.
+  or pkg.pr.new previews.
 - `default`, `stability`, `frontier`: component profile selections.
 
 Profile selections are inline TOML tables. The resolver infers the strategy from
@@ -130,6 +130,24 @@ stability = { npm = "latest" }
 The resolver records the concrete package version selected at resolution time
 and npm `gitHead` when available.
 
+For `synapse-sdk`, npm resolution also records exact compatible versions of
+`@filoz/synapse-core` and the `viem` peer dependency. The scenario installs that
+set into a temporary consumer project.
+
+### `pkg_pr_new`
+
+Resolve a branch head to an immutable commit, then install the packages built
+for that commit by pkg.pr.new:
+
+```toml
+frontier = { pkg_pr_new = "master" }
+```
+
+This strategy is used for Synapse frontier runs. The resolver records the exact
+commit and constructs commit-pinned preview URLs for `@filoz/synapse-sdk` and
+`@filoz/synapse-core`. The scenario installs those built packages in the same
+temporary npm consumer used for released versions.
+
 ## Overrides
 
 Some profile selections can include an optional `overrides` object. Each entry
@@ -137,7 +155,7 @@ maps a package name to a `version` and a `reason` explaining why the override
 exists:
 
 ```toml
-default = { tag = "synapse-sdk-v1.0.1", overrides = { nanoid = { version = "3.3.13", reason = "nanoid 5.x is ESM-only and breaks the CJS build" } } }
+default = { npm = "1.1.1", overrides = { nanoid = { version = "3.3.13", reason = "nanoid 5.x is ESM-only and breaks the CJS build" } } }
 ```
 
 Overrides are explicit profile policy. Both `version` and `reason` are required
@@ -145,18 +163,12 @@ non-empty strings; the resolver rejects any override missing either field, so an
 override cannot be added without documenting why. The reason is logged when the
 override is applied. The resolver does not infer overrides from package metadata.
 
-Overrides are currently allowed only for:
+Overrides are currently allowed only for npm-installed `synapse-sdk` and
+`filecoin-pin` selections. They are written to the temporary consumer
+`package.json`.
 
-- `synapse-sdk`, because scenario setup controls its pnpm install.
-- `filecoin-pin` selections using `npm`, because those install into a
-  temporary npm project controlled by the scenario.
-
-Current consumers:
-
-- `synapse-sdk` writes overrides to the root `pnpm-workspace.yaml` before
-  running `pnpm install`.
-- npm-installed `filecoin-pin` writes overrides to the temporary npm
-  `package.json` used by the scenario.
+Current consumers write npm overrides to the temporary `package.json` used by
+their scenario.
 
 ## Current Boundary
 
@@ -167,7 +179,7 @@ Installation currently lives in three places (which consume the resolved
 metadata):
 
 - `foc-devnet init`: Lotus, Curio, filecoin-services, and optionally PDP.
-- `scenarios/synapse.py`: Synapse SDK scenario dependency.
+- `scenarios/synapse_runtime.py`: released or preview Synapse packages.
 - `scenarios/test_multi_copy_upload.py`: filecoin-pin scenario dependency.
 
 This split is intentional, but it is not necessarily the final shape. Resolution

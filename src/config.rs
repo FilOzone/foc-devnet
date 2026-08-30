@@ -561,14 +561,14 @@ mod tests {
             config.curio,
             Location::GitTag {
                 url: default_dependency_repository("curio"),
-                tag: "v1.28.3".to_string(),
+                tag: "v1.28.4".to_string(),
             }
         );
         assert_eq!(
             config.filecoin_services,
             Location::GitTag {
                 url: default_dependency_repository("filecoin-services"),
-                tag: "v1.3.0".to_string(),
+                tag: "v1.3.1".to_string(),
             }
         );
         assert_eq!(

@@ -27,7 +27,7 @@ from scenarios.helpers import (
     sh,
     write_random_file,
 )
-from scenarios.synapse import clone_and_build, upload_file
+from scenarios.synapse_runtime import prepare_synapse_runtime, run_node_script
 
 SMALL_FILE_SIZE = 20 * 1024 * 1024  # 20MB, below the 32MB threshold
 LARGE_FILE_SIZE = 80 * 1024 * 1024  # 80MB, above the 32MB threshold
@@ -71,11 +71,17 @@ def _row_count(cql_output):
     return int(match.group(1))
 
 
-def _upload_and_count(sdk_dir, filepath, label, scylla_container):
+def _upload_and_count(runtime, filepath, label, scylla_container):
     """Upload a file and return the cache row count afterward."""
     import time
 
-    upload_file(sdk_dir, filepath.name, label)
+    run_node_script(
+        runtime,
+        "upload-probe.ts",
+        label,
+        args=[str(filepath)],
+        env={"NETWORK": "devnet"},
+    )
     info(f"Waiting {CACHE_WAIT_SECS}s for caching tasks")
     time.sleep(CACHE_WAIT_SECS)
     output = _cql(scylla_container, "SELECT * FROM curio.pdp_cache_layer")
@@ -85,9 +91,7 @@ def _upload_and_count(sdk_dir, filepath, label, scylla_container):
 
 
 def run():
-    assert_ok("command -v git", "git is installed")
     assert_ok("command -v node", "node is installed")
-    assert_ok("command -v pnpm", "pnpm is installed")
 
     run_index = _next_run_index()
     seed_small = RAND_SEED_SMALL + run_index
@@ -101,25 +105,23 @@ def run():
     init_count = _row_count(init_output)
     info(f"Initial row count = {init_count}")
 
-    with tempfile.TemporaryDirectory(prefix="synapse-sdk-cache-") as tmp:
-        sdk_dir = clone_and_build(Path(tmp))
-        if not sdk_dir:
-            return
+    with tempfile.TemporaryDirectory(prefix="synapse-cache-") as tmp:
+        runtime = prepare_synapse_runtime(Path(tmp))
 
-        small_file = sdk_dir / "small_20mb"
-        large_file = sdk_dir / "large_80mb"
+        small_file = runtime.work_dir / "small_20mb"
+        large_file = runtime.work_dir / "large_80mb"
         write_random_file(small_file, SMALL_FILE_SIZE, seed_small)
         write_random_file(large_file, LARGE_FILE_SIZE, seed_large)
 
         info("Uploading 20MB piece (below 32MB threshold)")
         after_small = _upload_and_count(
-            sdk_dir, small_file, "upload 20MB piece", scylla_container
+            runtime, small_file, "upload 20MB piece", scylla_container
         )
         assert_eq(after_small, init_count, "cache rows count should not increase")
 
         info("Uploading 80MB piece (above 32MB threshold)")
         after_large = _upload_and_count(
-            sdk_dir, large_file, "upload 80MB piece", scylla_container
+            runtime, large_file, "upload 80MB piece", scylla_container
         )
         assert_gt(after_large, init_count, "cache rows count should increase")
 

@@ -12,12 +12,19 @@ _pass = 0
 _fail = 0
 _log_lines: list = []
 
+BASE_DIR = Path(os.environ.get("FOC_DEVNET_BASEDIR", Path.home() / ".foc-devnet"))
 DEVNET_INFO = os.environ.get(
-    "DEVNET_INFO", os.path.expanduser("~/.foc-devnet/state/latest/devnet-info.json")
+    "DEVNET_INFO", str(BASE_DIR / "state" / "latest" / "devnet-info.json")
 )
-FOUNDRY_BIN = Path.home() / ".foc-devnet" / "artifacts" / "foundry" / "bin"
-CAST = str(FOUNDRY_BIN / "cast")
-FORGE = str(FOUNDRY_BIN / "forge")
+FOUNDRY_BIN = BASE_DIR / "artifacts" / "foundry" / "bin"
+CAST_ARTIFACT = FOUNDRY_BIN / "cast"
+FORGE_ARTIFACT = FOUNDRY_BIN / "forge"
+CAST = os.environ.get("CAST") or str(
+    CAST_ARTIFACT if os.access(CAST_ARTIFACT, os.X_OK) else "cast"
+)
+FORGE = os.environ.get("FORGE") or str(
+    FORGE_ARTIFACT if os.access(FORGE_ARTIFACT, os.X_OK) else "forge"
+)
 
 # ── Logging ──────────────────────────────────────────────────
 

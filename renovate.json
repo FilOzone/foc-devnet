@@ -21,12 +21,11 @@
         "/^dependencies\\.toml$/"
       ],
       "matchStrings": [
-        "default\\s*=\\s*\\{\\s*tag\\s*=\\s*\"synapse-sdk-v(?<currentValue>[0-9][^\"]*)\""
+        "\\[dev-dependencies\\.synapse-sdk\\][\\s\\S]{0,300}?default\\s*=\\s*\\{\\s*npm\\s*=\\s*\"(?<currentValue>[0-9][^\"]*)\""
       ],
-      "depNameTemplate": "FilOzone/synapse-sdk",
-      "datasourceTemplate": "github-tags",
-      "extractVersionTemplate": "^synapse-sdk-v(?<version>.+)$",
-      "versioningTemplate": "semver"
+      "depNameTemplate": "@filoz/synapse-sdk",
+      "datasourceTemplate": "npm",
+      "versioningTemplate": "npm"
     },
     {
       "customType": "regex",
@@ -34,7 +33,7 @@
         "/^dependencies\\.toml$/"
       ],
       "matchStrings": [
-        "default\\s*=\\s*\\{\\s*npm\\s*=\\s*\"(?<currentValue>[0-9][^\"]*)\""
+        "\\[dev-dependencies\\.filecoin-pin\\][\\s\\S]{0,300}?default\\s*=\\s*\\{\\s*npm\\s*=\\s*\"(?<currentValue>[0-9][^\"]*)\""
       ],
       "depNameTemplate": "filecoin-pin",
       "datasourceTemplate": "npm",
