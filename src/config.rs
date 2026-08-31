@@ -290,7 +290,7 @@ impl Default for Config {
             },
             curio: Location::GitTag {
                 url: "https://github.com/filecoin-project/curio.git".to_string(),
-                tag: "v1.28.4".to_string(),
+                tag: "v1.28.6".to_string(),
             },
             filecoin_services: Location::GitTag {
                 url: "https://github.com/FilOzone/filecoin-services.git".to_string(),
