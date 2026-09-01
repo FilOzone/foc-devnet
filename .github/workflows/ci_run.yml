@@ -54,7 +54,7 @@ jobs:
 
     # Free up disk space on GitHub Actions runner to avoid "no space left" errors
     - name: "EXEC: {Free up disk space}, independent"
-      uses: endersonmenezes/free-disk-space@v3
+      uses: endersonmenezes/free-disk-space@v4
       with:
         remove_android: true
         remove_dotnet: true
