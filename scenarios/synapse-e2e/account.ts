@@ -55,9 +55,14 @@ async function waitForTransaction(synapse: ScenarioSynapse, hash: Hash, label: s
   throw new Error(`${label} transaction ${hash} was not confirmed${details}`)
 }
 
-export async function prepareAccount(synapse: ScenarioSynapse, dataSize: bigint): Promise<AccountState> {
+export async function prepareAccount(synapse: ScenarioSynapse, pieceSize: bigint): Promise<AccountState> {
   const before = await readAccountState(synapse)
-  const { costs, transaction } = await synapse.storage.prepare({ dataSize })
+  const options = {
+    // TODO: Remove dataSize after dropping Synapse SDK 1.2 compatibility.
+    dataSize: pieceSize,
+    pieceSizes: [pieceSize],
+  }
+  const { costs, transaction } = await synapse.storage.prepare(options)
   assert.equal(transaction == null, costs.ready, 'Account readiness and preparation transaction disagree')
   console.log(
     `Account preparation: ready=${costs.ready} deposit=${costs.depositNeeded} approval=${costs.needsFwssMaxApproval}`
@@ -79,7 +84,7 @@ export async function prepareAccount(synapse: ScenarioSynapse, dataSize: bigint)
     console.log(`Account funding confirmed: ${result.hash}`)
   }
 
-  const ready = await synapse.storage.prepare({ dataSize })
+  const ready = await synapse.storage.prepare(options)
   assert.equal(ready.costs.ready, true, 'Payment account remains unprepared')
   assert.equal(ready.transaction, null, 'Prepared payment account still requires a transaction')
   const after = await readAccountState(synapse)
@@ -93,10 +98,16 @@ export async function prepareAccount(synapse: ScenarioSynapse, dataSize: bigint)
 
 export async function prepareAccountWithPlainErc20(
   synapse: ScenarioSynapse,
-  dataSize: bigint,
+  pieceSize: bigint,
   context: StorageContext
 ): Promise<AccountState> {
-  const { costs, transaction } = await synapse.storage.prepare({ context, dataSize })
+  const options = {
+    context,
+    // TODO: Remove dataSize after dropping Synapse SDK 1.2 compatibility.
+    dataSize: pieceSize,
+    pieceSizes: [pieceSize],
+  }
+  const { costs, transaction } = await synapse.storage.prepare(options)
   assert.equal(transaction == null, costs.ready, 'Account readiness and preparation transaction disagree')
   console.log(
     `Plain ERC20 preparation: ready=${costs.ready} deposit=${costs.depositNeeded} approval=${costs.needsFwssMaxApproval}`
@@ -122,7 +133,7 @@ export async function prepareAccountWithPlainErc20(
     await waitForTransaction(synapse, approvalHash, 'FWSS approval')
   }
 
-  const ready = await synapse.storage.prepare({ context, dataSize })
+  const ready = await synapse.storage.prepare(options)
   assert.equal(ready.costs.ready, true, 'Plain ERC20 payment account remains unprepared')
   assert.equal(ready.transaction, null, 'Prepared plain ERC20 account still requires a transaction')
   const account = await readAccountState(synapse)

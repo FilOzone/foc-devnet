@@ -561,7 +561,7 @@ mod tests {
             config.curio,
             Location::GitTag {
                 url: default_dependency_repository("curio"),
-                tag: "v1.28.4".to_string(),
+                tag: "v1.28.6".to_string(),
             }
         );
         assert_eq!(
