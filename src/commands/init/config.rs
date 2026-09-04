@@ -6,7 +6,7 @@
 use std::fs;
 use tracing::info;
 
-use crate::config::{Config, Location};
+use crate::config::{default_dependency_repository, Config, Location};
 use crate::paths::foc_devnet_config;
 
 /// Generate default configuration file if it doesn't exist.
@@ -93,27 +93,27 @@ fn apply_overrides(
     apply_location_override(
         &mut config.lotus,
         lotus_location,
-        "https://github.com/filecoin-project/lotus.git",
+        &default_dependency_repository("lotus"),
     )?;
     apply_location_override(
         &mut config.curio,
         curio_location,
-        "https://github.com/filecoin-project/curio.git",
+        &default_dependency_repository("curio"),
     )?;
     apply_location_override(
         &mut config.filecoin_services,
         filecoin_services_location,
-        "https://github.com/FilOzone/filecoin-services.git",
+        &default_dependency_repository("filecoin-services"),
     )?;
     if let Some(pdp_location) = pdp_location {
         let mut pdp = config.pdp.clone().unwrap_or_else(|| Location::GitBranch {
-            url: "https://github.com/FilOzone/pdp.git".to_string(),
+            url: default_dependency_repository("pdp"),
             branch: "main".to_string(),
         });
         apply_location_override(
             &mut pdp,
             Some(pdp_location),
-            "https://github.com/FilOzone/pdp.git",
+            &default_dependency_repository("pdp"),
         )?;
         config.pdp = Some(pdp);
     }
@@ -149,4 +149,32 @@ pub fn apply_location_override(
             .map_err(|e| format!("Invalid location: {}", e))?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::apply_location_override;
+    use crate::config::{default_dependency_repository, Location};
+
+    #[test]
+    fn override_uses_manifest_repository_for_local_source_defaults() {
+        let mut location = Location::LocalSource {
+            dir: "/tmp/lotus".to_string(),
+        };
+
+        apply_location_override(
+            &mut location,
+            Some("gitbranch:test-branch".to_string()),
+            &default_dependency_repository("lotus"),
+        )
+        .unwrap();
+
+        assert_eq!(
+            location,
+            Location::GitBranch {
+                url: default_dependency_repository("lotus"),
+                branch: "test-branch".to_string(),
+            }
+        );
+    }
 }

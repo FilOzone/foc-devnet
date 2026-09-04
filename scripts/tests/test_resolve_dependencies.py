@@ -7,7 +7,7 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-SCRIPT = Path(__file__).parents[1] / "resolve-ci-dependencies.py"
+SCRIPT = Path(__file__).parents[1] / "resolve-dependencies.py"
 SPEC = importlib.util.spec_from_file_location("dependency_resolver", SCRIPT)
 resolver = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(resolver)
@@ -30,14 +30,51 @@ class FakeRunner:
         raise AssertionError(f"Unexpected command: {command}")
 
 
+def toml_value(value):
+    if isinstance(value, str):
+        return json.dumps(value)
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, dict):
+        items = ", ".join(f"{key} = {toml_value(val)}" for key, val in value.items())
+        return "{ " + items + " }"
+    raise TypeError(f"Unsupported TOML test value: {value!r}")
+
+
+def write_manifest(path, manifest):
+    lines = [f"schema_version = {manifest['schema_version']}", ""]
+    for group in ("dependencies", "dev-dependencies"):
+        if not manifest.get(group, {}):
+            lines.append(f"[{group}]")
+            lines.append("")
+        for name, component in manifest.get(group, {}).items():
+            lines.append(f"[{group}.{name}]")
+            for key, value in component.items():
+                lines.append(f"{key} = {toml_value(value)}")
+            lines.append("")
+    for name, profile in manifest["profiles"].items():
+        lines.append(f"[profiles.{name}]")
+        for key, value in profile.items():
+            lines.append(f"{key} = {toml_value(value)}")
+        lines.append("")
+    path.write_text("\n".join(lines))
+
+
 class ResolverTests(unittest.TestCase):
-    def manifest(self, profiles=None, components=None):
-        if components is None:
-            components = {
+    def manifest(self, profiles=None, dependencies=None, dev_dependencies=None):
+        if dependencies is None:
+            dependencies = {
                 "lotus": self.component("a", "b"),
                 "curio": self.component("c", "d"),
                 "filecoin-services": self.component("e", "f"),
                 "pdp": self.component("5", "6"),
+                "multicall3": {
+                    "git": "https://example.test/multicall3.git",
+                    "default": {"commit": "9" * 40},
+                },
+            }
+        if dev_dependencies is None:
+            dev_dependencies = {
                 "synapse-sdk": self.component("1", "2"),
                 "filecoin-pin": self.component("3", "4"),
             }
@@ -48,47 +85,42 @@ class ResolverTests(unittest.TestCase):
                 "frontier": {"base": "frontier"},
                 "stability-frontier-lotus": {
                     "base": "stability",
-                    "components": {"lotus": "frontier"},
+                    "lotus": "frontier",
                 },
                 "stability-frontier-curio": {
                     "base": "stability",
-                    "components": {"curio": "frontier"},
+                    "curio": "frontier",
                 },
                 "stability-frontier-filecoin-services": {
                     "base": "stability",
-                    "components": {"filecoin-services": "frontier"},
+                    "filecoin-services": "frontier",
                 },
                 "stability-frontier-pdp": {
                     "base": "stability",
-                    "components": {"pdp": "frontier"},
+                    "pdp": "frontier",
                 },
             }
         return {
-            "schema_version": 2,
+            "schema_version": 1,
             "profiles": profiles,
-            "components": components,
+            "dependencies": dependencies,
+            "dev-dependencies": dev_dependencies,
         }
 
     def component(self, stability_prefix, frontier_prefix):
         return {
-            "repository": "https://example.test/project.git",
-            "default": {"strategy": "config_default"},
-            "stability": {
-                "strategy": "git_commit",
-                "commit": stability_prefix * 40,
-            },
-            "frontier": {
-                "strategy": "git_commit",
-                "commit": frontier_prefix * 40,
-            },
+            "git": "https://example.test/project.git",
+            "default": {"commit": "0" * 40},
+            "stability": {"commit": stability_prefix * 40},
+            "frontier": {"commit": frontier_prefix * 40},
         }
 
     def resolve_manifest(self, manifest, profile):
         with tempfile.TemporaryDirectory() as directory:
             directory = Path(directory)
-            manifest_path = directory / "manifest.json"
+            manifest_path = directory / "manifest.toml"
             output_path = directory / "resolved.json"
-            manifest_path.write_text(json.dumps(manifest))
+            write_manifest(manifest_path, manifest)
             args = type(
                 "Args",
                 (),
@@ -107,10 +139,10 @@ class ResolverTests(unittest.TestCase):
     def resolve_manifest_with_github_output(self, manifest, profile):
         with tempfile.TemporaryDirectory() as directory:
             directory = Path(directory)
-            manifest_path = directory / "manifest.json"
+            manifest_path = directory / "manifest.toml"
             output_path = directory / "resolved.json"
             github_output_path = directory / "github-output"
-            manifest_path.write_text(json.dumps(manifest))
+            write_manifest(manifest_path, manifest)
             args = type(
                 "Args",
                 (),
@@ -131,18 +163,14 @@ class ResolverTests(unittest.TestCase):
 
     def pdp_git_submodule_component(self):
         return {
-            "repository": "https://example.test/pdp.git",
-            "default": {"strategy": "config_default"},
+            "git": "https://example.test/pdp.git",
+            "default": {"bundled": True},
             "stability": {
-                "strategy": "git_submodule",
-                "repository": "https://example.test/filecoin-services.git",
-                "tag": "v*",
+                "submodule_git": "https://example.test/filecoin-services.git",
+                "tag_pattern": "v*",
                 "path": "service_contracts/lib/pdp",
             },
-            "frontier": {
-                "strategy": "git_commit",
-                "commit": "6" * 40,
-            },
+            "frontier": {"commit": "6" * 40},
         }
 
     def test_latest_non_prerelease_tag_excludes_prereleases_and_annotated_refs(self):
@@ -209,9 +237,9 @@ class ResolverTests(unittest.TestCase):
         manifest = self.manifest()
         with tempfile.TemporaryDirectory() as directory:
             directory = Path(directory)
-            manifest_path = directory / "manifest.json"
+            manifest_path = directory / "manifest.toml"
             output_path = directory / "resolved.json"
-            manifest_path.write_text(json.dumps(manifest))
+            write_manifest(manifest_path, manifest)
             args = type(
                 "Args",
                 (),
@@ -228,15 +256,15 @@ class ResolverTests(unittest.TestCase):
 
     def test_manifest_missing_component_fails(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "manifest.json"
-            path.write_text(
-                json.dumps(
-                    {
-                        "schema_version": 2,
-                        "profiles": {"default": {"base": "default"}},
-                        "components": {},
-                    }
-                )
+            path = Path(directory) / "manifest.toml"
+            write_manifest(
+                path,
+                {
+                    "schema_version": 1,
+                    "profiles": {"default": {"base": "default"}},
+                    "dependencies": {},
+                    "dev-dependencies": {},
+                },
             )
             with self.assertRaisesRegex(resolver.ResolutionError, "missing"):
                 resolver.load_manifest(path)
@@ -277,7 +305,7 @@ class ResolverTests(unittest.TestCase):
         parent_commit = "8" * 40
         pdp_commit = "7" * 40
         manifest = self.manifest()
-        manifest["components"]["pdp"] = self.pdp_git_submodule_component()
+        manifest["dependencies"]["pdp"] = self.pdp_git_submodule_component()
         run_command.side_effect = FakeRunner(
             [
                 (
@@ -344,7 +372,15 @@ class ResolverTests(unittest.TestCase):
     @patch.object(resolver, "run_command")
     def test_git_submodule_rejects_missing_gitlink(self, run_command):
         parent_commit = "8" * 40
-        component = self.pdp_git_submodule_component()
+        component = {
+            "repository": "https://example.test/pdp.git",
+            "stability": {
+                "strategy": "git_submodule",
+                "repository": "https://example.test/filecoin-services.git",
+                "tag": "v*",
+                "path": "service_contracts/lib/pdp",
+            },
+        }
         run_command.side_effect = FakeRunner(
             [
                 (
@@ -388,7 +424,7 @@ class ResolverTests(unittest.TestCase):
             "frontier": {"base": "frontier"},
             "stability-frontier-curio": {
                 "base": "stability",
-                "components": {"curio": "frontier"},
+                "curio": "frontier",
             },
         }
         manifest = self.manifest(profiles=profiles)
@@ -401,13 +437,13 @@ class ResolverTests(unittest.TestCase):
                 "default": {"base": "default"},
                 "bad": {
                     "base": "stability",
-                    "components": {"missing": "frontier"},
+                    "missing": "frontier",
                 },
             }
         )
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "manifest.json"
-            path.write_text(json.dumps(manifest))
+            path = Path(directory) / "manifest.toml"
+            write_manifest(path, manifest)
             with self.assertRaisesRegex(resolver.ResolutionError, "unknown components"):
                 resolver.load_manifest(path)
 
@@ -417,13 +453,13 @@ class ResolverTests(unittest.TestCase):
                 "default": {"base": "default"},
                 "bad": {
                     "base": "stability",
-                    "components": {"lotus": "not-a-selection"},
+                    "lotus": "not-a-selection",
                 },
             }
         )
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "manifest.json"
-            path.write_text(json.dumps(manifest))
+            path = Path(directory) / "manifest.toml"
+            write_manifest(path, manifest)
             with self.assertRaisesRegex(resolver.ResolutionError, "no such selection"):
                 resolver.load_manifest(path)
 
@@ -739,9 +775,13 @@ class ResolverTests(unittest.TestCase):
                 "synapse-sdk", component, "default", FakeRunner({})
             )
 
-    def test_init_args_skip_config_defaults_and_pin_other_sources(self):
+    def test_init_args_skip_bundled_pdp_and_pin_git_sources(self):
         components = {
-            "lotus": {"source": "config_default"},
+            "lotus": {
+                "source": "git",
+                "repository": "https://example.test/lotus.git",
+                "commit": "aaa",
+            },
             "curio": {
                 "source": "git",
                 "repository": "https://example.test/curio.git",
@@ -753,31 +793,49 @@ class ResolverTests(unittest.TestCase):
                 "commit": "def",
             },
             "pdp": {
-                "source": "git",
+                "source": "bundled",
                 "repository": "https://example.test/pdp.git",
-                "commit": "123",
             },
         }
         self.assertEqual(
             resolver.build_init_args(components),
             [
+                "--lotus",
+                "gitcommit:https://example.test/lotus.git:aaa",
                 "--curio",
                 "gitcommit:https://example.test/curio.git:abc",
                 "--filecoin-services",
                 "gitcommit:https://example.test/services.git:def",
-                "--pdp",
-                "gitcommit:https://example.test/pdp.git:123",
             ],
         )
 
-    def test_init_args_skip_default_pdp(self):
+    def test_init_args_include_independent_pdp(self):
         components = {
-            "lotus": {"source": "config_default"},
-            "curio": {"source": "config_default"},
-            "filecoin-services": {"source": "config_default"},
-            "pdp": {"source": "config_default"},
+            "lotus": {
+                "source": "git",
+                "repository": "https://example.test/lotus.git",
+                "commit": "aaa",
+            },
+            "curio": {
+                "source": "git",
+                "repository": "https://example.test/curio.git",
+                "commit": "bbb",
+            },
+            "filecoin-services": {
+                "source": "git",
+                "repository": "https://example.test/services.git",
+                "commit": "ccc",
+            },
+            "pdp": {
+                "source": "git",
+                "repository": "https://example.test/pdp.git",
+                "commit": "ddd",
+            },
         }
-        self.assertEqual(resolver.build_init_args(components), [])
+        self.assertEqual(
+            resolver.build_init_args(components)[-2:],
+            ["--pdp", "gitcommit:https://example.test/pdp.git:ddd"],
+        )
 
     def test_cache_hash_depends_only_on_lotus_and_curio_commits(self):
         base = {
@@ -803,8 +861,8 @@ class ResolverTests(unittest.TestCase):
             "schema_version": 1,
             "profile": "default",
             "components": {
-                **{name: {"source": "config_default"} for name in commits},
-                "pdp": {"source": "config_default"},
+                **{name: {"source": "git"} for name in commits},
+                "pdp": {"source": "bundled"},
             },
         }
         with tempfile.TemporaryDirectory() as directory:

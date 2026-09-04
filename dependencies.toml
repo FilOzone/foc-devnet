@@ -1,0 +1,71 @@
+# Central dependency manifest for runtime defaults and CI/scenario profiles.
+# Runtime defaults are embedded into the foc-devnet binary at compile time.
+
+schema_version = 1
+
+[dependencies.lotus]
+git = "https://github.com/filecoin-project/lotus.git"
+default = { tag = "v1.36.2" }
+stability = { tag_pattern = "v*" }
+frontier = { branch = "master" }
+
+[dependencies.curio]
+git = "https://github.com/filecoin-project/curio.git"
+default = { tag = "v1.28.6" }
+stability = { tag_pattern = "v*" }
+frontier = { branch = "main" }
+
+[dependencies.filecoin-services]
+git = "https://github.com/FilOzone/filecoin-services.git"
+default = { tag = "v1.3.1" }
+stability = { tag_pattern = "v*" }
+frontier = { branch = "main" }
+
+[dependencies.pdp]
+git = "https://github.com/FilOzone/pdp.git"
+default = { bundled = true }
+stability = { submodule_git = "https://github.com/FilOzone/filecoin-services.git", tag_pattern = "v*", path = "service_contracts/lib/pdp" }
+frontier = { branch = "main" }
+
+[dependencies.multicall3]
+git = "https://github.com/mds1/multicall3.git"
+default = { tag = "v3.1.0" }
+
+[dev-dependencies.synapse-sdk]
+git = "https://github.com/FilOzone/synapse-sdk.git"
+npm_package = "@filoz/synapse-sdk"
+default = { npm = "1.2.1" }
+stability = { npm = "latest" }
+frontier = { pkg_pr_new = "master" }
+
+[dev-dependencies.filecoin-pin]
+git = "https://github.com/filecoin-project/filecoin-pin.git"
+npm_package = "filecoin-pin"
+default = { npm = "1.3.1" }
+stability = { npm = "latest" }
+frontier = { branch = "master" }
+
+[profiles.default]
+base = "default"
+
+[profiles.stability]
+base = "stability"
+
+[profiles.frontier]
+base = "frontier"
+
+[profiles.stability-frontier-lotus]
+base = "stability"
+lotus = "frontier"
+
+[profiles.stability-frontier-curio]
+base = "stability"
+curio = "frontier"
+
+[profiles.stability-frontier-filecoin-services]
+base = "stability"
+filecoin-services = "frontier"
+
+[profiles.stability-frontier-pdp]
+base = "stability"
+pdp = "frontier"

@@ -7,10 +7,10 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^src/config\\.rs$/"
+        "/^dependencies\\.toml$/"
       ],
       "matchStrings": [
-        "url:\\s*\"https://github\\.com/(?<depName>[^\"]+?)(?:\\.git)?\"\\.to_string\\(\\),\\s*tag:\\s*\"(?<currentValue>v[0-9][^\"]*)\""
+        "git\\s*=\\s*\"https://github\\.com/(?<depName>[^\"]+?)(?:\\.git)?\"\\s*\\n(?:[^\\n]*\\n){0,2}default\\s*=\\s*\\{\\s*tag\\s*=\\s*\"(?<currentValue>v[0-9][^\"]*)\""
       ],
       "datasourceTemplate": "github-tags",
       "versioningTemplate": "semver"
@@ -18,10 +18,10 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^ci/dependency-profiles\\.json$/"
+        "/^dependencies\\.toml$/"
       ],
       "matchStrings": [
-        "\"synapse-sdk\":\\s*\\{[\\s\\S]{0,500}?\"default\":\\s*\\{\\s*\"strategy\":\\s*\"npm_version\",\\s*\"version\":\\s*\"(?<currentValue>[0-9][^\"]*)\""
+        "\\[dev-dependencies\\.synapse-sdk\\][\\s\\S]{0,300}?default\\s*=\\s*\\{\\s*npm\\s*=\\s*\"(?<currentValue>[0-9][^\"]*)\""
       ],
       "depNameTemplate": "@filoz/synapse-sdk",
       "datasourceTemplate": "npm",
@@ -30,10 +30,10 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^ci/dependency-profiles\\.json$/"
+        "/^dependencies\\.toml$/"
       ],
       "matchStrings": [
-        "\"filecoin-pin\":\\s*\\{[\\s\\S]{0,500}?\"default\":\\s*\\{\\s*\"strategy\":\\s*\"npm_version\",\\s*\"version\":\\s*\"(?<currentValue>[0-9][^\"]*)\""
+        "\\[dev-dependencies\\.filecoin-pin\\][\\s\\S]{0,300}?default\\s*=\\s*\\{\\s*npm\\s*=\\s*\"(?<currentValue>[0-9][^\"]*)\""
       ],
       "depNameTemplate": "filecoin-pin",
       "datasourceTemplate": "npm",
