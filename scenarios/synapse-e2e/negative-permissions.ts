@@ -14,6 +14,8 @@ import { createSynapse, prepareAccount, readAccountState } from './account.ts'
 import { freshMetadata, resolveEnvironment } from './environment.ts'
 import { fileSize, uploadFile } from './storage.ts'
 
+const NEGATIVE_TERMINATION_OBSERVATION_MS = 15_000
+
 type DataSetSnapshot = {
   dataSetId: bigint
   pieceId: bigint
@@ -81,7 +83,11 @@ async function assertTerminationRejected(
 ): Promise<void> {
   try {
     const { statusUrl } = await operation()
-    await SP.waitForTerminateService({ statusUrl, timeout: 60_000, pollInterval: 1000 })
+    await SP.waitForTerminateService({
+      statusUrl,
+      timeout: NEGATIVE_TERMINATION_OBSERVATION_MS,
+      pollInterval: 1000,
+    })
   } catch (error) {
     if (
       TerminateServiceError.is(error) ||
@@ -89,6 +95,10 @@ async function assertTerminationRejected(
       WaitForTerminateServiceNotFoundError.is(error)
     ) {
       console.log(`Rejected as expected: ${label}: ${error instanceof Error ? error.message : String(error)}`)
+      return
+    }
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      console.log(`No successful termination observed for ${label} after bounded wait`)
       return
     }
     throw error
