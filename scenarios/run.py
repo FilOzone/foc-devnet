@@ -37,7 +37,7 @@ ORDER = [
     ("test_negative_permissions", 300, False),
     ("test_multi_copy_upload", 600, False),
     ("test_caching_subsystem", 200, False),
-    ("test_bulk_add", 1800, True),
+    ("test_bulk_add", 600, True),
     ("test_termination_controls", 900, True),
 ]
 

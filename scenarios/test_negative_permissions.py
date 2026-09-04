@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scenarios.helpers import assert_eq, assert_ok, info, write_random_file
 from scenarios.synapse_runtime import prepare_synapse_runtime, run_node_script
 
-FIXTURE_SIZE = 1024 * 1024
+FIXTURE_SIZE = 4 * 1024
 
 
 def run():

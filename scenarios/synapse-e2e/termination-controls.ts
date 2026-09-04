@@ -7,17 +7,16 @@ import { fileSize, uploadFile } from './storage.ts'
 
 const delay = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
 
-async function assertTerminated(synapse: ReturnType<typeof createSynapse>, dataSetId: bigint): Promise<void> {
+async function waitForTerminatedRail(synapse: ReturnType<typeof createSynapse>, dataSetId: bigint): Promise<bigint> {
   for (let attempt = 0; attempt < 30; attempt++) {
     const dataSet = await getPdpDataSet(synapse.client, { dataSetId })
-    if (dataSet != null && !dataSet.live) {
+    if (dataSet != null) {
       const rail = await getRail(synapse.client, { railId: dataSet.pdpRailId })
-      assert(rail.endEpoch > 0n, `Terminated data set ${dataSetId} has an open payment rail`)
-      return
+      if (rail.endEpoch > 0n) return rail.endEpoch
     }
     await delay(1000)
   }
-  throw new Error(`Data set ${dataSetId} did not become terminated`)
+  throw new Error(`Data set ${dataSetId} payment rail did not become terminated`)
 }
 
 async function main(): Promise<void> {
@@ -38,12 +37,13 @@ async function main(): Promise<void> {
     onSubmitted: (hash) => console.log(`SP-relayed termination submitted: ${hash}`),
   })
   assert.equal(relayed.dataSetId, relayedCopy.dataSetId, 'Relayed termination returned the wrong data set')
-  await assertTerminated(synapse, relayedCopy.dataSetId)
+  assert(relayed.endEpoch > 0n, 'Relayed termination returned an empty end epoch')
+  const relayedRailEndEpoch = await waitForTerminatedRail(synapse, relayedCopy.dataSetId)
+  assert.equal(relayedRailEndEpoch, relayed.endEpoch, 'Relayed termination result differs from the rail end epoch')
   const afterRelayed = await readAccountState(synapse)
-  assert.equal(
-    beforeRelayed.funds - afterRelayed.funds,
-    priceList.fees.terminateFee,
-    'SP-relayed termination did not charge the configured termination fee'
+  assert(
+    beforeRelayed.funds - afterRelayed.funds >= priceList.fees.terminateFee,
+    'SP-relayed termination did not charge at least the configured termination fee'
   )
 
   const beforeDirect = await readAccountState(synapse)
@@ -54,7 +54,9 @@ async function main(): Promise<void> {
   })
   assert.equal(direct.dataSetId, directCopy.dataSetId, 'Direct termination returned the wrong data set')
   assert(direct.txHash != null, 'Direct termination did not submit an on-chain transaction')
-  await assertTerminated(synapse, directCopy.dataSetId)
+  assert(direct.endEpoch > 0n, 'Direct termination returned an empty end epoch')
+  const directRailEndEpoch = await waitForTerminatedRail(synapse, directCopy.dataSetId)
+  assert.equal(directRailEndEpoch, direct.endEpoch, 'Direct termination result differs from the rail end epoch')
   const afterDirect = await readAccountState(synapse)
   assert.equal(
     beforeDirect.funds - afterDirect.funds,

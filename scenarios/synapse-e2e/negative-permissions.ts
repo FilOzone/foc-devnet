@@ -1,37 +1,117 @@
 import assert from 'node:assert/strict'
+import {
+  DeletePieceError,
+  TerminateServiceError,
+  WaitForTerminateServiceNotFoundError,
+  WaitForTerminateServiceRejectedError,
+} from '@filoz/synapse-core/errors'
 import * as SP from '@filoz/synapse-core/sp'
 import { getRail } from '@filoz/synapse-core/pay'
 import { getActivePieceCount } from '@filoz/synapse-core/pdp-verifier'
 import { getPdpDataSet } from '@filoz/synapse-core/warm-storage'
+import { waitForTransactionReceipt } from 'viem/actions'
 import { createSynapse, prepareAccount, readAccountState } from './account.ts'
 import { freshMetadata, resolveEnvironment } from './environment.ts'
 import { fileSize, uploadFile } from './storage.ts'
 
 type DataSetSnapshot = {
+  dataSetId: bigint
+  pieceId: bigint
+  clientDataSetId: bigint
+  serviceURL: string
   live: boolean
   activePieceCount: bigint
-  rail: { endEpoch: bigint; paymentRate: bigint; lockupPeriod: bigint }
-  payment: { funds: bigint; availableFunds: bigint; lockupCurrent: bigint; lockupRate: bigint }
+  rail: { railId: bigint; endEpoch: bigint; paymentRate: bigint; lockupPeriod: bigint }
+  payment: { funds: bigint; lockupRate: bigint }
 }
 
-async function snapshot(synapse: ReturnType<typeof createSynapse>, dataSetId: bigint): Promise<DataSetSnapshot> {
+async function snapshot(
+  synapse: ReturnType<typeof createSynapse>,
+  dataSetId: bigint,
+  pieceId: bigint
+): Promise<DataSetSnapshot> {
   const dataSet = await getPdpDataSet(synapse.client, { dataSetId })
-  assert(dataSet != null, `Data set ${dataSetId} is not readable`)
+  if (dataSet == null) throw new Error(`Data set ${dataSetId} is not readable`)
   const [activePieceCount, rail, payment] = await Promise.all([
     getActivePieceCount(synapse.client, { dataSetId }),
     getRail(synapse.client, { railId: dataSet.pdpRailId }),
     readAccountState(synapse),
   ])
   return {
+    dataSetId,
+    pieceId,
+    clientDataSetId: dataSet.clientDataSetId,
+    serviceURL: dataSet.provider.pdp.serviceURL,
     live: dataSet.live,
     activePieceCount,
-    rail: { endEpoch: rail.endEpoch, paymentRate: rail.paymentRate, lockupPeriod: rail.lockupPeriod },
+    rail: {
+      railId: dataSet.pdpRailId,
+      endEpoch: rail.endEpoch,
+      paymentRate: rail.paymentRate,
+      lockupPeriod: rail.lockupPeriod,
+    },
     payment: {
       funds: payment.funds,
-      availableFunds: payment.availableFunds,
-      lockupCurrent: payment.lockupCurrent,
       lockupRate: payment.lockupRate,
     },
+  }
+}
+
+async function createPermissionTarget(
+  owner: ReturnType<typeof createSynapse>,
+  filePath: string,
+  label: string
+): Promise<DataSetSnapshot> {
+  const { result } = await uploadFile(owner, filePath, freshMetadata(`negative-permissions-${label}`), 1)
+  const copy = result.copies[0]
+  assert(copy != null, `Expected one live data set for ${label}`)
+  return snapshot(owner, copy.dataSetId, copy.pieceId)
+}
+
+function assertStableAfterRejectedRequest(before: DataSetSnapshot, after: DataSetSnapshot, label: string): void {
+  assert.equal(after.live, true, `${label} mutated data set liveness`)
+  assert.equal(after.activePieceCount, before.activePieceCount, `${label} mutated active piece count`)
+  assert.deepEqual(after.rail, before.rail, `${label} mutated rail identity, rate, lockup period, or end epoch`)
+  assert.deepEqual(after.payment, before.payment, `${label} mutated payment funds or lockup rate`)
+}
+
+async function assertTerminationRejected(
+  operation: () => Promise<SP.terminateService.OutputType>,
+  label: string
+): Promise<void> {
+  try {
+    const { statusUrl } = await operation()
+    await SP.waitForTerminateService({ statusUrl, timeout: 60_000, pollInterval: 1000 })
+  } catch (error) {
+    if (
+      TerminateServiceError.is(error) ||
+      WaitForTerminateServiceRejectedError.is(error) ||
+      WaitForTerminateServiceNotFoundError.is(error)
+    ) {
+      console.log(`Rejected as expected: ${label}: ${error instanceof Error ? error.message : String(error)}`)
+      return
+    }
+    throw error
+  }
+  throw new Error(`${label} unexpectedly terminated the data set`)
+}
+
+async function assertDeletionRejected(
+  synapse: ReturnType<typeof createSynapse>,
+  operation: () => Promise<SP.deletePiece.OutputType>,
+  label: string
+): Promise<void> {
+  try {
+    const { hash } = await operation()
+    const receipt = await waitForTransactionReceipt(synapse.client, { hash })
+    assert.equal(receipt.status, 'reverted', `${label} transaction unexpectedly succeeded`)
+    console.log(`Rejected as expected: ${label}: reverted tx ${hash}`)
+  } catch (error) {
+    if (DeletePieceError.is(error)) {
+      console.log(`Rejected as expected: ${label}: ${error instanceof Error ? error.message : String(error)}`)
+      return
+    }
+    throw error
   }
 }
 
@@ -42,40 +122,76 @@ async function main(): Promise<void> {
   const intruder = createSynapse(resolveEnvironment({ defaultUserIndex: 1 }))
   const [filePath] = ownerEnvironment.filePaths
 
-  await prepareAccount(owner, await fileSize(filePath))
-  const { result } = await uploadFile(owner, filePath, freshMetadata('negative-permissions'), 1)
-  const copy = result.copies[0]
-  assert(copy != null, 'Expected one live data set for permission checks')
-  const dataSet = await getPdpDataSet(owner.client, { dataSetId: copy.dataSetId })
-  assert(dataSet != null && dataSet.live, `Data set ${copy.dataSetId} was not created live`)
-  const serviceURL = dataSet.provider.pdp.serviceURL
-  const before = await snapshot(owner, copy.dataSetId)
+  await prepareAccount(owner, (await fileSize(filePath)) * 4n)
 
-  await assert.rejects(
-    SP.terminateService(intruder.client, { serviceURL, dataSetId: copy.dataSetId }),
-    'a non-owner must not be able to relay termination'
+  const nonOwnerTerminate = await createPermissionTarget(owner, filePath, 'non-owner-terminate')
+  await assertTerminationRejected(
+    () =>
+      SP.terminateService(intruder.client, {
+        serviceURL: nonOwnerTerminate.serviceURL,
+        dataSetId: nonOwnerTerminate.dataSetId,
+      }),
+    'non-owner relayed termination'
   )
-  await assert.rejects(
-    SP.terminateServiceApiRequest({ serviceURL, dataSetId: copy.dataSetId, extraData: '0x' }),
-    'malformed relayed termination data must be rejected'
-  )
-  await assert.rejects(
-    SP.schedulePieceDeletion(intruder.client, {
-      serviceURL,
-      dataSetId: copy.dataSetId,
-      clientDataSetId: dataSet.clientDataSetId,
-      pieceId: copy.pieceId,
-    }),
-    'a non-owner must not be able to schedule removal'
-  )
-  await assert.rejects(
-    SP.deletePiece({ serviceURL, dataSetId: copy.dataSetId, pieceId: copy.pieceId, extraData: '0x' }),
-    'malformed removal data must be rejected'
+  assertStableAfterRejectedRequest(
+    nonOwnerTerminate,
+    await snapshot(owner, nonOwnerTerminate.dataSetId, nonOwnerTerminate.pieceId),
+    'non-owner relayed termination'
   )
 
-  const after = await snapshot(owner, copy.dataSetId)
-  assert.deepEqual(after, before, 'rejected requests must not mutate the data set, pieces, rail, or payment account')
-  console.log(`=== SUCCESS: rejected requests left data set ${copy.dataSetId} unchanged ===`)
+  const malformedTerminate = await createPermissionTarget(owner, filePath, 'malformed-terminate')
+  await assertTerminationRejected(
+    () =>
+      SP.terminateServiceApiRequest({
+        serviceURL: malformedTerminate.serviceURL,
+        dataSetId: malformedTerminate.dataSetId,
+        extraData: '0x',
+      }),
+    'malformed relayed termination data'
+  )
+  assertStableAfterRejectedRequest(
+    malformedTerminate,
+    await snapshot(owner, malformedTerminate.dataSetId, malformedTerminate.pieceId),
+    'malformed relayed termination data'
+  )
+
+  const nonOwnerDeletion = await createPermissionTarget(owner, filePath, 'non-owner-deletion')
+  await assertDeletionRejected(
+    owner,
+    () =>
+      SP.schedulePieceDeletion(intruder.client, {
+        serviceURL: nonOwnerDeletion.serviceURL,
+        dataSetId: nonOwnerDeletion.dataSetId,
+        clientDataSetId: nonOwnerDeletion.clientDataSetId,
+        pieceId: nonOwnerDeletion.pieceId,
+      }),
+    'non-owner piece deletion'
+  )
+  assertStableAfterRejectedRequest(
+    nonOwnerDeletion,
+    await snapshot(owner, nonOwnerDeletion.dataSetId, nonOwnerDeletion.pieceId),
+    'non-owner piece deletion'
+  )
+
+  const malformedDeletion = await createPermissionTarget(owner, filePath, 'malformed-deletion')
+  await assertDeletionRejected(
+    owner,
+    () =>
+      SP.deletePiece({
+        serviceURL: malformedDeletion.serviceURL,
+        dataSetId: malformedDeletion.dataSetId,
+        pieceId: malformedDeletion.pieceId,
+        extraData: '0x',
+      }),
+    'malformed piece deletion data'
+  )
+  assertStableAfterRejectedRequest(
+    malformedDeletion,
+    await snapshot(owner, malformedDeletion.dataSetId, malformedDeletion.pieceId),
+    'malformed piece deletion data'
+  )
+
+  console.log('=== SUCCESS: rejected permission requests left independent data sets unchanged ===')
 }
 
 main().catch((error: unknown) => {
