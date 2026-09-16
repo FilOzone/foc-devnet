@@ -115,7 +115,7 @@
       "npm_package": "filecoin-pin",
       "default": {
         "strategy": "npm_version",
-        "version": "2.0.0"
+        "version": "2.1.1"
       },
       "stability": {
         "strategy": "npm_version",
