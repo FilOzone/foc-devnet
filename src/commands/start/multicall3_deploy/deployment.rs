@@ -8,67 +8,8 @@ use crate::commands::start::lotus_utils::get_lotus_rpc_url;
 use crate::docker::command_logger::run_and_log_command_strings;
 use crate::docker::push_bind_mount;
 use crate::paths::foc_devnet_multicall3_repo;
-use crate::utils::retry::{retry_with_fixed_delay, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS};
 use std::error::Error;
 use tracing::{error, info};
-
-/// Guard the deployment against a lagging message pool.
-///
-/// Funding verifies the balance against the chain head, but the pool can lag behind it,
-/// and its view is the one the nonce lookup uses, so the broadcast fails with "actor not
-/// found". `--block pending` routes this probe through the pool; other block parameters
-/// return 0 for a missing actor and would hide the race.
-fn wait_for_deployer_nonce(
-    deployer_eth: &str,
-    lotus_rpc_url: &str,
-    run_id: &str,
-    context: &super::super::step::SetupContext,
-) -> Result<(), Box<dyn Error>> {
-    let mut attempt = 0;
-
-    retry_with_fixed_delay(
-        || {
-            attempt += 1;
-            let args: Vec<String> = vec![
-                "run".to_string(),
-                "--rm".to_string(),
-                "--name".to_string(),
-                format!("foc-{}-multicall3-nonce-{}", run_id, attempt),
-                "-u".to_string(),
-                "foc-user".to_string(),
-                "--network".to_string(),
-                "host".to_string(),
-                crate::constants::BUILDER_DOCKER_IMAGE.to_string(),
-                "bash".to_string(),
-                "-c".to_string(),
-                format!(
-                    "cast nonce {} --block pending --rpc-url {}",
-                    deployer_eth, lotus_rpc_url
-                ),
-            ];
-
-            let key = format!("multicall3_deployer_nonce_{}_{}", run_id, attempt);
-            let output = run_and_log_command_strings("docker", &args, context, &key)?;
-
-            if output.status.success() {
-                Ok(())
-            } else {
-                Err(format!(
-                    "Message pool cannot resolve the nonce for {} yet: {}",
-                    deployer_eth,
-                    String::from_utf8_lossy(&output.stderr).trim()
-                )
-                .into())
-            }
-        },
-        DEFAULT_MAX_RETRIES,
-        DEFAULT_RETRY_DELAY_SECS,
-        "Multicall3 deployer nonce lookup",
-    )?;
-
-    info!("✓ Message pool resolves the nonce for {}", deployer_eth);
-    Ok(())
-}
 
 /// Deploy Multicall3 using forge create
 pub fn deploy_multicall3(
@@ -185,9 +126,6 @@ pub fn perform_deployment(
     // Deploy Multicall3 contract
     let lotus_rpc_url = get_lotus_rpc_url(context)?;
     let run_id = context.run_id();
-
-    wait_for_deployer_nonce(&multicall3_deployer_eth, &lotus_rpc_url, run_id, context)?;
-
     let multicall3_address = deploy_multicall3(&private_key, &lotus_rpc_url, run_id, context)?;
 
     // Store in context
