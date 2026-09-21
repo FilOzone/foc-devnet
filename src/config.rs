@@ -484,7 +484,7 @@ mod tests {
         let config = Config {
             pdp: Some(Location::GitTag {
                 url: "https://github.com/FilOzone/pdp.git".to_string(),
-                tag: "v3.4.0".to_string(),
+                tag: "v3.5.0".to_string(),
             }),
             ..Default::default()
         };
