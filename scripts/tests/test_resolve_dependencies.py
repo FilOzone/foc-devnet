@@ -447,6 +447,35 @@ class ResolverTests(unittest.TestCase):
             with self.assertRaisesRegex(resolver.ResolutionError, "unknown components"):
                 resolver.load_manifest(path)
 
+    def test_manifest_profile_rejects_unknown_base(self):
+        for base in ("stablity", "repository", "npm_package"):
+            with self.subTest(base=base):
+                manifest = self.manifest(profiles={"bad": {"base": base}})
+                manifest["dev-dependencies"]["synapse-sdk"][
+                    "npm_package"
+                ] = "@filoz/synapse-sdk"
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / "manifest.toml"
+                    write_manifest(path, manifest)
+                    with self.assertRaisesRegex(
+                        resolver.ResolutionError,
+                        f"Profile 'bad' base {base!r} does not match any "
+                        "known dependency selection",
+                    ):
+                        resolver.load_manifest(path)
+
+    def test_profile_base_can_be_a_custom_selection_on_one_component(self):
+        manifest = self.manifest(profiles={"custom": {"base": "custom"}})
+        manifest["dependencies"]["lotus"]["custom"] = {"commit": "a" * 40}
+
+        metadata = self.resolve_manifest(manifest, "custom")
+
+        self.assertEqual(metadata["components"]["lotus"]["selection_profile"], "custom")
+        self.assertEqual(metadata["components"]["lotus"]["commit"], "a" * 40)
+        for name, component in metadata["components"].items():
+            if name != "lotus":
+                self.assertEqual(component["selection_profile"], "default")
+
     def test_manifest_profile_rejects_missing_component_selection(self):
         manifest = self.manifest(
             profiles={

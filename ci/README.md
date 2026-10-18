@@ -22,7 +22,9 @@ The manifest declares valid profiles in its top-level `profiles` object:
 Components can define `default`, `stability`, and `frontier` selections. When a
 profile selects a component profile that the component does not define, the
 resolver uses that component's `default` selection unless the profile explicitly
-overrides that component.
+overrides that component. A profile's `base` must match a selection defined by at
+least one component; unknown bases are rejected rather than falling back to
+defaults for every component.
 
 Top-level profile definitions have a `base` component profile and can override
 specific components:

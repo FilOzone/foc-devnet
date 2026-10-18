@@ -170,6 +170,13 @@ def validate_profiles(profiles: dict, components: dict) -> None:
         base = profile.get("base")
         if not isinstance(base, str) or not base:
             raise ResolutionError(f"Profile {profile_name!r} base must be a string")
+        if not any(
+            isinstance(component.get(base), dict) for component in components.values()
+        ):
+            raise ResolutionError(
+                f"Profile {profile_name!r} base {base!r} does not match any "
+                "known dependency selection"
+            )
 
         component_overrides = profile.get("components", {})
         if not isinstance(component_overrides, dict):
