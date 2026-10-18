@@ -284,12 +284,14 @@ branch = "main"
 
 ### How Defaults Work
 
-Defaults are defined in code (see [`src/config.rs`](src/config.rs) `Config::default()`) and written to `config.toml` during `init`. This means:
+Dependency defaults are defined in [`dependencies.toml`](dependencies.toml) and
+embedded into the binary at build time. They are written to `config.toml` during
+`init`. This means:
 
-- **First-time setup:** Running `foc-devnet init` creates `config.toml` with current defaults from code
+- **First-time setup:** Running `foc-devnet init` creates `config.toml` with current defaults from the embedded manifest
 - **Updating defaults:** When a new version of `foc-devnet` includes updated defaults (e.g., newer Lotus version), run `foc-devnet clean --all` then `foc-devnet init` to regenerate `config.toml` with the new defaults
 - **Preserving config across re-init:** Running `foc-devnet clean` (without `--all`) preserves your `config.toml`, so a subsequent `init` reuses your existing settings
-- **Source of truth:** The code defines what defaults are available; `config.toml` stores your specific configuration
+- **Source of truth:** `dependencies.toml` defines dependency defaults; `config.toml` stores your specific configuration
 
 ### Editing Config
 
@@ -820,7 +822,7 @@ port_range_count = 100
 - **[multicall3](https://github.com/mds1/multicall3)** - Multicall3 contract
 ### Dependent Version Strategy
 
-Default versions for these repositories are defined in code (see [`src/config.rs`](src/config.rs) `Config::default()`).
+Default versions for these repositories are defined in [`dependencies.toml`](dependencies.toml).
 
 **Version specification methods:**
 - **Latest tag** (`latesttag`, `latesttag:<selector>`, `latesttag:<url>:<selector>`): Resolved once at `init` time via `git ls-remote` and pinned as a concrete `GitTag` in `config.toml`. Use a glob selector to scope which tags are considered, e.g. `latesttag:v*` or `latesttag:pdp/v*`. Bare `latesttag` matches all tags.
@@ -1330,7 +1332,7 @@ Reports are written to `~/.foc-devnet/state/latest/scenario_report.md`.
 
 Scenarios run automatically in CI after the devnet starts. On nightly runs (or manual dispatch with `reporting` enabled), failures automatically create a GitHub issue with a full report.
 
-CI resolves compatibility-sensitive dependencies from `ci/dependency-profiles.json`.
+CI resolves compatibility-sensitive dependencies from `dependencies.toml`.
 Pull requests use the pinned `default` profile, while nightly `stability` runs use
 the latest final releases and nightly `frontier` runs pin current development
 branch heads to immutable commits. Nightly CI also runs manifest-declared mixed

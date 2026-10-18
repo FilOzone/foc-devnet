@@ -3,7 +3,7 @@
 //! This module provides commands for updating the foc-devnet configuration,
 //! specifically for changing the source locations of Lotus and Curio components.
 
-use crate::config::{Config, Location};
+use crate::config::{default_dependency_repository, Config, Location};
 use crate::paths::foc_devnet_config;
 use std::fs;
 use tracing::info;
@@ -17,11 +17,7 @@ use tracing::info;
 /// - `local:/path/to/lotus` (local directory)
 /// - `gittag:https://github.com/user/lotus.git:v1.0.0` (custom URL)
 pub fn config_lotus(source: String) -> Result<(), Box<dyn std::error::Error>> {
-    update_config_location(
-        "lotus",
-        source,
-        "https://github.com/filecoin-project/lotus.git",
-    )
+    update_config_location("lotus", source, &default_dependency_repository("lotus"))
 }
 
 /// Configure the Curio source location in the config file.
@@ -33,11 +29,7 @@ pub fn config_lotus(source: String) -> Result<(), Box<dyn std::error::Error>> {
 /// - `local:/path/to/curio` (local directory)
 /// - `gittag:https://github.com/user/curio.git:v1.0.0` (custom URL)
 pub fn config_curio(source: String) -> Result<(), Box<dyn std::error::Error>> {
-    update_config_location(
-        "curio",
-        source,
-        "https://github.com/filecoin-project/curio.git",
-    )
+    update_config_location("curio", source, &default_dependency_repository("curio"))
 }
 
 /// Internal function to update a location field in the config.

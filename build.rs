@@ -59,6 +59,7 @@ fn main() {
     // Re-run if git info changes
     println!("cargo:rerun-if-changed=.git/HEAD");
     println!("cargo:rerun-if-changed=.git/refs/heads/");
+    println!("cargo:rerun-if-changed=dependencies.toml");
 
     // Re-run if MockUSDFC contract files change
     println!("cargo:rerun-if-changed=contracts/MockUSDFC/src/MockUSDFC.sol");
