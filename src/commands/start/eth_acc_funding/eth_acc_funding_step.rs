@@ -7,6 +7,7 @@ use super::key_operations::import_faucet_key;
 use super::lotus_checks::{check_lotus_running, get_global_faucet_address};
 use crate::commands::init::keys::load_keys;
 use crate::commands::start::eth_acc_funding::constants::FEVM_ACCOUNTS_PREFUNDED;
+use crate::commands::start::lotus_utils::{get_lotus_rpc_url, wait_for_account_nonce};
 use crate::commands::start::step::{SetupContext, Step};
 use crate::docker::command_logger::log_command;
 use crate::docker::containers::lotus_container_name;
@@ -266,12 +267,13 @@ impl ETHAccFundingStep {
         Ok(())
     }
 
-    /// Verify account balances in parallel by querying the Lotus node
-    fn verify_balances_parallel(
+    /// Verify balances and message pool readiness for each funded account in parallel
+    fn verify_accounts_parallel(
         &self,
-        accounts: Vec<(String, String, u64)>,
+        accounts: Vec<(String, String, String, u64)>,
         context: &SetupContext,
     ) -> Result<(), Box<dyn Error>> {
+        let lotus_rpc_url = get_lotus_rpc_url(context)?;
         let run_id = context.run_id();
         let container_name = lotus_container_name(run_id);
 
@@ -279,7 +281,8 @@ impl ETHAccFundingStep {
         let errors: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
         let mut handles = vec![];
 
-        for (account_name, address, expected_amount) in accounts {
+        for (account_name, address, eth_address, expected_amount) in accounts {
+            let lotus_rpc_url = lotus_rpc_url.clone();
             let container = container_name.clone();
             let errors_clone = Arc::clone(&errors);
             let context_clone = context.clone();
@@ -368,7 +371,11 @@ impl ETHAccFundingStep {
                         &format!("Balance verification for {}", account_name),
                     );
 
-                // Handle retry result
+                let verify_result = verify_result.and_then(|()| {
+                    wait_for_account_nonce(&eth_address, &lotus_rpc_url, &context_clone)
+                });
+
+                // Handle verification result
                 if let Err(e) = verify_result {
                     let error_msg = format!("{}: {}", account_name, e);
                     tracing::error!(" {}", error_msg);
@@ -379,18 +386,18 @@ impl ETHAccFundingStep {
             handles.push(handle);
         }
 
-        // Wait for all balance checks to complete
+        // Wait for all account verification checks to complete
         for handle in handles {
             handle
                 .join()
-                .map_err(|_| "Thread panicked during balance verification")?;
+                .map_err(|_| "Thread panicked during account verification")?;
         }
 
         // Check if any errors occurred
         let errors_vec = errors.lock().unwrap();
         if !errors_vec.is_empty() {
             let combined_error = errors_vec.join("\n");
-            return Err(format!("Balance verification failed:\n{}", combined_error).into());
+            return Err(format!("Account verification failed:\n{}", combined_error).into());
         }
 
         Ok(())
@@ -461,12 +468,17 @@ impl Step for ETHAccFundingStep {
 
             info!("{}: {} (ETH: {})", account_name, addr, eth_addr);
 
-            accounts_to_verify.push((account_name.to_string(), addr.to_string(), *expected_amount));
+            accounts_to_verify.push((
+                account_name.to_string(),
+                addr.to_string(),
+                eth_addr.to_string(),
+                *expected_amount,
+            ));
         }
 
-        // Verify balances in parallel
-        info!("Verifying account balances with Lotus node...");
-        self.verify_balances_parallel(accounts_to_verify, context)?;
+        // Verify each account balance and message pool readiness in parallel
+        info!("Verifying account balances and message pool readiness with Lotus node...");
+        self.verify_accounts_parallel(accounts_to_verify, context)?;
 
         info!("Ethereum account funding verified successfully!");
 

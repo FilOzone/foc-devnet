@@ -554,7 +554,7 @@ mod tests {
             config.lotus,
             Location::GitTag {
                 url: default_dependency_repository("lotus"),
-                tag: "v1.36.2".to_string(),
+                tag: "v1.37.0".to_string(),
             }
         );
         assert_eq!(
@@ -568,7 +568,7 @@ mod tests {
             config.filecoin_services,
             Location::GitTag {
                 url: default_dependency_repository("filecoin-services"),
-                tag: "v1.3.1".to_string(),
+                tag: "v1.4.0".to_string(),
             }
         );
         assert_eq!(
@@ -585,7 +585,7 @@ mod tests {
         let config = Config {
             pdp: Some(Location::GitTag {
                 url: "https://github.com/FilOzone/pdp.git".to_string(),
-                tag: "v3.4.0".to_string(),
+                tag: "v3.5.0".to_string(),
             }),
             ..Default::default()
         };

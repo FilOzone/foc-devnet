@@ -2,6 +2,10 @@
 //!
 //! This module provides shared utilities for working with Lotus daemon.
 
+mod account_readiness;
+
+pub use account_readiness::wait_for_account_nonce;
+
 use std::error::Error;
 use std::fs;
 
