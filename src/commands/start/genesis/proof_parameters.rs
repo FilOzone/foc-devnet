@@ -3,7 +3,7 @@
 //! This module handles downloading and caching Filecoin proof parameters
 //! required for lotus operations.
 
-use crate::docker::push_bind_mount;
+use crate::docker::{push_bind_mount, push_read_only_bind_mount};
 use crate::paths::{
     foc_devnet_bin, foc_devnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
 };
@@ -31,8 +31,7 @@ const PROOF_PARAMS_S3_URL: &str =
 pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
     let params_dir = foc_devnet_proof_parameters();
 
-    // Check if parameters already exist
-    if dir_has_entries(&params_dir)? {
+    if dir_has_entries(&params_dir)? && verify_proof_parameters(&params_dir)? {
         info!(
             "✓ Proof parameters already exist at: {}",
             params_dir.display()
@@ -40,7 +39,10 @@ pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    info!("Proof parameters not found at: {}", params_dir.display());
+    info!(
+        "Required proof parameters not found at: {}",
+        params_dir.display()
+    );
 
     info!("⬇ Downloading proof parameters (this may take a while)...");
 
@@ -63,6 +65,34 @@ pub fn ensure_proof_parameters() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("✓ Proof parameters downloaded successfully via S3 fallback");
     Ok(())
+}
+
+/// Let Lotus validate its required files without allowing downloads or cache writes.
+fn verify_proof_parameters(params_dir: &Path) -> Result<bool, Box<dyn std::error::Error>> {
+    let mut args = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "--network=none".to_string(),
+        "-e".to_string(),
+        format!(
+            "FIL_PROOFS_PARAMETER_CACHE={}",
+            CONTAINER_FILECOIN_PROOF_PARAMS_PATH
+        ),
+    ];
+    push_read_only_bind_mount(&mut args, &foc_devnet_bin(), "/output")?;
+    push_read_only_bind_mount(&mut args, params_dir, CONTAINER_FILECOIN_PROOF_PARAMS_PATH)?;
+    args.extend([
+        crate::constants::BUILDER_DOCKER_IMAGE.to_string(),
+        "/output/lotus".to_string(),
+        "fetch-params".to_string(),
+        super::constants::PROOF_PARAMS_SECTOR_SIZE.to_string(),
+    ]);
+    Ok(Command::new("docker")
+        .args(&args)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()?
+        .success())
 }
 
 /// Download proof parameters using lotus fetch-params.
