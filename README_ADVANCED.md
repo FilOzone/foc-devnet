@@ -361,6 +361,8 @@ $FOC_DEVNET_BASEDIR/
 
 Filecoin proof parameters are not stored under `FOC_DEVNET_BASEDIR`. They use the standard global host cache at `/var/tmp/filecoin-proof-parameters`, which is bind-mounted into Lotus, lotus-miner, and Curio containers at the same path.
 
+Existing parameters must be readable by the host and container users. Runtime mounts are read-only, so reusing a complete cache does not require write access. Downloading or copying parameters requires a writable cache directory; if another account owns it, ask its owner or administrator to grant access. foc-devnet does not change the shared cache's ownership or permissions automatically.
+
 To reuse parameters from an older foc-devnet-private cache, copy them manually before starting:
 
 ```bash
