@@ -18,6 +18,11 @@ def run():
     assert_ok("command -v node", "node is installed")
     with tempfile.TemporaryDirectory(prefix="negative-permissions-") as tmp:
         runtime = prepare_synapse_runtime(Path(tmp))
+        run_node_script(
+            runtime,
+            "permission-checks.test.ts",
+            "permission rejection regression checks",
+        )
         fixture = runtime.work_dir / "negative-permissions.bin"
         write_random_file(fixture, FIXTURE_SIZE, seed=127)
         assert_eq(

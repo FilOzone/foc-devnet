@@ -1,20 +1,12 @@
 import assert from 'node:assert/strict'
-import {
-  DeletePieceError,
-  TerminateServiceError,
-  WaitForTerminateServiceNotFoundError,
-  WaitForTerminateServiceRejectedError,
-} from '@filoz/synapse-core/errors'
 import * as SP from '@filoz/synapse-core/sp'
 import { getRail } from '@filoz/synapse-core/pay'
 import { getActivePieceCount } from '@filoz/synapse-core/pdp-verifier'
 import { getPdpDataSet } from '@filoz/synapse-core/warm-storage'
-import { waitForTransactionReceipt } from 'viem/actions'
 import { createSynapse, prepareAccount, readAccountState } from './account.ts'
-import { freshMetadata, resolveEnvironment } from './environment.ts'
+import { freshMetadata, resolveDistinctDevnetEnvironment, resolveEnvironment } from './environment.ts'
+import { assertDeletionRejected, assertTerminationRejected } from './permission-checks.ts'
 import { fileSize, uploadFile } from './storage.ts'
-
-const NEGATIVE_TERMINATION_OBSERVATION_MS = 15_000
 
 type DataSetSnapshot = {
   dataSetId: bigint
@@ -77,70 +69,29 @@ function assertStableAfterRejectedRequest(before: DataSetSnapshot, after: DataSe
   assert.deepEqual(after.payment, before.payment, `${label} mutated payment funds or lockup rate`)
 }
 
-async function assertTerminationRejected(
-  operation: () => Promise<SP.terminateService.OutputType>,
-  label: string
-): Promise<void> {
-  try {
-    const { statusUrl } = await operation()
-    await SP.waitForTerminateService({
-      statusUrl,
-      timeout: NEGATIVE_TERMINATION_OBSERVATION_MS,
-      pollInterval: 1000,
-    })
-  } catch (error) {
-    if (
-      TerminateServiceError.is(error) ||
-      WaitForTerminateServiceRejectedError.is(error) ||
-      WaitForTerminateServiceNotFoundError.is(error)
-    ) {
-      console.log(`Rejected as expected: ${label}: ${error instanceof Error ? error.message : String(error)}`)
-      return
-    }
-    if (error instanceof Error && error.name === 'TimeoutError') {
-      console.log(`No successful termination observed for ${label} after bounded wait`)
-      return
-    }
-    throw error
-  }
-  throw new Error(`${label} unexpectedly terminated the data set`)
-}
-
-async function assertDeletionRejected(
-  synapse: ReturnType<typeof createSynapse>,
-  operation: () => Promise<SP.deletePiece.OutputType>,
-  label: string
-): Promise<void> {
-  try {
-    const { hash } = await operation()
-    const receipt = await waitForTransactionReceipt(synapse.client, { hash })
-    assert.equal(receipt.status, 'reverted', `${label} transaction unexpectedly succeeded`)
-    console.log(`Rejected as expected: ${label}: reverted tx ${hash}`)
-  } catch (error) {
-    if (DeletePieceError.is(error)) {
-      console.log(`Rejected as expected: ${label}: ${error instanceof Error ? error.message : String(error)}`)
-      return
-    }
-    throw error
-  }
-}
-
 async function main(): Promise<void> {
   const ownerEnvironment = resolveEnvironment({ defaultUserIndex: 0, requireFiles: true })
   if (ownerEnvironment.filePaths.length !== 1) throw new Error('negative-permissions.ts accepts exactly one file path')
   const owner = createSynapse(ownerEnvironment)
-  const intruder = createSynapse(resolveEnvironment({ defaultUserIndex: 1 }))
+  const intruder = createSynapse(resolveDistinctDevnetEnvironment(ownerEnvironment))
+  assert.notEqual(
+    intruder.client.account.address.toLowerCase(),
+    owner.client.account.address.toLowerCase(),
+    'Permission checks require distinct owner and intruder signing addresses'
+  )
   const [filePath] = ownerEnvironment.filePaths
 
   await prepareAccount(owner, (await fileSize(filePath)) * 4n)
 
   const nonOwnerTerminate = await createPermissionTarget(owner, filePath, 'non-owner-terminate')
   await assertTerminationRejected(
+    owner,
     () =>
       SP.terminateService(intruder.client, {
         serviceURL: nonOwnerTerminate.serviceURL,
         dataSetId: nonOwnerTerminate.dataSetId,
       }),
+    'non-owner',
     'non-owner relayed termination'
   )
   assertStableAfterRejectedRequest(
@@ -151,12 +102,14 @@ async function main(): Promise<void> {
 
   const malformedTerminate = await createPermissionTarget(owner, filePath, 'malformed-terminate')
   await assertTerminationRejected(
+    owner,
     () =>
       SP.terminateServiceApiRequest({
         serviceURL: malformedTerminate.serviceURL,
         dataSetId: malformedTerminate.dataSetId,
         extraData: '0x',
       }),
+    'malformed',
     'malformed relayed termination data'
   )
   assertStableAfterRejectedRequest(
@@ -175,6 +128,7 @@ async function main(): Promise<void> {
         clientDataSetId: nonOwnerDeletion.clientDataSetId,
         pieceId: nonOwnerDeletion.pieceId,
       }),
+    'non-owner',
     'non-owner piece deletion'
   )
   assertStableAfterRejectedRequest(
@@ -193,6 +147,7 @@ async function main(): Promise<void> {
         pieceId: malformedDeletion.pieceId,
         extraData: '0x',
       }),
+    'malformed',
     'malformed piece deletion data'
   )
   assertStableAfterRejectedRequest(
