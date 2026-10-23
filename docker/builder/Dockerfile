@@ -12,11 +12,26 @@ RUN apt-get update && apt-get install -y \
     curl \
     clang \
     build-essential \
+    autoconf \
+    automake \
+    libtool \
     hwloc \
     libhwloc-dev \
     wget \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Install the ERC-8167 assembler at the revision pinned by filecoin-services.
+# Use fetch + checkout because Ubuntu 24.04's Git lacks clone --revision.
+ARG EVM_REVISION=98409233b4ed9fb79efa013fe17ad42b155adf03
+RUN git init /tmp/evm && \
+    git -C /tmp/evm remote add origin https://github.com/wjmelements/evm.git && \
+    git -C /tmp/evm fetch --depth 1 origin ${EVM_REVISION} && \
+    git -C /tmp/evm checkout --detach FETCH_HEAD && \
+    git -C /tmp/evm submodule update --init --recursive --depth 1 && \
+    make -C /tmp/evm bin/evm && \
+    install /tmp/evm/bin/evm /usr/local/bin/evm && \
+    rm -rf /tmp/evm
 
 # Install Go 1.24.7 (auto-detect architecture)
 ARG TARGETARCH
