@@ -136,6 +136,12 @@ mkdir -p /home/foc-user/.foundry/keystores
 cast wallet import foc-deployer --private-key {} --unsafe-password ''
 cd /service_contracts
 
+# Prepare the assembler required by this filecoin-services checkout.
+export PATH="$HOME/.local/bin:$PATH"
+bash <<'FOC_DEVNET_INSTALL_EVM'
+{install_evm}
+FOC_DEVNET_INSTALL_EVM
+
 # filecoin-services v1.2.0 added three PDPVerifier constructor arguments, but
 # warm-storage-deploy-all.sh still deploys it with only the initializer version.
 # Predeploy the dependencies for that ABI shape and let the upstream script reuse
@@ -172,7 +178,8 @@ if [ "$PDP_CONSTRUCTOR_INPUTS" = "4" ] && [ -z "$PDP_VERIFIER_IMPLEMENTATION_ADD
 fi
 
 bash /service_contracts/tools/warm-storage-deploy-all.sh 2>&1 | tee /tmp/foc-deploy.log"#,
-        private_key
+        private_key,
+        install_evm = include_str!("install_evm.sh")
     );
 
     info!("This may take several minutes...");
