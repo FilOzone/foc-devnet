@@ -136,6 +136,12 @@ mkdir -p /home/foc-user/.foundry/keystores
 cast wallet import foc-deployer --private-key {} --unsafe-password ''
 cd /service_contracts
 
+# Newer filecoin-services checkouts provide their own pinned assembler installer.
+# Older releases do not need it and have no install-evm target.
+if grep -qE '^install-evm[[:space:]]*:' Makefile; then
+  make install-evm
+fi
+
 # filecoin-services v1.2.0 added three PDPVerifier constructor arguments, but
 # warm-storage-deploy-all.sh still deploys it with only the initializer version.
 # Predeploy the dependencies for that ABI shape and let the upstream script reuse

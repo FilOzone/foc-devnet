@@ -1,7 +1,8 @@
 FROM ubuntu:24.04
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y software-properties-common && \
+    add-apt-repository -y ppa:git-core/ppa && \
+    apt-get update && apt-get install -y \
     mesa-opencl-icd \
     ocl-icd-opencl-dev \
     gcc \
@@ -12,6 +13,9 @@ RUN apt-get update && apt-get install -y \
     curl \
     clang \
     build-essential \
+    autoconf \
+    automake \
+    libtool \
     hwloc \
     libhwloc-dev \
     wget \
