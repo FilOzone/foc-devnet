@@ -106,8 +106,8 @@ pub fn setup_foundry_project(
                 "bash",
                 "-c",
                 "cd /workspace && \
-                 forge install OpenZeppelin/openzeppelin-contracts@v5.0.0 && \
-                 forge install foundry-rs/forge-std",
+                 forge install --no-git OpenZeppelin/openzeppelin-contracts@v5.0.0 && \
+                 forge install --no-git foundry-rs/forge-std",
             ],
             context,
             &key,
