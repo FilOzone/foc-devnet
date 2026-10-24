@@ -20,7 +20,6 @@ RUN apt-get update && apt-get install -y software-properties-common && \
     libhwloc-dev \
     wget \
     ca-certificates \
-    && dpkg --compare-versions "$(git --version | cut -d ' ' -f 3)" ge 2.49.0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Go 1.24.7 (auto-detect architecture)
