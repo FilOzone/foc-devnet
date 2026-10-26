@@ -1,7 +1,7 @@
 //! Docker bind mount preparation.
 //!
-//! This module ensures bind source directories exist and are writable before
-//! they are passed to Docker.
+//! This module verifies bind source directories before they are passed to
+//! Docker, requiring write access only for writable mounts.
 
 use std::error::Error;
 use std::fs;
@@ -74,7 +74,17 @@ fn bind_mount_with_mode(
     target: &str,
     read_only: bool,
 ) -> Result<String, Box<dyn Error>> {
-    prepare_bind_source(source)?;
+    if read_only {
+        fs::read_dir(source).map_err(|error| {
+            format!(
+                "Docker bind source is not a readable directory: {}: {}",
+                source.display(),
+                error
+            )
+        })?;
+    } else {
+        prepare_bind_source(source)?;
+    }
     let read_only_option = if read_only { ",readonly" } else { "" };
     Ok(format!(
         "type=bind,source={},target={}{}",
