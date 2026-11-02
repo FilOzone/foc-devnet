@@ -225,7 +225,7 @@ fn build_docker_create_args(
         &genesis_sectors_dir,
         "/home/foc-user/genesis-sectors",
     )?;
-    push_bind_mount(
+    push_read_only_bind_mount(
         &mut docker_args,
         &proof_params_dir,
         CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
