@@ -10,6 +10,7 @@ pub mod execute;
 pub mod pdp;
 pub mod post_execute;
 pub mod pre_execute;
+mod rpc;
 pub mod storage;
 pub mod verification;
 
@@ -24,8 +25,8 @@ use tracing::info;
 /// - Verifies Lotus is running and producing blocks
 /// - Runs database migrations against each Curio SP's Postgres
 /// - Configures base and PDP layers
-/// - Starts Curio daemon with appropriate layers
-/// - Attaches storage locations
+/// - Initializes storage locations before starting Curio and its PDP hashspace
+/// - Starts Curio daemon with appropriate layers and waits for RPC readiness
 /// - Imports PDP private keys
 /// - Verifies PDP subsystem and upload/download functionality
 pub struct CurioStep {

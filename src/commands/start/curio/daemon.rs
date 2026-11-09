@@ -4,6 +4,7 @@
 
 use super::super::step::SetupContext;
 use super::db_setup::{build_db_env_vars, build_foc_contract_env_vars, build_lotus_env_vars};
+use super::storage;
 use super::CurioStep;
 use crate::commands::start::curio::constants::CURIO_LAYERS;
 use crate::docker::command_logger::run_and_log_command_strings;
@@ -17,17 +18,15 @@ use crate::paths::{
     foc_devnet_proof_parameters, CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
 };
 use std::error::Error;
-use std::fs;
 use tracing::info;
 
 /// Start a single Curio PDP SP daemon.
 ///
 /// Steps:
-/// 1. Create curio data directories
+/// 1. Initialize storage metadata and registration
 /// 2. Build Docker run command with proper volumes and env vars
-/// 3. Start container with sleep infinity
-/// 4. Run curio daemon in background
-/// 5. Store container ID and name in context for later use
+/// 3. Start Curio as PID 1 with its storage already available
+/// 4. Store container ID and name in context for later use
 pub fn start_curio_daemon(
     context: &SetupContext,
     _step: &CurioStep,
@@ -61,20 +60,12 @@ pub fn start_curio_daemon(
     Ok(())
 }
 
-/// Create necessary directories for Curio
+/// Initialize storage metadata and registration before starting the daemon.
 fn create_curio_directories(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
     let run_id = context.run_id();
     let curio_sp_dir = foc_devnet_curio_sp_volume(run_id, sp_index);
 
-    let dirs = vec![
-        curio_sp_dir.join(".curio"),
-        curio_sp_dir.join("fast-storage"),
-        curio_sp_dir.join("long-term-storage"),
-    ];
-
-    for dir in &dirs {
-        fs::create_dir_all(dir)?;
-    }
+    storage::initialize_storage(&curio_sp_dir)?;
 
     set_volume_ownership(&curio_sp_dir)?;
 
