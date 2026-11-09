@@ -3,7 +3,10 @@
 use std::fs;
 use std::path::Path;
 
-use super::{initialize_storage, STORAGE_META_FILE};
+use super::{
+    initialize_storage, CURIO_FAST_STORAGE_PATH, CURIO_LONG_TERM_STORAGE_PATH, CURIO_REPO_DIR,
+    STORAGE_CONFIG_FILE, STORAGE_META_FILE,
+};
 
 /// Reinitialization must not orphan pieces by replacing storage IDs or resetting policy.
 #[test]
@@ -38,4 +41,55 @@ fn storage_metadata(volume: &Path) -> Vec<Vec<u8>> {
         .iter()
         .map(|directory| fs::read(volume.join(directory).join(STORAGE_META_FILE)).unwrap())
         .collect()
+}
+
+/// Repeated setup must retain extra registrations without duplicating default paths.
+#[test]
+fn preserves_additional_registered_paths() {
+    let volume = tempfile::tempdir().unwrap();
+    let original = registered_paths_fixture();
+    let path = seed_registration(volume.path(), &serde_json::to_vec(&original).unwrap());
+    initialize_storage(volume.path()).unwrap();
+    initialize_storage(volume.path()).unwrap();
+    let mut result: serde_json::Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    let paths = result["StoragePaths"].as_array_mut().unwrap();
+    assert_eq!(
+        paths
+            .iter()
+            .filter(|entry| entry["Path"] == CURIO_FAST_STORAGE_PATH)
+            .count(),
+        1
+    );
+    paths.retain(|entry| entry["Path"] != CURIO_FAST_STORAGE_PATH);
+    assert_eq!(result, original);
+}
+
+/// Invalid registration must fail setup without destroying the original file.
+#[test]
+fn preserves_invalid_registration_on_error() {
+    let volume = tempfile::tempdir().unwrap();
+    let original = b"{invalid json";
+    let path = seed_registration(volume.path(), original);
+    assert!(initialize_storage(volume.path()).is_err());
+    assert_eq!(fs::read(path).unwrap(), original);
+}
+
+/// Model an operator's extra path and policy, alongside one already registered default.
+fn registered_paths_fixture() -> serde_json::Value {
+    serde_json::json!({
+        "StoragePaths": [
+            {"Path": "/home/foc-user/curio/long-term-storage/extra", "Policy": "preserve"},
+            {"Path": CURIO_LONG_TERM_STORAGE_PATH}
+        ],
+        "UnknownField": "preserve"
+    })
+}
+
+/// Write an existing registration before offline initialization runs.
+fn seed_registration(volume: &Path, bytes: &[u8]) -> std::path::PathBuf {
+    let repo = volume.join(CURIO_REPO_DIR);
+    fs::create_dir_all(&repo).unwrap();
+    let path = repo.join(STORAGE_CONFIG_FILE);
+    fs::write(&path, bytes).unwrap();
+    path
 }

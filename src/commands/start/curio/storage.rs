@@ -23,10 +23,57 @@ pub(super) fn initialize_storage(volume: &Path) -> Result<(), Box<dyn Error>> {
     fs::create_dir_all(&repo)?;
     initialize_path(volume, CURIO_FAST_STORAGE_PATH, true)?;
     initialize_path(volume, CURIO_LONG_TERM_STORAGE_PATH, false)?;
-    let config = json!({"StoragePaths": [
-        {"Path": CURIO_FAST_STORAGE_PATH}, {"Path": CURIO_LONG_TERM_STORAGE_PATH}
-    ]});
-    write_json(&repo.join(STORAGE_CONFIG_FILE), &config)
+    register_paths(&repo.join(STORAGE_CONFIG_FILE))
+}
+
+/// Append missing defaults without dropping storage registered by Curio or its operator.
+fn register_paths(path: &Path) -> Result<(), Box<dyn Error>> {
+    let mut config = read_config(path)?;
+    let paths = storage_paths(&mut config)?;
+    for default in [CURIO_FAST_STORAGE_PATH, CURIO_LONG_TERM_STORAGE_PATH] {
+        if !paths
+            .iter()
+            .any(|entry| entry.get("Path").and_then(Value::as_str) == Some(default))
+        {
+            paths.push(json!({"Path": default}));
+        }
+    }
+    write_json(path, &config)
+}
+
+/// Read registration, treating only a missing file as a fresh configuration.
+fn read_config(path: &Path) -> Result<Value, Box<dyn Error>> {
+    match fs::read(path) {
+        Ok(bytes) => serde_json::from_slice(&bytes).map_err(|error| {
+            format!(
+                "Reading Curio storage configuration {}: {}",
+                path.display(),
+                error
+            )
+            .into()
+        }),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(json!({})),
+        Err(error) => Err(format!(
+            "Reading Curio storage configuration {}: {}",
+            path.display(),
+            error
+        )
+        .into()),
+    }
+}
+
+/// Preserve unknown fields while accepting Curio's empty or null path list.
+fn storage_paths(config: &mut Value) -> Result<&mut Vec<Value>, Box<dyn Error>> {
+    let object = config
+        .as_object_mut()
+        .ok_or("Curio storage configuration must be an object")?;
+    let paths = object.entry("StoragePaths").or_insert(Value::Null);
+    if paths.is_null() {
+        *paths = json!([]);
+    }
+    paths
+        .as_array_mut()
+        .ok_or_else(|| "Curio StoragePaths must be an array".into())
 }
 
 /// Create metadata only for new paths, preserving identities and policy on subsequent starts.

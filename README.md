@@ -95,6 +95,7 @@ This will:
 Curio providers initialize their storage metadata and register container-visible
 paths before launching, so PDP hashspaces include long-term storage on first startup.
 Startup retries RPC readiness checks while the daemon initializes.
+Existing storage metadata and additional registered paths are preserved.
 
 **If you have troubles**: Use `cargo run -- start`, removing parallelism during start, this may take longer.
 
