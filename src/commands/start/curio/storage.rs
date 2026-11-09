@@ -1,161 +1,75 @@
-//! Storage management for Curio.
-//!
-//! Handles attaching fast-storage and long-term-storage locations.
+//! Initialize Curio storage files before the daemon discovers its hashspace drives.
 
-use super::super::step::SetupContext;
-use super::constants::{
-    CURIO_FAST_STORAGE_PATH, CURIO_LONG_TERM_STORAGE_PATH, STORAGE_ATTACH_WAIT_SECS,
-};
-use crate::docker::command_logger::run_and_log_command;
 use std::error::Error;
-use std::thread;
-use std::time::Duration;
-use tracing::info;
+use std::fs::{self, File};
+use std::io::ErrorKind;
+use std::path::Path;
 
-/// Wait for Curio RPC to be ready using the built-in wait-api command.
-fn wait_for_curio_rpc(context: &SetupContext, container_name: &str) -> Result<(), Box<dyn Error>> {
-    info!("Waiting for Curio RPC to be ready...");
+use serde_json::{json, Value};
 
-    let machine_addr = format!("{}:12300", container_name);
-    let key = format!("curio_wait_api_{}", container_name);
-    let output = run_and_log_command(
-        "docker",
-        &[
-            "exec",
-            container_name,
-            "/usr/local/bin/lotus-bins/curio",
-            "cli",
-            "--machine",
-            &machine_addr,
-            "wait-api",
-        ],
-        context,
-        &key,
-    )?;
+use super::constants::{CURIO_FAST_STORAGE_PATH, CURIO_LONG_TERM_STORAGE_PATH};
 
-    if !output.status.success() {
-        return Err(format!(
-            "Curio RPC failed to become ready: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
+const CURIO_REPO_DIR: &str = ".curio";
+const STORAGE_CONFIG_FILE: &str = "storage.json";
+const STORAGE_META_FILE: &str = "sectorstore.json";
+const STORAGE_WEIGHT: u64 = 10;
 
-    info!("Curio RPC is ready");
-    Ok(())
+#[cfg(test)]
+mod tests;
+
+/// Register both container paths before Curio initializes the PDP hashspace.
+pub(super) fn initialize_storage(volume: &Path) -> Result<(), Box<dyn Error>> {
+    let repo = volume.join(CURIO_REPO_DIR);
+    fs::create_dir_all(&repo)?;
+    initialize_path(volume, CURIO_FAST_STORAGE_PATH, true)?;
+    initialize_path(volume, CURIO_LONG_TERM_STORAGE_PATH, false)?;
+    let config = json!({"StoragePaths": [
+        {"Path": CURIO_FAST_STORAGE_PATH}, {"Path": CURIO_LONG_TERM_STORAGE_PATH}
+    ]});
+    write_json(&repo.join(STORAGE_CONFIG_FILE), &config)
 }
 
-/// Attach storage locations for a specific PDP SP.
-///
-/// Attaches:
-/// 1. Fast storage (seal)
-/// 2. Long-term storage (store)
-pub fn attach_storage_locations(
-    context: &SetupContext,
-    sp_index: usize,
-) -> Result<(), Box<dyn Error>> {
-    info!("Attaching storage locations for PDP SP {}...", sp_index);
-
-    let run_id = context.run_id();
-    let container_name = format!("foc-{}-curio-{}", run_id, sp_index);
-
-    // Wait for RPC to be ready before attaching storage
-    wait_for_curio_rpc(context, &container_name)?;
-
-    // Attach fast storage
-    attach_fast_storage(context, &container_name)?;
-
-    // Attach long-term storage
-    attach_long_term_storage(context, &container_name)?;
-
-    info!("Storage locations attached for PDP SP {}", sp_index);
-
-    Ok(())
+/// Create metadata only for new paths, preserving identities and policy on subsequent starts.
+fn initialize_path(volume: &Path, container_path: &str, seal: bool) -> Result<(), Box<dyn Error>> {
+    let directory = volume.join(
+        Path::new(container_path)
+            .file_name()
+            .ok_or("Missing storage path name")?,
+    );
+    fs::create_dir_all(&directory)?;
+    let path = directory.join(STORAGE_META_FILE);
+    match File::create_new(&path) {
+        Ok(file) => serde_json::to_writer_pretty(file, &storage_metadata(seal)).map_err(Into::into),
+        Err(error) if error.kind() == ErrorKind::AlreadyExists => Ok(()),
+        Err(error) => Err(format!(
+            "Creating Curio storage metadata {}: {}",
+            path.display(),
+            error
+        )
+        .into()),
+    }
 }
 
-/// Attach fast storage for sealing operations.
-fn attach_fast_storage(context: &SetupContext, container_name: &str) -> Result<(), Box<dyn Error>> {
-    info!("Attaching fast storage...");
-
-    // Use container DNS name for --machine flag so it works in Docker networks
-    let machine_addr = format!("{}:12300", container_name);
-
-    let key = format!("curio_storage_attach_fast_{}", container_name);
-    let output = run_and_log_command(
-        "docker",
-        &[
-            "exec",
-            container_name,
-            "/usr/local/bin/lotus-bins/curio",
-            "cli",
-            "--machine",
-            &machine_addr,
-            "storage",
-            "attach",
-            "--init",
-            "--seal",
-            CURIO_FAST_STORAGE_PATH,
-        ],
-        context,
-        &key,
-    )?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to attach fast storage: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
-
-    thread::sleep(Duration::from_secs(STORAGE_ATTACH_WAIT_SECS));
-
-    info!("Fast storage attached");
-
-    Ok(())
+/// Generate the same storage capabilities as `storage attach --init --seal/--store`.
+fn storage_metadata(seal: bool) -> Value {
+    json!({
+        "ID": format!("{:032x}", rand::random::<u128>()),
+        "Weight": STORAGE_WEIGHT,
+        "CanSeal": seal,
+        "CanStore": !seal,
+        "MaxStorage": 0
+    })
 }
 
-/// Attach long-term storage for storing sealed sectors.
-fn attach_long_term_storage(
-    context: &SetupContext,
-    container_name: &str,
-) -> Result<(), Box<dyn Error>> {
-    info!("Attaching long-term storage...");
-
-    // Use container DNS name for --machine flag so it works in Docker networks
-    let machine_addr = format!("{}:12300", container_name);
-
-    let key = format!("curio_storage_attach_long_term_{}", container_name);
-    let output = run_and_log_command(
-        "docker",
-        &[
-            "exec",
-            container_name,
-            "/usr/local/bin/lotus-bins/curio",
-            "cli",
-            "--machine",
-            &machine_addr,
-            "storage",
-            "attach",
-            "--init",
-            "--store",
-            CURIO_LONG_TERM_STORAGE_PATH,
-        ],
-        context,
-        &key,
-    )?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to attach long-term storage: {}",
-            String::from_utf8_lossy(&output.stderr)
+/// Persist container-visible storage configuration with file context on failure.
+fn write_json(path: &Path, value: &Value) -> Result<(), Box<dyn Error>> {
+    let bytes = serde_json::to_vec_pretty(value)?;
+    fs::write(path, bytes).map_err(|error| {
+        format!(
+            "Writing Curio storage configuration {}: {}",
+            path.display(),
+            error
         )
-        .into());
-    }
-
-    thread::sleep(Duration::from_secs(STORAGE_ATTACH_WAIT_SECS));
-
-    info!("Long-term storage attached");
-
-    Ok(())
+        .into()
+    })
 }

@@ -92,6 +92,9 @@ This will:
 - Start storage provider(s)
 - Launch [Portainer UI](https://docs.docksal.io/use-cases/portainer/) for container management
 
+Curio providers initialize their storage metadata and register container-visible
+paths before launching, so PDP hashspaces include long-term storage on first startup.
+
 **If you have troubles**: Use `cargo run -- start`, removing parallelism during start, this may take longer.
 
 **That's it!** Your local Filecoin network is running.

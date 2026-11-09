@@ -6,7 +6,7 @@ use super::super::step::SetupContext;
 use super::daemon;
 use super::db_setup;
 use super::pdp;
-use super::storage;
+use super::rpc;
 use super::CurioStep;
 use std::error::Error;
 use std::thread;
@@ -16,8 +16,8 @@ use tracing::info;
 ///
 /// For each SP (1 through active_sp_count):
 /// 1. Setup database (base layer and PDP layer)
-/// 2. Start Curio daemon
-/// 3. Attach storage locations
+/// 2. Initialize storage and start Curio daemon
+/// 3. Wait for Curio RPC readiness
 /// 4. Import PDP private key
 pub fn setup_all_curio_sps(context: &SetupContext, step: &CurioStep) -> Result<(), Box<dyn Error>> {
     thread::scope(|s| {
@@ -69,14 +69,12 @@ fn setup_single_curio_sp(
     // Step 1: Setup database (base layer migration + PDP layer config)
     db_setup::setup_curio_database(context, sp_index)?;
 
-    // Step 2: Start Curio daemon
+    // Step 2: Initialize storage before starting Curio and its PDP hashspace.
     daemon::start_curio_daemon(context, step, sp_index)?;
 
-    // Wait a bit to ensure daemon is fully started before proceeding
-    std::thread::sleep(std::time::Duration::from_secs(5));
-
-    // Step 3: Attach storage locations
-    storage::attach_storage_locations(context, sp_index)?;
+    // Step 3: Wait for subsystem initialization before importing keys.
+    let container_name = format!("foc-{}-curio-{}", context.run_id(), sp_index);
+    rpc::wait_for_rpc(context, &container_name)?;
 
     // Step 4: Import PDP private key
     pdp::import_pdp_key(context, sp_index)?;
