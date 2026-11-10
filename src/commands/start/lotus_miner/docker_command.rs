@@ -10,7 +10,7 @@ use crate::commands::start::lotus_utils::{build_fullnode_api_info, read_lotus_to
 use crate::commands::start::step::SetupContext;
 use crate::docker::containers::{lotus_container_name, lotus_miner_container_name};
 use crate::docker::network::lotus_network_name;
-use crate::docker::push_bind_mount;
+use crate::docker::{push_bind_mount, push_read_only_bind_mount};
 use crate::paths::{
     foc_devnet_bin, foc_devnet_genesis_sectors_lotus_miner, foc_devnet_proof_parameters,
     CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
@@ -79,7 +79,7 @@ pub fn build_miner_docker_command(
         "/home/foc-user/.lotus-local-net",
     )?;
     push_bind_mount(&mut docker_args, &sectors_dir, "/sectors")?;
-    push_bind_mount(
+    push_read_only_bind_mount(
         &mut docker_args,
         &params_dir,
         CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
