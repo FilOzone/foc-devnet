@@ -28,7 +28,10 @@ async function main(): Promise<void> {
     metadata,
   })
   console.log(`Data set creation submitted: ${created.txHash}`)
-  const confirmed = await SP.waitForCreateDataSet({ statusUrl: created.statusUrl, timeout: 180_000 })
+  // Keep options separate to allow `client` with the baseline's statusUrl-only types.
+  // Inline once the Synapse baseline supports the on-chain receipt API.
+  const waitOptions = { client: synapse.client, ...created, timeout: 180_000 }
+  const confirmed = await SP.waitForCreateDataSet(waitOptions)
   assert(confirmed.dataSetId > 0n, `Expected a positive data set ID, got ${confirmed.dataSetId}`)
 
   await assertCreatedDataSet(synapse, confirmed.dataSetId, provider.id, provider.serviceProvider, metadata)
