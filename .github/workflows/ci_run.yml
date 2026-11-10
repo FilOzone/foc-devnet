@@ -30,6 +30,11 @@ on:
         required: false
         type: boolean
         default: true
+      notify_slack:
+        description: 'Send Slack notifications for posted issue reports'
+        required: false
+        type: boolean
+        default: false
       issue_label:
         description: 'Label applied to the filed GitHub issue'
         required: false
@@ -511,21 +516,60 @@ jobs:
 
     # Create or update a GitHub issue with the scenario report
     - name: "EXEC: {Create or update issue}"
+      id: issue_report
       if: always() && steps.should_file.outputs.file == 'true' && inputs.enable_reporting
-      uses: ipdxco/create-or-update-issue@v1
-      with:
-        # We're not using `github.token` here because it won't trigger other workflows like `add-issues-to-project`.
-        # Instead, we use a PAT to trigger other workflows.
-        # This PAT has permissions to open/update issues, which is why it was used.
-        # Alternatively, we could create a more narrowly scoped PAT, but this would be another PAT to setup/manage.
-        GITHUB_TOKEN: ${{ secrets.FILOZZY_RELEASE_PLEASE_PAT }}
-        title: ${{ inputs.issue_title }}
-        body: |
+      uses: actions/github-script@v8
+      env:
+        ISSUE_TITLE: ${{ inputs.issue_title }}
+        ISSUE_LABEL: ${{ inputs.issue_label }}
+        REPORT_BODY: |
           The **${{ inputs.name }}** scenarios run **${{ steps.should_file.outputs.passed == 'true' && 'passed ✅' || 'failed ❌' }}**.
           See [the workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
 
           ${{ steps.report.outputs.content }}
-        label: ${{ inputs.issue_label }}
+      with:
+        # Preserve the PAT so issue creation still triggers project-board workflows.
+        github-token: ${{ secrets.FILOZZY_RELEASE_PLEASE_PAT }}
+        result-encoding: string
+        script: |
+          const repo = context.repo;
+          const { data: issues } = await github.rest.issues.listForRepo({
+            ...repo, state: 'open', labels: process.env.ISSUE_LABEL,
+            sort: 'created', direction: 'desc',
+          });
+          const body = process.env.REPORT_BODY;
+          const { data: report } = issues.length
+            ? await github.rest.issues.createComment({
+                ...repo, issue_number: issues[0].number, body,
+              })
+            : await github.rest.issues.create({
+                ...repo, title: process.env.ISSUE_TITLE,
+                labels: [process.env.ISSUE_LABEL], body,
+              });
+          return report.html_url;
+
+    # Slack follows the issue reporting decision, including skip-on-pass.
+    # Set SLACK_WEBHOOK_URL to the full incoming webhook URL in repository
+    # Settings → Secrets and variables → Actions. Never commit the URL.
+    - name: "EXEC: {Notify Slack of scenario report}"
+      if: always() && inputs.notify_slack && steps.issue_report.outcome == 'success'
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        REPORT_URL: ${{ steps.issue_report.outputs.result }}
+        PROFILE: ${{ inputs.name }}
+        PASSED: ${{ steps.should_file.outputs.passed }}
+      run: |
+        if [ -z "$SLACK_WEBHOOK_URL" ]; then
+          echo "::error::Set the SLACK_WEBHOOK_URL Actions secret to enable scenario report notifications."
+          exit 1
+        fi
+        STATUS="failed"
+        if [ "$PASSED" = "true" ]; then STATUS="passed"; fi
+        jq -n --arg text "CI scenarios (${PROFILE}) ${STATUS}: ${REPORT_URL}" \
+          '{text: $text}' |
+          curl --fail --silent --show-error --output /dev/null \
+            --header 'Content-Type: application/json' \
+            --data-binary @- "$SLACK_WEBHOOK_URL"
 
     # Clean shutdown (always runs to avoid leaving containers behind)
     - name: "EXEC: {Stop cluster}, independent"
