@@ -52,6 +52,10 @@ jobs:
     with:
       name: ${{ matrix.name }}
       profile: ${{ matrix.name }}
+      # Slack follows issue reporting: one message per posted profile report,
+      # linked to its comment (or issue for the first report). Configure the
+      # full incoming webhook URL in the SLACK_WEBHOOK_URL Actions secret.
+      notify_slack: true
       # Reporting is always on for scheduled runs; for manual dispatch it follows the input.
       enable_reporting: ${{ github.event_name == 'schedule' || inputs.reporting == true }}
       # On scheduled runs, such as nightly `inputs.skip_report_on_pass` is absent (empty string), so we cannot rely
