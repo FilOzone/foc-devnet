@@ -22,6 +22,21 @@ export function freshMetadata(kind: string): Record<string, string> {
   }
 }
 
+function readDevnetInfo() {
+  const baseDir = process.env.FOC_DEVNET_BASEDIR ?? join(homedir(), '.foc-devnet')
+  const infoPath = process.env.DEVNET_INFO_PATH ?? join(baseDir, 'state', 'latest', 'devnet-info.json')
+  return validateDevnetInfo(JSON.parse(readFileSync(infoPath, 'utf8')))
+}
+
+/** Select a peer from the same devnet without applying the owner's account overrides. */
+export function resolveDistinctDevnetEnvironment(owner: ScenarioEnvironment): ScenarioEnvironment {
+  assert(owner.network === 'devnet' && owner.user != null, 'Permission checks require two distinct devnet users')
+  const ownerAddress = owner.user.evm_addr.toLowerCase()
+  const user = readDevnetInfo().info.users.find((user) => user.evm_addr.toLowerCase() !== ownerAddress)
+  assert(user != null, 'Permission checks require at least two distinct devnet users')
+  return { ...owner, user, privateKey: user.private_key_hex as `0x${string}` }
+}
+
 export function resolveEnvironment(options: { defaultUserIndex: number; requireFiles?: boolean }): ScenarioEnvironment {
   const filePaths = process.argv.slice(2)
   assert(!options.requireFiles || filePaths.length > 0, 'Usage: node <entrypoint> <file-path>')
@@ -40,9 +55,7 @@ export function resolveEnvironment(options: { defaultUserIndex: number; requireF
     }
   }
 
-  const baseDir = process.env.FOC_DEVNET_BASEDIR ?? join(homedir(), '.foc-devnet')
-  const infoPath = process.env.DEVNET_INFO_PATH ?? join(baseDir, 'state', 'latest', 'devnet-info.json')
-  const devnet = validateDevnetInfo(JSON.parse(readFileSync(infoPath, 'utf8')))
+  const devnet = readDevnetInfo()
   const userIndex = Number(process.env.DEVNET_USER_INDEX ?? options.defaultUserIndex)
   assert(Number.isInteger(userIndex), `DEVNET_USER_INDEX must be an integer, got ${process.env.DEVNET_USER_INDEX}`)
   assert(userIndex >= 0 && userIndex < devnet.info.users.length, `DEVNET_USER_INDEX ${userIndex} is out of range`)
