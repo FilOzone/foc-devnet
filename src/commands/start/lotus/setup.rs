@@ -8,7 +8,7 @@ use super::super::step::SetupContext;
 use crate::constants::LOTUS_DOCKER_IMAGE;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::network::lotus_network_name;
-use crate::docker::push_bind_mount;
+use crate::docker::{push_bind_mount, push_read_only_bind_mount};
 use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -121,7 +121,7 @@ pub fn build_docker_command(
         "/home/foc-user/.lotus-local-net",
     )?;
     push_bind_mount(&mut docker_args, &volumes_dir.join("devgen"), "/devgen")?;
-    push_bind_mount(
+    push_read_only_bind_mount(
         &mut docker_args,
         &params_dir,
         CONTAINER_FILECOIN_PROOF_PARAMS_PATH,
