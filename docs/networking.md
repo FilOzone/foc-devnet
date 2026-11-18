@@ -56,7 +56,7 @@ still exists.
 
 | Container | Image | Ports inside the container |
 |-----------|-------|----------------------------|
-| `foc-<run-id>-lotus` | `foc-lotus` | 1234 (API), 1235 (P2P) |
+| `foc-<run-id>-lotus` | `foc-lotus` | 1234 (API), 1946 (P2P) |
 | `foc-<run-id>-lotus-miner` | `foc-lotus-miner` | 2345 (API) |
 | `foc-<run-id>-curio-N` | `foc-curio` | API, UI, and PDP service |
 | `foc-<run-id>-postgres-N` | `postgres` | 5432 |
