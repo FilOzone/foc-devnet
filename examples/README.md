@@ -35,6 +35,9 @@ reuse the keys outside the devnet.
 
 ## Exercise storage
 
+Use `USER_1` for storage tests. The other test users are funded but are not
+configured for Warm Storage.
+
 Run the repository's Synapse end-to-end scenario from the repository root.
 It requires Python 3, Node.js 24+, npm registry access, and two usable storage
 providers (the default configuration).

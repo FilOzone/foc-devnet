@@ -22,20 +22,24 @@ python3 scenarios/run.py
 python3 scenarios/test_basic_balances.py
 ```
 
-The suite expects the running devnet's `state/latest/devnet-info.json`.
-Individual Python checks accept `DEVNET_INFO`; the Synapse Node.js checks
-accept `DEVNET_INFO_PATH`. Set both to the same export for a Synapse scenario
-that uses that export. These options do not configure filecoin-pin.
+By default, the suite reads `state/latest/devnet-info.json`. To select an
+export explicitly, set both `DEVNET_INFO` (Python checks) and `DEVNET_INFO_PATH`
+(Synapse and the [pinned filecoin-pin version](../ci/dependency-profiles.json))
+to the same file. The services for that run must still be running.
 
 The suite writes `~/.foc-devnet/state/latest/scenario_report.md` by default,
-independently of `FOC_DEVNET_BASEDIR`. To write the report elsewhere, use `jq`
-to read the current run ID:
+independently of `FOC_DEVNET_BASEDIR`. This example uses `jq` to select the
+current run explicitly and write its report alongside its export. Use an
+existing directory for `REPORT_FILE`.
 
 ```bash
 base="${FOC_DEVNET_BASEDIR:-$HOME/.foc-devnet}"
 run_id=$(jq -er '.run_id' "$base/state/current_runid.json") &&
+info="$base/run/$run_id/devnet-info.json" &&
+test -f "$info" &&
 PATH="$HOME/.foc-devnet/artifacts/foundry/bin:$PATH" \
   FOC_DEVNET_BASEDIR="$base" \
+  DEVNET_INFO="$info" DEVNET_INFO_PATH="$info" \
   REPORT_FILE="$base/run/$run_id/scenario_report.md" \
   python3 scenarios/run.py
 ```

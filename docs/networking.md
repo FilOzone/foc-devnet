@@ -21,6 +21,8 @@ to the host's `/etc/hosts` (update any existing entry instead of duplicating it)
 127.0.0.1 host.docker.internal
 ```
 
+For GitHub Actions, see the [hostname setup step in CI](../.github/workflows/ci_run.yml#L306-L308).
+
 ### Validation
 
 `foc-devnet start` checks for a loopback address for `host.docker.internal`
@@ -95,10 +97,11 @@ new run. If the current cluster is still running, stop it from its original
 base directory first.
 
 ### Container won't start
-Look in the latest run's `setup.log`, `post_start_status.log`, and `logs/`
-for startup diagnostics. For an existing container, get its name from
-`docker ps -a` and inspect its current logs with `docker logs`. A container
-removed during startup finalization or `stop` will not have live Docker logs.
+Start with the failed command's output or `setup.log`. Early failures can
+happen before `state/latest` is updated or before `post_start_status.log`
+and container log snapshots are written. For an existing container, find
+its name with `docker ps -a` and inspect it with `docker logs`. Docker
+cannot show live logs for a removed container.
 
 ### Build failures
 Check available disk space (`df -h`), Docker usage (`docker system df`), and

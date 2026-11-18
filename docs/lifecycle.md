@@ -51,14 +51,15 @@ during cleanup.
   done
 
   foc-devnet stop
-  running=$(docker ps --filter 'name=foc-' --format '{{.Names}}')
-  while IFS= read -r name; do
-    case "$name" in
-      foc-portainer|foc-*-portainer) ;;
-      foc-*)
-        printf 'Container still running: %s; no data removed.\n' "$name" >&2
-        exit 1 ;;
+  running=$(docker ps --format '{{.Names}} {{.Image}}')
+  db_pattern='^foc-[0-9]{8}T[0-9]{4}_[A-Za-z0-9]+-(postgres|scylla)-[0-9]+$'
+  while read -r name image; do
+    case "${image%%:*}" in
+      foc-lotus|foc-lotus-miner|foc-curio|foc-builder) ;;
+      *) [[ $name =~ $db_pattern ]] || continue ;;
     esac
+    printf 'Container still running: %s; no data removed.\n' "$name" >&2
+    exit 1
   done <<< "$running"
 
   old_runs=()
@@ -114,6 +115,9 @@ during cleanup.
 └── tmp/
 ```
 
+`genesis/` contains generated files for inspection. There is no custom-genesis
+CLI or configuration option, and startup does not pause for template edits.
+
 ### Key Files
 
 Use `devnet-info.json` for scripts and SDKs. The export includes a top-level
@@ -121,3 +125,6 @@ Use `devnet-info.json` for scripts and SDKs. The export includes a top-level
 users and their **test private keys**, and provider details. See the
 [schema](../examples/devnet-schema.js) and [validation instructions](../examples/README.md).
 Do not publish the file or use its keys outside the devnet.
+
+If present, `step_context.json` can help diagnose startup. Unlike
+`devnet-info.json`, its format is internal and can change without notice.

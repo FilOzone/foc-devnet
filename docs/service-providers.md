@@ -69,8 +69,10 @@ as the user, password, and database name. To inspect schemas for provider 1
 on a running devnet, use `jq` and Docker:
 
 ```bash
-base="${FOC_DEVNET_BASEDIR:-$HOME/.foc-devnet}"
-run_id=$(jq -er '.run_id' "$base/state/current_runid.json") &&
-docker exec "foc-$run_id-postgres-1" psql -U curio -d curio -c '\dn' &&
-docker exec "foc-$run_id-scylla-1" cqlsh -e 'DESCRIBE KEYSPACES;'
+(
+  base="${FOC_DEVNET_BASEDIR:-$HOME/.foc-devnet}"
+  run_id=$(jq -er '.run_id' "$base/state/current_runid.json") || exit 1
+  docker exec "foc-$run_id-postgres-1" psql -U curio -d curio -c '\dn'
+  docker exec "foc-$run_id-scylla-1" cqlsh -e 'DESCRIBE KEYSPACES;'
+)
 ```

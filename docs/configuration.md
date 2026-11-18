@@ -68,8 +68,8 @@ the services configured.
 
 `init` writes [`Config::default()`](../src/config.rs) when no configuration file
 exists. An upgrade does not replace existing settings. To regenerate the
-configuration, back it up and follow the [stop and clean procedure](cli.md#clean)
-before running:
+configuration, back it up, run [`foc-devnet stop`](cli.md#stop), and
+[check that no devnet services remain](cli.md#clean). Then run:
 
 ```bash
 foc-devnet clean --all && foc-devnet init
