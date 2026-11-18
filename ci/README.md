@@ -1,26 +1,20 @@
 # CI Dependency Profiles
 
-`dependency-profiles.json` is the central manifest for CI dependency selection.
-Its resolver is located in `scripts/resolve-ci-dependencies.py`.
+[`dependency-profiles.json`](dependency-profiles.json) declares the profiles
+accepted by the [dependency resolver](../scripts/resolve-ci-dependencies.py).
 
 ## Profiles
 
-The manifest declares valid profiles in its top-level `profiles` object:
+The manifest's top-level `profiles` object defines which names the resolver
+accepts. The [PR workflow](../.github/workflows/ci_pull_request.yml) uses
+`default`. The [nightly workflow](../.github/workflows/ci_nightly.yml) has an
+explicit matrix for `stability`, `frontier`, and selected
+`stability-frontier-*` profiles. Adding a profile to the manifest makes it
+resolvable but does not schedule it; add a matrix entry if nightly CI should
+run it.
 
-- `default`: used by PR CI, a known-working set of client versions.
-- `stability`: used by nightly CI to test stable releases.
-- `frontier`: used by nightly CI to test branch heads.
-- `stability-frontier-lotus`: used by nightly CI to test stable releases
-  except Lotus, which is resolved from `frontier`.
-- `stability-frontier-curio`: used by nightly CI to test stable releases
-  except Curio, which is resolved from `frontier`.
-- `stability-frontier-filecoin-services`: used by nightly CI to test stable
-  releases except filecoin-services, which is resolved from `frontier`.
-- `stability-frontier-pdp`: used by nightly CI to test stable releases except
-  PDP, which is resolved from `frontier`.
-
-Each component must define a selection for every component profile referenced by
-the top-level profile definitions. Today those component selections are
+For each top-level profile, each component must define the selection that
+applies to it. The manifest currently uses the component selections
 `default`, `stability`, and `frontier`.
 
 Top-level profile definitions have a `base` component profile and can override
@@ -38,9 +32,8 @@ specific components:
 ```
 
 In that example, Curio resolves from its `frontier` selection while every other
-component resolves from `stability`. A profile is valid only if it is explicitly
-declared in `profiles`; for example, `stability-frontier-filecoin-pin` does not
-exist unless added there.
+component resolves from `stability`. Mixed profile names are not generated
+automatically.
 
 ## Component Fields
 
@@ -135,9 +128,8 @@ Resolve a git submodule gitlink from a tag or tag pattern in another repository.
 
 The resolver first resolves `repository` and `tag` with the same rules as
 `git_tag`, then reads `path` from that tree and records the submodule gitlink SHA
-as the selected component commit. PDP uses this to pin the same bundled PDP
-gitlink as the selected filecoin-services stability tag, even in mixed profiles
-that override filecoin-services itself.
+as the selected component commit. PDP's `stability` selection uses this
+strategy even in mixed profiles that override filecoin-services itself.
 
 ### `npm_version`
 
@@ -211,21 +203,59 @@ Overrides are currently allowed only for npm-installed `synapse-sdk` and
 `filecoin-pin` selections. They are written to the temporary consumer
 `package.json`.
 
-Current consumers write npm overrides to the temporary `package.json` used by
-their scenario.
-
 ## Current Boundary
 
 `resolve-ci-dependencies.py` resolves metadata. It does **not** install
 components.
 
-Installation currently lives in three places (which consume the resolved
-metadata):
+The [reusable CI workflow](../.github/workflows/ci_run.yml) passes the
+resolved source overrides to `foc-devnet init` for Lotus, Curio,
+filecoin-services, and optionally PDP. The
+[Synapse runtime](../scenarios/synapse_runtime.py) and
+[filecoin-pin scenario](../scenarios/test_multi_copy_upload.py) consume the
+metadata when installing their own dependencies.
 
-- `foc-devnet init`: Lotus, Curio, filecoin-services, and optionally PDP.
-- `scenarios/synapse_runtime.py`: released or preview Synapse packages.
-- `scenarios/test_multi_copy_upload.py`: filecoin-pin scenario dependency.
+### Resolver Commands
 
-This split is intentional, but it is not necessarily the final shape. Resolution
-and installation should remain separate phases; however, installation behavior
-could become declarative and centralized.
+From the repository root, with Python 3, Git, and npm available:
+
+```sh
+metadata="$(mktemp)"
+python3 scripts/resolve-ci-dependencies.py resolve \
+  --profile stability --output "$metadata"
+```
+
+To verify a CI checkout, run the command below **after** `foc-devnet init`
+has prepared the repositories for the resolved profile. This checks the Git
+commits against the metadata and writes the verified commits back to it.
+
+```sh
+python3 scripts/resolve-ci-dependencies.py verify --metadata "$metadata"
+```
+
+By default, `verify` looks under `~/.foc-devnet/code`; pass `--code-dir` if
+the checkouts are elsewhere. The reusable workflow shows how to use
+`--github-output` and `--github-env` to pass the resolved settings to CI steps.
+
+## Local Checks
+
+Install Rust with `rustfmt` and `clippy`, Python 3, and Black (for example,
+with `pipx install black`). The lint script skips checks whose tools are
+missing. From the repository root:
+
+```sh
+FIX=0 ./scripts/lint.sh                  # check only, as in PR CI
+cargo test --all-targets --all-features
+```
+
+Run `./scripts/lint.sh` without `FIX=0` to apply formatting fixes. To run the
+dependency resolver unit tests on their own:
+
+```sh
+python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+```
+
+Optionally install the pre-commit hook with
+`./scripts/install_precommit_hooks.sh`. It runs the lint script in auto-fix
+mode by default, so review and stage any formatting fixes separately. The
+installer leaves an existing hook in place unless you pass `-f`.

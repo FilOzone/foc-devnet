@@ -8,17 +8,15 @@ A developer-friendly tool for spinning up complete Filecoin test networks with s
 
 ## 🚀 Quick Start
 
-Get up and running in three simple steps:
-
 ### Prerequisites
 
-**Non-root user with Docker access**: `foc-devnet` must be run by a non-root user in the `docker` group.
+Use [stable Rust via rustup](https://rustup.rs), Docker, Git, and `tar`.
+Default setup also needs network access to download repositories and images.
+Run as a non-root user who can run `docker info` without `sudo` (on Linux,
+typically through the `docker` group).
 
-```bash
-echo $(id -u); groups | grep 'docker'
-```
-
-**Configure host.docker.internal**: Add this entry to `/etc/hosts` so SP URLs work from both host and containers:
+**Check `host.docker.internal`**: It must resolve to `127.0.0.1` on the host.
+If it does not, add this entry to `/etc/hosts` once:
 
 ```bash
 echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts
@@ -29,18 +27,6 @@ This is required for SP-to-SP fetch. `foc-devnet start` will check for this and 
 For GitHub Actions, add this step before running foc-devnet:
 ```yaml
 - run: echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts
-```
-
-**Linting (rust + python)**:
-```sh
-sudo apt install pipx && pipx ensurepath && pipx install black
-./scripts/lint.sh        # auto-fix mode (default)
-FIX=0 ./scripts/lint.sh # check-only mode (used in CI)
-```
-
-**Pre-commit hook** (optional — runs `lint.sh` before each commit):
-```sh
-./scripts/install_precommit_hooks.sh
 ```
 
 ### Step 1: Initialize
@@ -62,10 +48,11 @@ cargo run -- init \
     --curio local:/home/user/code/curio \
     --filecoin-services local:/home/user/code/filecoin-services \
     --pdp local:/home/user/code/pdp \
-    --lotus local:/home/user/code/lotus \
+    --lotus local:/home/user/code/lotus
 ```
 
-**Re-initializing?** Run `cargo run -- clean` first to remove existing state. Config is preserved by default; use `--all` to reset it too.
+**Re-initializing?** Run `cargo run -- stop` before deleting devnet state with
+`cargo run -- clean`. Config is preserved unless you pass `--all`.
 
 ### Step 2: Build
 
@@ -77,12 +64,11 @@ cargo run -- build curio
 This will:
 - Compile Lotus and Curio binaries inside Docker containers
 - Cache build artifacts for faster subsequent builds
-- You can run them in parallel as well for faster builds, if you have a powerful PC.
 
 ### Step 3: Start the Network
 
 ```bash
-cargo run -- start --parallel
+cargo run -- start
 ```
 
 This will:
@@ -90,52 +76,32 @@ This will:
 - Start Lotus daemon with FEVM enabled
 - Deploy FOC smart contracts (including MockUSDFC)
 - Start storage provider(s)
-- Launch [Portainer UI](https://docs.docksal.io/use-cases/portainer/) for container management
+- Launch [Portainer](https://docs.portainer.io/) for container management
 
-Curio providers initialize their storage metadata and register container-visible
-paths before launching, so PDP hashspaces include long-term storage on first startup.
-Startup retries RPC readiness checks while the daemon initializes.
-Existing storage metadata and additional registered paths are preserved.
+Run only on a trusted development machine and network. Portainer's published
+port is not restricted to loopback, and Portainer has access to the Docker socket.
 
-**If you have troubles**: Use `cargo run -- start`, removing parallelism during start, this may take longer.
-
-**That's it!** Your local Filecoin network is running.
+For experimental parallel startup, use `cargo run -- start --parallel`.
 
 ### Step 4: Use the Network
 
-After startup, `USER_1` is fully configured for FOC: USDFC deposited into FilecoinPay and FWSS approved as an operator. Use the network immediately with Synapse, filecoin-pin, or other compatible FOC client software:
+After startup, `USER_1` is funded and configured for FOC storage. Check the
+cluster with:
 
 ```bash
-# From a synapse-sdk checkout
-NETWORK=devnet node utils/example-storage-e2e.js <file>
-
-# With filecoin-pin
-filecoin-pin add <file> --network devnet
-# Equivalent: NETWORK=devnet filecoin-pin add <file>
-
-# Exercise foc-devnet's full Synapse-driven system scenario
-python3 scenarios/test_synapse_e2e.py
+cargo run -- status
 ```
 
-All connection details (contract addresses, user keys, SP endpoints) are exported to `devnet-info.json`:
+Client connection details are exported to
+`~/.foc-devnet/state/latest/devnet-info.json`. The file contains raw test private
+keys: do not share it or use those keys outside the devnet.
 
-```bash
-cat ~/.foc-devnet/state/latest/devnet-info.json
-```
-
-See [examples/README.md](examples/README.md) for more usage examples.
+See [integration examples](examples/README.md) to check balances or exercise
+storage with Synapse or filecoin-pin.
 
 ---
 
 ## ✨ Key Features
-
-### 🪶 Lean Host Requirements
-Only needs three things on your machine:
-- **tar** archiver
-- **rustup/rustc** for building the CLI
-- **Docker** for containerized components
-
-Everything else (Lotus, Curio, dependencies) is built inside Docker.
 
 ### ⚙️ Configurable Repositories
 Depends on these repositories, all configurable:
@@ -149,9 +115,8 @@ Each can be:
 - Linked to your local git repository for development
 
 ### 🔒 Deterministic Setup
-- **Pinned versions**: All components use specific git tags/commits for reproducibility
+- **Pinned defaults**: Default component sources use Git tags or commits
 - **Deterministic keys**: Uses fixed seeds, generating the same keys on every setup
-- **Consistent state**: Each run preserves its context in `~/.foc-devnet/run/<run-id>/step_context.json`
 
 ### 🤖 Fully Automated
 From building Docker images to deploying contracts—everything is automated:
@@ -160,22 +125,14 @@ From building Docker images to deploying contracts—everything is automated:
 - Smart contract deployment
 - Storage provider setup
 
-### 🧩 Modular Architecture
-Built with modular steps for easy extension and customization:
-- Add custom deployment steps
-- Configure multiple PDP service providers
-- Control "allowed" SP nodes via `~/.foc-devnet/config.toml` (see [Configuration System](README_ADVANCED.md#configuration-system))
+### 🧩 Configurable Storage Providers
+See [Configuration System](README_ADVANCED.md#configuration-system) for running
+multiple PDP service providers with different approval and endorsement settings.
 
 ### 📜 Programmable
-Built for scripting and automation:
-- **Contract addresses**: `~/.foc-devnet/run/<run-id>/contract_addresses.json`
-- **Step context**: `~/.foc-devnet/run/<run-id>/step_context.json`
-- **Latest run symlink**: `~/.foc-devnet/state/latest/` → points to most recent run
-- **Custom base directory**: Set `FOC_DEVNET_BASEDIR` env var to override default `~/.foc-devnet` location (see [Environment Variables](README_ADVANCED.md#environment-variables))
-- Write scripts for testing, demos, CI/CD pipelines, etc.
-
-### 🌐 Isolated Networks
-Uses Docker user-defined networks to mimic real-world node separation—just like production deployments.
+Use the versioned `devnet-info.json` export for clients and automation.
+`FOC_DEVNET_BASEDIR` overrides the default data directory; see
+[Environment Variables](README_ADVANCED.md#environment-variables).
 
 ### 💰 Built-in Token Contracts
 Includes ready-to-use test contracts:
@@ -191,29 +148,23 @@ Bundled with Portainer for browser-based Docker management—no terminal wizardr
 
 | Requirement | Details |
 |-------------|---------|
-| **Rust** | 1.70+ ([rustup.rs](https://rustup.rs)) |
+| **Rust** | Stable via [rustup](https://rustup.rs); a native build toolchain is required |
 | **Docker** | Desktop (macOS) or CE (Linux) |
 | **tar** | Archive utility (usually pre-installed) |
+| **Git** | Required for repository setup |
 | **Disk Space** | ~20GB for images and blockchain data |
-| **Architecture** | Supports both x86 (Intel) and ARM64 (Apple Silicon, AWS Graviton, etc.) architectures. The system automatically selects the appropriate binaries based on your architecture. |
+| **Architecture** | x86-64 and ARM64; the devnet CI workflow runs on Linux x86-64 |
+
+On Debian/Ubuntu, the CLI build uses `build-essential`, `pkg-config`, and
+`libssl-dev`.
 
 ---
 
 ## 🛠️ Need More?
 
-See **[README_ADVANCED.md](README_ADVANCED.md)** for comprehensive documentation on:
-- **All commands reference** (init, build, start, stop, clean, status, version)
-- **Configuration system** (config.toml structure, parameters, editing)
-- **Complete directory structure** (what's stored where and why)
-- **Resetting and cleanup** (manual cleanup, disk management)
-- **Run ID and Step Context** (isolation mechanism, state sharing)
-- **Docker and networking** (container architecture, network topology, Portainer debugging)
-- **Repository management** (using local repos, sharing configurations)
-- **Command flags** (detailed explanations of all flags and when to use them)
-- **Lifecycle overview** (full startup sequence, step implementation)
-- **Service Provider examples** (1 SP with 0 authorized, 3 SPs with top 2 authorized, etc.)
-- **Troubleshooting guides** (port conflicts, build failures, network issues)
-- **Additional user actions** (custom genesis, Lotus API access, contract interaction)
+- [Advanced guide](README_ADVANCED.md): CLI, configuration, networking, and troubleshooting
+- [Local contributor checks](ci/README.md#local-checks) and [CI dependency profiles](ci/README.md)
+- [MockUSDFC test token and deployment guide](contracts/README.md)
 
 ---
 
