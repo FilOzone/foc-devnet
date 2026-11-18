@@ -49,4 +49,4 @@ With a compatible version of filecoin-pin already installed, add a file with:
 filecoin-pin add --network devnet path/to/file
 ```
 
-For the full test suite, see [Scenario Tests](../README_ADVANCED.md#scenario-tests).
+For the full test suite, see [Scenario tests](../docs/scenarios.md).

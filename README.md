@@ -15,19 +15,8 @@ Default setup also needs network access to download repositories and images.
 Run as a non-root user who can run `docker info` without `sudo` (on Linux,
 typically through the `docker` group).
 
-**Check `host.docker.internal`**: It must resolve to `127.0.0.1` on the host.
-If it does not, add this entry to `/etc/hosts` once:
-
-```bash
-echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts
-```
-
-This is required for SP-to-SP fetch. `foc-devnet start` will check for this and fail with instructions if not configured.
-
-For GitHub Actions, add this step before running foc-devnet:
-```yaml
-- run: echo '127.0.0.1 host.docker.internal' | sudo tee -a /etc/hosts
-```
+**Check `host.docker.internal`**: It must resolve to loopback on the host.
+See [hostname setup](docs/networking.md#setup-requirements) before starting.
 
 ### Step 1: Initialize
 
@@ -51,8 +40,7 @@ cargo run -- init \
     --lotus local:/home/user/code/lotus
 ```
 
-**Re-initializing?** Run `cargo run -- stop` before deleting devnet state with
-`cargo run -- clean`. Config is preserved unless you pass `--all`.
+**Re-initializing?** Follow the [stop and clean procedure](docs/cli.md#clean).
 
 ### Step 2: Build
 
@@ -103,44 +91,9 @@ storage with Synapse or filecoin-pin.
 
 ## ✨ Key Features
 
-### ⚙️ Configurable Repositories
-Depends on these repositories, all configurable:
-- `filecoin-services` - FOC smart contracts
-- `pdp` - PDP contracts, optionally pinned independently from filecoin-services
-- `curio` - Next-gen storage provider
-- `lotus` - Filecoin daemon
-
-Each can be:
-- Auto-downloaded from GitHub (default)
-- Linked to your local git repository for development
-
-### 🔒 Deterministic Setup
-- **Pinned defaults**: Default component sources use Git tags or commits
-- **Deterministic keys**: Uses fixed seeds, generating the same keys on every setup
-
-### 🤖 Fully Automated
-From building Docker images to deploying contracts—everything is automated:
-- Genesis block creation
-- Network initialization
-- Smart contract deployment
-- Storage provider setup
-
-### 🧩 Configurable Storage Providers
-See [Configuration System](README_ADVANCED.md#configuration-system) for running
-multiple PDP service providers with different approval and endorsement settings.
-
-### 📜 Programmable
-Use the versioned `devnet-info.json` export for clients and automation.
-`FOC_DEVNET_BASEDIR` overrides the default data directory; see
-[Environment Variables](README_ADVANCED.md#environment-variables).
-
-### 💰 Built-in Token Contracts
-Includes ready-to-use test contracts:
-- **MockUSDFC** - ERC-20 test token
-- **Multicall3** - Batch contract calls
-
-### 🖥️ Portainer UI
-Bundled with Portainer for browser-based Docker management—no terminal wizardry required.
+Use [configuration](docs/configuration.md) to pin or replace dependency sources
+and change where devnet data is stored. Try [service provider workflows](docs/service-providers.md)
+to test storage with different approval and endorsement settings.
 
 ---
 
@@ -162,7 +115,7 @@ On Debian/Ubuntu, the CLI build uses `build-essential`, `pkg-config`, and
 
 ## 🛠️ Need More?
 
-- [Advanced guide](README_ADVANCED.md): CLI, configuration, networking, and troubleshooting
+- [Advanced documentation](docs/README.md): CLI, configuration, cleanup, and troubleshooting
 - [Local contributor checks](ci/README.md#local-checks) and [CI dependency profiles](ci/README.md)
 - [MockUSDFC test token and deployment guide](contracts/README.md)
 

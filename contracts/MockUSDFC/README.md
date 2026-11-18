@@ -35,7 +35,7 @@ make test
 ### 3. Deploy Contract
 
 For a foc-devnet run, use `info.lotus.host_rpc_url` from `devnet-info.json`
-instead of assuming a fixed port. See [Accessing Lotus API](../../README_ADVANCED.md#accessing-lotus-api).
+instead of assuming a fixed port. See [Accessing Lotus API](../../docs/integrations.md#accessing-lotus-api).
 Set the URL once so deployment and verification target the same endpoint:
 
 ```bash
