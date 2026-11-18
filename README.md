@@ -92,6 +92,16 @@ This will:
 - Start storage provider(s)
 - Launch [Portainer UI](https://docs.docksal.io/use-cases/portainer/) for container management
 
+Curio v1.29.3 and newer require HTTPS and an administrator session for the
+management GUI. Startup automatically creates an administrator independently for
+each SP, or logs in when one already exists. Credentials are stored with owner-only
+permissions in `docker/volumes/run-specific/<run_id>/curio/<sp>/gui-admin.json`
+under the devnet base directory. Keep this file when reusing its database. If an administrator already exists but this file is missing,
+startup fails instead of resetting the administrator. Local GUI requests accept
+Curio's self-signed certificate. The GUI port is published on host loopback only.
+Older Curio releases retain their HTTP management
+flow. PDP upload and download endpoints are unchanged.
+
 Curio providers initialize their storage metadata and register container-visible
 paths before launching, so PDP hashspaces include long-term storage on first startup.
 Startup retries RPC readiness checks while the daemon initializes.

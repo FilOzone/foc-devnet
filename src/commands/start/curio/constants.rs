@@ -18,6 +18,7 @@ Enable = true
 ListenAddress = "0.0.0.0:4702"
 
 [Subsystems]
+GuiAddress = "0.0.0.0:4701"
 EnableCommP = true
 EnableMoveStorage = true
 EnablePDP = true

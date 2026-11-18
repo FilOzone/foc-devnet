@@ -13,6 +13,7 @@ pub mod pre_execute;
 mod rpc;
 pub mod storage;
 pub mod verification;
+mod web_rpc;
 
 use super::step::{SetupContext, Step};
 use std::error::Error;
