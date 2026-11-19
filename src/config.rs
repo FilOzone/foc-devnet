@@ -225,7 +225,7 @@ pub struct Config {
     /// Location specification for the filecoin-services repository.
     ///
     /// Defines how to obtain the filecoin-services code, which contains
-    /// the FOC (Filecoin Onchain Contracts) deployment scripts needed by Curio.
+    /// the FOC (Filecoin Onchain Cloud) deployment scripts needed by Curio.
     /// See [`Location`] for available options.
     pub filecoin_services: Location,
 
@@ -250,7 +250,7 @@ pub struct Config {
     /// This is the total number of Curio SPs that will be registered and approved
     /// in the service provider registry. These SPs can accept storage deals.
     /// Must satisfy: ENDORSED_PDP_SP_COUNT <= APPROVED_PDP_SP_COUNT <= ACTIVE_PDP_SP_COUNT <= MAX_PDP_SP_COUNT
-    /// Default: 1
+    /// Default: 2
     pub approved_pdp_sp_count: usize,
 
     /// Number of endorsed PDP service providers.
@@ -267,16 +267,14 @@ pub struct Config {
     /// Some may be approved, some may not (for testing unapproved SP scenarios).
     /// Total miners = 1 (lotus-miner) + ACTIVE_PDP_SP_COUNT (curio SPs)
     /// Must satisfy: ENDORSED_PDP_SP_COUNT <= APPROVED_PDP_SP_COUNT <= ACTIVE_PDP_SP_COUNT <= MAX_PDP_SP_COUNT
-    /// Default: 1
+    /// Default: 2
     pub active_pdp_sp_count: usize,
 }
 
 impl Default for Config {
     /// Creates a default configuration with sensible defaults.
     ///
-    /// The default configuration sets up a minimal cluster with one of each
-    /// node type and assumes pre-built executables are available in standard
-    /// system locations (/usr/local/bin/).
+    /// Starts two active, approved providers, one of which is endorsed.
     ///
     /// The defaults should always use `GitCommit` or `GitTag` locations to ensure
     /// reproducibility.

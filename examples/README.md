@@ -11,34 +11,45 @@ This directory contains examples demonstrating how to interact with a running FO
 
 ## Prerequisites
 
-- Node.js 20+ installed
-- A running FOC DevNet instance (`foc-devnet start`)
-- npm packages: `viem`, `zod`
+- Node.js 24+ and npm
+- A running devnet started via the [quick start](../README.md)
+- Access to the npm registry to install dependencies
 
 ## Usage
 
-1. Start the DevNet:
-   ```bash
-   foc-devnet start
-   ```
+Run from the repository root:
 
-2. Find the devnet-info.json file:
-   ```bash
-   # The file is located in the run directory
-   cat ~/.foc-devnet/state/latest/devnet-info.json
-   ```
+```bash
+DEVNET_INFO="$HOME/.foc-devnet/state/latest/devnet-info.json"
+cd examples
+npm install
+node validate-schema.js "$DEVNET_INFO"
+npm run read-info -- "$DEVNET_INFO"
+npm run check-balances -- "$DEVNET_INFO"
+```
 
-3. Install dependencies and run examples:
-   ```bash
-   cd examples
-   npm install
-   
-   # Validate the schema
-   npm run validate-schema ~/.foc-devnet/state/latest/devnet-info.json
-   
-   # Read DevNet info
-   npm run read-info ~/.foc-devnet/state/latest/devnet-info.json
-   
-   # Check balances
-   npm run check-balances ~/.foc-devnet/state/latest/devnet-info.json
-   ```
+With a custom `FOC_DEVNET_BASEDIR`, use its absolute path in place of
+`$HOME/.foc-devnet`. For a specific run, use `<base-dir>/run/<run-id>/devnet-info.json`.
+The versioned export contains raw test private keys. Do not share the file or
+reuse the keys outside the devnet.
+
+## Exercise storage
+
+Use `USER_1` for storage tests. The other test users are funded but are not
+configured for Warm Storage.
+
+Run the repository's Synapse end-to-end scenario from the repository root.
+It requires Python 3, Node.js 24+, npm registry access, and two usable storage
+providers (the default configuration).
+
+```bash
+python3 scenarios/test_synapse_e2e.py
+```
+
+With a compatible version of filecoin-pin already installed, add a file with:
+
+```bash
+filecoin-pin add --network devnet path/to/file
+```
+
+For the full test suite, see [Scenario tests](../docs/scenarios.md).
