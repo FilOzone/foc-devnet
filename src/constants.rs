@@ -100,10 +100,47 @@ pub const SERVICE_NAME: &str = "FOC DevNet Warm Storage";
 pub const SERVICE_DESCRIPTION: &str = "Warm storage service for FOC local development network";
 
 /// Token parameters
-pub const MOCK_USDFC_INITIAL_SUPPLY: &str = "1000000000000000000000000"; // 1,000,000 tokens
+///
+/// The whole-token value is the authoritative supply; [`MOCK_USDFC_INITIAL_SUPPLY`]
+/// expresses the same amount in base units for callers that need a decimal string.
+pub const MOCK_USDFC_INITIAL_SUPPLY_TOKENS: u64 = 1_000_000;
+pub const MOCK_USDFC_INITIAL_SUPPLY: &str = "1000000000000000000000000"; // 1,000,000 tokens * 10^18
 pub const MOCK_USDFC_DECIMALS: u8 = 18;
 pub const MOCK_USDFC_SYMBOL: &str = "USDFC";
 pub const MOCK_USDFC_NAME: &str = "Mock USDFC";
+
+/// MockUSDFC granted to each user account at startup.
+pub const MOCK_USDFC_USER_ALLOCATION_TOKENS: u64 = 100_000;
+
+/// Nominal MockUSDFC grant per active PDP SP.
+///
+/// This is an upper bound: when the configured SP count would push the total
+/// distribution past the initial supply, each SP receives an equal share of
+/// what remains after the user allocations (see
+/// [`mock_usdfc_sp_allocation_tokens`]).
+pub const MOCK_USDFC_SP_ALLOCATION_TOKENS: u64 = 200_000;
+
+/// Per-SP MockUSDFC grant that keeps the whole distribution within
+/// [`MOCK_USDFC_INITIAL_SUPPLY_TOKENS`].
+///
+/// With the default two active PDP SPs every SP gets the nominal
+/// [`MOCK_USDFC_SP_ALLOCATION_TOKENS`]. With more SPs the remainder of the
+/// supply is split evenly, so scheduling `MAX_PDP_SP_COUNT` providers can never
+/// ask the deployer to transfer more tokens than it holds.
+pub fn mock_usdfc_sp_allocation_tokens(active_pdp_sp_count: usize) -> u64 {
+    let user_total = USER_ACCOUNT_COUNT as u64 * MOCK_USDFC_USER_ALLOCATION_TOKENS;
+    let remaining = MOCK_USDFC_INITIAL_SUPPLY_TOKENS.saturating_sub(user_total);
+    if active_pdp_sp_count == 0 {
+        return 0;
+    }
+    (remaining / active_pdp_sp_count as u64).min(MOCK_USDFC_SP_ALLOCATION_TOKENS)
+}
+
+/// Total MockUSDFC distributed for a given number of active PDP SPs.
+pub fn mock_usdfc_distribution_total_tokens(active_pdp_sp_count: usize) -> u64 {
+    USER_ACCOUNT_COUNT as u64 * MOCK_USDFC_USER_ALLOCATION_TOKENS
+        + active_pdp_sp_count as u64 * mock_usdfc_sp_allocation_tokens(active_pdp_sp_count)
+}
 
 /// Network configuration
 pub const LOCAL_NETWORK_CHAIN_ID: u64 = 31415926; // Local network chain ID
@@ -148,6 +185,54 @@ mod tests {
                 image
             );
         }
+    }
+
+    #[test]
+    fn test_initial_supply_string_matches_whole_token_constant() {
+        let expected = MOCK_USDFC_INITIAL_SUPPLY_TOKENS.to_string()
+            + &"0".repeat(MOCK_USDFC_DECIMALS as usize);
+        assert_eq!(MOCK_USDFC_INITIAL_SUPPLY, expected);
+    }
+
+    #[test]
+    fn test_sp_allocation_uses_nominal_rate_when_supply_allows() {
+        // Default topology: 3 users + 2 SPs fits comfortably within the supply.
+        assert_eq!(mock_usdfc_sp_allocation_tokens(0), 0);
+        for sp_count in 1..=3 {
+            assert_eq!(
+                mock_usdfc_sp_allocation_tokens(sp_count),
+                MOCK_USDFC_SP_ALLOCATION_TOKENS
+            );
+        }
+    }
+
+    #[test]
+    fn test_sp_allocation_shrinks_to_fit_the_supply() {
+        // 3 users * 100k leaves 700k for SPs: four SPs get 175k, five get 140k.
+        assert_eq!(mock_usdfc_sp_allocation_tokens(4), 175_000);
+        assert_eq!(mock_usdfc_sp_allocation_tokens(MAX_PDP_SP_COUNT), 140_000);
+    }
+
+    #[test]
+    fn test_distribution_never_exceeds_initial_supply() {
+        for sp_count in 0..=MAX_PDP_SP_COUNT {
+            let total = mock_usdfc_distribution_total_tokens(sp_count);
+            assert!(
+                total <= MOCK_USDFC_INITIAL_SUPPLY_TOKENS,
+                "{} SPs distribute {} tokens, supply is {}",
+                sp_count,
+                total,
+                MOCK_USDFC_INITIAL_SUPPLY_TOKENS
+            );
+        }
+    }
+
+    #[test]
+    fn test_distribution_with_default_topology_keeps_existing_grants() {
+        assert_eq!(
+            mock_usdfc_distribution_total_tokens(2),
+            3 * MOCK_USDFC_USER_ALLOCATION_TOKENS + 2 * 200_000
+        );
     }
 
     #[test]

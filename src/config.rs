@@ -311,6 +311,7 @@ impl Config {
     ///
     /// Ensures that:
     /// - ENDORSED_PDP_SP_COUNT <= APPROVED_PDP_SP_COUNT <= ACTIVE_PDP_SP_COUNT <= MAX_PDP_SP_COUNT
+    /// - the MockUSDFC startup distribution fits within the initial supply
     pub fn validate(&self) -> Result<(), String> {
         const MAX_PDP_SP_COUNT: usize = crate::constants::MAX_PDP_SP_COUNT;
 
@@ -332,6 +333,30 @@ impl Config {
             return Err(format!(
                 "active_pdp_sp_count ({}) cannot exceed MAX_PDP_SP_COUNT ({})",
                 self.active_pdp_sp_count, MAX_PDP_SP_COUNT
+            ));
+        }
+
+        // Funding allocates a fixed amount per user and splits what remains
+        // between the active PDP SPs. Reject topologies where either group can
+        // no longer be funded from the initial supply.
+        let user_allocation_total = crate::constants::USER_ACCOUNT_COUNT as u64
+            * crate::constants::MOCK_USDFC_USER_ALLOCATION_TOKENS;
+        if user_allocation_total > crate::constants::MOCK_USDFC_INITIAL_SUPPLY_TOKENS {
+            return Err(format!(
+                "USER_ACCOUNT_COUNT ({}) * MockUSDFC user allocation ({} tokens) exceeds the initial supply ({} tokens)",
+                crate::constants::USER_ACCOUNT_COUNT,
+                crate::constants::MOCK_USDFC_USER_ALLOCATION_TOKENS,
+                crate::constants::MOCK_USDFC_INITIAL_SUPPLY_TOKENS
+            ));
+        }
+
+        if self.active_pdp_sp_count > 0
+            && crate::constants::mock_usdfc_sp_allocation_tokens(self.active_pdp_sp_count) == 0
+        {
+            return Err(format!(
+                "active_pdp_sp_count ({}) leaves no MockUSDFC for PDP SPs after user allocations from a {} token supply",
+                self.active_pdp_sp_count,
+                crate::constants::MOCK_USDFC_INITIAL_SUPPLY_TOKENS
             ));
         }
 
@@ -491,5 +516,38 @@ mod tests {
 
         assert!(serialized.contains("pdp"));
         assert!(serialized.contains("https://github.com/FilOzone/pdp.git"));
+    }
+
+    fn config_with_active_sps(active: usize) -> Config {
+        Config {
+            active_pdp_sp_count: active,
+            approved_pdp_sp_count: active,
+            endorsed_pdp_sp_count: active.min(1),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn validate_accepts_every_supported_sp_count() {
+        for active in 0..=crate::constants::MAX_PDP_SP_COUNT {
+            let config = config_with_active_sps(active);
+            assert!(
+                config.validate().is_ok(),
+                "{} active PDP SPs should be fundable: {:?}",
+                active,
+                config.validate()
+            );
+        }
+    }
+
+    #[test]
+    fn validate_rejects_more_sps_than_supported() {
+        let config = config_with_active_sps(crate::constants::MAX_PDP_SP_COUNT + 1);
+        let err = config.validate().unwrap_err();
+        assert!(
+            err.contains("MAX_PDP_SP_COUNT"),
+            "unexpected error: {}",
+            err
+        );
     }
 }

@@ -12,9 +12,6 @@ use std::error::Error;
 use std::path::PathBuf;
 use tracing::info;
 
-// Token configuration
-pub const MOCK_USDFC_INITIAL_SUPPLY: &str = "1000000000000000000000000"; // 1 million tokens (18 decimals)
-
 /// Step for deploying MockUSDFC token
 pub struct USDFCDeployStep {
     volumes_dir: PathBuf,

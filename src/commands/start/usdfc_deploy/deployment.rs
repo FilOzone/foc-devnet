@@ -13,6 +13,28 @@ use std::error::Error;
 use std::path::PathBuf;
 use tracing::{error, info};
 
+/// Build the forge deploy command.
+///
+/// `INITIAL_SUPPLY` is passed explicitly from the Rust constant so the deployed
+/// token always matches the supply that funding allocates against. Relying on
+/// the Solidity script's fallback default would let the two values drift apart.
+fn mock_usdfc_deploy_command(lotus_rpc_url: &str, private_key: &str) -> String {
+    format!(
+        "cd /workspace && \
+         INITIAL_SUPPLY={} \
+         forge script script/Deploy.s.sol:DeployMockUSDFC \
+         --rpc-url {} \
+         --private-key {} \
+         --broadcast \
+         --slow \
+         --gas-estimate-multiplier 10000 \
+         -vv",
+        crate::constants::MOCK_USDFC_INITIAL_SUPPLY,
+        lotus_rpc_url,
+        private_key
+    )
+}
+
 /// Deploy MockUSDFC using the Foundry project
 pub fn deploy_mock_usdfc_foundry(
     context: &SetupContext,
@@ -31,17 +53,7 @@ pub fn deploy_mock_usdfc_foundry(
     // Deploy using forge script with explicit gas limit for FEVM
     info!("Executing deployment script...");
 
-    let deploy_cmd = format!(
-        "cd /workspace && \
-         forge script script/Deploy.s.sol:DeployMockUSDFC \
-         --rpc-url {} \
-         --private-key {} \
-         --broadcast \
-         --slow \
-         --gas-estimate-multiplier 10000 \
-         -vv",
-        lotus_rpc_url, private_key
-    );
+    let deploy_cmd = mock_usdfc_deploy_command(lotus_rpc_url, private_key);
 
     let key = format!("usdfc_deploy_{}", run_id);
     let contract_mount = bind_mount(&contract_dir, "/workspace")?;
@@ -143,10 +155,33 @@ pub fn perform_token_deployment(
     info!("✓ MockUSDFC token deployed successfully!");
     info!("Token Address: {}", mock_usdfc_address);
     info!(
-        "Initial Supply: {} tokens",
-        super::usdfc_deploy_step::MOCK_USDFC_INITIAL_SUPPLY
+        "Initial Supply: {} tokens (base units: {})",
+        crate::constants::MOCK_USDFC_INITIAL_SUPPLY_TOKENS,
+        crate::constants::MOCK_USDFC_INITIAL_SUPPLY
     );
     info!("Decimals: 18");
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deploy_command_sets_initial_supply_from_shared_constant() {
+        let cmd = mock_usdfc_deploy_command("http://localhost:1234/rpc/v1", "0xabc");
+
+        assert!(
+            cmd.contains(&format!(
+                "INITIAL_SUPPLY={}",
+                crate::constants::MOCK_USDFC_INITIAL_SUPPLY
+            )),
+            "command must pass the shared supply constant: {}",
+            cmd
+        );
+        assert!(cmd.contains("script/Deploy.s.sol:DeployMockUSDFC"));
+        assert!(cmd.contains("--rpc-url http://localhost:1234/rpc/v1"));
+        assert!(cmd.contains("--private-key 0xabc"));
+    }
 }

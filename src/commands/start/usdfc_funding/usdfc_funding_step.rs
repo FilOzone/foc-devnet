@@ -3,12 +3,13 @@
 //! This module contains the main Step implementation for distributing MockUSDFC tokens
 //! to user and service provider addresses.
 
-use super::constants::{token_amount_to_wei, TRANSACTION_CONFIRMATION_WAIT_SECS};
+use super::constants::{
+    distribution_plan, token_amount_to_wei, TRANSACTION_CONFIRMATION_WAIT_SECS,
+};
 use super::funding_operations::{self, check_mock_usdfc_balance, transfer_mock_usdfc};
 use super::key_operations::get_user_private_key;
 use crate::commands::start::step::{SetupContext, Step};
 use crate::commands::start::usdfc_funding::key_operations::get_user_eth_address;
-use crate::constants::USER_ACCOUNT_COUNT;
 use crate::docker::containers::lotus_container_name;
 use crate::docker::core::container_is_running;
 use std::error::Error;
@@ -38,20 +39,8 @@ impl USDFCFundingStep {
         mockusdfc_address: &str,
         lotus_rpc_url: &str,
     ) -> Result<bool, Box<dyn Error>> {
-        // Build list of accounts to check (same as what will be transferred)
-        let mut accounts_to_check = Vec::new();
-
-        // Add user accounts (base-1 numbering)
-        for user_num in 1..=USER_ACCOUNT_COUNT {
-            let account_name = format!("USER_{}", user_num);
-            accounts_to_check.push((account_name, 100_000u64));
-        }
-
-        // Add only active PDP SPs (base-1 numbering)
-        for sp_num in 1..=self.active_pdp_sp_count {
-            let account_name = format!("PDP_SP_{}", sp_num);
-            accounts_to_check.push((account_name, 200_000u64));
-        }
+        // Build list of accounts to check (same plan as what will be transferred)
+        let accounts_to_check = distribution_plan(self.active_pdp_sp_count);
 
         // Check balances for all accounts
         for (account_name, amount_tokens) in accounts_to_check.iter() {
@@ -247,23 +236,11 @@ impl Step for USDFCFundingStep {
         // Get deployer private key
         let deployer_private_key = get_user_private_key("DEPLOYER_MOCKUSDFC")?;
 
-        // Build list of transfers
+        // Build list of transfers from the shared allocation plan
         let mut token_transfers = Vec::new();
 
-        // Add user accounts (base-1 numbering)
-        for user_num in 1..=USER_ACCOUNT_COUNT {
-            let account_name = format!("USER_{}", user_num);
+        for (account_name, amount_tokens) in distribution_plan(self.active_pdp_sp_count) {
             let eth_address = get_user_eth_address(&account_name)?;
-            let amount_tokens = 100_000u64;
-            let amount_wei = token_amount_to_wei(amount_tokens);
-            token_transfers.push((account_name, eth_address, amount_wei, amount_tokens));
-        }
-
-        // Add only active PDP SPs (base-1 numbering)
-        for sp_num in 1..=self.active_pdp_sp_count {
-            let account_name = format!("PDP_SP_{}", sp_num);
-            let eth_address = get_user_eth_address(&account_name)?;
-            let amount_tokens = 200_000u64;
             let amount_wei = token_amount_to_wei(amount_tokens);
             token_transfers.push((account_name, eth_address, amount_wei, amount_tokens));
         }
@@ -289,18 +266,8 @@ impl Step for USDFCFundingStep {
         // Get Lotus RPC URL
         let lotus_rpc_url = get_lotus_rpc_url(context)?;
 
-        // Build list of accounts to verify
-        let mut accounts_to_verify = Vec::new();
-
-        for user_num in 1..=USER_ACCOUNT_COUNT {
-            let account_name = format!("USER_{}", user_num);
-            accounts_to_verify.push((account_name, 100_000u64));
-        }
-
-        for sp_num in 1..=self.active_pdp_sp_count {
-            let account_name = format!("PDP_SP_{}", sp_num);
-            accounts_to_verify.push((account_name, 200_000u64));
-        }
+        // Build list of accounts to verify (same plan as the transfers)
+        let accounts_to_verify = distribution_plan(self.active_pdp_sp_count);
 
         for (account_name, amount_tokens) in accounts_to_verify.iter() {
             let eth_address = get_user_eth_address(account_name)?;
