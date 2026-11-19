@@ -131,22 +131,16 @@ pub fn perform_deployment(
     // Store in context
     context.set("multicall3_address", &multicall3_address);
 
-    // Load existing contract addresses and add multicall3
-    let mut addresses_struct =
-        crate::commands::start::foc_deploy::contract_addresses::ContractAddresses::load(run_id)
-            .unwrap_or_else(|_| {
-                // If no existing addresses, create a minimal struct
-                // This shouldn't happen as multicall3 runs after other deployments
-                crate::commands::start::foc_deploy::contract_addresses::ContractAddresses::default()
-            });
-
-    // Add multicall3 to contracts
-    addresses_struct
-        .contracts
-        .insert("multicall".to_string(), multicall3_address.clone());
-
-    // Save updated addresses
-    addresses_struct.save(run_id)?;
+    // Add multicall3 to the shared addresses file. update() locks and merges,
+    // so a concurrent MockUSDFC deployment cannot be overwritten.
+    crate::commands::start::foc_deploy::contract_addresses::ContractAddresses::update(
+        run_id,
+        |addresses| {
+            addresses
+                .contracts
+                .insert("multicall".to_string(), multicall3_address.clone());
+        },
+    )?;
 
     // Verify the deployment
     super::verification::verify_multicall3(

@@ -75,15 +75,13 @@ pub fn perform_deployment(
         context.set(format!("foc_contract_{}", name.replace(' ', "_")), addr);
     }
 
-    // Load existing addresses and update with FOC contracts
-    let mut addresses_struct =
-        ContractAddresses::load(run_id).unwrap_or_else(|_| ContractAddresses::default());
-
-    addresses_struct.foc_contracts = contract_addresses.addresses.clone();
-    addresses_struct.filbeam_controller = contract_addresses.filbeam_controller.clone();
-    addresses_struct.filbeam_beneficiary = contract_addresses.filbeam_beneficiary.clone();
-
-    addresses_struct.save(run_id)?;
+    // Merge the FOC contracts into the shared addresses file. update() locks
+    // and merges, so parallel steps writing standard contracts are preserved.
+    ContractAddresses::update(run_id, |addresses| {
+        addresses.foc_contracts = contract_addresses.addresses.clone();
+        addresses.filbeam_controller = contract_addresses.filbeam_controller.clone();
+        addresses.filbeam_beneficiary = contract_addresses.filbeam_beneficiary.clone();
+    })?;
     info!(
         "✓ Contract addresses saved to {}",
         contract_addresses_file(run_id).display()
