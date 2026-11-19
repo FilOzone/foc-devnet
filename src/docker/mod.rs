@@ -45,5 +45,7 @@ pub use network::{
     lotus_miner_network_name, lotus_network_name, pdp_miner_network_name,
 };
 pub use portainer::{start_portainer, stop_portainer};
-pub use shell::{cast_command, forge_command, lotus_command, lotus_wallet_command};
+pub use shell::{
+    cast_command, ephemeral_run_args, forge_command, lotus_command, lotus_wallet_command,
+};
 pub use status::{get_container_uptime, get_running_foc_containers, get_system_start_time};

@@ -101,6 +101,26 @@ pub fn docker_run_host_network(image: &str, args: &[&str]) -> Result<Output, Box
     docker_command(&full_args)
 }
 
+/// Build `docker run` arguments for a short-lived container that may reuse its name.
+///
+/// Read-only checks run inside retry loops that reuse a fixed `--name`. Without
+/// `--rm`, a failed attempt leaves a stopped container behind and the next
+/// attempt fails with "container name is already in use". `--network host` lets
+/// `cast` reach the Lotus RPC. Callers append `--mount` pairs, the image, and
+/// the command.
+pub fn ephemeral_run_args(container_name: &str, user: &str) -> Vec<String> {
+    vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "--name".to_string(),
+        container_name.to_string(),
+        "-u".to_string(),
+        user.to_string(),
+        "--network".to_string(),
+        "host".to_string(),
+    ]
+}
+
 /// Run a Docker container with prepared `--mount` specifications.
 ///
 /// Note: Does not use `--rm` to allow log inspection after container exits.
@@ -152,4 +172,20 @@ pub fn forge_script_deploy(
     ];
     args.extend_from_slice(extra_args);
     forge_command(&args)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ephemeral_run_args;
+
+    #[test]
+    fn test_ephemeral_run_args_remove_container_on_exit() {
+        let args = ephemeral_run_args("foc-run-verify", "foc-user");
+
+        assert_eq!(args.first().map(String::as_str), Some("run"));
+        // Without --rm a retry reusing the same --name fails on the leftover container.
+        assert!(args.iter().any(|a| a == "--rm"));
+        assert!(args.windows(2).any(|w| w[0] == "--name" && w[1] == "foc-run-verify"));
+        assert!(args.windows(2).any(|w| w[0] == "--network" && w[1] == "host"));
+    }
 }
