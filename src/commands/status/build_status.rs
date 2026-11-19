@@ -89,9 +89,10 @@ mod tests {
 
     #[test]
     fn test_print_build_status() {
-        // This test mainly verifies that the function doesn't panic
-        // In a real scenario, you'd mock the foc_devnet_bin function
-        // or set up the environment properly
+        // Point the binary lookup at an empty throwaway home, not the real one.
+        let home = tempfile::TempDir::new().unwrap();
+        let _home = crate::paths::TestHome::new(home.path());
+
         let result = print_build_status();
         // We expect this to work even if no binaries exist
         assert!(result.is_ok());
