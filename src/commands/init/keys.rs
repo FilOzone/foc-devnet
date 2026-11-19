@@ -139,6 +139,8 @@ mod tests {
 
     #[test]
     fn test_generate_keys_includes_bls_keys() {
+        let home = tempfile::TempDir::new().unwrap();
+        let _home = crate::paths::TestHome::new(home.path());
         let keys = generate_keys(false).unwrap();
 
         // Check that we have the expected number of keys

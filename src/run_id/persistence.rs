@@ -86,6 +86,8 @@ mod tests {
 
     #[test]
     fn test_save_and_load_run_id() {
+        let home = tempfile::TempDir::new().unwrap();
+        let _home = crate::paths::TestHome::new(home.path());
         let test_run_id = "251203-1246-test-wolf";
 
         // Save

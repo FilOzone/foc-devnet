@@ -107,7 +107,8 @@ mod tests {
 
     #[test]
     fn test_print_disk_usage() {
-        // This test verifies that the function doesn't panic
+        let home = tempfile::TempDir::new().unwrap();
+        let _home = crate::paths::TestHome::new(home.path());
         let result = print_disk_usage();
         // We expect this to work even if directories don't exist
         assert!(result.is_ok());
