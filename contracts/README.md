@@ -1,6 +1,6 @@
 # MockUSDFC Token
 
-MockUSDFC is the ERC-20 test token for local FOC (Filecoin Onchain Contracts) development.
+MockUSDFC is the ERC-20 test token for local FOC (Filecoin Onchain Cloud) development.
 
 ## Overview
 

@@ -1,6 +1,6 @@
 # foc-devnet
 
-**Run a local Filecoin network with FOC (Filecoin Onchain Contracts) in minutes.**
+**Run a local Filecoin network with FOC (Filecoin Onchain Cloud) in minutes.**
 
 A developer-friendly tool for spinning up complete Filecoin test networks with smart contract support, deterministic key generation, and automated deployment—all running locally in Docker.
 

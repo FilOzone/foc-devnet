@@ -3,7 +3,7 @@
 ## Project Overview
 
 foc-devnet is a Rust CLI that runs local Filecoin networks with FOC (Filecoin
-Onchain Contracts) in Docker. It starts Lotus, miners, and databases, and
+Onchain Cloud) in Docker. It starts Lotus, miners, and databases, and
 deploys contracts with Foundry.
 
 ## Architecture Patterns
@@ -78,8 +78,6 @@ See the [quick start](README.md#-quick-start) for CLI usage and
 ## Code Style & Conventions
 
 ### Code Quality Policies
-- Split files that would exceed 150 lines into modules.
-- Keep functions at or below 15 lines and split functions that do multiple things.
 - Define named constants for identifiers, timings, and other magic values.
 - Add examples for complex tasks when they clarify usage.
 
