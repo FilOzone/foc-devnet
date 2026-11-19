@@ -152,8 +152,7 @@ mod tests {
         std::fs::create_dir_all(&run_dir).expect("Failed to create run dir");
 
         let latest_link = foc_devnet_state_latest();
-        std::fs::create_dir_all(latest_link.parent().unwrap())
-            .expect("Failed to create state dir");
+        std::fs::create_dir_all(latest_link.parent().unwrap()).expect("Failed to create state dir");
 
         // Point the existing link at a directory that does not exist.
         symlink(home.path().join("run/missing"), &latest_link)

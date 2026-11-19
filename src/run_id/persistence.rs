@@ -97,7 +97,10 @@ mod tests {
         save_current_run_id(test_run_id).unwrap();
 
         let state_file = crate::paths::foc_devnet_state().join("current_runid.json");
-        assert!(state_file.is_file(), "run ID should be persisted under the isolated home");
+        assert!(
+            state_file.is_file(),
+            "run ID should be persisted under the isolated home"
+        );
 
         // Load
         let loaded_id = load_current_run_id().unwrap();
