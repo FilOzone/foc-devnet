@@ -52,6 +52,33 @@ pub fn docker_command(args: &[&str]) -> Result<Output, Box<dyn Error>> {
     run_command("docker", args)
 }
 
+/// Wait for a container to exit and return its exit code.
+///
+/// `docker wait` itself exits 0 and prints the container's exit code on
+/// stdout, so checking the command's [`std::process::ExitStatus`] would
+/// always report success regardless of how the container's command ended.
+pub fn wait_container_exit_code(container_name: &str) -> Result<i32, Box<dyn Error>> {
+    let output = docker_command(&["wait", container_name])?;
+    parse_container_exit_code(&String::from_utf8_lossy(&output.stdout)).map_err(|e| {
+        format!(
+            "Failed to read exit code of container {}: {}",
+            container_name, e
+        )
+        .into()
+    })
+}
+
+/// Parse the numeric exit code printed by `docker wait`.
+fn parse_container_exit_code(stdout: &str) -> Result<i32, String> {
+    let trimmed = stdout.trim();
+    trimmed.parse::<i32>().map_err(|_| {
+        format!(
+            "unexpected `docker wait` output (expected an exit code): {:?}",
+            trimmed
+        )
+    })
+}
+
 /// Get logs from a Docker container.
 ///
 /// Collects both stdout and stderr. Go programs (e.g. Curio)
@@ -242,4 +269,22 @@ pub fn chown_command(args: &[&str]) -> Result<Output, Box<dyn Error>> {
     let mut command = Command::new("chown");
     command.args(args);
     command.output().map_err(|e| e.into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_container_exit_code;
+
+    #[test]
+    fn parses_docker_wait_exit_codes() {
+        assert_eq!(parse_container_exit_code("0\n").unwrap(), 0);
+        assert_eq!(parse_container_exit_code("2\n").unwrap(), 2);
+        assert_eq!(parse_container_exit_code("137").unwrap(), 137);
+    }
+
+    #[test]
+    fn rejects_non_numeric_docker_wait_output() {
+        assert!(parse_container_exit_code("").is_err());
+        assert!(parse_container_exit_code("error: no such container\n").is_err());
+    }
 }

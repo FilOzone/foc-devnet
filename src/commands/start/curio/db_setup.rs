@@ -17,7 +17,7 @@ use crate::docker::command_logger::run_and_log_command;
 use crate::docker::containers::{
     lotus_container_name, postgres_container_name, scylla_container_name,
 };
-use crate::docker::core::docker_command;
+use crate::docker::core::{docker_command, get_container_logs, wait_container_exit_code};
 use crate::docker::network::{lotus_network_name, pdp_miner_network_name};
 use crate::paths::foc_devnet_bin;
 use crate::paths::foc_devnet_docker_volumes;
@@ -263,15 +263,18 @@ fn create_base_cluster(
     let _ = docker_command(&["network", "connect", &lotus_network, &container_name]);
 
     // Wait for the command to complete
-    let output = docker_command(&["wait", &container_name])?;
+    let exit_code = wait_container_exit_code(&container_name)?;
+
+    // Collect logs before removing the container
+    let logs = get_container_logs(&container_name).unwrap_or_default();
 
     // Clean up container
     let _ = docker_command(&["rm", "-f", &container_name]);
 
-    if !output.status.success() {
+    if exit_code != 0 {
         return Err(format!(
-            "Failed to create base cluster for miner {}: command failed",
-            miner_id
+            "Failed to create base cluster for miner {}: container exited with code {}\n{}",
+            miner_id, exit_code, logs
         )
         .into());
     }
@@ -376,13 +379,20 @@ fn create_pdp_layer(context: &SetupContext, sp_index: usize) -> Result<(), Box<d
     let _ = docker_command(&["network", "connect", &lotus_network, &container_name]);
 
     // Wait for the command to complete
-    let output = docker_command(&["wait", &container_name])?;
+    let exit_code = wait_container_exit_code(&container_name)?;
+
+    // Collect logs before removing the container
+    let logs = get_container_logs(&container_name).unwrap_or_default();
 
     // Clean up container
     let _ = docker_command(&["rm", "-f", &container_name]);
 
-    if !output.status.success() {
-        return Err("Failed to create PDP layer configuration: command failed".into());
+    if exit_code != 0 {
+        return Err(format!(
+            "Failed to create PDP layer configuration: container exited with code {}\n{}",
+            exit_code, logs
+        )
+        .into());
     }
 
     info!("PDP layer configuration created");
