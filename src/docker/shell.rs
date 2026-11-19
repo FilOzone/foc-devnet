@@ -185,7 +185,11 @@ mod tests {
         assert_eq!(args.first().map(String::as_str), Some("run"));
         // Without --rm a retry reusing the same --name fails on the leftover container.
         assert!(args.iter().any(|a| a == "--rm"));
-        assert!(args.windows(2).any(|w| w[0] == "--name" && w[1] == "foc-run-verify"));
-        assert!(args.windows(2).any(|w| w[0] == "--network" && w[1] == "host"));
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "--name" && w[1] == "foc-run-verify"));
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "--network" && w[1] == "host"));
     }
 }
