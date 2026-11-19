@@ -92,6 +92,29 @@ pub fn lotus_get_eth_address(f4_address: &str) -> Result<String, Box<dyn Error>>
     Ok(eth_addr)
 }
 
+/// Build the argument prefix for a read-only container that must not outlive its run.
+///
+/// Returns `run --rm --name <name> -u <user> --network host`. Use this for
+/// invocations inside retry loops: without `--rm`, a failed attempt leaves its
+/// stopped container behind and every retry fails instantly with
+/// "container name is already in use". Transaction containers intentionally keep
+/// their containers for post-mortem log inspection and must not use this helper.
+pub fn ephemeral_run_args(name: &str, user: &str) -> Vec<String> {
+    [
+        "run",
+        "--rm",
+        "--name",
+        name,
+        "-u",
+        user,
+        "--network",
+        "host",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect()
+}
+
 /// Run a docker container with host networking.
 /// Note: Does not use --rm flag to allow log inspection after container exits.
 pub fn docker_run_host_network(image: &str, args: &[&str]) -> Result<Output, Box<dyn Error>> {
@@ -152,4 +175,29 @@ pub fn forge_script_deploy(
     ];
     args.extend_from_slice(extra_args);
     forge_command(&args)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ephemeral_run_args;
+
+    #[test]
+    fn test_ephemeral_run_args_remove_container_on_exit() {
+        let args = ephemeral_run_args("foc-test-verify", "foc-user");
+
+        assert_eq!(
+            args,
+            vec![
+                "run",
+                "--rm",
+                "--name",
+                "foc-test-verify",
+                "-u",
+                "foc-user",
+                "--network",
+                "host",
+            ]
+        );
+        assert!(args.iter().any(|arg| arg == "--rm"));
+    }
 }

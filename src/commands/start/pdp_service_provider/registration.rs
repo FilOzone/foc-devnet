@@ -6,6 +6,7 @@ use super::constants::*;
 use crate::commands::start::step::SetupContext;
 use crate::constants::BUILDER_DOCKER_IMAGE;
 use crate::docker::command_logger::run_and_log_command_strings;
+use crate::docker::shell::ephemeral_run_args;
 use crate::utils::retry::{retry_with_fixed_delay, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS};
 use std::error::Error;
 
@@ -321,14 +322,8 @@ pub fn verify_provider_count(
         || {
             let container_name = format!("foc-{}-pdp-verify-count", run_id);
 
-            let args: Vec<String> = vec![
-                "run".to_string(),
-                "--name".to_string(),
-                container_name,
-                "-u".to_string(),
-                "foc-user".to_string(),
-                "--network".to_string(),
-                "host".to_string(),
+            let mut args = ephemeral_run_args(&container_name, "foc-user");
+            args.extend([
                 BUILDER_DOCKER_IMAGE.to_string(),
                 "cast".to_string(),
                 "call".to_string(),
@@ -336,7 +331,7 @@ pub fn verify_provider_count(
                 "getProviderCount()(uint256)".to_string(),
                 "--rpc-url".to_string(),
                 lotus_rpc_url.to_string(),
-            ];
+            ]);
 
             let key = "pdp_verify_provider_count".to_string();
             let output = run_and_log_command_strings("docker", &args, context, &key)?;
@@ -371,14 +366,8 @@ pub fn verify_provider_id_by_address(
         || {
             let container_name = format!("foc-{}-pdp-verify-id-{}", run_id, provider_address);
 
-            let args: Vec<String> = vec![
-                "run".to_string(),
-                "--name".to_string(),
-                container_name,
-                "-u".to_string(),
-                "foc-user".to_string(),
-                "--network".to_string(),
-                "host".to_string(),
+            let mut args = ephemeral_run_args(&container_name, "foc-user");
+            args.extend([
                 BUILDER_DOCKER_IMAGE.to_string(),
                 "cast".to_string(),
                 "call".to_string(),
@@ -387,7 +376,7 @@ pub fn verify_provider_id_by_address(
                 provider_address.to_string(),
                 "--rpc-url".to_string(),
                 lotus_rpc_url.to_string(),
-            ];
+            ]);
 
             let key = format!("pdp_verify_provider_id_{}", provider_address);
             let output = run_and_log_command_strings("docker", &args, context, &key)?;
@@ -424,14 +413,8 @@ pub fn verify_approved_provider(
             // Use isProviderApproved function on StateView contract
             let provider_id_str = provider_id.to_string();
             let container_name = format!("foc-{}-pdp-verify-approved-{}", run_id, provider_id);
-            let args: Vec<String> = vec![
-                "run".to_string(),
-                "--name".to_string(),
-                container_name,
-                "-u".to_string(),
-                "foc-user".to_string(),
-                "--network".to_string(),
-                "host".to_string(),
+            let mut args = ephemeral_run_args(&container_name, "foc-user");
+            args.extend([
                 BUILDER_DOCKER_IMAGE.to_string(),
                 "cast".to_string(),
                 "call".to_string(),
@@ -440,7 +423,7 @@ pub fn verify_approved_provider(
                 provider_id_str,
                 "--rpc-url".to_string(),
                 lotus_rpc_url.to_string(),
-            ];
+            ]);
 
             let key = format!("pdp_verify_approved_provider_{}", provider_id);
             let output = run_and_log_command_strings("docker", &args, context, &key)?;

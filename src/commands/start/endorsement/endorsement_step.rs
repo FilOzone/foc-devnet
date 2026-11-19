@@ -199,6 +199,7 @@ impl Step for EndorsementStep {
 
         // Get all endorsed provider IDs in one call
         let params = GetProviderIdsParams {
+            run_id: context.run_id().to_string(),
             endorsements_contract_address: endorsements_address,
             lotus_rpc_url,
         };
