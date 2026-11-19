@@ -225,7 +225,7 @@ pub struct Config {
     /// Location specification for the filecoin-services repository.
     ///
     /// Defines how to obtain the filecoin-services code, which contains
-    /// the FOC (Filecoin Onchain Contracts) deployment scripts needed by Curio.
+    /// the FOC (Filecoin Onchain Cloud) deployment scripts needed by Curio.
     /// See [`Location`] for available options.
     pub filecoin_services: Location,
 

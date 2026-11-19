@@ -1,7 +1,6 @@
 //! FOC deployment module.
 //!
-//! This module contains all components related to deploying FOC (Filecoin Onchain Contracts)
-//! including contract addresses management, deployment logic, and step execution.
+//! Deploys Filecoin Onchain Cloud (FOC) contracts for local devnets.
 
 pub mod contract_addresses;
 pub mod deployment;
