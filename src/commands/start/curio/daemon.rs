@@ -6,7 +6,10 @@ use super::super::step::SetupContext;
 use super::db_setup::{build_db_env_vars, build_foc_contract_env_vars, build_lotus_env_vars};
 use super::storage;
 use super::CurioStep;
-use crate::commands::start::curio::constants::CURIO_LAYERS;
+use crate::commands::start::curio::constants::{
+    CURIO_API_ALT_CONTAINER_PORT, CURIO_API_CONTAINER_PORT, CURIO_LAYERS, CURIO_PDP_CONTAINER_PORT,
+    CURIO_WEB_RPC_PORT,
+};
 use crate::docker::command_logger::run_and_log_command_strings;
 use crate::docker::init::set_volume_ownership;
 use crate::docker::network::{lotus_network_name, pdp_miner_network_name};
@@ -143,6 +146,16 @@ fn start_curio_container(
     Ok(container_id)
 }
 
+/// Read a dynamically allocated port for an SP from the step context.
+fn read_port(context: &SetupContext, sp_index: usize, name: &str) -> Result<u16, Box<dyn Error>> {
+    let key = format!("pdp_sp_{}_{}", sp_index, name);
+    let raw = context
+        .get(&key)
+        .ok_or_else(|| format!("Curio port '{}' not found in step context", key))?;
+    raw.parse()
+        .map_err(|e| format!("Invalid value '{}' for {}: {}", raw, key, e).into())
+}
+
 /// Build docker create arguments for Curio
 fn build_docker_create_args(
     context: &SetupContext,
@@ -166,33 +179,42 @@ fn build_docker_create_args(
     ];
 
     // Port mappings - get dynamically allocated ports from context
-    let api_port: u16 = context
-        .get(&format!("pdp_sp_{}_api_port", sp_index))
-        .ok_or("Curio API port not found in context")?
-        .parse()?;
-    let api_port_alt: u16 = context
-        .get(&format!("pdp_sp_{}_api_port_alt", sp_index))
-        .ok_or("Curio API alt port not found in context")?
-        .parse()?;
-    let gui_port: u16 = context
-        .get(&format!("pdp_sp_{}_gui_port", sp_index))
-        .ok_or("Curio GUI port not found in context")?
-        .parse()?;
-    let pdp_port: u16 = context
-        .get(&format!("pdp_sp_{}_pdp_port", sp_index))
-        .ok_or("Curio PDP port not found in context")?
-        .parse()?;
+    let host_ports = [
+        (
+            "API",
+            read_port(context, sp_index, "api_port")?,
+            CURIO_API_CONTAINER_PORT,
+        ),
+        (
+            "API Alt",
+            read_port(context, sp_index, "api_port_alt")?,
+            CURIO_API_ALT_CONTAINER_PORT,
+        ),
+        (
+            "GUI",
+            read_port(context, sp_index, "gui_port")?,
+            CURIO_WEB_RPC_PORT,
+        ),
+        (
+            "PDP",
+            read_port(context, sp_index, "pdp_port")?,
+            CURIO_PDP_CONTAINER_PORT,
+        ),
+    ];
 
-    docker_args.extend_from_slice(&[
-        "-p".to_string(),
-        format!("{}:12300", api_port),
-        "-p".to_string(),
-        format!("{}:12301", api_port_alt),
-        "-p".to_string(),
-        format!("{}:4701", gui_port),
-        "-p".to_string(),
-        format!("{}:4702", pdp_port),
-    ]);
+    for (label, host_port, container_port) in host_ports {
+        // Re-check right before create: the ports were allocated in pre-execute,
+        // which may be minutes earlier while other steps ran.
+        if !crate::docker::is_port_available(host_port) {
+            return Err(format!(
+                "Port {} ({}) for Curio SP {} is no longer available",
+                host_port, label, sp_index
+            )
+            .into());
+        }
+        docker_args.push("-p".to_string());
+        docker_args.push(format!("{}:{}", host_port, container_port));
+    }
 
     // Validated bind mounts
     push_bind_mount(

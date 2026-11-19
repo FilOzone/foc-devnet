@@ -311,8 +311,13 @@ impl Config {
     ///
     /// Ensures that:
     /// - ENDORSED_PDP_SP_COUNT <= APPROVED_PDP_SP_COUNT <= ACTIVE_PDP_SP_COUNT <= MAX_PDP_SP_COUNT
+    /// - the port range is non-empty, does not include port 0, and fits in u16
     pub fn validate(&self) -> Result<(), String> {
         const MAX_PDP_SP_COUNT: usize = crate::constants::MAX_PDP_SP_COUNT;
+
+        // Reuse the allocator's constructor so the range rules live in one place.
+        crate::port_allocator::PortAllocator::new(self.port_range_start, self.port_range_count)
+            .map_err(|e| format!("invalid port range: {}", e))?;
 
         if self.endorsed_pdp_sp_count > self.approved_pdp_sp_count {
             return Err(format!(
@@ -491,5 +496,42 @@ mod tests {
 
         assert!(serialized.contains("pdp"));
         assert!(serialized.contains("https://github.com/FilOzone/pdp.git"));
+    }
+
+    #[test]
+    fn default_config_validates() {
+        assert!(Config::default().validate().is_ok());
+    }
+
+    #[test]
+    fn empty_port_range_is_rejected() {
+        let config = Config {
+            port_range_count: 0,
+            ..Default::default()
+        };
+        let err = config.validate().unwrap_err();
+        assert!(err.contains("port range"), "unexpected error: {}", err);
+    }
+
+    #[test]
+    fn overflowing_port_range_is_rejected() {
+        // 65500 + 100 - 1 = 65599 does not fit in u16.
+        let config = Config {
+            port_range_start: 65500,
+            port_range_count: 100,
+            ..Default::default()
+        };
+        let err = config.validate().unwrap_err();
+        assert!(err.contains("port range"), "unexpected error: {}", err);
+    }
+
+    #[test]
+    fn range_ending_at_max_port_is_accepted() {
+        let config = Config {
+            port_range_start: 65500,
+            port_range_count: 36,
+            ..Default::default()
+        };
+        assert!(config.validate().is_ok());
     }
 }

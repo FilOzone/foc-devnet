@@ -64,20 +64,8 @@ pub fn verify_prerequisites(context: &SetupContext, sp_count: usize) -> Result<(
             pdp_port.to_string(),
         );
 
-        for (port, desc) in [
-            (api_port, "API"),
-            (api_port_alt, "API Alt"),
-            (gui_port, "GUI"),
-            (pdp_port, "PDP"),
-        ] {
-            if !crate::docker::is_port_available(port) {
-                return Err(format!(
-                    "Port {} ({}) for Curio SP {} is already in use",
-                    port, desc, sp_index
-                )
-                .into());
-            }
-        }
+        // PortAllocator only hands out ports that are free on the host, so no
+        // separate availability check is needed here.
     }
 
     info!("Prerequisites verified: Lotus is running and producing blocks");

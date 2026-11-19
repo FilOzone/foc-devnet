@@ -3,6 +3,13 @@
 /// Curio Web RPC API port
 pub const CURIO_WEB_RPC_PORT: u16 = 4701;
 
+/// Curio RPC API port inside the container
+pub const CURIO_API_CONTAINER_PORT: u16 = 12300;
+/// Curio alternate RPC API port inside the container
+pub const CURIO_API_ALT_CONTAINER_PORT: u16 = 12301;
+/// Curio PDP layer port inside the container (keep in sync with the [`PDP_LAYER_CONFIG_TEMPLATE`] listen address)
+pub const CURIO_PDP_CONTAINER_PORT: u16 = 4702;
+
 /// Curio storage path inside container (fast)
 pub const CURIO_FAST_STORAGE_PATH: &str = "/home/foc-user/curio/fast-storage";
 /// Curio storage path inside container (long-term)

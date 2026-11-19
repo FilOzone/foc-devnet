@@ -82,8 +82,20 @@ pub fn get_container_logs(container_name: &str) -> Result<String, Box<dyn Error>
 }
 
 /// Check if a port is available (not in use)
+///
+/// Docker publishes ports on all interfaces, so a listener bound to any host
+/// address makes the port unusable. Probe the wildcard address as well as
+/// loopback so that services bound to a specific non-loopback interface are
+/// detected too. Port 0 is never a usable service port (bind picks an
+/// ephemeral port instead), so it always reports unavailable.
 pub fn is_port_available(port: u16) -> bool {
-    TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok()
+    if port == 0 {
+        return false;
+    }
+    ["0.0.0.0", "127.0.0.1"].iter().all(|addr| {
+        // The listener is dropped immediately, releasing the probe bind.
+        TcpListener::bind((*addr, port)).is_ok()
+    })
 }
 
 /// Check if a Docker image exists locally.
@@ -242,4 +254,33 @@ pub fn chown_command(args: &[&str]) -> Result<Output, Box<dyn Error>> {
     let mut command = Command::new("chown");
     command.args(args);
     command.output().map_err(|e| e.into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_port_available;
+    use std::net::TcpListener;
+
+    #[test]
+    fn test_port_zero_is_never_available() {
+        assert!(!is_port_available(0));
+    }
+
+    #[test]
+    fn test_listener_on_loopback_marks_port_unavailable() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        assert!(!is_port_available(port));
+    }
+
+    #[test]
+    fn test_free_port_is_available() {
+        // Bind an ephemeral port, learn its number, then release it.
+        let port = TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        assert!(is_port_available(port));
+    }
 }
