@@ -6,7 +6,6 @@
 //! The deployment uses Foundry to compile and deploy the contract
 //! to the local Filecoin network.
 
-pub mod contract_storage;
 pub mod deployment;
 pub mod key_management;
 pub mod multicall3_deploy_step;
