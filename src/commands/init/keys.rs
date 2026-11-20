@@ -136,9 +136,14 @@ pub fn load_keys() -> Result<Vec<KeyInfo>, Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::paths::TestHome;
 
     #[test]
     fn test_generate_keys_includes_bls_keys() {
+        // Keep generated mnemonics and keys out of the real ~/.foc-devnet.
+        let home = tempfile::TempDir::new().unwrap();
+        let _home = TestHome::new(home.path());
+
         let keys = generate_keys(false).unwrap();
 
         // Check that we have the expected number of keys
@@ -162,6 +167,20 @@ mod tests {
         assert!(key_names.contains(&"BLS_SIGNER_1"));
         assert!(key_names.contains(&"BLS_SIGNER_2"));
         assert!(key_names.contains(&"GLOBAL_FIL_FAUCET"));
+
+        // Mnemonic and addresses are persisted under the isolated home and
+        // load_keys() reads back exactly what was generated.
+        let keys_dir = foc_devnet_keys();
+        assert!(keys_dir.join("mnemonic.txt").is_file());
+        assert!(keys_dir.join("addresses.json").is_file());
+
+        let persisted = load_keys().unwrap();
+        let generated: Vec<_> = keys.iter().map(|k| (&k.name, &k.private_key)).collect();
+        let reloaded: Vec<_> = persisted
+            .iter()
+            .map(|k| (&k.name, &k.private_key))
+            .collect();
+        assert_eq!(generated, reloaded);
     }
 
     #[test]

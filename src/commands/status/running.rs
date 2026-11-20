@@ -172,15 +172,10 @@ fn format_container_ports(container_name: &str) -> Result<String, Box<dyn std::e
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_print_running_status() {
-        // This test verifies that the function doesn't panic
-        // In a real environment with Docker, it would check actual containers
-        let result = print_running_status();
-        // We expect this to work even if Docker is not available
-        // (it will just show empty results)
-        assert!(result.is_ok());
-    }
+    // NOTE: print_running_status() is deliberately not unit-tested. It shells
+    // out to Docker and asserts nothing beyond "does not panic", so the old
+    // test passed without exercising any of its logic and failed whenever the
+    // Docker daemon was unavailable.
 
     #[test]
     fn test_extract_base_image_name() {
@@ -200,5 +195,7 @@ mod tests {
             extract_base_image_name(crate::constants::LOTUS_CONTAINER),
             crate::constants::LOTUS_CONTAINER
         );
+        // Names without the foc- prefix are returned untouched.
+        assert_eq!(extract_base_image_name("postgres"), "postgres");
     }
 }

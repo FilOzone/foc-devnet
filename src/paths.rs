@@ -2,11 +2,79 @@ use std::path::PathBuf;
 
 use tracing::warn;
 
+/// Test-only home directory override.
+///
+/// Tests that touch the filesystem must never read or write the real
+/// `~/.foc-devnet`. An environment variable would work, but it is
+/// process-global and leaks across the parallel test threads; this override is
+/// guarded by a process-wide lock so only one test can point path resolution at
+/// a temporary directory at a time.
+#[cfg(test)]
+mod test_support {
+    use std::path::{Path, PathBuf};
+    use std::sync::{Mutex, MutexGuard};
+
+    static OVERRIDE: Mutex<Option<PathBuf>> = Mutex::new(None);
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    fn test_lock() -> MutexGuard<'static, ()> {
+        // A panicking test poisons the lock; later tests should still run.
+        TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn override_slot() -> MutexGuard<'static, Option<PathBuf>> {
+        OVERRIDE.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Holds the shared path-resolution lock for the duration of a test.
+    ///
+    /// Constructed with [`TestHome::new`], it redirects `foc_devnet_home()` to
+    /// the supplied directory. Constructed with [`TestHome::lock_only`], it
+    /// only serializes against other path tests, for cases that exercise
+    /// `FOC_DEVNET_BASEDIR` handling directly.
+    pub struct TestHome {
+        _lock: MutexGuard<'static, ()>,
+    }
+
+    impl TestHome {
+        pub fn new(dir: &Path) -> Self {
+            let guard = test_lock();
+            *override_slot() = Some(dir.to_path_buf());
+            Self { _lock: guard }
+        }
+
+        pub fn lock_only() -> Self {
+            let lock = test_lock();
+            Self { _lock: lock }
+        }
+    }
+
+    impl Drop for TestHome {
+        fn drop(&mut self) {
+            *override_slot() = None;
+        }
+    }
+
+    pub(super) fn override_dir() -> Option<PathBuf> {
+        override_slot().clone()
+    }
+}
+
+#[cfg(test)]
+pub(crate) use test_support::TestHome;
+
 /// Returns the path to the foc-devnet home directory.
 /// First checks for $FOC_DEVNET_BASEDIR environment variable.
 /// If not set, defaults to ~/.foc-devnet
 /// Supports tilde expansion for paths like ~/my-foc-devnet
 pub fn foc_devnet_home() -> PathBuf {
+    #[cfg(test)]
+    {
+        if let Some(test_home) = test_support::override_dir() {
+            return test_home;
+        }
+    }
+
     let default_path = || {
         dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("/tmp"))
@@ -261,26 +329,28 @@ pub const CONTAINER_FILECOIN_PROOF_PARAMS_PATH: &str = "/var/tmp/filecoin-proof-
 mod tests {
     use super::*;
     use std::env;
-    use std::sync::Mutex;
 
-    /// Serializes all tests that mutate FOC_DEVNET_BASEDIR to prevent
-    /// race conditions when the test suite uses multiple threads.
-    static ENV_MUTEX: Mutex<()> = Mutex::new(());
-
-    /// Helper to safely set and restore environment variables in tests
+    /// Sets and restores an environment variable while holding the shared
+    /// path-resolution lock, so no concurrent test observes the change.
     struct EnvGuard {
         key: &'static str,
         original: Option<String>,
+        _lock: TestHome,
     }
 
     impl EnvGuard {
         fn new(key: &'static str, value: Option<&str>) -> Self {
+            let lock = TestHome::lock_only();
             let original = env::var(key).ok();
             match value {
                 Some(v) => env::set_var(key, v),
                 None => env::remove_var(key),
             }
-            EnvGuard { key, original }
+            EnvGuard {
+                key,
+                original,
+                _lock: lock,
+            }
         }
     }
 
@@ -295,7 +365,6 @@ mod tests {
 
     #[test]
     fn test_foc_devnet_home_with_custom_basedir() {
-        let _lock = ENV_MUTEX.lock().unwrap();
         let _guard = EnvGuard::new("FOC_DEVNET_BASEDIR", Some("/tmp/my-foc-devnet"));
         let path = foc_devnet_home();
         assert_eq!(path, PathBuf::from("/tmp/my-foc-devnet"));
@@ -303,7 +372,6 @@ mod tests {
 
     #[test]
     fn test_foc_devnet_home_with_tilde_expansion() {
-        let _lock = ENV_MUTEX.lock().unwrap();
         let _guard = EnvGuard::new("FOC_DEVNET_BASEDIR", Some("~/my-foc-devnet"));
         let path = foc_devnet_home();
 
@@ -315,7 +383,6 @@ mod tests {
 
     #[test]
     fn test_foc_devnet_home_with_empty_basedir() {
-        let _lock = ENV_MUTEX.lock().unwrap();
         let _guard = EnvGuard::new("FOC_DEVNET_BASEDIR", Some(""));
         let path = foc_devnet_home();
 
@@ -328,7 +395,6 @@ mod tests {
 
     #[test]
     fn test_foc_devnet_home_with_whitespace_basedir() {
-        let _lock = ENV_MUTEX.lock().unwrap();
         let _guard = EnvGuard::new("FOC_DEVNET_BASEDIR", Some("   "));
         let path = foc_devnet_home();
 
@@ -341,7 +407,6 @@ mod tests {
 
     #[test]
     fn test_foc_devnet_home_no_env_var() {
-        let _lock = ENV_MUTEX.lock().unwrap();
         let _guard = EnvGuard::new("FOC_DEVNET_BASEDIR", None);
 
         let path = foc_devnet_home();
@@ -355,7 +420,6 @@ mod tests {
 
     #[test]
     fn test_dependent_paths_use_foc_devnet_home() {
-        let _lock = ENV_MUTEX.lock().unwrap();
         let _guard = EnvGuard::new("FOC_DEVNET_BASEDIR", Some("/tmp/test-foc"));
 
         // All dependent paths should use the custom base directory

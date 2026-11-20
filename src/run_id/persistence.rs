@@ -86,17 +86,29 @@ mod tests {
 
     #[test]
     fn test_save_and_load_run_id() {
+        // Never write to the real ~/.foc-devnet/state/current_runid.json: this
+        // test used to overwrite and then delete the user's active run ID.
+        let home = tempfile::TempDir::new().unwrap();
+        let _home = crate::paths::TestHome::new(home.path());
+
         let test_run_id = "251203-1246-test-wolf";
 
         // Save
         save_current_run_id(test_run_id).unwrap();
 
+        let state_file = crate::paths::foc_devnet_state().join("current_runid.json");
+        assert!(
+            state_file.is_file(),
+            "run ID should be persisted under the isolated home"
+        );
+
         // Load
         let loaded_id = load_current_run_id().unwrap();
         assert_eq!(loaded_id, test_run_id);
 
-        // Clean up
+        // Delete
         delete_current_run_id().unwrap();
+        assert!(!state_file.exists());
 
         // Verify deletion
         assert!(load_current_run_id().is_err());
