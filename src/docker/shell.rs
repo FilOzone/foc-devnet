@@ -92,6 +92,26 @@ pub fn lotus_get_eth_address(f4_address: &str) -> Result<String, Box<dyn Error>>
     Ok(eth_addr)
 }
 
+/// Arguments for a short-lived container that removes itself on exit.
+///
+/// Read-only checks that run inside retry loops must use this prefix: a failed
+/// attempt would otherwise leave a stopped container behind, and the next
+/// attempt with the same `--name` fails instantly with "container name is
+/// already in use". Transaction containers deliberately keep theirs for log
+/// inspection after a failure.
+pub fn ephemeral_run_args(name: &str, user: &str) -> Vec<String> {
+    vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "--name".to_string(),
+        name.to_string(),
+        "-u".to_string(),
+        user.to_string(),
+        "--network".to_string(),
+        "host".to_string(),
+    ]
+}
+
 /// Run a docker container with host networking.
 /// Note: Does not use --rm flag to allow log inspection after container exits.
 pub fn docker_run_host_network(image: &str, args: &[&str]) -> Result<Output, Box<dyn Error>> {
@@ -152,4 +172,38 @@ pub fn forge_script_deploy(
     ];
     args.extend_from_slice(extra_args);
     forge_command(&args)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ephemeral_run_args_remove_container_on_exit() {
+        let args = ephemeral_run_args("foc-test-verify", "foc-user");
+
+        assert_eq!(args.first().map(String::as_str), Some("run"));
+        assert!(
+            args.iter().any(|arg| arg == "--rm"),
+            "ephemeral containers must remove themselves on exit"
+        );
+        assert_eq!(
+            args.iter()
+                .position(|arg| arg == "--name")
+                .map(|i| args[i + 1].as_str()),
+            Some("foc-test-verify")
+        );
+        assert_eq!(
+            args.iter()
+                .position(|arg| arg == "-u")
+                .map(|i| args[i + 1].as_str()),
+            Some("foc-user")
+        );
+        assert_eq!(
+            args.iter()
+                .position(|arg| arg == "--network")
+                .map(|i| args[i + 1].as_str()),
+            Some("host")
+        );
+    }
 }
