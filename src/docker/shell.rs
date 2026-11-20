@@ -92,6 +92,24 @@ pub fn lotus_get_eth_address(f4_address: &str) -> Result<String, Box<dyn Error>>
     Ok(eth_addr)
 }
 
+/// Docker `run` prefix for a short-lived, self-removing container.
+///
+/// Retry loops must use this (or a per-attempt unique name). A fixed `--name`
+/// without `--rm` leaves the stopped container behind, so every retry after a
+/// failed attempt dies instantly with "container name is already in use".
+pub fn ephemeral_run_args(name: &str, user: &str) -> Vec<String> {
+    vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "--name".to_string(),
+        name.to_string(),
+        "-u".to_string(),
+        user.to_string(),
+        "--network".to_string(),
+        "host".to_string(),
+    ]
+}
+
 /// Run a docker container with host networking.
 /// Note: Does not use --rm flag to allow log inspection after container exits.
 pub fn docker_run_host_network(image: &str, args: &[&str]) -> Result<Output, Box<dyn Error>> {
@@ -152,4 +170,28 @@ pub fn forge_script_deploy(
     ];
     args.extend_from_slice(extra_args);
     forge_command(&args)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ephemeral_run_args;
+
+    /// Retry-loop containers must remove themselves so a failed attempt cannot
+    /// block the next one with a duplicate name.
+    #[test]
+    fn test_ephemeral_run_args_remove_container_on_exit() {
+        assert_eq!(
+            ephemeral_run_args("foc-test-container", "foc-user"),
+            vec![
+                "run",
+                "--rm",
+                "--name",
+                "foc-test-container",
+                "-u",
+                "foc-user",
+                "--network",
+                "host",
+            ]
+        );
+    }
 }

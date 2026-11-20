@@ -6,6 +6,7 @@ use super::constants::{
 use crate::commands::start::step::SetupContext;
 use crate::constants::BUILDER_DOCKER_IMAGE;
 use crate::docker::command_logger::run_and_log_command_strings;
+use crate::docker::shell::ephemeral_run_args;
 use std::error::Error;
 use std::thread;
 use std::time::Duration;
@@ -101,23 +102,15 @@ fn verify_transaction_status(
     provider_id: u64,
     context: &SetupContext,
 ) -> Result<(), Box<dyn Error>> {
-    let container_name = format!("foc-verify-endorse-{}", provider_id);
+    let container_name = format!("foc-verify-endorse-{}-{}", context.run_id(), provider_id);
 
     let cast_cmd = format!(r#"cast receipt {} --rpc-url {} --json"#, tx_hash, rpc_url);
 
-    let args: Vec<String> = vec![
-        "run".to_string(),
-        "--name".to_string(),
-        container_name.clone(),
-        "-u".to_string(),
-        "foc-user".to_string(),
-        "--network".to_string(),
-        "host".to_string(),
-        BUILDER_DOCKER_IMAGE.to_string(),
-        "bash".to_string(),
-        "-c".to_string(),
-        cast_cmd,
-    ];
+    let mut args = ephemeral_run_args(&container_name, "foc-user");
+    args.push(BUILDER_DOCKER_IMAGE.to_string());
+    args.push("bash".to_string());
+    args.push("-c".to_string());
+    args.push(cast_cmd);
 
     let key = format!("pdp_verify_endorse_tx_{}", provider_id);
     let output = run_and_log_command_strings("docker", &args, context, &key)?;
@@ -156,26 +149,18 @@ pub fn get_all_provider_ids(
     params: GetProviderIdsParams,
     context: &SetupContext,
 ) -> Result<Vec<u64>, Box<dyn Error>> {
-    let container_name = "foc-get-provider-ids";
+    let container_name = format!("foc-{}-get-provider-ids", context.run_id());
 
     let cast_cmd = format!(
         r#"cast call {} "getProviderIds()(uint256[])" --rpc-url {}"#,
         params.endorsements_contract_address, params.lotus_rpc_url
     );
 
-    let args: Vec<String> = vec![
-        "run".to_string(),
-        "--name".to_string(),
-        container_name.to_string(),
-        "-u".to_string(),
-        "foc-user".to_string(),
-        "--network".to_string(),
-        "host".to_string(),
-        BUILDER_DOCKER_IMAGE.to_string(),
-        "bash".to_string(),
-        "-c".to_string(),
-        cast_cmd,
-    ];
+    let mut args = ephemeral_run_args(&container_name, "foc-user");
+    args.push(BUILDER_DOCKER_IMAGE.to_string());
+    args.push("bash".to_string());
+    args.push("-c".to_string());
+    args.push(cast_cmd);
 
     let key = "pdp_get_all_provider_ids";
     let output = run_and_log_command_strings("docker", &args, context, key)?;

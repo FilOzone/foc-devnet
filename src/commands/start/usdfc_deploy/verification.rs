@@ -4,7 +4,8 @@
 
 use crate::commands::start::step::SetupContext;
 use crate::docker::bind_mount;
-use crate::docker::command_logger::run_and_log_command;
+use crate::docker::command_logger::run_and_log_command_strings;
+use crate::docker::shell::ephemeral_run_args;
 use crate::utils::retry::{retry_with_fixed_delay, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_DELAY_SECS};
 use std::error::Error;
 use std::path::Path;
@@ -31,41 +32,30 @@ pub fn verify_mock_usdfc(
     ));
     let contract_mount = bind_mount(contract_dir, "/workspace")?;
 
+    let verify_cmd = format!(
+        "cd /workspace && \
+         forge script script/Verify.s.sol:VerifyMockUSDFC \
+         --rpc-url {} \
+         --private-key {} \
+         --sig 'run(address)' {} \
+         -vv",
+        lotus_rpc_url, private_key, contract_address
+    );
+
+    let key = format!("usdfc_verify_{}", run_id);
+    let container_name = format!("foc-{}-usdfc-verify", run_id);
+    let mut args = ephemeral_run_args(&container_name, "foc-user");
+    args.push("--mount".to_string());
+    args.push(contract_mount);
+    args.push(crate::constants::BUILDER_DOCKER_IMAGE.to_string());
+    args.push("bash".to_string());
+    args.push("-c".to_string());
+    args.push(verify_cmd);
+
     // Retry verification with fixed delay
     let verification_result = retry_with_fixed_delay(
         || {
-            let verify_cmd = format!(
-                "cd /workspace && \
-                 forge script script/Verify.s.sol:VerifyMockUSDFC \
-                 --rpc-url {} \
-                 --private-key {} \
-                 --sig 'run(address)' {} \
-                 -vv",
-                lotus_rpc_url, private_key, contract_address
-            );
-
-            let key = format!("usdfc_verify_{}", run_id);
-            let container_name = format!("foc-{}-usdfc-verify", run_id);
-            let output = run_and_log_command(
-                "docker",
-                &[
-                    "run",
-                    "--name",
-                    &container_name,
-                    "-u",
-                    "foc-user",
-                    "--network",
-                    "host",
-                    "--mount",
-                    &contract_mount,
-                    crate::constants::BUILDER_DOCKER_IMAGE,
-                    "bash",
-                    "-c",
-                    &verify_cmd,
-                ],
-                context,
-                &key,
-            )?;
+            let output = run_and_log_command_strings("docker", &args, context, &key)?;
 
             let _stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
