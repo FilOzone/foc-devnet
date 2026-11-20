@@ -135,10 +135,15 @@ pub fn load_keys() -> Result<Vec<KeyInfo>, Box<dyn std::error::Error>> {
 
 #[cfg(test)]
 mod tests {
+    use crate::paths::TestHome;
+
     use super::*;
 
     #[test]
     fn test_generate_keys_includes_bls_keys() {
+        let home = tempfile::TempDir::new().unwrap();
+        let _home = TestHome::new(home.path());
+
         let keys = generate_keys(false).unwrap();
 
         // Check that we have the expected number of keys

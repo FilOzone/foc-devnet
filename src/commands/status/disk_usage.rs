@@ -103,10 +103,15 @@ pub fn print_disk_usage() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(test)]
 mod tests {
+    use crate::paths::TestHome;
+
     use super::*;
 
     #[test]
     fn test_print_disk_usage() {
+        let home = tempfile::TempDir::new().unwrap();
+        let _home = TestHome::new(home.path());
+
         // This test verifies that the function doesn't panic
         let result = print_disk_usage();
         // We expect this to work even if directories don't exist

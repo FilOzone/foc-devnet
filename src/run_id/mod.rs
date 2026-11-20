@@ -112,8 +112,10 @@ pub fn create_latest_symlink(run_id: &str) -> Result<(), Box<dyn std::error::Err
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::paths::TestHome;
     use regex::Regex;
+
+    use super::*;
 
     #[test]
     fn test_run_id_format() {
@@ -141,27 +143,15 @@ mod tests {
 
     #[test]
     fn test_create_latest_symlink_handles_broken_symlinks() {
-        // This test verifies that create_latest_symlink properly handles
-        // removing broken symlinks and creating new ones
-        use std::os::unix::fs::symlink;
-        use tempfile::TempDir;
+        let home = tempfile::TempDir::new().expect("Failed to create temp dir");
+        let _home = TestHome::new(home.path());
 
-        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let latest_link = crate::paths::foc_devnet_state_latest();
 
-        // Mock the paths by using temp directory structure
-        let runs_dir = temp_dir.path().join("run");
-        let state_dir = temp_dir.path().join("state");
-        let latest_link = state_dir.join("latest");
-
-        std::fs::create_dir_all(&runs_dir).expect("Failed to create runs dir");
-        std::fs::create_dir_all(&state_dir).expect("Failed to create state dir");
-
-        // Create first run directory
-        let run_dir1 = runs_dir.join("run1");
+        // First run creates the state directory and the symlink.
+        let run_dir1 = crate::paths::foc_devnet_run_dir("run1");
         std::fs::create_dir_all(&run_dir1).expect("Failed to create run1 dir");
-
-        // Create initial symlink
-        symlink(&run_dir1, &latest_link).expect("Failed to create initial symlink");
+        create_latest_symlink("run1").expect("Failed to create initial symlink");
         assert!(latest_link.is_symlink(), "Initial symlink should exist");
         assert_eq!(
             std::fs::read_link(&latest_link).unwrap(),
@@ -169,7 +159,8 @@ mod tests {
             "Symlink should point to run1"
         );
 
-        // Delete the target to create a broken symlink
+        // Deleting the target leaves a broken symlink; recreating the latest
+        // link must remove it rather than fail.
         std::fs::remove_dir_all(&run_dir1).expect("Failed to remove run1 dir");
         assert!(
             latest_link.is_symlink(),
@@ -180,23 +171,25 @@ mod tests {
             "Broken symlink target should not exist"
         );
 
-        // Create a new run directory
-        let run_dir2 = runs_dir.join("run2");
+        let run_dir2 = crate::paths::foc_devnet_run_dir("run2");
         std::fs::create_dir_all(&run_dir2).expect("Failed to create run2 dir");
-
-        // Remove the broken symlink and create new one
-        if latest_link.is_symlink() {
-            std::fs::remove_file(&latest_link).expect("Failed to remove broken symlink");
-        }
-        assert!(!latest_link.exists(), "Symlink should be removed");
-
-        symlink(&run_dir2, &latest_link).expect("Failed to create new symlink");
-        assert!(latest_link.is_symlink(), "New symlink should exist");
+        create_latest_symlink("run2").expect("Failed to replace broken symlink");
         assert_eq!(
             std::fs::read_link(&latest_link).unwrap(),
             run_dir2,
             "Symlink should point to run2"
         );
         assert!(latest_link.exists(), "New symlink target should exist");
+
+        // A valid symlink must also be replaced by a newer run.
+        let run_dir3 = crate::paths::foc_devnet_run_dir("run3");
+        std::fs::create_dir_all(&run_dir3).expect("Failed to create run3 dir");
+        create_latest_symlink("run3").expect("Failed to replace valid symlink");
+        assert_eq!(
+            std::fs::read_link(&latest_link).unwrap(),
+            run_dir3,
+            "Symlink should point to run3"
+        );
+        assert!(latest_link.exists(), "Replacement target should exist");
     }
 }

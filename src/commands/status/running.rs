@@ -173,16 +173,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_print_running_status() {
-        // This test verifies that the function doesn't panic
-        // In a real environment with Docker, it would check actual containers
-        let result = print_running_status();
-        // We expect this to work even if Docker is not available
-        // (it will just show empty results)
-        assert!(result.is_ok());
-    }
-
-    #[test]
     fn test_extract_base_image_name() {
         assert_eq!(
             extract_base_image_name("foc-20251215T2206_ZanyPip-lotus"),

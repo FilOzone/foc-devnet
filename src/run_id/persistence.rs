@@ -82,11 +82,15 @@ pub fn delete_current_run_id() -> Result<(), Box<dyn Error>> {
 
 #[cfg(test)]
 mod tests {
+    use crate::paths::TestHome;
+
     use super::*;
 
     #[test]
     fn test_save_and_load_run_id() {
         let test_run_id = "251203-1246-test-wolf";
+        let home = tempfile::TempDir::new().unwrap();
+        let _home = TestHome::new(home.path());
 
         // Save
         save_current_run_id(test_run_id).unwrap();

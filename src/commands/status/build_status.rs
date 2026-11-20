@@ -85,10 +85,15 @@ fn get_binary_version(binary_path: &std::path::Path) -> String {
 
 #[cfg(test)]
 mod tests {
+    use crate::paths::TestHome;
+
     use super::*;
 
     #[test]
     fn test_print_build_status() {
+        let home = tempfile::TempDir::new().unwrap();
+        let _home = TestHome::new(home.path());
+
         // This test mainly verifies that the function doesn't panic
         // In a real scenario, you'd mock the foc_devnet_bin function
         // or set up the environment properly
