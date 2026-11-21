@@ -3,9 +3,9 @@
 //! Handles importing PDP private keys via Curio Web RPC API.
 
 use super::super::step::SetupContext;
-use super::constants::{CURIO_WEB_RPC_PORT, PDP_KEY_IMPORT_WAIT_SECS};
+use super::constants::PDP_KEY_IMPORT_WAIT_SECS;
+use super::web_rpc::WebRpc;
 use crate::commands::init::keys::KeyInfo;
-use crate::docker::command_logger::run_and_log_command;
 use std::error::Error;
 use std::fs;
 use std::thread;
@@ -19,15 +19,15 @@ use tracing::info;
 pub fn import_pdp_key(context: &SetupContext, sp_index: usize) -> Result<(), Box<dyn Error>> {
     info!("Importing PDP private key for PDP SP {}...", sp_index);
 
-    let run_id = context.run_id();
-    let container_name = format!("foc-{}-curio-{}", run_id, sp_index);
+    let rpc = WebRpc::connect(context, sp_index)?;
 
     // Get PDP_SP_{sp_index} private key and expected eth address
     let pdp_sp_name = format!("PDP_SP_{}", sp_index);
     let (private_key, expected_eth_address) = get_pdp_sp_credentials(&pdp_sp_name)?;
 
     // Import key via JSON-RPC
-    let returned_address = import_key_via_rpc(context, &container_name, &private_key)?;
+    let returned_address = rpc.import_pdp_key(&private_key)?;
+    thread::sleep(Duration::from_secs(PDP_KEY_IMPORT_WAIT_SECS));
 
     // Verify the returned address matches expected
     if returned_address.to_lowercase() != expected_eth_address.to_lowercase() {
@@ -68,67 +68,4 @@ fn get_pdp_sp_credentials(pdp_sp_name: &str) -> Result<(String, String), Box<dyn
         .clone();
 
     Ok((pdp_sp.private_key.clone(), eth_address))
-}
-
-/// Import PDP key via Curio Web RPC API
-///
-/// Returns the Ethereum address from the response
-fn import_key_via_rpc(
-    context: &SetupContext,
-    container_name: &str,
-    private_key: &str,
-) -> Result<String, Box<dyn Error>> {
-    // Construct JSON-RPC payload
-    let payload = format!(
-        r#"{{"jsonrpc":"2.0","method":"CurioWeb.ImportPDPKey","params":["{}"],"id":1}}"#,
-        private_key
-    );
-
-    // Call via curl inside container
-    let key = format!("curio_pdp_import_key_{}", container_name);
-    let output = run_and_log_command(
-        "docker",
-        &[
-            "exec",
-            container_name,
-            "curl",
-            "-s",
-            "-X",
-            "POST",
-            "-H",
-            "Content-Type: application/json",
-            "-d",
-            &payload,
-            &format!("http://localhost:{}/api/webrpc/v0", CURIO_WEB_RPC_PORT),
-        ],
-        context,
-        &key,
-    )?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to call ImportPDPKey: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
-
-    // Parse JSON response to extract address
-    let response = String::from_utf8_lossy(&output.stdout);
-    let json: serde_json::Value = serde_json::from_str(&response)?;
-
-    // Check for JSON-RPC error
-    if let Some(error) = json.get("error") {
-        return Err(format!("ImportPDPKey RPC error: {}", error).into());
-    }
-
-    // Extract result (the address)
-    let address = json
-        .get("result")
-        .and_then(|r| r.as_str())
-        .ok_or("Missing or invalid 'result' in response")?;
-
-    thread::sleep(Duration::from_secs(PDP_KEY_IMPORT_WAIT_SECS));
-
-    Ok(address.to_string())
 }
