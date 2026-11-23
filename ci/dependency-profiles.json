@@ -99,7 +99,7 @@
       "npm_package": "@filoz/synapse-sdk",
       "default": {
         "strategy": "npm_version",
-        "version": "3.0.0"
+        "version": "3.0.1"
       },
       "stability": {
         "strategy": "npm_version",
