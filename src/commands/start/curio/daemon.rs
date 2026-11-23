@@ -189,7 +189,11 @@ fn build_docker_create_args(
         "-p".to_string(),
         format!("{}:12301", api_port_alt),
         "-p".to_string(),
-        format!("{}:4701", gui_port),
+        format!(
+            "127.0.0.1:{}:{}",
+            gui_port,
+            super::constants::CURIO_WEB_RPC_PORT
+        ),
         "-p".to_string(),
         format!("{}:4702", pdp_port),
     ]);
