@@ -48,7 +48,7 @@ on:
 
 jobs:
   foc-start-test:
-    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.name }}/env=production/cpu=16/ram=32/family=c6i+c6a+c7i+c7a/image=ubuntu24-full-x64/volume=128gb:gp3
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.name }}/env=production/cpu=8/ram=16/family=c6i+c6a+c7i+c7a/image=ubuntu24-full-x64/volume=64gb:gp3
     timeout-minutes: 100
     permissions:
       contents: read
