@@ -38,6 +38,7 @@ pub fn create_fevm_config(lotus_data_dir: &PathBuf) -> Result<(), Box<dyn Error>
 
 [ChainIndexer]
   EnableIndexer = true
+  GCRetentionEpochs = 0
 "#;
 
     fs::write(&config_path, config_content)?;
